@@ -1515,8 +1515,16 @@ function measureTextBox(text,size,scale){
 }
 
 // ============================================================
-// OPRAVENÁ FUNKCE createMoodboard – POUŽÍVÁ STEJNÝ PRINCIP JAKO addBlankPage
+// MOODBOARD FUNKCE – OPRAVENÁ
 // ============================================================
+function openMoodboardModal() {
+  const modal = document.getElementById('moodboard-modal');
+  if (modal) modal.style.display = 'flex';
+}
+function closeMoodboardModal() {
+  document.getElementById('moodboard-modal').style.display = 'none';
+}
+
 function createMoodboard(layoutType) {
   closeMoodboardModal();
   pushTextHistory();
@@ -1611,7 +1619,7 @@ function createMoodboard(layoutType) {
   scheduleAutosave();
 }
 // ============================================================
-// KONEC OPRAVENÉ FUNKCE
+// KONEC MOODBOARD FUNKCÍ
 // ============================================================
 
 async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
@@ -2154,7 +2162,7 @@ async function renderCurrentPagePreview() {
 
   if (info.isCover) {
     await drawCover(ctx, pageSize.width, pageSize.height, renderScale);
-    // Vykreslíme texty na coveru
+    // Texty na coveru vykreslujeme pouze jednou – zde
     const coverTexts = allPagesTexts[currentPreviewPage] || [];
     if (Array.isArray(coverTexts)) {
       coverTexts.forEach(b => {
@@ -2206,7 +2214,7 @@ async function renderCurrentPagePreview() {
   }
 }
 
-// Pomocné funkce pro vykreslování textů na canvas
+// Pomocné funkce pro vykreslování textů na canvas (pro cover)
 function drawTextOnCanvas(ctx, b, pageSize, scale) {
   ctx.save();
   ctx.font = `${b.size * (96/72) * scale}px "${editorFontFamily}"`;
