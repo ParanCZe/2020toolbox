@@ -85,8 +85,8 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 #moodboard-modal .layout-options button .preview { display:inline-flex; flex-direction:column; gap:2px; flex-shrink:0; }
 #moodboard-modal .layout-options button .preview .row { display:flex; gap:2px; margin:0; }
 #moodboard-modal .layout-options button .preview .cell { width:18px; height:18px; border:1px solid #888; border-radius:2px; background:#e8e8e8; }
-#moodboard-modal .layout-options button .preview .cell.big { width:26px; }
-#moodboard-modal .layout-options button .preview .cell.small { width:10px; }
+#moodboard-modal .layout-options button .preview .cell.big { width:28px; }
+#moodboard-modal .layout-options button .preview .cell.small { width:12px; }
 #moodboard-modal .layout-options button .label { flex:1; }
 #moodboard-modal .layout-options button small { color:var(--muted); font-size:12px; display:block; }
 
@@ -123,54 +123,82 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .custom-text-box.selected .tb-handle{border-color:#dc2626;}
 .custom-text-box .tb-handle:active{cursor:grabbing;}
 
+/* Ovládací prvky – zobrazeny jen při najetí nebo výběru */
 .custom-text-box .tb-controls {
-  display: none; position: absolute; left: calc(100% + 7px); top: 0;
-  gap: 3px; background: #fff; border: 1px solid #d4d4d8; border-radius: 4px;
-  padding: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.12); z-index: 30; white-space: nowrap;
+  display: none;
+  position: absolute;
+  left: calc(100% + 7px);
+  top: 0;
+  gap: 3px;
+  background: #fff;
+  border: 1px solid #d4d4d8;
+  border-radius: 4px;
+  padding: 3px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.12);
+  z-index: 30;
+  white-space: nowrap;
 }
 .custom-text-box:hover .tb-controls,
-.custom-text-box.selected .tb-controls { display: flex; }
+.custom-text-box.selected .tb-controls {
+  display: flex;
+}
 .custom-text-box .tb-controls input {
-  width: 44px !important; padding: 2px 4px !important; font-size: 11px !important;
-  -moz-appearance: textfield; appearance: textfield; border: 1px solid #d4d4d8; border-radius: 4px;
+  width: 44px !important;
+  padding: 2px 4px !important;
+  font-size: 11px !important;
+  -moz-appearance: textfield;
+  appearance: textfield;
+  border: 1px solid #d4d4d8;
+  border-radius: 4px;
 }
 .custom-text-box .tb-controls input::-webkit-inner-spin-button,
-.custom-text-box .tb-controls input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.custom-text-box .tb-controls button {
-  padding: 2px 6px !important; font-size: 12px !important; background: #dc2626;
-  color: #fff; border: none; border-radius: 4px; cursor: pointer; line-height: 1.4;
+.custom-text-box .tb-controls input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
-.custom-text-box .tb-controls button:hover { background: #b91c1c; }
-.custom-text-box .tb-controls .rotate-btn { background: #2563eb; }
-.custom-text-box .tb-controls .rotate-btn:hover { background: #1d4ed8; }
+.custom-text-box .tb-controls button {
+  padding: 2px 6px !important;
+  font-size: 12px !important;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.custom-text-box .tb-controls button:hover {
+  background: #b91c1c;
+}
+.custom-text-box .tb-controls .rotate-btn {
+  background: #2563eb;
+}
+.custom-text-box .tb-controls .rotate-btn:hover {
+  background: #1d4ed8;
+}
 
-/* MOODBOARD CELL OVERLAY */
+/* Moodboard cell overlay */
 .moodboard-cell {
-  position:absolute; z-index:25; pointer-events:auto; cursor:grab;
-  border:1px dashed #a1a1aa; background:#f4f4f5;
+  position:absolute; z-index:25; pointer-events:auto; cursor:default;
+  border:2px solid #18181b; background:rgba(200,200,200,0.15);
   display:flex; align-items:center; justify-content:center;
   overflow:hidden; box-sizing:border-box; user-select:none;
 }
-.moodboard-cell:active { cursor:grabbing; }
 .moodboard-cell .cell-plus {
-  font-size:32px; color:#71717a; font-weight:300; cursor:pointer; z-index:2;
-  background:#ffffff; border:1px solid #cbd5e1; border-radius:50%; width:44px; height:44px;
+  font-size:28px; color:#888; font-weight:300; cursor:pointer; z-index:2;
+  background:rgba(255,255,255,0.7); border-radius:50%; width:40px; height:40px;
   display:flex; align-items:center; justify-content:center;
-  transition:background .15s, color .15s, transform .15s;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  transition:background .15s, color .15s;
 }
-.moodboard-cell .cell-plus:hover { background:#18181b; color:#fff; transform:scale(1.08); }
+.moodboard-cell .cell-plus:hover { background:#fff; color:#18181b; }
 .moodboard-cell .cell-img {
-  position:absolute; top:50%; left:50%;
-  max-width:none; max-height:none;
-  transform-origin: center center;
-  pointer-events:none; display:block;
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none;
+  transition:transform 0.1s; display:block;
 }
 .moodboard-cell .cell-delete {
-  position:absolute; top:6px; right:6px; width:24px; height:24px;
+  position:absolute; top:4px; right:4px; width:22px; height:22px;
   background:#dc2626; color:#fff; border:none; border-radius:50%;
-  font-size:14px; line-height:24px; text-align:center; cursor:pointer; z-index:10;
-  display:none; box-shadow:0 2px 4px rgba(0,0,0,0.3);
+  font-size:14px; line-height:22px; text-align:center; cursor:pointer; z-index:10;
+  display:none; box-shadow:0 1px 4px rgba(0,0,0,0.3);
 }
 .moodboard-cell .cell-delete:hover { background:#b91c1c; }
 .moodboard-cell:hover .cell-delete { display:block; }
@@ -258,6 +286,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
       <span id="st-projects" class="muted" style="margin:0;"></span>
     </div>
 
+    <!-- Alternativní režim pro Safari – import/export ZIP -->
     <div id="zip-import-area">
       <label>📦 Alternativní režim (funguje ve všech prohlížečích):</label>
       <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;">
@@ -333,7 +362,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
         <label style="min-width:150px; padding-top:6px;">Autoři (vyberte kliknutím):</label>
         <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
           <div id="authors-checkbox-container" style="display:flex; flex-wrap:wrap; gap:8px; background:#fff; border:1px solid var(--border); padding:10px; border-radius:6px; max-height:150px; overflow-y:auto;">
-          </div>
+            </div>
           <div style="font-size:12px; color:var(--muted);">Seřazeno dle pořadí kliknutí: <b id="authors-preview-text" style="color:var(--text);">Žádný</b></div>
         </div>
       </div>
@@ -355,6 +384,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 </div></div>
 
+<!-- MODÁLNÍ OKNO PRO VÝBĚR LAYOUTU MOODBOARD -->
 <div id="moodboard-modal">
   <div class="box">
     <h3>Vyberte rozvržení moodboardu</h3>
@@ -401,7 +431,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <button class="action" onclick="addBlankPage()" style="background:#2563eb;">+ Přidat prázdnou stránku</button>
           <button class="action" onclick="openMoodboardModal()" style="background:#8b5cf6;">+ Přidat moodboard</button>
           <button class="action" id="undo-text-btn" onclick="undoTextEdit()" disabled>↶ Zpět</button>
-          <span class="muted" style="margin:0;">(Volný pohyb ve všech směrech)</span>
+          <span class="muted" style="margin:0;">(Volný pohyb ve všech směrech, přichytávání k ostatním prvkům)</span>
         </div>
         <div id="page-indicator" style="font-size:13px; font-weight:bold; color:var(--muted);">Stránka 1 z 1</div>
 
@@ -433,13 +463,13 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
   </div>
 </div>
 
-<input type="file" id="moodboard-file-input" accept="image/jpeg,image/jpg,image/png" style="display:none">
-
 <script>
+// Detekce Safari
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 const isChrome = /chrome/i.test(navigator.userAgent) && /google inc/i.test(navigator.vendor);
 const isEdge = /edg/i.test(navigator.userAgent);
 
+// Zobrazení varování pro Safari
 if (isSafari && !isChrome && !isEdge) {
   document.getElementById('browser-warning').style.display = 'block';
   document.getElementById('zip-import-area').style.display = 'block';
@@ -455,9 +485,6 @@ let textUndoStack = [];
 let selectedBoxEl = null;
 let pendingAutoFocusId = null;
 let editorGlobalHandlersInit = false;
-
-// Moodboard paměť pro uchování nahraných obrázků (DataURL / Blob)
-let moodboardImagesStore = {};
 
 function initEditorGlobalHandlers() {
   if (editorGlobalHandlersInit) return;
@@ -552,8 +579,9 @@ async function getSavedProjectsDirHandle(forcePicker) {
     document.getElementById('zip-import-area').style.display = 'block';
     return null;
   }
+  
   if (!('showDirectoryPicker' in window)) {
-    alert('Tento prohlížeč nepodporuje ukládání projektů do složky.');
+    alert('Tento prohlížeč nepodporuje ukládání projektů do složky (funguje v Chrome nebo Edge, spuštěné přes http://). Zkuste prosím jiný prohlížeč nebo použijte alternativní ZIP režim.');
     document.getElementById('zip-import-area').style.display = 'block';
     return null;
   }
@@ -583,6 +611,7 @@ async function getSavedProjectsDirHandle(forcePicker) {
   }
 }
 
+// ---- ZIP EXPORT/IMPORT pro Safari ----
 function getProjectState() {
   return {
     version: 1,
@@ -603,269 +632,611 @@ async function exportProjectAsZip() {
     alert('Nejprve otevřete nebo vytvořte projekt.');
     return;
   }
+  
   try {
     const state = getProjectState();
     const stateJson = JSON.stringify(state);
+    const stateBlob = new Blob([stateJson], { type: 'application/json' });
     
-    // Přidat fotky z moodboardů do ZIPu
-    let filesInZip = [
+    const zipData = await createSimpleZip([
       { name: 'project.json', data: stateJson },
       { name: 'source.pdf', data: loadedFileBytes || new ArrayBuffer(0) }
-    ];
-
-    for (let key in moodboardImagesStore) {
-      if (moodboardImagesStore[key]) {
-        filesInZip.push({
-          name: key,
-          data: moodboardImagesStore[key] // DataURL
-        });
-      }
-    }
-
-    const zipData = await createSimpleZip(filesInZip);
+    ]);
+    
     const link = document.createElement('a');
     link.href = URL.createObjectURL(zipData);
     link.download = sanitizeProjectName(currentProjectName) + '.zip';
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-  } catch (err) {
-    alert('Chyba při exportu ZIP: ' + err.message);
+  } catch(e) {
+    alert('Chyba při exportu: ' + e.message);
   }
+}
+
+async function importProjectFromZip(files) {
+  if (!files || files.length === 0) return;
+  const file = files[0];
+  try {
+    const zipBytes = await file.arrayBuffer();
+    const entries = await parseZip(zipBytes);
+    const projectJsonEntry = entries.find(e => e.name === 'project.json');
+    const pdfEntry = entries.find(e => e.name === 'source.pdf');
+    
+    if (!projectJsonEntry) {
+      alert('Soubor project.json nebyl v ZIP nalezen.');
+      return;
+    }
+    
+    const state = JSON.parse(new TextDecoder().decode(projectJsonEntry.data));
+    
+    if (pdfEntry && pdfEntry.data.byteLength > 0) {
+      const pdfFile = new File([pdfEntry.data], state.sourceFileName || 'source.pdf', { type: 'application/pdf' });
+      filesData.panel = [pdfFile];
+      loadedFileBytes = pdfEntry.data;
+      pdfJsDoc = await pdfjsLib.getDocument({ data: pdfEntry.data.slice(0) }).promise;
+      document.getElementById('btn-preview').disabled = false;
+      document.getElementById('btn-panel').disabled = false;
+    }
+    
+    applyFormState(state.form);
+    allPagesTexts = state.allPagesTexts || {};
+    customBlankPages = new Set(state.customBlankPages || []);
+    pagePdfIndexMap = state.pagePdfIndexMap || {};
+    textIdCounter = state.textIdCounter || 1;
+    totalPreviewPages = state.totalPreviewPages || 1;
+    defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
+    currentPreviewPage = state.currentPreviewPage || 1;
+    
+    currentProjectName = state.form?.panelTitle || 'importovany-projekt';
+    document.getElementById('current-project-label').textContent = currentProjectName;
+    document.getElementById('st-panel').textContent = `Projekt „${currentProjectName}“ načten ze ZIP`;
+    document.getElementById('list-panel').innerHTML = pdfEntry ? `<div class="item">📄 ${state.sourceFileName || 'source.pdf'}</div>` : '';
+    
+    document.getElementById('menu-view').style.display = 'none';
+    document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+    document.getElementById('tool-panel').classList.add('active');
+    
+    alert('Projekt úspěšně načten ze ZIP!');
+  } catch(e) {
+    alert('Chyba při importu ZIP: ' + e.message);
+  }
+}
+
+async function parseZip(data) {
+  const entries = [];
+  const dv = new DataView(data);
+  let offset = 0;
+  
+  while (offset < data.byteLength - 22) {
+    const sig = dv.getUint32(offset, true);
+    if (sig === 0x04034b50) {
+      const nameLen = dv.getUint16(offset + 26, true);
+      const extraLen = dv.getUint16(offset + 28, true);
+      const compSize = dv.getUint32(offset + 18, true);
+      const nameBytes = new Uint8Array(data, offset + 30, nameLen);
+      const name = new TextDecoder().decode(nameBytes);
+      const dataStart = offset + 30 + nameLen + extraLen;
+      
+      let fileData;
+      if (compSize > 0) {
+        const method = dv.getUint16(offset + 8, true);
+        if (method === 0) {
+          fileData = new Uint8Array(data, dataStart, compSize);
+        } else {
+          fileData = new Uint8Array(0);
+        }
+      } else {
+        fileData = new Uint8Array(0);
+      }
+      
+      entries.push({ name, data: fileData });
+      offset = dataStart + compSize;
+    } else if (sig === 0x06054b50) {
+      break;
+    } else {
+      offset++;
+    }
+  }
+  return entries;
 }
 
 async function createSimpleZip(files) {
-  let entries = [];
-  let offset = 0;
+  const enc = new TextEncoder();
   let parts = [];
-
-  for (let f of files) {
-    let nameBytes = new TextEncoder().encode(f.name);
-    let dataBytes;
-    if (typeof f.data === 'string') {
-      dataBytes = new TextEncoder().encode(f.data);
-    } else if (f.data instanceof ArrayBuffer) {
-      dataBytes = new Uint8Array(f.data);
-    } else {
-      dataBytes = new Uint8Array(0);
-    }
-
-    let header = new Uint8Array(30 + nameBytes.length);
-    let view = new DataView(header.buffer);
-    view.setUint32(0, 0x04034b50, true);
-    view.setUint16(4, 20, true);
-    view.setUint16(6, 0, true);
-    view.setUint16(8, 0, true);
-    view.setUint16(10, 0, true);
-    view.setUint16(12, 0, true);
-    let crc = crc32(dataBytes);
-    view.setUint32(14, crc, true);
-    view.setUint32(18, dataBytes.length, true);
-    view.setUint32(22, dataBytes.length, true);
-    view.setUint16(26, nameBytes.length, true);
-    view.setUint16(28, 0, true);
-    header.set(nameBytes, 30);
-
-    entries.push({ nameBytes, length: dataBytes.length, crc, offset });
-    parts.push(header);
-    parts.push(dataBytes);
-    offset += header.length + dataBytes.length;
+  let central = [];
+  let offset = 0;
+  
+  for (const f of files) {
+    const nameBytes = enc.encode(f.name);
+    const data = typeof f.data === 'string' ? enc.encode(f.data) : new Uint8Array(f.data);
+    const crc = crc32(data);
+    
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    let p = 0;
+    localHeader.set([0x50, 0x4b, 0x03, 0x04], p); p += 4;
+    localHeader.set([0x0a, 0x00], p); p += 2;
+    localHeader.set([0x00, 0x00], p); p += 2;
+    localHeader.set([0x00, 0x00], p); p += 2;
+    localHeader.set([0x00, 0x00], p); p += 2;
+    localHeader.set([0x00, 0x00], p); p += 2;
+    p = writeU32(localHeader, p, crc);
+    p = writeU32(localHeader, p, data.length);
+    p = writeU32(localHeader, p, data.length);
+    p = writeU16(localHeader, p, nameBytes.length);
+    p = writeU16(localHeader, p, 0);
+    localHeader.set(nameBytes, p);
+    
+    parts.push(localHeader);
+    parts.push(data);
+    
+    const centralHeader = new Uint8Array(46 + nameBytes.length);
+    p = 0;
+    centralHeader.set([0x50, 0x4b, 0x01, 0x02], p); p += 4;
+    centralHeader.set([0x0a, 0x00], p); p += 2;
+    centralHeader.set([0x0a, 0x00], p); p += 2;
+    centralHeader.set([0x00, 0x00], p); p += 2;
+    centralHeader.set([0x00, 0x00], p); p += 2;
+    centralHeader.set([0x00, 0x00], p); p += 2;
+    centralHeader.set([0x00, 0x00], p); p += 2;
+    p = writeU32(centralHeader, p, crc);
+    p = writeU32(centralHeader, p, data.length);
+    p = writeU32(centralHeader, p, data.length);
+    p = writeU16(centralHeader, p, nameBytes.length);
+    p = writeU16(centralHeader, p, 0);
+    p = writeU16(centralHeader, p, 0);
+    p = writeU16(centralHeader, p, 0);
+    p = writeU16(centralHeader, p, 0);
+    p = writeU32(centralHeader, p, 0);
+    p = writeU32(centralHeader, p, offset);
+    centralHeader.set(nameBytes, p);
+    central.push(centralHeader);
+    
+    offset += localHeader.length + data.length;
   }
-
-  let cdOffset = offset;
-  let cdSize = 0;
-
-  for (let e of entries) {
-    let cdHeader = new Uint8Array(46 + e.nameBytes.length);
-    let view = new DataView(cdHeader.buffer);
-    view.setUint32(0, 0x02014b50, true);
-    view.setUint16(4, 20, true);
-    view.setUint16(6, 20, true);
-    view.setUint16(8, 0, true);
-    view.setUint16(10, 0, true);
-    view.setUint16(12, 0, true);
-    view.setUint16(14, 0, true);
-    view.setUint32(16, e.crc, true);
-    view.setUint32(20, e.length, true);
-    view.setUint32(24, e.length, true);
-    view.setUint16(28, e.nameBytes.length, true);
-    view.setUint16(30, 0, true);
-    view.setUint16(32, 0, true);
-    view.setUint16(34, 0, true);
-    view.setUint16(36, 0, true);
-    view.setUint32(38, 0, true);
-    view.setUint32(42, e.offset, true);
-    cdHeader.set(e.nameBytes, 46);
-
-    parts.push(cdHeader);
-    cdSize += cdHeader.length;
+  
+  const start = offset;
+  for (const c of central) {
+    parts.push(c);
+    offset += c.length;
   }
-
-  let eocd = new Uint8Array(22);
-  let view = new DataView(eocd.buffer);
-  view.setUint32(0, 0x06054b50, true);
-  view.setUint16(4, 0, true);
-  view.setUint16(6, 0, true);
-  view.setUint16(8, entries.length, true);
-  view.setUint16(10, entries.length, true);
-  view.setUint32(12, cdSize, true);
-  view.setUint32(16, cdOffset, true);
-  view.setUint16(20, 0, true);
-  parts.push(eocd);
-
+  
+  const end = new Uint8Array(22);
+  let p = 0;
+  end.set([0x50, 0x4b, 0x05, 0x06], p); p += 4;
+  end.set([0x00, 0x00], p); p += 2;
+  end.set([0x00, 0x00], p); p += 2;
+  p = writeU16(end, p, files.length);
+  p = writeU16(end, p, files.length);
+  p = writeU32(end, p, offset - start);
+  p = writeU32(end, p, start);
+  end.set([0x00, 0x00], p);
+  parts.push(end);
+  
   return new Blob(parts, { type: 'application/zip' });
 }
 
-function crc32(bytes) {
-  let table = new Uint32Array(256);
+function crc32(data) {
+  let c = 0xffffffff;
+  const table = new Uint32Array(256);
   for (let i = 0; i < 256; i++) {
-    let c = i;
-    for (let k = 0; k < 8; k++) {
-      c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    let crc = i;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 1) ? (0xedb88320 ^ (crc >>> 1)) : (crc >>> 1);
     }
-    table[i] = c;
+    table[i] = crc;
   }
-  let crc = 0xffffffff;
-  for (let i = 0; i < bytes.length; i++) {
-    crc = table[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+  for (let i = 0; i < data.length; i++) {
+    c = table[(c ^ data[i]) & 0xff] ^ (c >>> 8);
   }
-  return (crc ^ 0xffffffff) >>> 0;
+  return c ^ 0xffffffff;
 }
 
-async function importProjectFromZip(fileList) {
-  if (!fileList || fileList.length === 0) return;
-  const file = fileList[0];
+function writeU16(arr, pos, val) {
+  arr[pos] = val & 0xff;
+  arr[pos+1] = (val >>> 8) & 0xff;
+  return pos + 2;
+}
+function writeU32(arr, pos, val) {
+  arr[pos] = val & 0xff;
+  arr[pos+1] = (val >>> 8) & 0xff;
+  arr[pos+2] = (val >>> 16) & 0xff;
+  arr[pos+3] = (val >>> 24) & 0xff;
+  return pos + 4;
+}
+
+// ---- Konec ZIP funkcí ----
+
+async function listProjects() {
+  const dir = await getSavedProjectsDirHandle(false);
+  if (!dir) return [];
+  const names = [];
+  for await (const [name, handle] of dir.entries()) {
+    if (handle.kind === 'directory') names.push(name);
+  }
+  return names.sort((a, b) => a.localeCompare(b, 'cs'));
+}
+
+async function createProject(name) {
+  const dir = await getSavedProjectsDirHandle(false);
+  if (!dir) throw new Error('Složka saved_projects není připojena.');
+  const safeName = sanitizeProjectName(name);
+  if (!safeName) throw new Error('Zadejte název projektu.');
+  return await dir.getDirectoryHandle(safeName, { create: true });
+}
+
+async function openProjectFolder(name) {
+  const dir = await getSavedProjectsDirHandle(false);
+  if (!dir) return null;
+  return await dir.getDirectoryHandle(name, { create: false });
+}
+
+// ------------------------------------------------------------------
+// Funkce pro ukládání a načítání obrázků do/z projektu
+// ------------------------------------------------------------------
+async function saveImageToProject(filename, dataUrl) {
+  if (!currentProjectDirHandle) return null;
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const zipFiles = parseSimpleZip(arrayBuffer);
-
-    const projectJsonFile = zipFiles.find(f => f.name === 'project.json');
-    if (!projectJsonFile) {
-      alert('Neplatný ZIP projekt: chybí project.json');
-      return;
-    }
-
-    const state = JSON.parse(new TextDecoder().decode(projectJsonFile.data));
-    const sourcePdfFile = zipFiles.find(f => f.name === 'source.pdf');
-
-    const projName = file.name.replace(/\.zip$/i, '');
-    currentProjectName = projName;
-    document.getElementById('current-project-label').textContent = projName;
-
-    if (sourcePdfFile && sourcePdfFile.data.byteLength > 0) {
-      loadedFileBytes = sourcePdfFile.data.buffer.slice(sourcePdfFile.data.byteOffset, sourcePdfFile.data.byteOffset + sourcePdfFile.data.byteLength);
-      filesData.panel = [{ name: state.sourceFileName || 'source.pdf', bytes: loadedFileBytes }];
-      updatePanelFileList();
-      await initPdfJsDoc(loadedFileBytes);
-    } else {
-      loadedFileBytes = null;
-      filesData.panel = [];
-      updatePanelFileList();
-      pdfJsDoc = null;
-    }
-
-    // Načtení fotek moodboardu ze ZIPu
-    moodboardImagesStore = {};
-    for (let f of zipFiles) {
-      if (f.name.startsWith('moodboard_')) {
-        let textData = new TextDecoder().decode(f.data);
-        moodboardImagesStore[f.name] = textData;
-      }
-    }
-
-    applyProjectState(state);
-    switchView('tool-panel');
-    alert('Projekt "' + projName + '" byl úspěšně načten.');
-  } catch (err) {
-    alert('Chyba při načítání ZIP projektu: ' + err.message);
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const fileHandle = await currentProjectDirHandle.getFileHandle(filename, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    return filename;
+  } catch(e) {
+    console.warn('Uložení obrázku do projektu selhalo:', e);
+    return null;
   }
 }
 
-function parseSimpleZip(buffer) {
-  let view = new DataView(buffer);
-  let files = [];
-  let offset = 0;
-
-  while (offset < buffer.byteLength - 4) {
-    let sig = view.getUint32(offset, true);
-    if (sig !== 0x04034b50) break;
-
-    let compMethod = view.getUint16(offset + 8, true);
-    let compSize = view.getUint32(offset + 18, true);
-    let uncompSize = view.getUint32(offset + 22, true);
-    let nameLen = view.getUint16(offset + 26, true);
-    let extraLen = view.getUint16(offset + 28, true);
-
-    let nameBytes = new Uint8Array(buffer, offset + 30, nameLen);
-    let name = new TextDecoder().decode(nameBytes);
-    let dataOffset = offset + 30 + nameLen + extraLen;
-    let fileData = new Uint8Array(buffer, dataOffset, compSize);
-
-    files.push({ name, data: fileData });
-    offset = dataOffset + compSize;
+async function loadImageFromProject(filename) {
+  if (!currentProjectDirHandle || !filename) return null;
+  try {
+    const fileHandle = await currentProjectDirHandle.getFileHandle(filename);
+    const file = await fileHandle.getFile();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+  } catch(e) {
+    console.warn('Nepodařilo se načíst obrázek:', filename, e);
+    return null;
   }
-
-  return files;
 }
+// ------------------------------------------------------------------
 
-const AUTHOR_LIST = [
-  "MgA. Josef Tlustý",
-  "MgA. Jakub Hybler",
-  "Ing. arch. Tereza Janoušková",
-  "MgA. Barbora Šidlová",
-  "MgA. Klára Kužvartová",
-  "MgA. Veronika Hrnčiarová",
-  "Bc. Matúš Burian"
+const availableAuthors = [
+  "Zdeněk Rychtařík",
+  "Kristina Sudreová",
+  "Pavel Marek",
+  "Martin Šafránek",
+  "Tomáš Maceška",
+  "Šimon Matějovský",
+  "Vojtěch Lstibůrek",
+  "Petr Hora",
+  "Jan Hřebíček",
+  "Jakub Nesládek",
+  "Filip Turek",
+  "Adam Balda",
+  "Timea Wagner",
+  "Anna Šrámková"
 ];
-let selectedAuthorsOrder = [];
+let selectedAuthorsOrder = [
+  "Zdeněk Rychtařík",
+  "Kristina Sudreová",
+  "Filip Turek"
+];
 
 function initAuthorsUI() {
   const container = document.getElementById('authors-checkbox-container');
-  if(!container) return;
+  if (!container) return;
   container.innerHTML = '';
-  
-  AUTHOR_LIST.forEach((author, idx) => {
+  availableAuthors.forEach(name => {
+    const isChecked = selectedAuthorsOrder.includes(name);
     const label = document.createElement('label');
-    label.style.display = 'flex';
-    label.style.alignItems = 'center';
-    label.style.gap = '6px';
-    label.style.fontSize = '12px';
-    label.style.cursor = 'pointer';
-    label.style.userSelect = 'none';
-    label.style.background = '#fafafa';
-    label.style.border = '1px solid var(--border)';
-    label.style.padding = '4px 8px';
-    label.style.borderRadius = '4px';
-
-    const chk = document.createElement('input');
-    chk.type = 'checkbox';
-    chk.value = author;
-    chk.id = 'auth-chk-' + idx;
+    label.style.cssText = "display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; background:#f4f4f5; padding:4px 8px; border-radius:4px; border:1px solid var(--border);";
     
-    chk.addEventListener('change', () => {
-      if(chk.checked) {
-        if(!selectedAuthorsOrder.includes(author)) selectedAuthorsOrder.push(author);
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = name;
+    cb.checked = isChecked;
+    cb.addEventListener('change', () => {
+      if (cb.checked) {
+        if (!selectedAuthorsOrder.includes(name)) selectedAuthorsOrder.push(name);
       } else {
-        selectedAuthorsOrder = selectedAuthorsOrder.filter(a => a !== author);
+        selectedAuthorsOrder = selectedAuthorsOrder.filter(n => n !== name);
       }
       updateAuthorsPreviewText();
       scheduleAutosave();
     });
 
-    label.appendChild(chk);
-    label.appendChild(document.createTextNode(author));
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(name));
     container.appendChild(label);
   });
   updateAuthorsPreviewText();
 }
 
 function updateAuthorsPreviewText() {
-  const textEl = document.getElementById('authors-preview-text');
-  if(!textEl) return;
-  if(selectedAuthorsOrder.length === 0) {
-    textEl.textContent = 'Žádný';
-  } else {
-    textEl.textContent = selectedAuthorsOrder.join(', ');
+  const prev = document.getElementById('authors-preview-text');
+  if (prev) {
+    prev.textContent = selectedAuthorsOrder.length > 0 ? selectedAuthorsOrder.join(', ') : 'Žádný';
   }
+}
+
+function getSelectedAuthorsString() {
+  return selectedAuthorsOrder.join('\n');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  initAuthorsUI();
+});
+
+function collectFormState() {
+  return {
+    createCover: document.getElementById('createCover').checked,
+    panelType: document.getElementById('panelType').value,
+    panelCustomType: document.getElementById('panelCustomType').value,
+    panelTitle: document.getElementById('panelTitle').value,
+    panelDate: document.getElementById('panelDate').value,
+    selectedAuthorsOrder: selectedAuthorsOrder.slice()
+  };
+}
+function applyFormState(s) {
+  if (!s) { initAuthorsUI(); return; }
+  document.getElementById('createCover').checked = !!s.createCover;
+  document.getElementById('panelType').value = s.panelType || 'Návrh interiéru';
+  handleProjectTypeChange(document.getElementById('panelType').value);
+  document.getElementById('panelCustomType').value = s.panelCustomType || '';
+  document.getElementById('panelTitle').value = s.panelTitle || '';
+  if (s.panelDate) document.getElementById('panelDate').value = s.panelDate;
+  selectedAuthorsOrder = Array.isArray(s.selectedAuthorsOrder) ? s.selectedAuthorsOrder.slice() : [];
+  initAuthorsUI();
+}
+
+async function saveProjectState() {
+  if (!currentProjectDirHandle) return;
+  const state = {
+    version: 1,
+    sourceFileName: filesData.panel[0] ? filesData.panel[0].name : null,
+    form: collectFormState(),
+    allPagesTexts: allPagesTexts,
+    customBlankPages: Array.from(customBlankPages),
+    pagePdfIndexMap: pagePdfIndexMap,
+    textIdCounter: textIdCounter,
+    totalPreviewPages: totalPreviewPages,
+    defaultCoverLayoutInitialized: defaultCoverLayoutInitialized,
+    currentPreviewPage: currentPreviewPage
+  };
+  const fh = await currentProjectDirHandle.getFileHandle('project.json', { create: true });
+  const w = await fh.createWritable();
+  await w.write(JSON.stringify(state));
+  await w.close();
+}
+
+async function savePdfIntoProject(bytes) {
+  if (!currentProjectDirHandle) return;
+  const fh = await currentProjectDirHandle.getFileHandle('source.pdf', { create: true });
+  const w = await fh.createWritable();
+  await w.write(bytes);
+  await w.close();
+}
+
+function scheduleAutosave() {
+  if (!currentProjectDirHandle) return;
+  clearTimeout(projectAutosaveTimer);
+  projectAutosaveTimer = setTimeout(() => {
+    saveProjectState().catch(e => console.warn('Automatické uložení projektu selhalo', e));
+  }, 800);
+}
+
+async function openPanelProjects() {
+  document.getElementById('menu-view').style.display = 'none';
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('tool-panel-projects').classList.add('active');
+  await refreshProjectsList(false);
+}
+
+async function refreshProjectsList(forcePicker) {
+  const status = document.getElementById('st-projects');
+  const grid = document.getElementById('projects-grid');
+  status.textContent = 'Načítám…';
+  grid.innerHTML = '';
+  const dir = await getSavedProjectsDirHandle(forcePicker);
+  if (!dir) {
+    status.textContent = 'Složka „saved_projects“ není připojena. Klikněte na „Připojit / obnovit složku“ nebo použijte ZIP režim.';
+    return;
+  }
+  const names = await listProjects();
+  status.textContent = names.length ? `${names.length} projekt(ů)` : 'Zatím žádné projekty — založte první.';
+  grid.innerHTML = names.map(n =>
+    `<div class="tile" onclick="loadProject('${n.replace(/'/g, "\\'")}')"><b>${n}</b><span>Otevřít projekt</span></div>`
+  ).join('');
+}
+
+function handleNewProjectClick() {
+  document.getElementById('new-project-name').value = '';
+  document.getElementById('new-project-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('new-project-name').focus(), 50);
+}
+function closeNewProjectModal() {
+  document.getElementById('new-project-modal').style.display = 'none';
+}
+async function confirmNewProject() {
+  const name = document.getElementById('new-project-name').value.trim();
+  if (!name) { alert('Zadejte název projektu.'); return; }
+  try {
+    await createProject(name);
+    closeNewProjectModal();
+    await loadProject(sanitizeProjectName(name));
+  } catch (e) {
+    alert('Nepodařilo se založit projekt: ' + e.message);
+  }
+}
+
+function backToProjectsList() {
+  saveCurrentPageBoxes();
+  saveProjectState().catch(() => {});
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('tool-panel-projects').classList.add('active');
+  refreshProjectsList(false);
+}
+
+async function loadProject(name) {
+  const dir = await openProjectFolder(name);
+  if (!dir) { alert('Projekt se nepodařilo otevřít.'); return; }
+  currentProjectDirHandle = dir;
+  currentProjectName = name;
+
+  let state = null;
+  try {
+    const fh = await dir.getFileHandle('project.json');
+    const file = await fh.getFile();
+    state = JSON.parse(await file.text());
+  } catch (e) { state = null; }
+
+  let pdfFile = null;
+  try {
+    const pfh = await dir.getFileHandle('source.pdf');
+    pdfFile = await pfh.getFile();
+  } catch (e) { pdfFile = null; }
+
+  allPagesTexts = {};
+  customBlankPages = new Set();
+  pagePdfIndexMap = {};
+  textIdCounter = 1;
+  textUndoStack = [];
+  defaultCoverLayoutInitialized = false;
+  totalPreviewPages = 1;
+  currentPreviewPage = 1;
+  pendingResumePage = null;
+  filesData.panel = [];
+  loadedFileBytes = null;
+  pdfJsDoc = null;
+  updateUndoButton();
+
+  if (state) {
+    applyFormState(state.form);
+    allPagesTexts = state.allPagesTexts || {};
+    customBlankPages = new Set(state.customBlankPages || []);
+    pagePdfIndexMap = state.pagePdfIndexMap || {};
+    textIdCounter = state.textIdCounter || 1;
+    defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
+    pendingResumePage = state.currentPreviewPage || 1;
+    
+    // Pro každou moodboard stránku načteme obrázky ze složky
+    for (let p in allPagesTexts) {
+      const page = allPagesTexts[p];
+      if (page && page.type === 'moodboard' && page.cells) {
+        for (let cell of page.cells) {
+          if (cell.imageRef) {
+            const dataUrl = await loadImageFromProject(cell.imageRef);
+            if (dataUrl) cell.imageData = dataUrl;
+            else cell.imageData = null;
+          }
+        }
+      }
+    }
+    // Oprava orientace čar
+    for (let p in allPagesTexts) {
+      const page = allPagesTexts[p];
+      if (Array.isArray(page)) {
+        page.forEach(b => {
+          if (b.type === 'line' && !b.orientation) b.orientation = 'vertical';
+        });
+      }
+    }
+  } else {
+    initAuthorsUI();
+  }
+
+  if (pdfFile) {
+    const displayName = (state && state.sourceFileName) || pdfFile.name;
+    const namedFile = new File([await pdfFile.arrayBuffer()], displayName, { type: 'application/pdf' });
+    filesData.panel = [namedFile];
+    document.getElementById('list-panel').innerHTML =
+      `<div class="item">📄 ${namedFile.name} (${(namedFile.size / 1024).toFixed(1)} KB)</div>`;
+    loadedFileBytes = await namedFile.arrayBuffer();
+    pdfJsDoc = await pdfjsLib.getDocument({ data: loadedFileBytes.slice(0) }).promise;
+    totalPreviewPages = (state && state.totalPreviewPages)
+      ? state.totalPreviewPages
+      : (pdfJsDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0) + customBlankPages.size);
+    ensurePagePdfIndexMap();
+    document.getElementById('btn-preview').disabled = false;
+    document.getElementById('btn-panel').disabled = false;
+    document.getElementById('st-panel').textContent = `Projekt „${name}“ načten`;
+  } else {
+    document.getElementById('list-panel').innerHTML = '';
+    document.getElementById('btn-preview').disabled = true;
+    document.getElementById('btn-panel').disabled = true;
+    document.getElementById('st-panel').textContent = `Projekt „${name}“ — zatím bez nahraného PDF`;
+  }
+
+  document.getElementById('current-project-label').textContent = name;
+  document.getElementById('menu-view').style.display = 'none';
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('tool-panel').classList.add('active');
+  setupDropZone('panel');
+}
+
+async function loadOrReplacePdfInProject(file) {
+  const newBytes = await file.arrayBuffer();
+  const newDoc = await pdfjsLib.getDocument({ data: newBytes.slice(0) }).promise;
+  const oldNumPages = pdfJsDoc ? pdfJsDoc.numPages : 0;
+
+  loadedFileBytes = newBytes;
+  pdfJsDoc = newDoc;
+  textUndoStack = [];
+  updateUndoButton();
+
+  if (oldNumPages === 0) {
+    totalPreviewPages = newDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0) + customBlankPages.size;
+    pagePdfIndexMap = {};
+    ensurePagePdfIndexMap();
+  } else {
+    const records = buildPageRecords();
+    const pdfPositions = [];
+    records.forEach((rec, idx) => { if (rec.type === 'pdf') pdfPositions.push(idx); });
+
+    pdfPositions.forEach((idx, i) => {
+      if (i < newDoc.numPages) records[idx].pdfIndex = i;
+    });
+    if (pdfPositions.length > newDoc.numPages) {
+      let toRemove = pdfPositions.length - newDoc.numPages;
+      for (let i = pdfPositions.length - 1; i >= 0 && toRemove > 0; i--) {
+        records.splice(pdfPositions[i], 1);
+        toRemove--;
+      }
+    } else if (pdfPositions.length < newDoc.numPages) {
+      for (let i = pdfPositions.length; i < newDoc.numPages; i++) {
+        records.push({ type: 'pdf', pdfIndex: i, texts: [] });
+      }
+    }
+    applyPageRecords(records);
+  }
+  if (currentPreviewPage > totalPreviewPages) currentPreviewPage = totalPreviewPages;
+  if (currentPreviewPage < 1) currentPreviewPage = 1;
+
+  if (currentProjectDirHandle) {
+    try {
+      await savePdfIntoProject(newBytes.slice(0));
+      await saveProjectState();
+    } catch (e) { console.warn('Uložení PDF do projektu selhalo', e); }
+  }
+  document.getElementById('st-panel').textContent = `PDF „${file.name}“ nahráno`;
+}
+
+function openTool(name) {
+  document.getElementById('menu-view').style.display = 'none';
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('tool-' + name).classList.add('active');
+  setupDropZone(name);
+}
+function closeTool() {
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('menu-view').style.display = 'block';
 }
 
 function handleProjectTypeChange(val) {
@@ -877,382 +1248,281 @@ function handleProjectTypeChange(val) {
   }
 }
 
-function collectFormState() {
-  return {
-    createCover: document.getElementById('createCover').checked,
-    panelType: document.getElementById('panelType').value,
-    panelCustomType: document.getElementById('panelCustomType').value,
-    panelTitle: document.getElementById('panelTitle').value,
-    panelDate: document.getElementById('panelDate').value,
-    selectedAuthorsOrder: [...selectedAuthorsOrder]
-  };
+function getActiveProjectType() {
+  const typeSelect = document.getElementById('panelType').value;
+  return typeSelect === 'vlastní' ? document.getElementById('panelCustomType').value.trim() : typeSelect;
 }
 
-function restoreFormState(form) {
-  if(!form) return;
-  if(form.createCover !== undefined) document.getElementById('createCover').checked = form.createCover;
-  if(form.panelType !== undefined) {
-    document.getElementById('panelType').value = form.panelType;
-    handleProjectTypeChange(form.panelType);
-  }
-  if(form.panelCustomType !== undefined) document.getElementById('panelCustomType').value = form.panelCustomType;
-  if(form.panelTitle !== undefined) document.getElementById('panelTitle').value = form.panelTitle;
-  if(form.panelDate !== undefined) document.getElementById('panelDate').value = form.panelDate;
-  if(Array.isArray(form.selectedAuthorsOrder)) {
-    selectedAuthorsOrder = [...form.selectedAuthorsOrder];
-    AUTHOR_LIST.forEach((author, idx) => {
-      const chk = document.getElementById('auth-chk-' + idx);
-      if(chk) chk.checked = selectedAuthorsOrder.includes(author);
-    });
-    updateAuthorsPreviewText();
-  }
+function setupDropZone(type) {
+  const dropZone = document.getElementById('drop-' + type);
+  if (!dropZone || dropZone.dataset.init) return;
+  dropZone.dataset.init = "true";
+  ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('over'); }));
+  dropZone.addEventListener('drop', ev => {
+    if (ev.dataTransfer && ev.dataTransfer.files) handleFiles(ev.dataTransfer.files, type);
+  });
 }
 
-async function refreshProjectsList(openPickerIfNoHandle) {
-  const grid = document.getElementById('projects-grid');
-  const st = document.getElementById('st-projects');
-  grid.innerHTML = '';
-  st.textContent = 'Načítám projekty...';
-
-  const dir = await getSavedProjectsDirHandle(openPickerIfNoHandle);
-  if (!dir) {
-    st.textContent = 'Složka nepřípojena.';
-    return;
-  }
-
-  let projects = [];
-  try {
-    for await (const entry of dir.values()) {
-      if (entry.kind === 'directory') {
-        projects.push(entry.name);
-      }
+function handleFiles(files, type) {
+  filesData[type] = Array.from(files).filter(f => /\.pdf$/i.test(f.name));
+  
+  if(type === 'pdfa') {
+    document.getElementById('list-pdfa').innerHTML = filesData[type].map((f, i) => 
+      `<div class="item" id="i${i}">⏳ ${f.name} — čeká</div>`
+    ).join('');
+    document.getElementById('btn-pdfa').disabled = !filesData[type].length;
+    document.getElementById('st-pdfa').textContent = filesData[type].length ? `${filesData[type].length} souborů připraveno` : 'Žádné soubory';
+  } else {
+    document.getElementById('list-' + type).innerHTML = filesData[type].map(f => `<div class="item">📄 ${f.name} (${(f.size/1024).toFixed(1)} KB)</div>`).join('');
+    if(type === 'panel') {
+      const hasFiles = filesData[type].length > 0;
+      document.getElementById('btn-preview').disabled = !hasFiles;
+      document.getElementById('btn-panel').disabled = !hasFiles;
+      if(hasFiles) loadOrReplacePdfInProject(filesData[type][0]);
     }
-  } catch(e) {
-    console.error(e);
-    st.textContent = 'Chyba při čtení složky.';
-    return;
-  }
-
-  projects.sort((a,b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
-  st.textContent = `Nalezeno projektů: ${projects.length}`;
-
-  if (projects.length === 0) {
-    grid.innerHTML = '<div class="muted" style="grid-column:1/-1;">Žádné projekty. Vytvořte nový tlačítkem výše.</div>';
-    return;
-  }
-
-  for (const name of projects) {
-    const tile = document.createElement('div');
-    tile.className = 'tile';
-    tile.onclick = () => openProject(name);
-    tile.innerHTML = `<b>📁 ${escapeHtml(name)}</b><span>Kliknutím otevřete projekt</span>`;
-    grid.appendChild(tile);
+    document.getElementById('st-' + type).textContent = `${filesData[type].length} souborů připraveno`;
   }
 }
 
-function handleNewProjectClick() {
-  document.getElementById('new-project-name').value = '';
-  document.getElementById('new-project-modal').style.display = 'flex';
-  setTimeout(() => document.getElementById('new-project-name').focus(), 50);
-}
-function closeNewProjectModal() {
-  document.getElementById('new-project-modal').style.display = 'none';
+function removeDiacritics(str) {
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-async function confirmNewProject() {
-  const nameInput = document.getElementById('new-project-name');
-  const name = sanitizeProjectName(nameInput.value);
-  if (!name) { alert('Zadejte název projektu.'); return; }
-
-  closeNewProjectModal();
-
-  if (isSafari && !isChrome && !isEdge) {
-    currentProjectName = name;
-    currentProjectDirHandle = null;
-    document.getElementById('current-project-label').textContent = name;
-    filesData.panel = [];
-    loadedFileBytes = null;
-    pdfJsDoc = null;
-    updatePanelFileList();
-    allPagesTexts = {};
-    customBlankPages.clear();
-    pagePdfIndexMap = {};
-    textIdCounter = 1;
-    totalPreviewPages = 1;
-    defaultCoverLayoutInitialized = false;
-    currentPreviewPage = 1;
-    moodboardImagesStore = {};
-
-    switchView('tool-panel');
-    return;
+function createZip(files) {
+  const enc = new TextEncoder(); let parts = [], central = [], offset = 0;
+  const crcTable = (() => { let t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
+  const crc32 = a => { let c = 0xffffffff; for (const x of a) c = crcTable[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const u16 = n => new Uint8Array([n & 255, n >>> 8 & 255]), u32 = n => new Uint8Array([n & 255, n >>> 8 & 255, n >>> 16 & 255, n >>> 24 & 255]);
+  
+  for (const f of files) {
+    const nb = enc.encode(f.name), data = f.bytes, crc = crc32(data);
+    const local = new Uint8Array(30 + nb.length); let p = 0;
+    local.set([80,75,3,4], p); p += 4; local.set(u16(20), p); p += 2; local.set(u16(0), p); p += 2; local.set(u16(0), p); p += 2; local.set(u16(0), p); p += 2; local.set(u16(0), p); p += 2; local.set(u32(crc), p); p += 4; local.set(u32(data.length), p); p += 4; local.set(u32(data.length), p); p += 4; local.set(u16(nb.length), p); p += 2; local.set(u16(0), p); p += 2; local.set(nb, p);
+    parts.push(local, data);
+    const c = new Uint8Array(46 + nb.length); p = 0; c.set([80,75,1,2], p); p += 4; c.set(u16(20), p); p += 2; c.set(u16(20), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u32(crc), p); p += 4; c.set(u32(data.length), p); p += 4; c.set(u32(data.length), p); p += 4; c.set(u16(nb.length), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u32(0), p); p += 4; c.set(u32(offset), p); p += 4; c.set(nb, p); central.push(c); offset += local.length + data.length;
   }
-
-  const parentDir = await getSavedProjectsDirHandle(true);
-  if (!parentDir) return;
-
-  try {
-    const projDir = await parentDir.getDirectoryHandle(name, { create: true });
-    currentProjectName = name;
-    currentProjectDirHandle = projDir;
-    document.getElementById('current-project-label').textContent = name;
-
-    filesData.panel = [];
-    loadedFileBytes = null;
-    pdfJsDoc = null;
-    updatePanelFileList();
-    allPagesTexts = {};
-    customBlankPages.clear();
-    pagePdfIndexMap = {};
-    textIdCounter = 1;
-    totalPreviewPages = 1;
-    defaultCoverLayoutInitialized = false;
-    currentPreviewPage = 1;
-    moodboardImagesStore = {};
-
-    await saveCurrentProjectToDir();
-    switchView('tool-panel');
-  } catch(e) {
-    alert('Chyba při zakládání projektu: ' + e.message);
-  }
+  const start = offset; for (const c of central) { parts.push(c); offset += c.length; }
+  const e = new Uint8Array(22); let p = 0; e.set([80,75,5,6], p); p += 4; e.set(u16(0), p); p += 2; e.set(u16(0), p); p += 2; e.set(u16(files.length), p); p += 2; e.set(u16(files.length), p); p += 2; e.set(u32(offset - start), p); p += 4; e.set(u32(start), p); p += 4; e.set(u16(0), p);
+  parts.push(e);
+  return new Blob(parts, { type: 'application/zip' });
 }
 
-async function openProject(name) {
-  const parentDir = await getSavedProjectsDirHandle(false);
-  if (!parentDir) return;
-  try {
-    const projDir = await parentDir.getDirectoryHandle(name, { create: false });
-    currentProjectName = name;
-    currentProjectDirHandle = projDir;
-    document.getElementById('current-project-label').textContent = name;
+// ============================================================
+// FUNKCE PRO KONVERZI DO PDF/A
+// ============================================================
+async function startConversion() {
+  if (!filesData.pdfa.length) return;
+  document.getElementById('btn-pdfa').disabled = true;
+  const { PDFDocument, PDFName } = PDFLib;
+  const version = document.getElementById('pdfaVersion').value;
+  let outputs = [];
 
-    let state = null;
+  for (let i = 0; i < filesData.pdfa.length; i++) {
+    const el = document.getElementById(`i${i}`);
     try {
-      const stateFile = await projDir.getFileHandle('project.json');
-      const file = await stateFile.getFile();
-      const text = await file.text();
-      state = JSON.parse(text);
-    } catch(e) { console.warn('project.json nenalezen nebo je poškozen', e); }
-
-    let pdfBytes = null;
-    let pdfName = state && state.sourceFileName ? state.sourceFileName : null;
-    if (pdfName) {
-      try {
-        const pdfHandle = await projDir.getFileHandle(pdfName);
-        const file = await pdfHandle.getFile();
-        pdfBytes = await file.arrayBuffer();
-      } catch(e) { console.warn('Zdrojový PDF soubor nenalezen', e); }
-    }
-
-    if (pdfBytes) {
-      loadedFileBytes = pdfBytes;
-      filesData.panel = [{ name: pdfName, bytes: pdfBytes }];
-      updatePanelFileList();
-      await initPdfJsDoc(pdfBytes);
-    } else {
-      loadedFileBytes = null;
-      filesData.panel = [];
-      updatePanelFileList();
-      pdfJsDoc = null;
-    }
-
-    // Načíst uložené obrázky pro moodboard
-    moodboardImagesStore = {};
-    try {
-      for await (const entry of projDir.values()) {
-        if (entry.kind === 'file' && entry.name.startsWith('moodboard_')) {
-          const f = await entry.getFile();
-          const txt = await f.text();
-          moodboardImagesStore[entry.name] = txt;
+      el.textContent = `⏳ ${filesData.pdfa[i].name} — zpracovávám...`;
+      const arrayBuffer = await filesData.pdfa[i].arrayBuffer();
+      
+      const pdfDoc = await PDFDocument.load(arrayBuffer, { 
+        ignoreEncryption: true,
+        updateMetadata: false
+      });
+      
+      // Pokus o vložení fontů – alespoň nastavíme správné příznaky
+      const pages = pdfDoc.getPages();
+      for (const page of pages) {
+        const node = page.node;
+        if (!node.has(PDFName.of('Resources'))) continue;
+        const resources = node.lookup(PDFName.of('Resources'));
+        if (!resources || !resources.has(PDFName.of('Font'))) continue;
+        const fonts = resources.lookup(PDFName.of('Font'));
+        if (!fonts || !fonts.dict) continue;
+        for (const fontKey of fonts.keys()) {
+          const fontObj = fonts.lookup(fontKey);
+          if (!fontObj || !fontObj.dict) continue;
+          // Kontrola a případné doplnění FontDescriptor – PDF-lib to neumí přímo
         }
       }
-    } catch(e) { console.warn('Chyba při načítání fotek moodboardu ze složky', e); }
 
-    if (state) {
-      applyProjectState(state);
+      // XMP metadata
+      const xmpdata = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">
+   <pdfaid:part>${version}</pdfaid:part>
+   <pdfaid:conformance>B</pdfaid:conformance>
+  </rdf:Description>
+  <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
+   <dc:title>
+    <rdf:Alt>
+     <rdf:li xml:lang="x-default">${filesData.pdfa[i].name.replace(/\.pdf$/i, '')}</rdf:li>
+    </rdf:Alt>
+   </dc:title>
+  </rdf:Description>
+  <rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
+   <pdf:Producer>PDF/A-${version}b Converter (20-20-TOOLBOX)</pdf:Producer>
+  </rdf:Description>
+  <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+   <xmp:CreatorTool>20-20-TOOLBOX PDF/A Converter</xmp:CreatorTool>
+   <xmp:CreateDate>${new Date().toISOString()}</xmp:CreateDate>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`;
+
+      const catalog = pdfDoc.catalog;
+      const metadataStream = pdfDoc.context.flateStream(xmpdata);
+      metadataStream.dict.set(PDFName.of('Type'), PDFName.of('Metadata'));
+      metadataStream.dict.set(PDFName.of('Subtype'), PDFName.of('XML'));
+      const metadataRef = pdfDoc.context.register(metadataStream);
+      catalog.set(PDFName.of('Metadata'), metadataRef);
+      
+      const idArray = pdfDoc.context.obj([
+        pdfDoc.context.obj(''), 
+        pdfDoc.context.obj('')
+      ]);
+      catalog.set(PDFName.of('ID'), idArray);
+      
+      pdfDoc.setProducer(`PDF/A-${version}b Converter (20-20-TOOLBOX)`);
+      pdfDoc.setCreator('20-20-TOOLBOX PDF/A Converter');
+      
+      const pdfBytes = await pdfDoc.save({
+        useObjectStreams: true,
+        addDefaultPage: false,
+        objectsPerTick: 100
+      });
+      
+      let baseName = filesData.pdfa[i].name.replace(/\.pdf$/i, '');
+      baseName = removeDiacritics(baseName);
+      const outName = baseName + '_EAR.pdf';
+      
+      outputs.push({ name: outName, bytes: pdfBytes });
+
+      el.className = 'item ok';
+      el.textContent = `✓ ${filesData.pdfa[i].name} — Hotovo (PDF/A-${version}b)`;
+      
+    } catch (err) {
+      el.className = 'item err';
+      el.textContent = `✗ ${filesData.pdfa[i].name} — Chyba: ${err.message}`;
+      console.error('Chyba konverze:', err);
+    }
+    document.getElementById('fill-pdfa').style.width = ((i + 1) / filesData.pdfa.length * 100) + '%';
+  }
+
+  if (outputs.length > 0) {
+    if (outputs.length === 1) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([outputs[0].bytes], { type: 'application/pdf' }));
+      link.download = outputs[0].name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      document.getElementById('st-pdfa').textContent = 'Hotovo! Soubor stažen.';
     } else {
-      allPagesTexts = {};
-      customBlankPages.clear();
-      pagePdfIndexMap = {};
-      textIdCounter = 1;
-      totalPreviewPages = 1;
-      defaultCoverLayoutInitialized = false;
-      currentPreviewPage = 1;
+      const zipBlob = createZip(outputs);
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = `PDF-A-${document.getElementById('pdfaVersion').value}b_vysledky.zip`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      document.getElementById('st-pdfa').textContent = 'Hotovo! Vše uloženo v ZIP archivu.';
     }
-
-    switchView('tool-panel');
-  } catch(e) {
-    alert('Chyba při otevírání projektu: ' + e.message);
+  } else {
+    document.getElementById('st-pdfa').textContent = 'Žádné soubory se nepodařilo převést.';
   }
+  document.getElementById('btn-pdfa').disabled = false;
 }
 
-function applyProjectState(state) {
-  restoreFormState(state.form);
-  allPagesTexts = state.allPagesTexts || {};
-  customBlankPages = new Set(state.customBlankPages || []);
-  pagePdfIndexMap = state.pagePdfIndexMap || {};
-  textIdCounter = state.textIdCounter || 1;
-  totalPreviewPages = state.totalPreviewPages || 1;
-  defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
-  currentPreviewPage = state.currentPreviewPage || 1;
-}
+let editorFontReady = false;
+let editorFontFamily = 'Antarctican Mono';
 
-function scheduleAutosave() {
-  if (!currentProjectDirHandle) return;
-  if (projectAutosaveTimer) clearTimeout(projectAutosaveTimer);
-  projectAutosaveTimer = setTimeout(() => {
-    saveCurrentProjectToDir().catch(e => console.error('Autosave failed', e));
-  }, 300);
-}
-
-async function saveCurrentProjectToDir() {
-  if (!currentProjectDirHandle) return;
-  const state = getProjectState();
-
-  const stateFile = await currentProjectDirHandle.getFileHandle('project.json', { create: true });
-  const writable = await stateFile.createWritable();
-  await writable.write(JSON.stringify(state, null, 2));
-  await writable.close();
-
-  if (filesData.panel[0] && filesData.panel[0].bytes) {
-    const pdfName = filesData.panel[0].name;
-    const pdfFile = await currentProjectDirHandle.getFileHandle(pdfName, { create: true });
-    const pdfWritable = await pdfFile.createWritable();
-    await pdfWritable.write(filesData.panel[0].bytes);
-    await pdfWritable.close();
-  }
-
-  // Uložit moodboard obrázky
-  for (let key in moodboardImagesStore) {
-    if (moodboardImagesStore[key]) {
-      const imgFile = await currentProjectDirHandle.getFileHandle(key, { create: true });
-      const imgWritable = await imgFile.createWritable();
-      await imgWritable.write(moodboardImagesStore[key]);
-      await imgWritable.close();
-    }
-  }
-}
-
-function backToProjectsList() {
-  scheduleAutosave();
-  switchView('tool-panel-projects');
-  refreshProjectsList(false);
-}
-
-function openPanelProjects() {
-  switchView('tool-panel-projects');
-  refreshProjectsList(false);
-}
-
-function escapeHtml(str) {
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-async function loadFontAndLogo() {
+async function loadEditorAssets() {
   if (!fontBytesCache) {
-    const fontRes = await fetch('https://fonts.gstatic.com/s/firasans/v17/va9E4kDNxMZdWfMOD5Vvl4jL.ttf');
-    fontBytesCache = await fontRes.arrayBuffer();
+    try {
+      fontBytesCache = await fetch('font/Dunwich Type Founders - Antarctican Mono Semibold.otf').then(r => {
+        if (!r.ok) throw new Error('Font nebyl nalezen');
+        return r.arrayBuffer();
+      });
+      const blob = new Blob([fontBytesCache], {type:'font/otf'});
+      const url = URL.createObjectURL(blob);
+      const face = new FontFace('20-20-Editor', `url(${url})`);
+      await face.load();
+      document.fonts.add(face);
+      editorFontFamily = '20-20-Editor';
+      editorFontReady = true;
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      console.warn('Lokální font se nepodařilo načíst:', e);
+    }
   }
   if (!logoBytesCache) {
-    const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100" viewBox="0 0 300 100">
-      <rect width="300" height="100" fill="#f7f197"/>
-      <text x="150" y="65" font-family="sans-serif" font-size="42" font-weight="bold" fill="#18181b" text-anchor="middle">20-20</text>
-    </svg>`;
-    logoBytesCache = new TextEncoder().encode(svgStr);
+    try {
+      logoBytesCache = await fetch('2020.png').then(r => {
+        if (!r.ok) throw new Error('Logo nebylo nalezeno');
+        return r.arrayBuffer();
+      });
+    } catch(e) { console.warn('Logo se nepodařilo načíst:', e); }
   }
 }
 
-function switchView(id) {
-  document.getElementById('menu-view').style.display = id === 'menu-view' ? 'block' : 'none';
-  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
-  if (id !== 'menu-view') {
-    const tool = document.getElementById(id);
-    if (tool) tool.classList.add('active');
+function updateUndoButton(){
+  const btn = document.getElementById('undo-text-btn');
+  if(btn) btn.disabled = textUndoStack.length === 0;
+}
+
+function pushTextHistory(){
+  // Uložíme aktuální stav – ale pokud je aktuální stránka moodboard, nevoláme saveCurrentPageBoxes
+  const pageData = allPagesTexts[currentPreviewPage];
+  if (Array.isArray(pageData)) {
+    saveCurrentPageBoxes();
   }
-}
-function openTool(name) { switchView('tool-' + name); }
-function closeTool() { switchView('menu-view'); }
-
-function handleFiles(files, tool) {
-  if (!files || files.length === 0) return;
-  if (tool === 'pdfa') {
-    filesData.pdfa = Array.from(files);
-    document.getElementById('btn-pdfa').disabled = false;
-    document.getElementById('st-pdfa').textContent = `Vybráno ${files.length} souborů`;
-    const list = document.getElementById('list-pdfa');
-    list.innerHTML = '';
-    filesData.pdfa.forEach(f => {
-      list.innerHTML += `<div class="item">📄 ${escapeHtml(f.name)} (${(f.size/1024/1024).toFixed(2)} MB)</div>`;
-    });
-  } else if (tool === 'panel') {
-    const file = files[0];
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-      loadedFileBytes = e.target.result;
-      filesData.panel = [{ name: file.name, bytes: loadedFileBytes }];
-      updatePanelFileList();
-      await initPdfJsDoc(loadedFileBytes);
-      scheduleAutosave();
-    };
-    reader.readAsArrayBuffer(file);
-  }
+  textUndoStack.push({
+    pages: JSON.parse(JSON.stringify(allPagesTexts)),
+    blankPages: Array.from(customBlankPages),
+    pdfIndexMap: JSON.parse(JSON.stringify(pagePdfIndexMap)),
+    currentPage: currentPreviewPage,
+    total: totalPreviewPages,
+    idCounter: textIdCounter,
+    coverInitialized: defaultCoverLayoutInitialized
+  });
+  if(textUndoStack.length > 50) textUndoStack.shift();
+  updateUndoButton();
 }
 
-function updatePanelFileList() {
-  const list = document.getElementById('list-panel');
-  list.innerHTML = '';
-  if (filesData.panel.length > 0) {
-    const f = filesData.panel[0];
-    list.innerHTML = `<div class="item ok">📄 Zdrojový soubor: ${escapeHtml(f.name)}</div>`;
-    document.getElementById('btn-panel').disabled = false;
-    document.getElementById('btn-preview').disabled = false;
-  } else {
-    document.getElementById('btn-panel').disabled = true;
-    document.getElementById('btn-preview').disabled = true;
-  }
+function undoTextEdit(){
+  const snap = textUndoStack.pop();
+  if(!snap) return;
+  allPagesTexts = snap.pages || {};
+  customBlankPages = new Set(snap.blankPages || []);
+  pagePdfIndexMap = snap.pdfIndexMap || {};
+  currentPreviewPage = snap.currentPage || 1;
+  totalPreviewPages = snap.total || 1;
+  textIdCounter = snap.idCounter || 1;
+  defaultCoverLayoutInitialized = snap.coverInitialized;
+  selectedBoxEl = null;
+  updateUndoButton();
+  renderCurrentPagePreview();
+  renderThumbnails();
+  scheduleAutosave();
 }
 
-async function initPdfJsDoc(arrayBuffer) {
-  try {
-    pdfJsDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const createCover = document.getElementById('createCover').checked;
-    
-    if (Object.keys(pagePdfIndexMap).length === 0) {
-      pagePdfIndexMap = {};
-      let pageCounter = 1;
-      if (createCover) {
-        pagePdfIndexMap[1] = 'cover';
-        pageCounter++;
-      }
-      for (let i = 1; i <= pdfJsDoc.numPages; i++) {
-        pagePdfIndexMap[pageCounter] = i;
-        pageCounter++;
-      }
-      totalPreviewPages = pageCounter - 1;
-    }
-  } catch(err) {
-    console.error('Chyba při načítání PDF skrze PDF.js:', err);
-    alert('Nepodařilo se načíst PDF pro náhled.');
-  }
+function measureTextBox(text,size,scale){
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  ctx.font = `${size*(96/72)*scale}px "${editorFontFamily}"`;
+  const lines = (text || '').split(/\r?\n/);
+  let maxW = 2;
+  lines.forEach(l => {
+    maxW = Math.max(maxW, ctx.measureText(l || ' ').width);
+  });
+  const lineHeight = size * 1.2 * (96 / 72) * scale;
+  const height = Math.max(1, lines.length * lineHeight);
+  return {width: maxW + 2, height};
 }
 
-function setupDefaultCoverTexts() {
-  const typeVal = document.getElementById('panelType').value;
-  const customType = document.getElementById('panelCustomType').value;
-  const typeText = (typeVal === 'vlastní' ? customType : typeVal).toUpperCase();
-  const titleText = document.getElementById('panelTitle').value;
-  const dateText = document.getElementById('panelDate').value;
-  const authorsText = selectedAuthorsOrder.length > 0 ? selectedAuthorsOrder.join(', ') : '';
-
-  allPagesTexts[1] = [
-    { id: 'c1', x: 200, y: 350, text: typeText, size: 16, weight: 'bold', page: 1 },
-    { id: 'c2', x: 200, y: 310, text: titleText, size: 40, weight: 'bold', page: 1 },
-    { id: 'c3', x: 200, y: 220, text: dateText, size: 14, weight: 'normal', page: 1 },
-    { id: 'c4', x: 200, y: 190, text: authorsText, size: 14, weight: 'normal', page: 1 }
-  ];
-  defaultCoverLayoutInitialized = true;
-}
-
-// ---- MOODBOARD FUNKCIONALITA ----
+// ============================================================
+// MOODBOARD FUNKCE
+// ============================================================
 function openMoodboardModal() {
   document.getElementById('moodboard-modal').style.display = 'flex';
 }
@@ -1262,939 +1532,1511 @@ function closeMoodboardModal() {
 
 function createMoodboard(layoutType) {
   closeMoodboardModal();
-  saveCurrentPageTextsFromDOM();
-  pushUndoState();
-
-  totalPreviewPages++;
-  const newPageNum = currentPreviewPage + 1;
-
-  for (let p = totalPreviewPages; p > newPageNum; p--) {
-    allPagesTexts[p] = allPagesTexts[p - 1] || [];
-    pagePdfIndexMap[p] = pagePdfIndexMap[p - 1];
-    if (customBlankPages.has(p - 1)) customBlankPages.add(p);
-    else customBlankPages.delete(p);
-  }
-
-  customBlankPages.add(newPageNum);
-  pagePdfIndexMap[newPageNum] = 'blank';
-
-  // Rozvržení buněk moodboardu s odstupem 1cm (10mm) od okrajů a 2cm (20mm) od spodku
-  // Formát A3: 420mm x 297mm. Spodní žlutý pruh má výšku cca 15mm.
-  // Odstupy v MM: left=10, right=10, top=10, bottom = 15(pruh) + 20 = 35.
-  // Pracovní šířka = 420 - 20 = 400 mm.
-  // Pracovní výška = 297 - 10 - 35 = 252 mm.
-  // Mezera mezi políčky = 4 mm.
-
-  let cells = [];
-  const gap = 4;
-  const left = 10;
-  const top = 10;
-  const totalW = 400;
-  const totalH = 252;
-
-  if (layoutType === '4') {
-    // 2 x 2
-    const w = (totalW - gap) / 2;
-    const h = (totalH - gap) / 2;
-    cells = [
-      { x: left, y: top, w: w, h: h },
-      { x: left + w + gap, y: top, w: w, h: h },
-      { x: left, y: top + h + gap, w: w, h: h },
-      { x: left + w + gap, y: top + h + gap, w: w, h: h }
-    ];
-  } else if (layoutType === '2+1') {
-    // Horní: Velký (2/3) + Malý (1/3), Dolní: Malý (1/3) + Velký (2/3)
-    const h = (totalH - gap) / 2;
-    const wBig = (totalW - gap) * 0.62;
-    const wSmall = (totalW - gap) * 0.38;
-
-    cells = [
-      { x: left, y: top, w: wBig, h: h },
-      { x: left + wBig + gap, y: top, w: wSmall, h: h },
-      { x: left, y: top + h + gap, w: wSmall, h: h },
-      { x: left + wSmall + gap, y: top + h + gap, w: wBig, h: h }
-    ];
-  } else if (layoutType === '1+2') {
-    // Horní: Malý (1/3) + Velký (2/3), Dolní: Velký (2/3) + Malý (1/3)
-    const h = (totalH - gap) / 2;
-    const wBig = (totalW - gap) * 0.62;
-    const wSmall = (totalW - gap) * 0.38;
-
-    cells = [
-      { x: left, y: top, w: wSmall, h: h },
-      { x: left + wSmall + gap, y: top, w: wBig, h: h },
-      { x: left, y: top + h + gap, w: wBig, h: h },
-      { x: left + wBig + gap, y: top + h + gap, w: wSmall, h: h }
-    ];
-  }
-
-  // Uložit moodboard konfiguraci do textových objektů stránky
-  allPagesTexts[newPageNum] = [
-    {
-      id: 'mb_' + Date.now(),
-      isMoodboard: true,
-      layoutType: layoutType,
-      cells: cells.map((c, i) => ({
-        id: i,
-        x: c.x, y: c.y, w: c.w, h: c.h,
-        imgKey: null,
-        scale: 1,
-        offsetX: 0,
-        offsetY: 0
-      }))
-    }
-  ];
-
-  currentPreviewPage = newPageNum;
-  renderPage(currentPreviewPage);
-  renderThumbnails();
-  scheduleAutosave();
-}
-
-let activeUploadCellContext = null;
-
-function triggerCellImageUpload(page, cellIdx) {
-  activeUploadCellContext = { page, cellIdx };
-  const input = document.getElementById('moodboard-file-input');
-  input.value = '';
-  input.onchange = handleCellImageSelect;
-  input.click();
-}
-
-async function handleCellImageSelect(e) {
-  if (!e.target.files || !e.target.files[0] || !activeUploadCellContext) return;
-  const file = e.target.files[0];
-  const { page, cellIdx } = activeUploadCellContext;
-
-  const reader = new FileReader();
-  reader.onload = async function(evt) {
-    const dataUrl = evt.target.result;
-    const imgKey = `moodboard_p${page}_c${cellIdx}_${Date.now()}.png`;
-
-    moodboardImagesStore[imgKey] = dataUrl;
-
-    // Najít moodboard objekt
-    const pageObjs = allPagesTexts[page] || [];
-    const mbObj = pageObjs.find(o => o.isMoodboard);
-    if (mbObj && mbObj.cells[cellIdx]) {
-      mbObj.cells[cellIdx].imgKey = imgKey;
-      mbObj.cells[cellIdx].scale = 1;
-      mbObj.cells[cellIdx].offsetX = 0;
-      mbObj.cells[cellIdx].offsetY = 0;
-    }
-
-    renderPage(currentPreviewPage);
-    renderThumbnails();
-    scheduleAutosave();
-  };
-  reader.readAsDataURL(file);
-}
-
-function removeCellImage(page, cellIdx, e) {
-  if(e) e.stopPropagation();
-  const pageObjs = allPagesTexts[page] || [];
-  const mbObj = pageObjs.find(o => o.isMoodboard);
-  if (mbObj && mbObj.cells[cellIdx]) {
-    const key = mbObj.cells[cellIdx].imgKey;
-    if (key) delete moodboardImagesStore[key];
-    mbObj.cells[cellIdx].imgKey = null;
-    mbObj.cells[cellIdx].scale = 1;
-    mbObj.cells[cellIdx].offsetX = 0;
-    mbObj.cells[cellIdx].offsetY = 0;
-  }
-  renderPage(currentPreviewPage);
-  renderThumbnails();
-  scheduleAutosave();
-}
-
-// Pozadí pro prázdné nebo moodboard stránky
-function drawBlankPageCanvas(canvas, width = 1191, height = 842) {
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.fillStyle = '#f7f197';
-  ctx.fillRect(0, height - 42, width, 42);
-
-  ctx.fillStyle = '#18181b';
-  ctx.font = 'bold 16px sans-serif';
-  ctx.fillText('20-20', 30, height - 16);
-
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = '#e4e4e7';
-  ctx.strokeRect(0, 0, width, height);
-}
-
-async function renderPage(pageNum) {
-  currentPreviewPage = pageNum;
-  document.getElementById('page-indicator').textContent = `Stránka ${pageNum} z ${totalPreviewPages}`;
+  pushTextHistory();
   
-  document.getElementById('prev-page-btn').disabled = (pageNum <= 1);
-  document.getElementById('next-page-btn').disabled = (pageNum >= totalPreviewPages);
-
-  const canvas = document.getElementById('preview-canvas');
-  const boxesLayer = document.getElementById('boxes-layer');
-  boxesLayer.innerHTML = '';
-
-  const pdfIdx = pagePdfIndexMap[pageNum];
-
-  if (pdfIdx === 'cover' || pdfIdx === 'blank' || customBlankPages.has(pageNum)) {
-    drawBlankPageCanvas(canvas);
-  } else if (pdfJsDoc && typeof pdfIdx === 'number') {
-    try {
-      const page = await pdfJsDoc.getPage(pdfIdx);
-      const viewport = page.getViewport({ scale: 1.5 });
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const ctx = canvas.getContext('2d');
-      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-
-      const height = canvas.height;
-      const width = canvas.width;
-      ctx.fillStyle = '#f7f197';
-      ctx.fillRect(0, height - 42, width, 42);
-      ctx.fillStyle = '#18181b';
-      ctx.font = 'bold 16px sans-serif';
-      ctx.fillText('20-20', 30, height - 16);
-    } catch(err) {
-      console.error('Chyba renderu stránky', err);
-      drawBlankPageCanvas(canvas);
+  const info = window.__previewInfo;
+  if (!info) {
+    alert('Nejprve otevřete náhled.');
+    return;
+  }
+  const pageW = info.width;
+  const pageH = info.height;
+  const marginTop = 28.35; // 1 cm
+  const marginSide = 28.35;
+  const marginBottom = 56.7; // 2 cm
+  const gap = 10;
+  
+  const usableW = pageW - 2 * marginSide;
+  const usableH = pageH - marginTop - marginBottom;
+  
+  let cells = [];
+  
+  if (layoutType === '4') {
+    const cols = 2, rows = 2;
+    const cellW = (usableW - (cols - 1) * gap) / cols;
+    const cellH = (usableH - (rows - 1) * gap) / rows;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = marginSide + c * (cellW + gap);
+        const y = marginTop + r * (cellH + gap);
+        cells.push({ x, y, w: cellW, h: cellH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+      }
     }
-  } else {
-    drawBlankPageCanvas(canvas);
+  } else if (layoutType === '2+1') {
+    const bigW = (usableW - gap) * 0.6;
+    const smallW = (usableW - gap) * 0.4;
+    const bigH = (usableH - gap) * 0.6;
+    const smallH = (usableH - gap) * 0.4;
+    cells.push({ x: marginSide, y: marginTop, w: bigW, h: bigH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide + bigW + gap, y: marginTop, w: smallW, h: bigH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide, y: marginTop + bigH + gap, w: smallW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide + smallW + gap, y: marginTop + bigH + gap, w: bigW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+  } else if (layoutType === '1+2') {
+    const bigW = (usableW - gap) * 0.6;
+    const smallW = (usableW - gap) * 0.4;
+    const bigH = (usableH - gap) * 0.6;
+    const smallH = (usableH - gap) * 0.4;
+    cells.push({ x: marginSide, y: marginTop, w: smallW, h: bigH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide + smallW + gap, y: marginTop, w: bigW, h: bigH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide, y: marginTop + bigH + gap, w: bigW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide + bigW + gap, y: marginTop + bigH + gap, w: smallW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
   }
-
-  if (pageNum === 1 && document.getElementById('createCover').checked && !defaultCoverLayoutInitialized && !allPagesTexts[1]) {
-    setupDefaultCoverTexts();
-  }
-
-  const objs = allPagesTexts[pageNum] || [];
-  objs.forEach(item => {
-    if (item.isMoodboard) {
-      renderMoodboardOverlay(item, pageNum, boxesLayer, canvas.width, canvas.height);
-    } else if (item.isLine) {
-      createLineBoxElement(item, pageNum, boxesLayer);
+  
+  // ---- STEJNÝ PRINCIP JAKO addBlankPage ----
+  let newTexts = {};
+  let newBlankPages = new Set();
+  let newPdfMap = {};
+  
+  for (let [pStr, texts] of Object.entries(allPagesTexts)) {
+    let pNum = parseInt(pStr);
+    if (pNum >= currentPreviewPage) {
+      newTexts[pNum + 1] = texts;
     } else {
-      createTextBoxElement(item, pageNum, boxesLayer);
+      newTexts[pNum] = texts;
     }
-  });
-
-  if (pendingAutoFocusId) {
-    const target = boxesLayer.querySelector(`[data-id="${pendingAutoFocusId}"] .tb-main`);
-    if (target) {
-      target.focus();
-      target.select();
-    }
-    pendingAutoFocusId = null;
   }
+  for (let pNum of customBlankPages) {
+    if (pNum >= currentPreviewPage) newBlankPages.add(pNum + 1);
+    else newBlankPages.add(pNum);
+  }
+  for (let [pStr, idx] of Object.entries(pagePdfIndexMap)) {
+    let pNum = parseInt(pStr);
+    if (pNum >= currentPreviewPage) newPdfMap[pNum + 1] = idx;
+    else newPdfMap[pNum] = idx;
+  }
+  
+  newTexts[currentPreviewPage] = { type: 'moodboard', cells };
+  
+  allPagesTexts = newTexts;
+  customBlankPages = newBlankPages;
+  pagePdfIndexMap = newPdfMap;
+  totalPreviewPages++;
+  
+  renderCurrentPagePreview();
+  renderThumbnails();
+  scheduleAutosave();
+}
+// ============================================================
+// KONEC MOODBOARD FUNKCÍ
+// ============================================================
 
-  updateActiveThumbnailUI();
+async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
+  ctx.fillStyle = '#e8e8e8';
+  ctx.fillRect(0, 0, pageW * scale, pageH * scale);
+  
+  for (let cell of cells) {
+    const x = cell.x * scale;
+    const y = cell.y * scale;
+    const w = cell.w * scale;
+    const h = cell.h * scale;
+    
+    ctx.strokeStyle = '#18181b';
+    ctx.lineWidth = 2 * scale;
+    ctx.strokeRect(x, y, w, h);
+    
+    if (cell.imageData) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+      
+      const img = new Image();
+      img.src = cell.imageData;
+      await new Promise(resolve => {
+        img.onload = () => {
+          const zoom = cell.zoom || 1;
+          const offX = (cell.offsetX || 0) * scale;
+          const offY = (cell.offsetY || 0) * scale;
+          const imgW = img.width * scale * zoom;
+          const imgH = img.height * scale * zoom;
+          const drawX = x + (w - imgW) / 2 + offX;
+          const drawY = y + (h - imgH) / 2 + offY;
+          ctx.drawImage(img, drawX, drawY, imgW, imgH);
+          resolve();
+        };
+        img.onerror = resolve;
+      });
+      ctx.restore();
+    }
+  }
 }
 
-function renderMoodboardOverlay(mbObj, pageNum, container, canvasW, canvasH) {
-  // Převod z mm na PX v plátnu (A3: 420mm = canvasW, 297mm = canvasH)
-  const mmToPxX = canvasW / 420;
-  const mmToPxY = canvasH / 297;
-
-  mbObj.cells.forEach((cell, idx) => {
-    const cellDiv = document.createElement('div');
-    cellDiv.className = 'moodboard-cell';
-    cellDiv.style.left = (cell.x * mmToPxX) + 'px';
-    cellDiv.style.top = (cell.y * mmToPxY) + 'px';
-    cellDiv.style.width = (cell.w * mmToPxX) + 'px';
-    cellDiv.style.height = (cell.h * mmToPxY) + 'px';
-
-    if (cell.imgKey && moodboardImagesStore[cell.imgKey]) {
+function renderMoodboardOverlay(pageNum, cells) {
+  document.querySelectorAll('.moodboard-cell').forEach(el => el.remove());
+  
+  const canvas = document.getElementById('preview-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const info = window.__previewInfo;
+  const sx = rect.width / info.width;
+  const sy = rect.height / info.height;
+  
+  for (let idx = 0; idx < cells.length; idx++) {
+    const cell = cells[idx];
+    const div = document.createElement('div');
+    div.className = 'moodboard-cell';
+    div.dataset.cellIndex = idx;
+    div.dataset.page = pageNum;
+    div.style.left = (cell.x * sx) + 'px';
+    div.style.top = (cell.y * sy) + 'px';
+    div.style.width = (cell.w * sx) + 'px';
+    div.style.height = (cell.h * sy) + 'px';
+    
+    if (cell.imageData) {
       const img = document.createElement('img');
       img.className = 'cell-img';
-      img.src = moodboardImagesStore[cell.imgKey];
-
-      const scale = cell.scale || 1;
-      const offX = cell.offsetX || 0;
-      const offY = cell.offsetY || 0;
-      img.style.transform = `translate(-50%, -50%) translate(${offX}px, ${offY}px) scale(${scale})`;
-
-      cellDiv.appendChild(img);
-
-      // Tlačítko pro odstranění
-      const delBtn = document.createElement('button');
-      delBtn.className = 'cell-delete';
-      delBtn.textContent = '✕';
-      delBtn.title = 'Odstranit obrázek';
-      delBtn.onclick = (e) => removeCellImage(pageNum, idx, e);
-      cellDiv.appendChild(delBtn);
-
-      // Pan & Zoom manipulace myší
-      let isDragging = false;
-      let startX = 0, startY = 0;
-      let initialOffX = offX, initialOffY = offY;
-
-      cellDiv.onmousedown = (e) => {
-        if (e.target === delBtn) return;
+      img.src = cell.imageData;
+      img.style.transform = `translate(${(cell.offsetX||0)*sx}px, ${(cell.offsetY||0)*sy}px) scale(${cell.zoom||1})`;
+      div.appendChild(img);
+      
+      const del = document.createElement('button');
+      del.className = 'cell-delete';
+      del.textContent = '✕';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeImageFromCell(pageNum, idx);
+      });
+      div.appendChild(del);
+      
+      div.addEventListener('wheel', (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        let newZoom = (cell.zoom || 1) + delta;
+        newZoom = Math.max(0.2, Math.min(5, newZoom));
+        cell.zoom = newZoom;
+        updateCellImageTransform(pageNum, idx);
+        scheduleAutosave();
+      }, { passive: false });
+      
+      let isDragging = false;
+      let startX, startY, startOffX, startOffY;
+      div.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('cell-delete')) return;
         isDragging = true;
         startX = e.clientX;
         startY = e.clientY;
-        initialOffX = cell.offsetX || 0;
-        initialOffY = cell.offsetY || 0;
-
-        const onMouseMove = (me) => {
-          if (!isDragging) return;
-          const dx = me.clientX - startX;
-          const dy = me.clientY - startY;
-          cell.offsetX = initialOffX + dx;
-          cell.offsetY = initialOffY + dy;
-          img.style.transform = `translate(-50%, -50%) translate(${cell.offsetX}px, ${cell.offsetY}px) scale(${cell.scale || 1})`;
-        };
-
-        const onMouseUp = () => {
-          isDragging = false;
-          window.removeEventListener('mousemove', onMouseMove);
-          window.removeEventListener('mouseup', onMouseUp);
-          scheduleAutosave();
-        };
-
-        window.addEventListener('mousemove', onMouseMove);
-        window.addEventListener('mouseup', onMouseUp);
-      };
-
-      cellDiv.onwheel = (we) => {
-        we.preventDefault();
-        let curScale = cell.scale || 1;
-        if (we.deltaY < 0) curScale *= 1.08;
-        else curScale /= 1.08;
-        curScale = Math.max(0.2, Math.min(curScale, 8.0));
-        cell.scale = curScale;
-        img.style.transform = `translate(-50%, -50%) translate(${cell.offsetX || 0}px, ${cell.offsetY || 0}px) scale(${curScale})`;
+        startOffX = cell.offsetX || 0;
+        startOffY = cell.offsetY || 0;
+        div.style.cursor = 'grabbing';
+        e.preventDefault();
+      });
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = (e.clientX - startX) / sx;
+        const dy = (e.clientY - startY) / sy;
+        cell.offsetX = startOffX + dx;
+        cell.offsetY = startOffY + dy;
+        updateCellImageTransform(pageNum, idx);
         scheduleAutosave();
-      };
-
+      });
+      document.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          div.style.cursor = 'default';
+        }
+      });
+      
     } else {
-      const plusBtn = document.createElement('div');
-      plusBtn.className = 'cell-plus';
-      plusBtn.textContent = '+';
-      plusBtn.title = 'Nahrát obrázek (JPG/PNG)';
-      plusBtn.onclick = () => triggerCellImageUpload(pageNum, idx);
-      cellDiv.appendChild(plusBtn);
-    }
-
-    container.appendChild(cellDiv);
-  });
-}
-
-async function renderThumbnails() {
-  const sidebar = document.getElementById('thumbs-sidebar');
-  sidebar.innerHTML = '';
-
-  for (let i = 1; i <= totalPreviewPages; i++) {
-    const item = document.createElement('div');
-    item.className = 'thumb-item' + (i === currentPreviewPage ? ' active' : '');
-    item.dataset.page = i;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = 110;
-    canvas.height = 78;
-    item.appendChild(canvas);
-
-    const label = document.createElement('div');
-    label.className = 'thumb-label';
-    label.textContent = `Stránka ${i}`;
-    item.appendChild(label);
-
-    if (i > 1) {
-      const delBtn = document.createElement('div');
-      delBtn.className = 'thumb-delete';
-      delBtn.textContent = '✕';
-      delBtn.title = 'Smazat stránku';
-      delBtn.onclick = (e) => {
+      const plus = document.createElement('div');
+      plus.className = 'cell-plus';
+      plus.textContent = '+';
+      plus.addEventListener('click', (e) => {
         e.stopPropagation();
-        deletePage(i);
-      };
-      item.appendChild(delBtn);
-    }
-
-    item.onclick = () => {
-      saveCurrentPageTextsFromDOM();
-      renderPage(i);
-    };
-
-    sidebar.appendChild(item);
-    renderThumbCanvas(i, canvas);
-  }
-}
-
-async function renderThumbCanvas(pageNum, canvas) {
-  const pdfIdx = pagePdfIndexMap[pageNum];
-  const ctx = canvas.getContext('2d');
-
-  if (pdfIdx === 'cover' || pdfIdx === 'blank' || customBlankPages.has(pageNum)) {
-    drawBlankPageCanvas(canvas, 110, 78);
-  } else if (pdfJsDoc && typeof pdfIdx === 'number') {
-    try {
-      const page = await pdfJsDoc.getPage(pdfIdx);
-      const viewport = page.getViewport({ scale: 110 / page.getViewport({ scale: 1 }).width });
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-
-      ctx.fillStyle = '#f7f197';
-      ctx.fillRect(0, canvas.height - 5, canvas.width, 5);
-    } catch(e) {
-      drawBlankPageCanvas(canvas, 110, 78);
-    }
-  } else {
-    drawBlankPageCanvas(canvas, 110, 78);
-  }
-}
-
-function updateActiveThumbnailUI() {
-  document.querySelectorAll('.thumb-item').forEach(el => {
-    const p = parseInt(el.dataset.page, 10);
-    if (p === currentPreviewPage) el.classList.add('active');
-    else el.classList.remove('active');
-  });
-}
-
-function saveCurrentPageTextsFromDOM() {
-  const layer = document.getElementById('boxes-layer');
-  if (!layer) return;
-
-  const pageObjs = allPagesTexts[currentPreviewPage] || [];
-  const mbObj = pageObjs.find(o => o.isMoodboard);
-
-  const updated = [];
-  if (mbObj) updated.push(mbObj);
-
-  layer.querySelectorAll('.custom-text-box').forEach(div => {
-    const id = div.dataset.id;
-    const isLine = div.dataset.isLine === 'true';
-
-    const left = parseFloat(div.style.left) || 0;
-    const top = parseFloat(div.style.top) || 0;
-
-    if (isLine) {
-      const isVert = div.dataset.isVert === 'true';
-      const lineLen = parseFloat(div.dataset.lineLen) || 100;
-      updated.push({
-        id: id, isLine: true, x: left, y: top, isVert: isVert, lineLen: lineLen, page: currentPreviewPage
+        openImageUpload(pageNum, idx);
       });
-    } else {
-      const main = div.querySelector('.tb-main');
-      const sizeInput = div.querySelector('.tb-size-input');
-      const text = main ? main.value : '';
-      const size = sizeInput ? parseInt(sizeInput.value, 10) || 14 : 14;
-      const isBold = div.style.fontWeight === 'bold';
-
-      updated.push({
-        id: id, x: left, y: top, text: text, size: size, weight: isBold ? 'bold' : 'normal', page: currentPreviewPage
-      });
+      div.appendChild(plus);
     }
-  });
-
-  allPagesTexts[currentPreviewPage] = updated;
+    
+    document.getElementById('boxes-layer').appendChild(div);
+  }
 }
 
-function pushUndoState() {
-  saveCurrentPageTextsFromDOM();
-  textUndoStack.push({
-    allPagesTexts: JSON.parse(JSON.stringify(allPagesTexts)),
-    customBlankPages: new Set(customBlankPages),
-    pagePdfIndexMap: { ...pagePdfIndexMap },
-    totalPreviewPages: totalPreviewPages,
-    currentPreviewPage: currentPreviewPage,
-    moodboardImagesStore: { ...moodboardImagesStore }
-  });
-  if (textUndoStack.length > 20) textUndoStack.shift();
-  document.getElementById('undo-text-btn').disabled = false;
+function updateCellImageTransform(pageNum, idx) {
+  const cells = allPagesTexts[pageNum]?.cells;
+  if (!cells || !cells[idx]) return;
+  const cell = cells[idx];
+  const div = document.querySelector(`.moodboard-cell[data-page="${pageNum}"][data-cell-index="${idx}"]`);
+  if (!div) return;
+  const img = div.querySelector('.cell-img');
+  if (!img) return;
+  const canvas = document.getElementById('preview-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const info = window.__previewInfo;
+  const sx = rect.width / info.width;
+  const sy = rect.height / info.height;
+  img.style.transform = `translate(${(cell.offsetX||0)*sx}px, ${(cell.offsetY||0)*sy}px) scale(${cell.zoom||1})`;
 }
 
-function undoTextEdit() {
-  if (textUndoStack.length === 0) return;
-  const state = textUndoStack.pop();
-  allPagesTexts = state.allPagesTexts;
-  customBlankPages = state.customBlankPages;
-  pagePdfIndexMap = state.pagePdfIndexMap;
-  totalPreviewPages = state.totalPreviewPages;
-  currentPreviewPage = state.currentPreviewPage;
-  moodboardImagesStore = state.moodboardImagesStore;
-
-  if (textUndoStack.length === 0) document.getElementById('undo-text-btn').disabled = true;
-
-  renderPage(currentPreviewPage);
-  renderThumbnails();
-  scheduleAutosave();
-}
-
-function createTextBoxElement(data, pageNum, container) {
-  const div = document.createElement('div');
-  div.className = 'custom-text-box';
-  div.dataset.id = data.id;
-  div.style.left = data.x + 'px';
-  div.style.top = data.y + 'px';
-  div.style.fontWeight = data.weight || 'normal';
-
-  const main = document.createElement('textarea');
-  main.className = 'tb-main';
-  main.value = data.text || '';
-  main.style.fontSize = (data.size || 14) + 'px';
-
-  const handle = document.createElement('div');
-  handle.className = 'tb-handle';
-  handle.title = 'Chyťte a posouvejte';
-
-  const controls = document.createElement('div');
-  controls.className = 'tb-controls';
-
-  const sizeInp = document.createElement('input');
-  sizeInp.type = 'number';
-  sizeInp.className = 'tb-size-input';
-  sizeInp.value = data.size || 14;
-  sizeInp.min = 6; sizeInp.max = 120;
-  sizeInp.oninput = () => {
-    main.style.fontSize = sizeInp.value + 'px';
-    scheduleAutosave();
+function openImageUpload(pageNum, idx) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/jpeg,image/png';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target.result;
+      await addImageToCell(pageNum, idx, dataUrl, file.name);
+    };
+    reader.readAsDataURL(file);
   };
-
-  const boldBtn = document.createElement('button');
-  boldBtn.textContent = 'B';
-  boldBtn.style.fontWeight = 'bold';
-  boldBtn.onclick = (e) => {
-    e.stopPropagation();
-    pushUndoState();
-    const isB = div.style.fontWeight === 'bold';
-    div.style.fontWeight = isB ? 'normal' : 'bold';
-    scheduleAutosave();
-  };
-
-  const delBtn = document.createElement('button');
-  delBtn.className = 'del-btn';
-  delBtn.textContent = '✕';
-  delBtn.onclick = (e) => {
-    e.stopPropagation();
-    pushUndoState();
-    div.remove();
-    saveCurrentPageTextsFromDOM();
-    scheduleAutosave();
-  };
-
-  controls.appendChild(sizeInp);
-  controls.appendChild(boldBtn);
-  controls.appendChild(delBtn);
-
-  div.appendChild(handle);
-  div.appendChild(main);
-  div.appendChild(controls);
-
-  div.onclick = (e) => { e.stopPropagation(); selectBox(div); };
-  main.oninput = () => scheduleAutosave();
-
-  enableDrag(div, handle);
-  container.appendChild(div);
+  input.click();
 }
 
-function createLineBoxElement(data, pageNum, container) {
-  const div = document.createElement('div');
-  div.className = 'custom-text-box';
-  div.dataset.id = data.id;
-  div.dataset.isLine = 'true';
-  div.dataset.isVert = data.isVert ? 'true' : 'false';
-  div.dataset.lineLen = data.lineLen || 100;
-  div.style.left = data.x + 'px';
-  div.style.top = data.y + 'px';
-
-  const lineVis = document.createElement('div');
-  lineVis.style.background = '#18181b';
-  if (data.isVert) {
-    lineVis.style.width = '2px';
-    lineVis.style.height = (data.lineLen || 100) + 'px';
+async function addImageToCell(pageNum, idx, dataUrl, originalName) {
+  pushTextHistory();
+  const cells = allPagesTexts[pageNum]?.cells;
+  if (!cells || !cells[idx]) return;
+  
+  const ext = originalName ? originalName.split('.').pop().toLowerCase() : 
+              (dataUrl.startsWith('data:image/png') ? 'png' : 'jpg');
+  const filename = `moodboard_img_${Date.now()}_${idx}.${ext}`;
+  
+  let savedRef = null;
+  if (currentProjectDirHandle) {
+    savedRef = await saveImageToProject(filename, dataUrl);
+  }
+  
+  if (savedRef) {
+    cells[idx].imageRef = savedRef;
+    cells[idx].imageData = dataUrl;
   } else {
-    lineVis.style.width = (data.lineLen || 100) + 'px';
-    lineVis.style.height = '2px';
+    cells[idx].imageRef = null;
+    cells[idx].imageData = dataUrl;
   }
-
-  const handle = document.createElement('div');
-  handle.className = 'tb-handle';
-
-  const controls = document.createElement('div');
-  controls.className = 'tb-controls';
-
-  const rotBtn = document.createElement('button');
-  rotBtn.className = 'rotate-btn';
-  rotBtn.textContent = '🔄';
-  rotBtn.onclick = (e) => {
-    e.stopPropagation();
-    pushUndoState();
-    const isV = div.dataset.isVert === 'true';
-    div.dataset.isVert = isV ? 'false' : 'true';
-    if (!isV) {
-      lineVis.style.width = '2px';
-      lineVis.style.height = (div.dataset.lineLen || 100) + 'px';
-    } else {
-      lineVis.style.width = (div.dataset.lineLen || 100) + 'px';
-      lineVis.style.height = '2px';
-    }
-    scheduleAutosave();
-  };
-
-  const lenInp = document.createElement('input');
-  lenInp.type = 'number';
-  lenInp.value = data.lineLen || 100;
-  lenInp.oninput = () => {
-    div.dataset.lineLen = lenInp.value;
-    if (div.dataset.isVert === 'true') {
-      lineVis.style.height = lenInp.value + 'px';
-    } else {
-      lineVis.style.width = lenInp.value + 'px';
-    }
-    scheduleAutosave();
-  };
-
-  const delBtn = document.createElement('button');
-  delBtn.className = 'del-btn';
-  delBtn.textContent = '✕';
-  delBtn.onclick = (e) => {
-    e.stopPropagation();
-    pushUndoState();
-    div.remove();
-    saveCurrentPageTextsFromDOM();
-    scheduleAutosave();
-  };
-
-  controls.appendChild(rotBtn);
-  controls.appendChild(lenInp);
-  controls.appendChild(delBtn);
-
-  div.appendChild(handle);
-  div.appendChild(lineVis);
-  div.appendChild(controls);
-
-  div.onclick = (e) => { e.stopPropagation(); selectBox(div); };
-  enableDrag(div, handle);
-  container.appendChild(div);
-}
-
-function enableDrag(el, handleEl) {
-  let isDragging = false;
-  let startX, startY, initialLeft, initialTop;
-
-  const handle = handleEl || el;
-
-  handle.onmousedown = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    selectBox(el);
-    pushUndoState();
-
-    isDragging = true;
-    startX = e.clientX;
-    startY = e.clientY;
-    initialLeft = parseFloat(el.style.left) || 0;
-    initialTop = parseFloat(el.style.top) || 0;
-
-    const onMouseMove = (me) => {
-      if (!isDragging) return;
-      const dx = me.clientX - startX;
-      const dy = me.clientY - startY;
-      el.style.left = (initialLeft + dx) + 'px';
-      el.style.top = (initialTop + dy) + 'px';
-    };
-
-    const onMouseUp = () => {
-      isDragging = false;
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-      saveCurrentPageTextsFromDOM();
-      scheduleAutosave();
-    };
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  };
-}
-
-function addTextBox() {
-  pushUndoState();
-  const id = 'tb_' + textIdCounter++;
-  const newObj = {
-    id: id, x: 100, y: 100, text: 'Nový text', size: 16, weight: 'normal', page: currentPreviewPage
-  };
-  if (!allPagesTexts[currentPreviewPage]) allPagesTexts[currentPreviewPage] = [];
-  allPagesTexts[currentPreviewPage].push(newObj);
-
-  pendingAutoFocusId = id;
-  renderPage(currentPreviewPage);
+  cells[idx].zoom = 1;
+  cells[idx].offsetX = 0;
+  cells[idx].offsetY = 0;
+  
+  renderCurrentPagePreview();
   scheduleAutosave();
 }
 
-function addLineBox() {
-  pushUndoState();
-  const id = 'line_' + textIdCounter++;
-  const newObj = {
-    id: id, isLine: true, x: 100, y: 150, isVert: false, lineLen: 120, page: currentPreviewPage
-  };
-  if (!allPagesTexts[currentPreviewPage]) allPagesTexts[currentPreviewPage] = [];
-  allPagesTexts[currentPreviewPage].push(newObj);
-
-  renderPage(currentPreviewPage);
+function removeImageFromCell(pageNum, idx) {
+  pushTextHistory();
+  const cells = allPagesTexts[pageNum]?.cells;
+  if (!cells || !cells[idx]) return;
+  cells[idx].imageData = null;
+  cells[idx].imageRef = null;
+  cells[idx].zoom = 1;
+  cells[idx].offsetX = 0;
+  cells[idx].offsetY = 0;
+  renderCurrentPagePreview();
   scheduleAutosave();
-}
-
-function addBlankPage() {
-  pushUndoState();
-  totalPreviewPages++;
-  const newPageNum = currentPreviewPage + 1;
-
-  for (let p = totalPreviewPages; p > newPageNum; p--) {
-    allPagesTexts[p] = allPagesTexts[p - 1] || [];
-    pagePdfIndexMap[p] = pagePdfIndexMap[p - 1];
-    if (customBlankPages.has(p - 1)) customBlankPages.add(p);
-    else customBlankPages.delete(p);
-  }
-
-  customBlankPages.add(newPageNum);
-  pagePdfIndexMap[newPageNum] = 'blank';
-  allPagesTexts[newPageNum] = [];
-
-  currentPreviewPage = newPageNum;
-  renderPage(currentPreviewPage);
-  renderThumbnails();
-  scheduleAutosave();
-}
-
-function deletePage(pageNum) {
-  if (totalPreviewPages <= 1) {
-    alert('Nelze smazat jedinou stránku prezentace.');
-    return;
-  }
-  pushUndoState();
-
-  for (let p = pageNum; p < totalPreviewPages; p++) {
-    allPagesTexts[p] = allPagesTexts[p + 1] || [];
-    pagePdfIndexMap[p] = pagePdfIndexMap[p + 1];
-    if (customBlankPages.has(p + 1)) customBlankPages.add(p);
-    else customBlankPages.delete(p);
-  }
-
-  delete allPagesTexts[totalPreviewPages];
-  delete pagePdfIndexMap[totalPreviewPages];
-  customBlankPages.delete(totalPreviewPages);
-  totalPreviewPages--;
-
-  if (currentPreviewPage > totalPreviewPages) currentPreviewPage = totalPreviewPages;
-
-  renderPage(currentPreviewPage);
-  renderThumbnails();
-  scheduleAutosave();
-}
-
-function prevPage() {
-  if (currentPreviewPage > 1) {
-    saveCurrentPageTextsFromDOM();
-    renderPage(currentPreviewPage - 1);
-  }
-}
-function nextPage() {
-  if (currentPreviewPage < totalPreviewPages) {
-    saveCurrentPageTextsFromDOM();
-    renderPage(currentPreviewPage + 1);
-  }
 }
 
 async function openPreviewModal() {
-  if (!filesData.panel || filesData.panel.length === 0) {
-    alert('Nejprve vyberte PDF soubor.');
-    return;
-  }
-  document.getElementById('preview-modal').style.display = 'flex';
+  if (!pdfJsDoc) return;
   initEditorGlobalHandlers();
+  await loadEditorAssets();
+  totalPreviewPages = pdfJsDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0) + customBlankPages.size;
+  ensurePagePdfIndexMap();
+  currentPreviewPage = (pendingResumePage && pendingResumePage <= totalPreviewPages) ? pendingResumePage : 1;
+  pendingResumePage = null;
+  
+  if (document.getElementById('createCover').checked && !defaultCoverLayoutInitialized) {
+    const pInfo = await getPageSize({isCover: true});
+    const title = document.getElementById('panelTitle').value.trim();
+    const type = getActiveProjectType();
+    const authors = getSelectedAuthorsString();
 
-  await renderPage(currentPreviewPage);
+    let boxes = [];
+    if (title) {
+      boxes.push({ id: textIdCounter++, type: 'text', text: title, size: 48, x: 80, y: 265 });
+    }
+    if (type) {
+      boxes.push({ id: textIdCounter++, type: 'text', text: type, size: 36, font: editorFontFamily, x: 80, y: 200 });
+    }
+    if (authors) {
+      const linesCount = authors.split(/\r?\n/).length;
+      const authorsY = (295 - 10) - ((linesCount - 1) * 14 * 1.2);
+      const authorX = pInfo.width - 320 + 25;
+      boxes.push({ id: textIdCounter++, type: 'text', text: authors, size: 14, x: authorX, y: authorsY });
+      const lineX = authorX - 15;
+      boxes.push({ id: textIdCounter++, type: 'line', x: lineX, y: authorsY, height: Math.max(40, linesCount * 14 * 1.2 + 10), orientation: 'vertical' });
+    }
+    allPagesTexts[1] = boxes;
+    defaultCoverLayoutInitialized = true;
+  }
+
+  document.getElementById('preview-modal').style.display = 'flex';
+  textUndoStack = [];
+  updateUndoButton();
+  await renderCurrentPagePreview();
   await renderThumbnails();
 }
 
 function closePreviewModal() {
-  saveCurrentPageTextsFromDOM();
+  saveCurrentPageBoxes();
   document.getElementById('preview-modal').style.display = 'none';
-  scheduleAutosave();
 }
 
-// ---- FINÁLNÍ GENEROVÁNÍ PREZENTACE DO PDF ----
-async function runPanel(fromModal) {
-  const st = document.getElementById('st-panel');
-  st.textContent = 'Generuji prezentaci...';
+function ensurePagePdfIndexMap() {
+  if (!pdfJsDoc) return;
+  const createCover = document.getElementById('createCover').checked;
+  const mappedCount = Object.keys(pagePdfIndexMap).length;
+  if (mappedCount >= pdfJsDoc.numPages) return;
 
-  try {
-    saveCurrentPageTextsFromDOM();
-    await loadFontAndLogo();
-
-    const createCover = document.getElementById('createCover').checked;
-    const typeVal = document.getElementById('panelType').value;
-    const customType = document.getElementById('panelCustomType').value;
-    const typeText = (typeVal === 'vlastní' ? customType : typeVal).toUpperCase();
-    const titleText = document.getElementById('panelTitle').value;
-    const dateText = document.getElementById('panelDate').value;
-    const authorsText = selectedAuthorsOrder.length > 0 ? selectedAuthorsOrder.join(', ') : '';
-
-    const srcBytes = filesData.panel[0].bytes;
-    const srcDoc = await PDFLib.PDFDocument.load(srcBytes);
-    const finalPdf = await PDFLib.PDFDocument.create();
-    finalPdf.registerFontkit(fontkit);
-
-    const fontRegular = await finalPdf.embedFont(fontBytesCache);
-    const fontBold = await finalPdf.embedFont(fontBytesCache); // Pro jednoduchost stejný font
-
-    const yellowColor = PDFLib.rgb(0.968, 0.945, 0.592); // #f7f197
-    const textColor = PDFLib.rgb(0.094, 0.094, 0.106); // #18181b
-
-    for (let p = 1; p <= totalPreviewPages; p++) {
-      let targetPage = null;
-      const pdfIdx = pagePdfIndexMap[p];
-
-      if (pdfIdx === 'cover' || pdfIdx === 'blank' || customBlankPages.has(p)) {
-        targetPage = finalPdf.addPage([1190.55, 841.89]); // A3 Landscape
-      } else if (typeof pdfIdx === 'number' && pdfIdx <= srcDoc.getPageCount()) {
-        const [copied] = await finalPdf.copyPages(srcDoc, [pdfIdx - 1]);
-        targetPage = finalPdf.addPage(copied);
-      } else {
-        targetPage = finalPdf.addPage([1190.55, 841.89]);
-      }
-
-      const { width, height } = targetPage.getSize();
-
-      // Vykreslit žlutý spodní pruh
-      targetPage.drawRectangle({
-        x: 0, y: 0, width: width, height: 42, color: yellowColor
-      });
-      targetPage.drawText('20-20', {
-        x: 30, y: 14, size: 18, font: fontBold, color: textColor
-      });
-
-      // Vykreslit Moodboard buňky a obrázky
-      const pageObjs = allPagesTexts[p] || [];
-      const mbObj = pageObjs.find(o => o.isMoodboard);
-
-      if (mbObj) {
-        const mmToPdf = 2.83465; // 1mm = 2.83465 PDF bodů
-        for (let cell of mbObj.cells) {
-          const pdfX = cell.x * mmToPdf;
-          const pdfY = height - ((cell.y + cell.h) * mmToPdf);
-          const pdfW = cell.w * mmToPdf;
-          const pdfH = cell.h * mmToPdf;
-
-          // Rámeček buňky
-          targetPage.drawRectangle({
-            x: pdfX, y: pdfY, width: pdfW, height: pdfH,
-            borderColor: textColor, borderWidth: 1, color: PDFLib.rgb(0.95, 0.95, 0.95)
-          });
-
-          if (cell.imgKey && moodboardImagesStore[cell.imgKey]) {
-            try {
-              const imgDataUrl = moodboardImagesStore[cell.imgKey];
-              const base64Data = imgDataUrl.split(',')[1];
-              const imgBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-
-              let embeddedImg = null;
-              if (imgDataUrl.startsWith('data:image/jpeg') || imgDataUrl.startsWith('data:image/jpg')) {
-                embeddedImg = await finalPdf.embedJpg(imgBytes);
-              } else {
-                embeddedImg = await finalPdf.embedPng(imgBytes);
-              }
-
-              if (embeddedImg) {
-                // Převod ořezu / rozměrů pro PDF
-                const scale = cell.scale || 1;
-                const offX = (cell.offsetX || 0) * (pdfW / (cell.w * 3)); // Přepočet z editoru
-                const offY = -(cell.offsetY || 0) * (pdfH / (cell.h * 3));
-
-                const imgAspect = embeddedImg.width / embeddedImg.height;
-                const cellAspect = pdfW / pdfH;
-
-                let drawW = pdfW;
-                let drawH = pdfH;
-
-                if (imgAspect > cellAspect) {
-                  drawH = pdfH * scale;
-                  drawW = drawH * imgAspect;
-                } else {
-                  drawW = pdfW * scale;
-                  drawH = drawW / imgAspect;
-                }
-
-                const drawX = pdfX + (pdfW - drawW) / 2 + offX;
-                const drawY = pdfY + (pdfH - drawH) / 2 + offY;
-
-                // Vykreslení obrázku
-                targetPage.drawImage(embeddedImg, {
-                  x: drawX, y: drawY, width: drawW, height: drawH
-                });
-              }
-            } catch(e) {
-              console.error('Chyba při vkládání obrázku moodboardu do PDF:', e);
-            }
-          }
-        }
-      }
-
-      // Vykreslit volné texty a čáry
-      pageObjs.forEach(tb => {
-        if (tb.isMoodboard) return;
-
-        // Přepočet z HTML canvas souřadnic na PDF body
-        const pdfX = (tb.x / 1191) * width;
-        const pdfY = height - ((tb.y / 842) * height);
-
-        if (tb.isLine) {
-          const len = (tb.lineLen / 1191) * width;
-          if (tb.isVert) {
-            targetPage.drawLine({
-              start: { x: pdfX + 5, y: pdfY },
-              end: { x: pdfX + 5, y: pdfY - len },
-              thickness: 1, color: textColor
-            });
-          } else {
-            targetPage.drawLine({
-              start: { x: pdfX, y: pdfY - 5 },
-              end: { x: pdfX + len, y: pdfY - 5 },
-              thickness: 1, color: textColor
-            });
-          }
-        } else if (tb.text) {
-          const lines = tb.text.split(/\r?\n/);
-          const lineHeight = (tb.size || 14) * 1.2;
-          const font = (tb.weight === 'bold') ? fontBold : fontRegular;
-
-          lines.forEach((line, idx) => {
-            const lineY = pdfY - (idx * lineHeight) - tb.size;
-            targetPage.drawText(line, {
-              x: pdfX, y: lineY, size: tb.size || 14, font: font, color: textColor
-            });
-          });
-        }
-      });
+  pagePdfIndexMap = {};
+  let nextPdfIndex = 0;
+  for (let p = 1; p <= totalPreviewPages; p++) {
+    if (customBlankPages.has(p)) continue;
+    if (createCover && p === 1) continue;
+    if (nextPdfIndex < pdfJsDoc.numPages) {
+      pagePdfIndexMap[p] = nextPdfIndex;
+      nextPdfIndex++;
     }
-
-    const bytes = await finalPdf.save({ useObjectStreams: true });
-    const blob = new Blob([bytes], { type: 'application/pdf' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = (filesData.panel[0].name || 'prezentace').replace(/\.pdf$/i, '') + '_prezentace.pdf';
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-
-    st.textContent = 'Hotovo, prezentace vytvořena!';
-    if (fromModal) closePreviewModal();
-  } catch(err) {
-    alert('Chyba při vytváření prezentace: ' + err.message);
-    st.textContent = 'Chyba!';
   }
 }
 
-// Inicializace při načtení
-window.onload = function() {
-  initAuthorsUI();
-};
+function getPreviewPageInfo(pageNum) {
+  if (pageNum === undefined) pageNum = currentPreviewPage;
+  const createCover = document.getElementById('createCover').checked;
+  const isBlank = customBlankPages.has(pageNum);
+  if (isBlank) {
+    return { isCover: false, isBlank: true, pdfIndex: -1 };
+  }
+  const isCoverPage = createCover && pageNum === 1;
+  if (isCoverPage) {
+    return { isCover: true, isBlank: false, pdfIndex: -1 };
+  }
+  const pageData = allPagesTexts[pageNum];
+  if (pageData && pageData.type === 'moodboard') {
+    return { isCover: false, isBlank: false, pdfIndex: -1, isMoodboard: true };
+  }
+  const pdfIndex = pagePdfIndexMap[pageNum];
+  return {
+    isCover: false,
+    isBlank: false,
+    pdfIndex: (pdfIndex !== undefined) ? pdfIndex : 0,
+    isMoodboard: false
+  };
+}
+
+function buildPageRecords() {
+  const createCover = document.getElementById('createCover').checked;
+  const records = [];
+  for (let p = 1; p <= totalPreviewPages; p++) {
+    let type = 'pdf';
+    if (createCover && p === 1) type = 'cover';
+    else if (customBlankPages.has(p)) type = 'blank';
+    else {
+      const pageData = allPagesTexts[p];
+      if (pageData && pageData.type === 'moodboard') type = 'moodboard';
+    }
+    records.push({
+      type,
+      pdfIndex: (type === 'pdf') ? (pagePdfIndexMap[p] !== undefined ? pagePdfIndexMap[p] : 0) : null,
+      texts: (type === 'moodboard') ? pageData : (allPagesTexts[p] || [])
+    });
+  }
+  return records;
+}
+
+function applyPageRecords(records) {
+  const newTexts = {};
+  const newBlank = new Set();
+  const newPdfMap = {};
+  records.forEach((rec, idx) => {
+    const pos = idx + 1;
+    if (rec.type === 'blank') newBlank.add(pos);
+    else if (rec.type === 'pdf') newPdfMap[pos] = rec.pdfIndex;
+    else if (rec.type === 'moodboard') {
+      newTexts[pos] = rec.texts;
+    } else {
+      if (rec.texts && !Array.isArray(rec.texts) && rec.texts.type === 'moodboard') {
+        newTexts[pos] = rec.texts;
+      } else if (Array.isArray(rec.texts)) {
+        newTexts[pos] = rec.texts;
+      } else {
+        newTexts[pos] = [];
+      }
+    }
+  });
+  allPagesTexts = newTexts;
+  customBlankPages = newBlank;
+  pagePdfIndexMap = newPdfMap;
+  totalPreviewPages = records.length;
+}
+
+function movePage(from, to) {
+  const createCover = document.getElementById('createCover').checked;
+  const lockedPos = createCover ? 1 : 0;
+  if (from === to) return;
+  if (from === lockedPos || to === lockedPos) return;
+  if (from < 1 || from > totalPreviewPages || to < 1 || to > totalPreviewPages) return;
+
+  pushTextHistory();
+  const records = buildPageRecords();
+  const [moved] = records.splice(from - 1, 1);
+  records.splice(to - 1, 0, moved);
+  applyPageRecords(records);
+
+  if (currentPreviewPage === from) currentPreviewPage = to;
+  else if (from < currentPreviewPage && to >= currentPreviewPage) currentPreviewPage--;
+  else if (from > currentPreviewPage && to <= currentPreviewPage) currentPreviewPage++;
+}
+
+async function deletePreviewPage(pos) {
+  const createCover = document.getElementById('createCover').checked;
+  if (createCover && pos === 1) return;
+  if (totalPreviewPages <= 1) return;
+  if (!confirm('Opravdu chcete tuto stránku odstranit?')) return;
+
+  pushTextHistory();
+  const records = buildPageRecords();
+  records.splice(pos - 1, 1);
+  applyPageRecords(records);
+
+  if (currentPreviewPage > totalPreviewPages) currentPreviewPage = totalPreviewPages;
+  else if (currentPreviewPage > pos) currentPreviewPage--;
+
+  await renderCurrentPagePreview();
+  await renderThumbnails();
+}
+
+async function getPageSize(info) {
+  if (info.isCover || info.isBlank) {
+    const p = await pdfJsDoc.getPage(1);
+    const vp = p.getViewport({scale:1});
+    const w = Math.max(vp.width, vp.height);
+    const h = Math.min(vp.width, vp.height);
+    return {width: w, height: h};
+  }
+  const p = await pdfJsDoc.getPage(info.pdfIndex + 1);
+  const vp = p.getViewport({scale:1});
+  const w = Math.max(vp.width, vp.height);
+  const h = Math.min(vp.width, vp.height);
+  return {width: w, height: h};
+}
+
+async function addBlankPage(){
+  pushTextHistory();
+  
+  let newAllTexts = {};
+  let newBlankPages = new Set();
+  let newPdfMap = {};
+  
+  for(let [pStr, texts] of Object.entries(allPagesTexts)){
+    let pNum = parseInt(pStr);
+    if(pNum >= currentPreviewPage) {
+      newAllTexts[pNum + 1] = texts;
+    } else {
+      newAllTexts[pNum] = texts;
+    }
+  }
+  for(let pNum of customBlankPages){
+    if(pNum >= currentPreviewPage) newBlankPages.add(pNum + 1);
+    else newBlankPages.add(pNum);
+  }
+  for(let [pStr, idx] of Object.entries(pagePdfIndexMap)){
+    let pNum = parseInt(pStr);
+    if(pNum >= currentPreviewPage) newPdfMap[pNum + 1] = idx;
+    else newPdfMap[pNum] = idx;
+  }
+  
+  allPagesTexts = newAllTexts;
+  customBlankPages = newBlankPages;
+  pagePdfIndexMap = newPdfMap;
+  customBlankPages.add(currentPreviewPage);
+  
+  totalPreviewPages++;
+  await renderCurrentPagePreview();
+  await renderThumbnails();
+}
+
+async function drawCover(ctx, width, height, scale) {
+  const bg = '#f7f197';
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width * scale, height * scale);
+
+  if (logoBytesCache) {
+    try {
+      const img = new Image();
+      const url = URL.createObjectURL(new Blob([logoBytesCache]));
+      img.src = url;
+      await new Promise(resolve => {
+        img.onload = () => {
+          const h = 65;
+          const w = img.width * (h / img.height);
+          const x = width / 2 - w / 2;
+          const y = 42.5; 
+          ctx.drawImage(img, x * scale, (height - y - h) * scale, w * scale, h * scale);
+          URL.revokeObjectURL(url);
+          resolve();
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+      });
+    } catch (e) {}
+  }
+}
+
+async function drawBlankPage(ctx, width, height, scale) {
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width * scale, height * scale);
+  await drawInfoBar(ctx, width, height, scale);
+}
+
+async function drawInfoBar(ctx, width, height, scale) {
+  const margin = 14.17; 
+  const barHeight = 28.35;
+  const realWidth = width;
+  const realHeight = height;
+
+  const x = margin, y = realHeight - margin - barHeight;
+  ctx.fillStyle = '#f7f197';
+  ctx.fillRect(x * scale, y * scale, (realWidth - 2 * margin) * scale, barHeight * scale);
+
+  ctx.strokeStyle = '#18181b'; ctx.lineWidth = 1 * scale;
+  let currentX = margin + 15;
+
+  const drawLogo = async () => {
+    if (logoBytesCache) {
+      try {
+        const img = new Image(), url = URL.createObjectURL(new Blob([logoBytesCache]));
+        img.src = url;
+        await new Promise(resolve => {
+          img.onload = () => {
+            const h = 22;
+            const w = img.width * (h / img.height);
+            ctx.drawImage(img, currentX * scale, (y + (barHeight - h) / 2) * scale, w * scale, h * scale);
+            currentX += w + 15;
+            URL.revokeObjectURL(url); resolve();
+          };
+          img.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+        });
+      } catch(e) {}
+    }
+    ctx.beginPath();
+    ctx.moveTo(currentX * scale, (y + 6) * scale);
+    ctx.lineTo(currentX * scale, (y + barHeight - 6) * scale);
+    ctx.stroke();
+    currentX += 15;
+
+    ctx.fillStyle = '#18181b';
+    ctx.font = `${11 * (96/72)}px "${editorFontFamily}"`;
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(getActiveProjectType(), currentX * scale, (y + barHeight / 2 + 4) * scale);
+
+    const title = document.getElementById('panelTitle').value;
+    const date = document.getElementById('panelDate').value;
+    const rightMargin = margin + realWidth - 2 * margin - 20;
+    ctx.fillText(date, (rightMargin - 80) * scale, (y + barHeight / 2 + 4) * scale);
+    ctx.beginPath();
+    ctx.moveTo((rightMargin - 95) * scale, (y + 6) * scale);
+    ctx.lineTo((rightMargin - 95) * scale, (y + barHeight - 6) * scale);
+    ctx.stroke();
+
+    const titleFontSize = 11 * (96/72);
+    ctx.font = `${titleFontSize}px "${editorFontFamily}"`;
+    const titleWidthPx = ctx.measureText(title).width;
+    const titleRight = (rightMargin - 95) - 15;
+    ctx.fillText(title, (titleRight * scale) - titleWidthPx, (y + barHeight / 2 + 4) * scale);
+  };
+  return drawLogo();
+}
+
+async function renderCurrentPagePreview() {
+  // Nevoláme saveCurrentPageBoxes, protože může být moodboard – uloží se jen při změnách
+  // saveCurrentPageBoxes se volá v pushTextHistory a při explicitních akcích
+
+  const canvas = document.getElementById('preview-canvas');
+  const ctx = canvas.getContext('2d');
+  const info = getPreviewPageInfo();
+  const pageSize = await getPageSize(info);
+
+  const maxCssWidth = Math.min(900, document.getElementById('preview-main').clientWidth - 30);
+  const cssScale = Math.max(0.1, Math.min(1.5, maxCssWidth / pageSize.width));
+  const renderScale = cssScale * 2;
+  canvas.width = Math.round(pageSize.width * renderScale);
+  canvas.height = Math.round(pageSize.height * renderScale);
+  canvas.style.width = (pageSize.width * cssScale) + 'px';
+  canvas.style.height = (pageSize.height * cssScale) + 'px';
+  window.__previewInfo = {width: pageSize.width, height: pageSize.height, scale: renderScale};
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const pageData = allPagesTexts[currentPreviewPage];
+  const isMoodboard = pageData && pageData.type === 'moodboard';
+
+  if (info.isCover) {
+    await drawCover(ctx, pageSize.width, pageSize.height, renderScale);
+  } else if (info.isBlank) {
+    await drawBlankPage(ctx, pageSize.width, pageSize.height, renderScale);
+  } else if (isMoodboard) {
+    await drawMoodboard(ctx, pageSize.width, pageSize.height, renderScale, pageData.cells || []);
+    await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale);
+  } else {
+    const page = await pdfJsDoc.getPage(info.pdfIndex + 1);
+    const origVp = page.getViewport({scale: 1});
+    
+    let renderViewport;
+    if (origVp.height > origVp.width) {
+      renderViewport = page.getViewport({scale: renderScale, rotation: 90});
+    } else {
+      renderViewport = page.getViewport({scale: renderScale});
+    }
+    await page.render({canvasContext: ctx, viewport: renderViewport}).promise;
+    await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale);
+  }
+
+  document.getElementById('page-indicator').textContent =
+    info.isCover ? `Úvodní strana (Stránka ${currentPreviewPage} z ${totalPreviewPages})`
+                 : (info.isBlank ? `Prázdná stránka s pruhem (Stránka ${currentPreviewPage} z ${totalPreviewPages})`
+                 : (isMoodboard ? `Moodboard (Stránka ${currentPreviewPage} z ${totalPreviewPages})`
+                 : `Stránka ${currentPreviewPage} z ${totalPreviewPages}`));
+
+  document.getElementById('prev-page-btn').disabled = currentPreviewPage <= 1;
+  document.getElementById('next-page-btn').disabled = currentPreviewPage >= totalPreviewPages;
+
+  document.querySelectorAll('.custom-text-box').forEach(el => el.remove());
+  document.querySelectorAll('.moodboard-cell').forEach(el => el.remove());
+
+  if (isMoodboard) {
+    renderMoodboardOverlay(currentPreviewPage, pageData.cells || []);
+  } else {
+    (allPagesTexts[currentPreviewPage] || []).forEach(b => {
+      if (b.type === 'line') createLineElement(b);
+      else createBoxElement(b);
+    });
+  }
+}
+
+function addTextBox(){
+  pushTextHistory();
+  if(!allPagesTexts[currentPreviewPage]) allPagesTexts[currentPreviewPage] = [];
+  const info = window.__previewInfo;
+  const id = textIdCounter++;
+  const existingCount = allPagesTexts[currentPreviewPage].filter(x => x.type !== 'line').length;
+  const cascade = (existingCount % 8) * 14;
+  allPagesTexts[currentPreviewPage].push({
+    id, type: 'text', text:'Nový text', size:16, x:info.width/3 + cascade, y:Math.max(20, info.height/2 - cascade)
+  });
+  pendingAutoFocusId = id;
+  renderCurrentPagePreview();
+}
+
+function addLineBox(){
+  pushTextHistory();
+  if(!allPagesTexts[currentPreviewPage]) allPagesTexts[currentPreviewPage] = [];
+  const info = window.__previewInfo;
+  const id = textIdCounter++;
+  allPagesTexts[currentPreviewPage].push({
+    id, type: 'line', x: info.width - 320, y: 180, height: 115, orientation: 'vertical'
+  });
+  renderCurrentPagePreview();
+}
+
+function createBoxElement(b){
+  const layer = document.getElementById('boxes-layer');
+  const canvas = document.getElementById('preview-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const info = window.__previewInfo;
+  const sx = rect.width/info.width, sy = rect.height/info.height;
+  const div = document.createElement('div');
+  div.className = 'custom-text-box';
+  div.dataset.id = b.id;
+  div.style.left = (b.x*sx)+'px';
+  
+  const linesCount = (b.text || '').split(/\r?\n/).length;
+  const totalBoxHeightPts = b.size * linesCount * 1.2;
+  div.style.top = ((info.height - b.y - totalBoxHeightPts) * sy) + 'px';
+
+  div.style.fontFamily = `"${editorFontFamily}"`;
+  div.style.fontSize = (b.size*(96/72)*sx)+'px';
+
+  const textarea = document.createElement('textarea');
+  textarea.className = 'tb-main';
+  textarea.value = b.text;
+  textarea.style.fontFamily = `"${editorFontFamily}"`;
+  textarea.style.fontSize = (b.size*(96/72)*sx)+'px';
+
+  const refreshBoxMetrics = () => {
+    const lines = (textarea.value || '').split(/\r?\n/);
+    const lCount = lines.length;
+    const m = measureTextBox(textarea.value, b.size, sx);
+    div.style.width = m.width+'px';
+    div.style.height = m.height+'px';
+    textarea.style.width = m.width+'px';
+    textarea.style.height = m.height+'px';
+    const currentBoxHeightPts = b.size * lCount * 1.2;
+    div.style.top = ((info.height - b.y - currentBoxHeightPts) * sy) + 'px';
+  };
+  refreshBoxMetrics();
+
+  let typingTimeout = null;
+  textarea.addEventListener('focus', () => {
+    pushTextHistory();
+    selectBox(div);
+  });
+  textarea.addEventListener('input', () => {
+    b.text = textarea.value;
+    refreshBoxMetrics();
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => { scheduleAutosave(); }, 400);
+  });
+  div.addEventListener('mousedown', () => selectBox(div));
+
+  const handle = document.createElement('div');
+  handle.className = 'tb-handle';
+  handle.title = 'Přetáhni pro posunutí textu (volný pohyb)';
+
+  const controls = document.createElement('div');
+  controls.className = 'tb-controls';
+  controls.innerHTML = `<input type="number" min="6" max="144" step="1" value="${b.size}" title="Velikost písma"><button class="del-btn" type="button" title="Smazat">✕</button>`;
+  const sizeInput = controls.querySelector('input');
+  
+  let sizeHistoryPushed = false;
+  sizeInput.addEventListener('focus', () => {
+    pushTextHistory();
+    sizeHistoryPushed = true;
+  });
+  sizeInput.addEventListener('input', () => {
+    if (!sizeHistoryPushed) { pushTextHistory(); sizeHistoryPushed = true; }
+    b.size = Math.max(6, Math.min(144, parseFloat(sizeInput.value)||16));
+    div.style.fontSize = (b.size*(96/72)*sx)+'px';
+    textarea.style.fontSize = (b.size*(96/72)*sx)+'px';
+    refreshBoxMetrics();
+    scheduleAutosave();
+  });
+  sizeInput.addEventListener('blur', () => { sizeHistoryPushed = false; saveCurrentPageBoxes(); });
+
+  controls.querySelector('.del-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    pushTextHistory();
+    allPagesTexts[currentPreviewPage] = (allPagesTexts[currentPreviewPage]||[]).filter(x => x.id !== b.id);
+    if (selectedBoxEl === div) selectedBoxEl = null;
+    div.remove();
+    updateUndoButton();
+    scheduleAutosave();
+  });
+
+  div.append(textarea, handle, controls);
+  makeDraggable(div, b, handle);
+  layer.appendChild(div);
+
+  if (pendingAutoFocusId === b.id) {
+    pendingAutoFocusId = null;
+    setTimeout(() => { textarea.focus(); textarea.select(); }, 0);
+  }
+}
+
+function createLineElement(b){
+  const layer = document.getElementById('boxes-layer');
+  const canvas = document.getElementById('preview-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const info = window.__previewInfo;
+  const sx = rect.width/info.width, sy = rect.height/info.height;
+  b.orientation = b.orientation || 'vertical';
+  const isVertical = b.orientation === 'vertical';
+
+  const div = document.createElement('div');
+  div.className = 'custom-text-box';
+  div.dataset.id = b.id;
+
+  if (isVertical) {
+    div.style.width = '10px';
+    div.style.height = (b.height * sy) + 'px';
+    div.style.left = (b.x * sx) + 'px';
+    div.style.top = ((info.height - b.y - b.height) * sy) + 'px';
+  } else {
+    div.style.width = (b.height * sy) + 'px';
+    div.style.height = '10px';
+    div.style.left = (b.x * sx) + 'px';
+    div.style.top = ((info.height - b.y - 10/sy) * sy) + 'px';
+  }
+
+  const lineVisual = document.createElement('div');
+  lineVisual.style.position = 'absolute';
+  if (isVertical) {
+    lineVisual.style.left = '5px';
+    lineVisual.style.top = '0';
+    lineVisual.style.bottom = '0';
+    lineVisual.style.width = '1px';
+    lineVisual.style.background = '#18181b';
+  } else {
+    lineVisual.style.left = '0';
+    lineVisual.style.top = '5px';
+    lineVisual.style.right = '0';
+    lineVisual.style.height = '1px';
+    lineVisual.style.background = '#18181b';
+  }
+
+  const handle = document.createElement('div');
+  handle.className = 'tb-handle';
+  handle.title = 'Přetáhni pro posunutí čáry (volný pohyb)';
+
+  const controls = document.createElement('div');
+  controls.className = 'tb-controls';
+  controls.innerHTML = `<input type="number" min="10" max="500" step="1" value="${Math.round(b.height)}" title="Délka čáry"><button class="rotate-btn" type="button" title="Otočit o 90°">↻</button><button class="del-btn" type="button" title="Smazat">✕</button>`;
+  const heightInput = controls.querySelector('input');
+  const rotateBtn = controls.querySelector('.rotate-btn');
+
+  let heightHistoryPushed = false;
+  heightInput.addEventListener('focus', () => {
+    pushTextHistory();
+    heightHistoryPushed = true;
+  });
+  heightInput.addEventListener('input', () => {
+    if (!heightHistoryPushed) { pushTextHistory(); heightHistoryPushed = true; }
+    b.height = Math.max(10, Math.min(500, parseFloat(heightInput.value)||100));
+    if (isVertical) {
+      div.style.height = (b.height * sy) + 'px';
+      div.style.top = ((info.height - b.y - b.height) * sy) + 'px';
+    } else {
+      div.style.width = (b.height * sy) + 'px';
+    }
+    scheduleAutosave();
+  });
+  heightInput.addEventListener('blur', () => { heightHistoryPushed = false; saveCurrentPageBoxes(); });
+
+  rotateBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    rotateLine(b);
+  });
+
+  controls.querySelector('.del-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    pushTextHistory();
+    allPagesTexts[currentPreviewPage] = (allPagesTexts[currentPreviewPage]||[]).filter(x => x.id !== b.id);
+    if (selectedBoxEl === div) selectedBoxEl = null;
+    div.remove();
+    updateUndoButton();
+    scheduleAutosave();
+  });
+
+  div.addEventListener('mousedown', () => selectBox(div));
+  div.append(lineVisual, handle, controls);
+  makeDraggableLine(div, b, handle);
+  layer.appendChild(div);
+}
+
+function rotateLine(b) {
+  pushTextHistory();
+  const isVertical = b.orientation === 'vertical';
+  if (isVertical) {
+    b.x = b.x - b.height / 2;
+    b.y = b.y + b.height / 2;
+    b.orientation = 'horizontal';
+  } else {
+    b.x = b.x + b.height / 2;
+    b.y = b.y - b.height / 2;
+    b.orientation = 'vertical';
+  }
+  renderCurrentPagePreview();
+  scheduleAutosave();
+}
+
+let dragSourcePage = null;
+
+async function renderThumbnails() {
+  const sidebar = document.getElementById('thumbs-sidebar');
+  if (!sidebar) return;
+  if (!pdfJsDoc) { sidebar.innerHTML = ''; return; }
+  sidebar.innerHTML = '';
+  const thumbW = 100;
+  const createCover = document.getElementById('createCover').checked;
+
+  for (let p = 1; p <= totalPreviewPages; p++) {
+    const info = getPreviewPageInfo(p);
+    const pageSize = await getPageSize(info);
+    const scale = thumbW / pageSize.width;
+    const isLocked = createCover && p === 1;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'thumb-item' + (p === currentPreviewPage ? ' active' : '') + (isLocked ? ' locked' : '');
+    wrap.dataset.page = p;
+    wrap.draggable = !isLocked;
+    wrap.title = isLocked ? 'Úvodní strana je vždy první' : 'Přetažením změníte pořadí stránek';
+
+    const c = document.createElement('canvas');
+    c.width = Math.round(pageSize.width * scale);
+    c.height = Math.round(pageSize.height * scale);
+    const cctx = c.getContext('2d');
+
+    const pageData = allPagesTexts[p];
+    const isMoodboard = pageData && pageData.type === 'moodboard';
+
+    if (info.isCover) {
+      await drawCover(cctx, pageSize.width, pageSize.height, scale);
+    } else if (info.isBlank) {
+      await drawBlankPage(cctx, pageSize.width, pageSize.height, scale);
+    } else if (isMoodboard) {
+      await drawMoodboard(cctx, pageSize.width, pageSize.height, scale, pageData.cells || []);
+      await drawInfoBar(cctx, pageSize.width, pageSize.height, scale);
+    } else {
+      const page = await pdfJsDoc.getPage(info.pdfIndex + 1);
+      const origVp = page.getViewport({ scale: 1 });
+      const vp = origVp.height > origVp.width
+        ? page.getViewport({ scale, rotation: 90 })
+        : page.getViewport({ scale });
+      await page.render({ canvasContext: cctx, viewport: vp }).promise;
+      await drawInfoBar(cctx, pageSize.width, pageSize.height, scale);
+    }
+
+    const label = document.createElement('div');
+    label.className = 'thumb-label';
+    label.textContent = p + (info.isCover ? ' • úvod' : info.isBlank ? ' • prázdná' : isMoodboard ? ' • moodboard' : '');
+
+    wrap.append(c, label);
+
+    if (!isLocked && totalPreviewPages > 1) {
+      const delBtn = document.createElement('div');
+      delBtn.className = 'thumb-delete';
+      delBtn.textContent = '✕';
+      delBtn.title = 'Odstranit stránku';
+      delBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await deletePreviewPage(parseInt(wrap.dataset.page));
+      });
+      wrap.appendChild(delBtn);
+    }
+
+    wrap.addEventListener('click', async () => {
+      saveCurrentPageBoxes();
+      currentPreviewPage = p;
+      await renderCurrentPagePreview();
+      highlightActiveThumb();
+    });
+
+    if (!isLocked) {
+      wrap.addEventListener('dragstart', (e) => {
+        dragSourcePage = parseInt(wrap.dataset.page);
+        wrap.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', String(dragSourcePage)); } catch(err) {}
+      });
+      wrap.addEventListener('dragend', () => {
+        wrap.classList.remove('dragging');
+        document.querySelectorAll('.thumb-item').forEach(el => el.classList.remove('drop-before', 'drop-after'));
+        dragSourcePage = null;
+      });
+    }
+
+    wrap.addEventListener('dragover', (e) => {
+      if (dragSourcePage === null || isLocked) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const targetPage = parseInt(wrap.dataset.page);
+      wrap.classList.toggle('drop-before', targetPage < dragSourcePage);
+      wrap.classList.toggle('drop-after', targetPage > dragSourcePage);
+    });
+    wrap.addEventListener('dragleave', () => {
+      wrap.classList.remove('drop-before', 'drop-after');
+    });
+    wrap.addEventListener('drop', async (e) => {
+      if (dragSourcePage === null || isLocked) return;
+      e.preventDefault();
+      wrap.classList.remove('drop-before', 'drop-after');
+      const targetPage = parseInt(wrap.dataset.page);
+      const from = dragSourcePage;
+      dragSourcePage = null;
+      if (from === targetPage) return;
+      movePage(from, targetPage);
+      await renderCurrentPagePreview();
+      await renderThumbnails();
+    });
+
+    sidebar.appendChild(wrap);
+  }
+}
+
+function highlightActiveThumb() {
+  document.querySelectorAll('.thumb-item').forEach(el => {
+    el.classList.toggle('active', parseInt(el.dataset.page) === currentPreviewPage);
+  });
+}
+
+// Opravená saveCurrentPageBoxes – ošetření pro moodboard
+function saveCurrentPageBoxes(){
+  const canvas = document.getElementById('preview-canvas');
+  const info = window.__previewInfo;
+  if(!canvas||!info) return;
+  
+  const pageData = allPagesTexts[currentPreviewPage];
+  // Pokud to není pole, nejedná se o normální stránku s textovými boxy – nic neukládáme
+  if (!Array.isArray(pageData)) return;
+  
+  const rect = canvas.getBoundingClientRect();
+  const sx = rect.width/info.width, sy = rect.height/info.height;
+  const existing = pageData;
+  const byId = new Map(existing.map(b => [b.id, b]));
+
+  document.querySelectorAll('.custom-text-box').forEach(el => {
+    const id = parseInt(el.dataset.id);
+    const b = byId.get(id);
+    if(!b) return;
+    const left = parseFloat(el.style.left)||0;
+    const top = parseFloat(el.style.top)||0;
+    b.x = Math.max(0, Math.min(info.width, left/sx));
+
+    if(b.type === 'line') {
+      const heightInput = el.querySelector('.tb-controls input');
+      if (heightInput) b.height = Math.max(10, Math.min(500, parseFloat(heightInput.value)||100));
+      if (b.orientation === 'vertical') {
+        b.y = Math.max(0, Math.min(info.height, (info.height - (top/sy) - b.height)));
+      } else {
+        b.y = Math.max(0, Math.min(info.height, (info.height - (top/sy) - 10/sy)));
+      }
+    } else {
+      const sizeInput = el.querySelector('.tb-controls input');
+      if (sizeInput) b.size = Math.max(6, Math.min(144, parseFloat(sizeInput.value)||16));
+      
+      const textarea = el.querySelector('.tb-main');
+      b.text = textarea ? textarea.value : b.text;
+      const linesCount = (b.text || '').split(/\r?\n/).length;
+      const currentBoxHeightPts = b.size * linesCount * 1.2;
+      b.y = Math.max(0, Math.min(info.height, (info.height - (top/sy) - currentBoxHeightPts)));
+    }
+  });
+  scheduleAutosave();
+}
+
+// Přetažení textového pole – volný pohyb v obou osách s přichytáváním ke všem okrajům
+function makeDraggable(element, b, handle){
+  let dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+  const startDrag = e => {
+    if(e.button !== undefined && e.button !== 0) return;
+    pushTextHistory();
+    dragging = true;
+    selectBox(element);
+    startX = e.clientX; startY = e.clientY;
+    startLeft = parseFloat(element.style.left)||0;
+    startTop = parseFloat(element.style.top)||0;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  handle.addEventListener('mousedown', startDrag);
+  handle.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    if(!t) return;
+    pushTextHistory();
+    dragging = true;
+    selectBox(element);
+    startX = t.clientX; startY = t.clientY;
+    startLeft = parseFloat(element.style.left)||0;
+    startTop = parseFloat(element.style.top)||0;
+    e.preventDefault();
+  }, {passive:false});
+
+  const move = e => {
+    if(!dragging) return;
+    const canvas = document.getElementById('preview-canvas'), rect = canvas.getBoundingClientRect();
+    let dx = e.clientX - startX;
+    let dy = e.clientY - startY;
+    let newLeft = startLeft + dx;
+    let newTop = startTop + dy;
+    
+    newLeft = Math.max(0, Math.min(rect.width - element.offsetWidth, newLeft));
+    newTop = Math.max(0, Math.min(rect.height - element.offsetHeight, newTop));
+
+    const snapThreshold = 8;
+    const allBoxes = document.querySelectorAll('.custom-text-box');
+    allBoxes.forEach(el => {
+      if (el === element) return;
+      const otherLeft = parseFloat(el.style.left) || 0;
+      const otherRight = otherLeft + el.offsetWidth;
+      const myWidth = element.offsetWidth;
+      const otherTop = parseFloat(el.style.top) || 0;
+      const otherBottom = otherTop + el.offsetHeight;
+      const myHeight = element.offsetHeight;
+
+      if (Math.abs(newLeft - otherLeft) < snapThreshold) newLeft = otherLeft;
+      if (Math.abs((newLeft + myWidth) - otherRight) < snapThreshold) newLeft = otherRight - myWidth;
+      if (Math.abs(newLeft - otherRight) < snapThreshold) newLeft = otherRight;
+      if (Math.abs((newLeft + myWidth) - otherLeft) < snapThreshold) newLeft = otherLeft - myWidth;
+
+      if (Math.abs(newTop - otherTop) < snapThreshold) newTop = otherTop;
+      if (Math.abs((newTop + myHeight) - otherBottom) < snapThreshold) newTop = otherBottom - myHeight;
+      if (Math.abs(newTop - otherBottom) < snapThreshold) newTop = otherBottom;
+      if (Math.abs((newTop + myHeight) - otherTop) < snapThreshold) newTop = otherTop - myHeight;
+    });
+
+    element.style.left = Math.max(0, Math.min(rect.width - element.offsetWidth, newLeft)) + 'px';
+    element.style.top = Math.max(0, Math.min(rect.height - element.offsetHeight, newTop)) + 'px';
+  };
+
+  const touchMove = e => {
+    if(!dragging) return;
+    const t = e.touches[0]; if(!t) return;
+    move({clientX:t.clientX, clientY:t.clientY});
+    e.preventDefault();
+  };
+  const up = () => {
+    if(!dragging) return;
+    dragging = false;
+    saveCurrentPageBoxes();
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up);
+    document.removeEventListener('touchmove', touchMove);
+    document.removeEventListener('touchend', up);
+  };
+  handle.addEventListener('mousedown', () => {
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+  handle.addEventListener('touchstart', () => {
+    document.addEventListener('touchmove', touchMove, {passive:false});
+    document.addEventListener('touchend', up);
+  }, {passive:false});
+}
+
+// Přetažení čáry – volný pohyb v obou osách s přichytáváním
+function makeDraggableLine(element, b, handle){
+  let dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+  const startDrag = e => {
+    if(e.button !== undefined && e.button !== 0) return;
+    pushTextHistory();
+    dragging = true;
+    selectBox(element);
+    startX = e.clientX; startY = e.clientY;
+    startLeft = parseFloat(element.style.left)||0;
+    startTop = parseFloat(element.style.top)||0;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  handle.addEventListener('mousedown', startDrag);
+  handle.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    if(!t) return;
+    pushTextHistory();
+    dragging = true;
+    selectBox(element);
+    startX = t.clientX; startY = t.clientY;
+    startLeft = parseFloat(element.style.left)||0;
+    startTop = parseFloat(element.style.top)||0;
+    e.preventDefault();
+  }, {passive:false});
+
+  const move = e => {
+    if(!dragging) return;
+    const canvas = document.getElementById('preview-canvas'), rect = canvas.getBoundingClientRect();
+    let dx = e.clientX - startX;
+    let dy = e.clientY - startY;
+    let newLeft = startLeft + dx;
+    let newTop = startTop + dy;
+    
+    newLeft = Math.max(0, Math.min(rect.width - element.offsetWidth, newLeft));
+    newTop = Math.max(0, Math.min(rect.height - element.offsetHeight, newTop));
+
+    const snapThreshold = 8;
+    const allBoxes = document.querySelectorAll('.custom-text-box');
+    allBoxes.forEach(el => {
+      if (el === element) return;
+      const otherLeft = parseFloat(el.style.left) || 0;
+      const otherRight = otherLeft + el.offsetWidth;
+      const myWidth = element.offsetWidth;
+      const otherTop = parseFloat(el.style.top) || 0;
+      const otherBottom = otherTop + el.offsetHeight;
+      const myHeight = element.offsetHeight;
+
+      if (Math.abs(newLeft - otherLeft) < snapThreshold) newLeft = otherLeft;
+      if (Math.abs((newLeft + myWidth) - otherRight) < snapThreshold) newLeft = otherRight - myWidth;
+      if (Math.abs(newLeft - otherRight) < snapThreshold) newLeft = otherRight;
+      if (Math.abs((newLeft + myWidth) - otherLeft) < snapThreshold) newLeft = otherLeft - myWidth;
+
+      if (Math.abs(newTop - otherTop) < snapThreshold) newTop = otherTop;
+      if (Math.abs((newTop + myHeight) - otherBottom) < snapThreshold) newTop = otherBottom - myHeight;
+      if (Math.abs(newTop - otherBottom) < snapThreshold) newTop = otherBottom;
+      if (Math.abs((newTop + myHeight) - otherTop) < snapThreshold) newTop = otherTop - myHeight;
+    });
+
+    element.style.left = Math.max(0, Math.min(rect.width - element.offsetWidth, newLeft)) + 'px';
+    element.style.top = Math.max(0, Math.min(rect.height - element.offsetHeight, newTop)) + 'px';
+  };
+
+  const touchMove = e => {
+    if(!dragging) return;
+    const t = e.touches[0]; if(!t) return;
+    move({clientX:t.clientX, clientY:t.clientY});
+    e.preventDefault();
+  };
+  const up = () => {
+    if(!dragging) return;
+    dragging = false;
+    saveCurrentPageBoxes();
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up);
+    document.removeEventListener('touchmove', touchMove);
+    document.removeEventListener('touchend', up);
+  };
+  handle.addEventListener('mousedown', () => {
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+  handle.addEventListener('touchstart', () => {
+    document.addEventListener('touchmove', touchMove, {passive:false});
+    document.addEventListener('touchend', up);
+  }, {passive:false});
+}
+
+async function prevPage(){
+  saveCurrentPageBoxes();
+  if(currentPreviewPage > 1){ currentPreviewPage--; await renderCurrentPagePreview(); highlightActiveThumb(); }
+}
+async function nextPage(){
+  saveCurrentPageBoxes();
+  if(currentPreviewPage < totalPreviewPages){ currentPreviewPage++; await renderCurrentPagePreview(); highlightActiveThumb(); }
+}
+
+async function runPanel(fromModal = false){
+  const {PDFDocument, rgb} = PDFLib;
+  if(!filesData.panel.length) return;
+
+  if (document.getElementById('preview-modal').style.display === 'flex') {
+    saveCurrentPageBoxes();
+  }
+
+  document.getElementById('btn-panel').disabled = true;
+  try{
+    const f = filesData.panel[0];
+    const projectType = getActiveProjectType();
+    const projectTitle = document.getElementById('panelTitle').value;
+    const projectDate = document.getElementById('panelDate').value;
+    const createCover = document.getElementById('createCover').checked;
+
+    const pdf = await PDFDocument.load(loadedFileBytes, {ignoreEncryption:true});
+    pdf.registerFontkit(fontkit);
+    const fontData = fontBytesCache || await fetch('font/Dunwich Type Founders - Antarctican Mono Semibold.otf').then(r => r.arrayBuffer());
+    let logoImage = null;
+    try{
+      const logoData = logoBytesCache || await fetch('2020.png').then(r => r.arrayBuffer());
+      logoImage = await pdf.embedPng(logoData);
+    }catch(e){}
+    const textColor = rgb(24/255, 24/255, 27/255);
+
+    const firstRefPage = pdf.getPage(0);
+    let {width: refW, height: refH} = firstRefPage.getSize();
+    const standardA3W = Math.max(refW, refH);
+    const standardA3H = Math.min(refW, refH);
+
+    const finalPdf = await PDFDocument.create();
+    finalPdf.registerFontkit(fontkit);
+    const finalFont = await finalPdf.embedFont(fontData);
+    let finalLogo = null;
+    if(logoImage){
+      const logoBytes = logoBytesCache || await fetch('2020.png').then(r => r.arrayBuffer());
+      finalLogo = await finalPdf.embedPng(logoBytes);
+    }
+
+    for(let previewP = 1; previewP <= totalPreviewPages; previewP++){
+      let targetPage;
+      let targetW = standardA3W, targetH = standardA3H;
+
+      const pageData = allPagesTexts[previewP];
+      const isMoodboard = pageData && pageData.type === 'moodboard';
+
+      if(createCover && previewP === 1){
+        targetPage = finalPdf.addPage([standardA3W, standardA3H]);
+        targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(247/255, 241/255, 151/255)});
+        
+        if(finalLogo){
+          const h = 65, w = finalLogo.width * (h / finalLogo.height);
+          targetPage.drawImage(finalLogo, {x:standardA3W/2 - w/2, y:42.5, width:w, height:h});
+        }
+        // Vykreslení textů na úvodní straně
+        (allPagesTexts[previewP] || []).forEach(tb => {
+          if(tb.type === 'line') {
+            targetPage.drawLine({
+              start: { x: tb.x + 5, y: tb.y },
+              end: { x: tb.x + 5, y: tb.y + tb.height },
+              thickness: 1,
+              color: textColor
+            });
+          } else if(tb.text) {
+            const lines = tb.text.split(/\r?\n/);
+            const lineHeight = tb.size * 1.2;
+            lines.forEach((line, idx) => {
+              const lineY = tb.y + (lines.length - 1 - idx) * lineHeight;
+              targetPage.drawText(line, {x: tb.x, y: lineY, size: tb.size, font: finalFont, color: textColor});
+            });
+          }
+        });
+      } else if(customBlankPages.has(previewP)){
+        targetPage = finalPdf.addPage([standardA3W, standardA3H]);
+        targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(1,1,1)});
+        
+        const margin = 14.17, barHeight = 28.35;
+        targetPage.drawRectangle({x:margin, y:margin, width:standardA3W - 2 * margin, height:barHeight, color:rgb(247/255, 241/255, 151/255)});
+        let currentX = margin + 15;
+        const centerY = margin + barHeight / 2;
+        if(finalLogo){
+          const d = finalLogo.scale(22 / finalLogo.height);
+          targetPage.drawImage(finalLogo, {x:currentX, y:centerY - d.height / 2, width:d.width, height:d.height});
+          currentX += d.width + 15;
+        }
+        targetPage.drawLine({start:{x:currentX, y:margin + 6}, end:{x:currentX, y:margin + barHeight - 6}, thickness:1, color:textColor});
+        currentX += 15;
+        targetPage.drawText(projectType, {x:currentX, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        const rightMargin = margin + standardA3W - 2 * margin - 20;
+        targetPage.drawText(projectDate, {x:rightMargin - 80, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        const titleSeparatorX = rightMargin - 95;
+        targetPage.drawLine({start:{x:titleSeparatorX, y:margin + 6}, end:{x:titleSeparatorX, y:margin + barHeight - 6}, thickness:1, color:textColor});
+        const titleWidth = finalFont.widthOfTextAtSize(projectTitle, 11);
+        targetPage.drawText(projectTitle, {x:titleSeparatorX - 15 - titleWidth, y:centerY - 4, size:11, font:finalFont, color:textColor});
+      } else if(isMoodboard) {
+        targetPage = finalPdf.addPage([standardA3W, standardA3H]);
+        targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(232/255, 232/255, 232/255)});
+        const cells = pageData.cells || [];
+        for (let cell of cells) {
+          targetPage.drawRectangle({
+            x: cell.x, y: cell.y,
+            width: cell.w, height: cell.h,
+            borderColor: rgb(24/255, 24/255, 27/255),
+            borderWidth: 2,
+            color: rgb(1,1,1)
+          });
+          if (cell.imageData) {
+            try {
+              const imgBytes = await fetch(cell.imageData).then(r => r.arrayBuffer());
+              let imageObj;
+              if (cell.imageData.startsWith('data:image/png')) {
+                imageObj = await finalPdf.embedPng(imgBytes);
+              } else if (cell.imageData.startsWith('data:image/jpeg')) {
+                imageObj = await finalPdf.embedJpg(imgBytes);
+              } else {
+                imageObj = await finalPdf.embedPng(imgBytes);
+              }
+              if (imageObj) {
+                const zoom = cell.zoom || 1;
+                const offX = cell.offsetX || 0;
+                const offY = cell.offsetY || 0;
+                const imgAspect = imageObj.width / imageObj.height;
+                const cellAspect = cell.w / cell.h;
+                let drawW, drawH;
+                if (imgAspect > cellAspect) {
+                  drawW = cell.w * zoom;
+                  drawH = drawW / imgAspect;
+                } else {
+                  drawH = cell.h * zoom;
+                  drawW = drawH * imgAspect;
+                }
+                const dx = cell.x + (cell.w - drawW) / 2 + offX;
+                const dy = cell.y + (cell.h - drawH) / 2 + offY;
+                targetPage.drawImage(imageObj, { x: dx, y: dy, width: drawW, height: drawH });
+              }
+            } catch(e) {
+              console.warn('Chyba při vkládání obrázku do PDF:', e);
+            }
+          }
+        }
+        // Spodní pruh
+        const margin = 14.17, barHeight = 28.35;
+        targetPage.drawRectangle({x:margin, y:margin, width:standardA3W - 2 * margin, height:barHeight, color:rgb(247/255, 241/255, 151/255)});
+        let currentX = margin + 15;
+        const centerY = margin + barHeight / 2;
+        if(finalLogo){
+          const d = finalLogo.scale(22 / finalLogo.height);
+          targetPage.drawImage(finalLogo, {x:currentX, y:centerY - d.height / 2, width:d.width, height:d.height});
+          currentX += d.width + 15;
+        }
+        targetPage.drawLine({start:{x:currentX, y:margin + 6}, end:{x:currentX, y:margin + barHeight - 6}, thickness:1, color:textColor});
+        currentX += 15;
+        targetPage.drawText(projectType, {x:currentX, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        const rightMargin = margin + standardA3W - 2 * margin - 20;
+        targetPage.drawText(projectDate, {x:rightMargin - 80, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        const titleSeparatorX = rightMargin - 95;
+        targetPage.drawLine({start:{x:titleSeparatorX, y:margin + 6}, end:{x:titleSeparatorX, y:margin + barHeight - 6}, thickness:1, color:textColor});
+        const titleWidth = finalFont.widthOfTextAtSize(projectTitle, 11);
+        targetPage.drawText(projectTitle, {x:titleSeparatorX - 15 - titleWidth, y:centerY - 4, size:11, font:finalFont, color:textColor});
+      } else {
+        const srcPdfIndex = (pagePdfIndexMap[previewP] !== undefined) ? pagePdfIndexMap[previewP] : 0;
+        const [embeddedPage] = await finalPdf.embedPdf(pdf, [srcPdfIndex]);
+        
+        let {width: origW, height: origH} = embeddedPage;
+        let drawWidth = origW, drawHeight = origH, rotateAngle = 0;
+        
+        if (origH > origW) {
+          rotateAngle = 90;
+          drawWidth = origH;
+          drawHeight = origW;
+        }
+
+        targetPage = finalPdf.addPage([drawWidth, drawHeight]);
+        if(rotateAngle > 0){
+          targetPage.drawPage(embeddedPage, {
+            x: drawWidth,
+            y: 0,
+            xScale: 1,
+            yScale: 1,
+            rotate: PDFLib.degrees(rotateAngle)
+          });
+        } else {
+          targetPage.drawPage(embeddedPage, { x: 0, y: 0 });
+        }
+
+        targetW = drawWidth;
+        targetH = drawHeight;
+
+        const margin = 14.17, barHeight = 28.35;
+        targetPage.drawRectangle({x:margin, y:margin, width:targetW - 2 * margin, height:barHeight, color:rgb(247/255, 241/255, 151/255)});
+        let currentX = margin + 15;
+        const centerY = margin + barHeight / 2;
+        if(finalLogo){
+          const d = finalLogo.scale(22 / finalLogo.height);
+          targetPage.drawImage(finalLogo, {x:currentX, y:centerY - d.height / 2, width:d.width, height:d.height});
+          currentX += d.width + 15;
+        }
+        targetPage.drawLine({start:{x:currentX, y:margin + 6}, end:{x:currentX, y:margin + barHeight - 6}, thickness:1, color:textColor});
+        currentX += 15;
+        targetPage.drawText(projectType, {x:currentX, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        const rightMapping = margin + targetW - 2 * margin - 20;
+        targetPage.drawText(projectDate, {x:rightMapping - 80, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        const titleSeparatorX = rightMapping - 95;
+        targetPage.drawLine({start:{x:titleSeparatorX, y:margin + 6}, end:{x:titleSeparatorX, y:margin + barHeight - 6}, thickness:1, color:textColor});
+        const titleWidth = finalFont.widthOfTextAtSize(projectTitle, 11);
+        targetPage.drawText(projectTitle, {x:titleSeparatorX - 15 - titleWidth, y:centerY - 4, size:11, font:finalFont, color:textColor});
+      }
+
+      // Pokud to není moodboard a není to cover, vykreslíme texty a čáry
+      if (!isMoodboard && !(createCover && previewP === 1)) {
+        (allPagesTexts[previewP] || []).forEach(tb => {
+          if(tb.type === 'line') {
+            if (tb.orientation === 'horizontal') {
+              targetPage.drawLine({
+                start: { x: tb.x, y: tb.y + tb.height/2 },
+                end: { x: tb.x + tb.height, y: tb.y + tb.height/2 },
+                thickness: 1,
+                color: textColor
+              });
+            } else {
+              targetPage.drawLine({
+                start: { x: tb.x + 5, y: tb.y },
+                end: { x: tb.x + 5, y: tb.y + tb.height },
+                thickness: 1,
+                color: textColor
+              });
+            }
+          } else if(tb.text) {
+            const lines = tb.text.split(/\r?\n/);
+            const lineHeight = tb.size * 1.2;
+            lines.forEach((line, idx) => {
+              const lineY = tb.y + (lines.length - 1 - idx) * lineHeight;
+              targetPage.drawText(line, {x: tb.x, y: lineY, size: tb.size, font: finalFont, color: textColor});
+            });
+          }
+        });
+      }
+    }
+
+    const bytes = await finalPdf.save({useObjectStreams:true});
+    const blob = new Blob([bytes], {type:'application/pdf'});
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = f.name.replace(/\.pdf$/i, '') + '_prezentace.pdf';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    document.getElementById('st-panel').textContent = 'Hotovo, prezentace vytvořena!';
+    if(fromModal) document.getElementById('preview-modal').style.display = 'none';
+  }catch(err){
+    alert('Chyba: '+err.message);
+    console.error(err);
+  }
+  document.getElementById('btn-panel').disabled = false;
+  document.getElementById('btn-preview').disabled = false;
+}
 </script>
 </body>
 </html>
