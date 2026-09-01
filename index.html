@@ -1515,16 +1515,11 @@ function measureTextBox(text,size,scale){
 }
 
 // ============================================================
-// MOODBOARD FUNKCE – OPRAVENÁ
+// MOODBOARD FUNKCE
 // ============================================================
 function openMoodboardModal() {
   const modal = document.getElementById('moodboard-modal');
-  if (modal) {
-    modal.style.display = 'flex';
-    console.log('Moodboard modal otevřen');
-  } else {
-    console.error('Moodboard modal nebyl nalezen');
-  }
+  if (modal) modal.style.display = 'flex';
 }
 function closeMoodboardModal() {
   document.getElementById('moodboard-modal').style.display = 'none';
@@ -1587,7 +1582,6 @@ function createMoodboard(layoutType) {
   let newBlankPages = new Set();
   let newPdfMap = {};
   
-  // Pro všechny existující stránky v allPagesTexts
   for (let [pStr, texts] of Object.entries(allPagesTexts)) {
     let pNum = parseInt(pStr);
     if (pNum >= currentPreviewPage) {
@@ -1596,28 +1590,22 @@ function createMoodboard(layoutType) {
       newTexts[pNum] = texts;
     }
   }
-  // Pro prázdné stránky
   for (let pNum of customBlankPages) {
     if (pNum >= currentPreviewPage) newBlankPages.add(pNum + 1);
     else newBlankPages.add(pNum);
   }
-  // Pro mapování PDF stránek
   for (let [pStr, idx] of Object.entries(pagePdfIndexMap)) {
     let pNum = parseInt(pStr);
     if (pNum >= currentPreviewPage) newPdfMap[pNum + 1] = idx;
     else newPdfMap[pNum] = idx;
   }
   
-  // Vložíme moodboard stránku na pozici currentPreviewPage
   newTexts[currentPreviewPage] = { type: 'moodboard', cells };
   
   allPagesTexts = newTexts;
   customBlankPages = newBlankPages;
   pagePdfIndexMap = newPdfMap;
   totalPreviewPages++;
-  
-  // Zůstaneme na stejné stránce (ta se teď stala moodboardem)
-  // currentPreviewPage zůstává stejné
   
   renderCurrentPagePreview();
   renderThumbnails();
@@ -1669,11 +1657,14 @@ async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
 }
 
 function renderMoodboardOverlay(pageNum, cells) {
+  // Odstraníme staré moodboard buňky
   document.querySelectorAll('.moodboard-cell').forEach(el => el.remove());
   
   const canvas = document.getElementById('preview-canvas');
+  if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
   const info = window.__previewInfo;
+  if (!info) return;
   const sx = rect.width / info.width;
   const sy = rect.height / info.height;
   
@@ -2144,30 +2135,41 @@ async function drawInfoBar(ctx, width, height, scale) {
   return drawLogo();
 }
 
+// ============================================================
+// HLAVNÍ FUNKCE PRO VYKRESLENÍ STRÁNKY – KOMPLETNĚ PŘEPRACOVÁNA
+// ============================================================
 async function renderCurrentPagePreview() {
-  const canvas = document.getElementById('preview-canvas');
-  const ctx = canvas.getContext('2d');
+  // Získáme informace o stránce
   const info = getPreviewPageInfo();
   const pageSize = await getPageSize(info);
-
+  
+  // Nastavení canvasu
+  const canvas = document.getElementById('preview-canvas');
+  const ctx = canvas.getContext('2d');
   const maxCssWidth = Math.min(900, document.getElementById('preview-main').clientWidth - 30);
   const cssScale = Math.max(0.1, Math.min(1.5, maxCssWidth / pageSize.width));
   const renderScale = cssScale * 2;
+  
   canvas.width = Math.round(pageSize.width * renderScale);
   canvas.height = Math.round(pageSize.height * renderScale);
   canvas.style.width = (pageSize.width * cssScale) + 'px';
   canvas.style.height = (pageSize.height * cssScale) + 'px';
   window.__previewInfo = {width: pageSize.width, height: pageSize.height, scale: renderScale};
-
+  
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+  
+  // Zjistíme, o jaký typ stránky se jedná
   const pageData = allPagesTexts[currentPreviewPage];
   const isMoodboard = pageData && pageData.type === 'moodboard';
-
-  if (info.isCover) {
+  const isCover = info.isCover;
+  const isBlank = info.isBlank;
+  
+  // ----- VYKRESLENÍ OBSAHU STRÁNKY -----
+  if (isCover) {
+    // Cover – žluté pozadí + logo + texty
     await drawCover(ctx, pageSize.width, pageSize.height, renderScale);
-    // Texty na coveru vykreslujeme pouze jednou – zde
+    // Texty na coveru vykreslíme pomocí canvas funkcí
     const coverTexts = allPagesTexts[currentPreviewPage] || [];
     if (Array.isArray(coverTexts)) {
       coverTexts.forEach(b => {
@@ -2175,15 +2177,26 @@ async function renderCurrentPagePreview() {
         else drawTextOnCanvas(ctx, b, pageSize, renderScale);
       });
     }
-  } else if (info.isBlank) {
+  } else if (isBlank) {
+    // Prázdná stránka s bílým pozadím a spodním pruhem
     await drawBlankPage(ctx, pageSize.width, pageSize.height, renderScale);
+    // Texty na prázdné stránce
+    const pageItems = allPagesTexts[currentPreviewPage] || [];
+    if (Array.isArray(pageItems)) {
+      pageItems.forEach(b => {
+        if (b.type === 'line') drawLineOnCanvas(ctx, b, pageSize, renderScale);
+        else drawTextOnCanvas(ctx, b, pageSize, renderScale);
+      });
+    }
   } else if (isMoodboard) {
+    // Moodboard – šedé pozadí + rámečky + obrázky
     await drawMoodboard(ctx, pageSize.width, pageSize.height, renderScale, pageData.cells || []);
+    // Spodní pruh
     await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale);
   } else {
+    // Normální PDF stránka
     const page = await pdfJsDoc.getPage(info.pdfIndex + 1);
     const origVp = page.getViewport({scale: 1});
-    
     let renderViewport;
     if (origVp.height > origVp.width) {
       renderViewport = page.getViewport({scale: renderScale, rotation: 90});
@@ -2193,22 +2206,29 @@ async function renderCurrentPagePreview() {
     await page.render({canvasContext: ctx, viewport: renderViewport}).promise;
     await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale);
   }
-
-  document.getElementById('page-indicator').textContent =
-    info.isCover ? `Úvodní strana (Stránka ${currentPreviewPage} z ${totalPreviewPages})`
-                 : (info.isBlank ? `Prázdná stránka s pruhem (Stránka ${currentPreviewPage} z ${totalPreviewPages})`
-                 : (isMoodboard ? `Moodboard (Stránka ${currentPreviewPage} z ${totalPreviewPages})`
-                 : `Stránka ${currentPreviewPage} z ${totalPreviewPages}`));
-
+  
+  // ----- AKTUALIZACE INDIKÁTORU STRÁNKY -----
+  let label = '';
+  if (isCover) label = 'Úvodní strana';
+  else if (isBlank) label = 'Prázdná stránka s pruhem';
+  else if (isMoodboard) label = 'Moodboard';
+  else label = 'Stránka';
+  document.getElementById('page-indicator').textContent = `${label} (Stránka ${currentPreviewPage} z ${totalPreviewPages})`;
+  
   document.getElementById('prev-page-btn').disabled = currentPreviewPage <= 1;
   document.getElementById('next-page-btn').disabled = currentPreviewPage >= totalPreviewPages;
-
+  
+  // ----- VYTVOŘENÍ OVERLAY PRVKŮ -----
+  // Odstraníme staré prvky
   document.querySelectorAll('.custom-text-box').forEach(el => el.remove());
   document.querySelectorAll('.moodboard-cell').forEach(el => el.remove());
-
+  
+  // Vytvoříme nové overlay prvky podle typu stránky
   if (isMoodboard) {
+    // Pro moodboard vytvoříme interaktivní buňky
     renderMoodboardOverlay(currentPreviewPage, pageData.cells || []);
-  } else if (!info.isCover) { // <-- ZMĚNA: na coveru už nevytváříme HTML elementy
+  } else if (!isCover) {
+    // Pro normální stránky (ne cover) vytvoříme textové boxy
     const pageItems = allPagesTexts[currentPreviewPage] || [];
     if (Array.isArray(pageItems)) {
       pageItems.forEach(b => {
@@ -2217,9 +2237,11 @@ async function renderCurrentPagePreview() {
       });
     }
   }
+  // Pro cover nevytváříme žádné overlay prvky (texty jsou vykresleny na canvas)
 }
+// ============================================================
 
-// Pomocné funkce pro vykreslování textů na canvas (pro cover)
+// Pomocné funkce pro vykreslování textů na canvas
 function drawTextOnCanvas(ctx, b, pageSize, scale) {
   ctx.save();
   ctx.font = `${b.size * (96/72) * scale}px "${editorFontFamily}"`;
