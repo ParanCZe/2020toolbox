@@ -77,15 +77,18 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 /* Moodboard layout selector modal */
 #moodboard-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1200; align-items:center; justify-content:center; padding:20px; }
-#moodboard-modal .box { background:#fff; border-radius:12px; padding:24px; width:100%; max-width:480px; }
+#moodboard-modal .box { background:#fff; border-radius:12px; padding:24px; width:100%; max-width:460px; }
 #moodboard-modal h3 { margin:0 0 12px; font-family:'Antarctican Mono', monospace; font-weight:normal; font-size:16px; }
 #moodboard-modal .layout-options { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
-#moodboard-modal .layout-options button { padding:8px 14px; border:1px solid var(--border); border-radius:6px; background:#fafafa; cursor:pointer; font-size:13px; text-align:left; transition:.15s; display:flex; align-items:center; gap:12px; }
+#moodboard-modal .layout-options button { padding:10px 14px; border:1px solid var(--border); border-radius:6px; background:#fafafa; cursor:pointer; font-size:14px; text-align:left; transition:.15s; display:flex; align-items:center; gap:12px; }
 #moodboard-modal .layout-options button:hover { background:#e4e4e7; border-color:#a1a1aa; }
-#moodboard-modal .layout-options button svg { flex-shrink:0; width:36px; height:36px; display:block; }
-#moodboard-modal .layout-options button .label { display:flex; flex-direction:column; }
-#moodboard-modal .layout-options button .label strong { font-weight:600; font-size:14px; }
-#moodboard-modal .layout-options button .label small { color:var(--muted); font-size:12px; }
+#moodboard-modal .layout-options button .preview { display:inline-flex; flex-direction:column; gap:2px; flex-shrink:0; }
+#moodboard-modal .layout-options button .preview .row { display:flex; gap:2px; margin:0; }
+#moodboard-modal .layout-options button .preview .cell { width:18px; height:18px; border:1px solid #888; border-radius:2px; background:#e8e8e8; }
+#moodboard-modal .layout-options button .preview .cell.big { width:28px; }
+#moodboard-modal .layout-options button .preview .cell.small { width:12px; }
+#moodboard-modal .layout-options button .label { flex:1; }
+#moodboard-modal .layout-options button small { color:var(--muted); font-size:12px; display:block; }
 
 @media(max-width:700px){
   #preview-body{flex-direction:column; align-items:stretch;}
@@ -387,31 +390,25 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
     <h3>Vyberte rozvržení moodboardu</h3>
     <div class="layout-options">
       <button onclick="createMoodboard('4')">
-        <svg viewBox="0 0 36 36" fill="none" stroke="#18181b" stroke-width="1.5">
-          <rect x="2" y="2" width="14" height="14" stroke="currentColor"/>
-          <rect x="20" y="2" width="14" height="14" stroke="currentColor"/>
-          <rect x="2" y="20" width="14" height="14" stroke="currentColor"/>
-          <rect x="20" y="20" width="14" height="14" stroke="currentColor"/>
-        </svg>
-        <span class="label"><strong>4 čtvrtiny</strong><small>2×2 rovnoměrně</small></span>
+        <span class="preview">
+          <span class="row"><span class="cell"></span><span class="cell"></span></span>
+          <span class="row"><span class="cell"></span><span class="cell"></span></span>
+        </span>
+        <span class="label">4 čtvrtiny <small>2×2 rovnoměrně</small></span>
       </button>
       <button onclick="createMoodboard('2+1')">
-        <svg viewBox="0 0 36 36" fill="none" stroke="#18181b" stroke-width="1.5">
-          <rect x="2" y="2" width="20" height="14" stroke="currentColor"/>
-          <rect x="24" y="2" width="10" height="14" stroke="currentColor"/>
-          <rect x="2" y="20" width="10" height="14" stroke="currentColor"/>
-          <rect x="14" y="20" width="20" height="14" stroke="currentColor"/>
-        </svg>
-        <span class="label"><strong>2+1</strong><small>horní: velký + malý, dolní: malý + velký</small></span>
+        <span class="preview">
+          <span class="row"><span class="cell big"></span><span class="cell small"></span></span>
+          <span class="row"><span class="cell small"></span><span class="cell big"></span></span>
+        </span>
+        <span class="label">2+1 <small>horní: velký + malý, dolní: malý + velký</small></span>
       </button>
       <button onclick="createMoodboard('1+2')">
-        <svg viewBox="0 0 36 36" fill="none" stroke="#18181b" stroke-width="1.5">
-          <rect x="2" y="2" width="10" height="14" stroke="currentColor"/>
-          <rect x="14" y="2" width="20" height="14" stroke="currentColor"/>
-          <rect x="2" y="20" width="20" height="14" stroke="currentColor"/>
-          <rect x="24" y="20" width="10" height="14" stroke="currentColor"/>
-        </svg>
-        <span class="label"><strong>1+2</strong><small>horní: malý + velký, dolní: velký + malý</small></span>
+        <span class="preview">
+          <span class="row"><span class="cell small"></span><span class="cell big"></span></span>
+          <span class="row"><span class="cell big"></span><span class="cell small"></span></span>
+        </span>
+        <span class="label">1+2 <small>horní: malý + velký, dolní: velký + malý</small></span>
       </button>
     </div>
     <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
@@ -1520,7 +1517,7 @@ function measureTextBox(text,size,scale){
 }
 
 // ============================================================
-// MOODBOARD FUNKCE – opravený způsob přidávání stránek
+// MOODBOARD FUNKCE – OPRAVENO
 // ============================================================
 function openMoodboardModal() {
   document.getElementById('moodboard-modal').style.display = 'flex';
@@ -1549,6 +1546,7 @@ function createMoodboard(layoutType) {
   const usableH = pageH - marginTop - marginBottom;
   
   let cells = [];
+  const moodboardId = textIdCounter++;
   
   if (layoutType === '4') {
     const cols = 2, rows = 2;
@@ -1581,44 +1579,51 @@ function createMoodboard(layoutType) {
     cells.push({ x: marginSide + bigW + gap, y: marginTop + bigH + gap, w: smallW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
   }
   
-  // Vytvoření objektu stránky
-  const moodboardPage = { type: 'moodboard', cells };
-  
-  // Posuneme všechny existující stránky od aktuální pozice o 1 doprava
+  // ---- STEJNÝ PRINCIP JAKO addBlankPage ----
+  // Posuneme všechny stránky od currentPreviewPage o 1 doprava
   let newTexts = {};
-  let newBlank = new Set();
+  let newBlankPages = new Set();
   let newPdfMap = {};
   
-  // Získáme všechny pozice
-  const allKeys = new Set([...Object.keys(allPagesTexts).map(Number), ...customBlankPages, ...Object.keys(pagePdfIndexMap).map(Number)]);
-  const positions = Array.from(allKeys).sort((a,b)=>a-b);
-  
-  for (let p of positions) {
-    if (p >= currentPreviewPage) {
-      // posuneme o 1
-      if (allPagesTexts[p]) newTexts[p+1] = allPagesTexts[p];
-      if (customBlankPages.has(p)) newBlank.add(p+1);
-      if (pagePdfIndexMap[p] !== undefined) newPdfMap[p+1] = pagePdfIndexMap[p];
+  // Pro všechny existující stránky v allPagesTexts
+  for (let [pStr, texts] of Object.entries(allPagesTexts)) {
+    let pNum = parseInt(pStr);
+    if (pNum >= currentPreviewPage) {
+      newTexts[pNum + 1] = texts;
     } else {
-      if (allPagesTexts[p]) newTexts[p] = allPagesTexts[p];
-      if (customBlankPages.has(p)) newBlank.add(p);
-      if (pagePdfIndexMap[p] !== undefined) newPdfMap[p] = pagePdfIndexMap[p];
+      newTexts[pNum] = texts;
     }
   }
+  // Pro prázdné stránky
+  for (let pNum of customBlankPages) {
+    if (pNum >= currentPreviewPage) newBlankPages.add(pNum + 1);
+    else newBlankPages.add(pNum);
+  }
+  // Pro mapování PDF stránek
+  for (let [pStr, idx] of Object.entries(pagePdfIndexMap)) {
+    let pNum = parseInt(pStr);
+    if (pNum >= currentPreviewPage) newPdfMap[pNum + 1] = idx;
+    else newPdfMap[pNum] = idx;
+  }
   
-  // Vložíme novou stránku na aktuální pozici
-  newTexts[currentPreviewPage] = moodboardPage;
+  // Vložíme moodboard stránku na pozici currentPreviewPage
+  newTexts[currentPreviewPage] = { type: 'moodboard', cells };
   
   allPagesTexts = newTexts;
-  customBlankPages = newBlank;
+  customBlankPages = newBlankPages;
   pagePdfIndexMap = newPdfMap;
   totalPreviewPages++;
   
-  // Přepneme na novou stránku
+  // Zůstaneme na stejné stránce (ta se teď stala moodboardem)
+  // currentPreviewPage zůstává stejné
+  
   renderCurrentPagePreview();
   renderThumbnails();
   scheduleAutosave();
 }
+// ============================================================
+// KONEC MOODBOARD FUNKCÍ
+// ============================================================
 
 async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
   ctx.fillStyle = '#e8e8e8';
@@ -1825,10 +1830,6 @@ function removeImageFromCell(pageNum, idx) {
   renderCurrentPagePreview();
   scheduleAutosave();
 }
-
-// ============================================================
-// KONEC MOODBOARD FUNKCÍ
-// ============================================================
 
 async function openPreviewModal() {
   if (!pdfJsDoc) return;
@@ -2194,14 +2195,12 @@ async function renderCurrentPagePreview() {
   document.getElementById('prev-page-btn').disabled = currentPreviewPage <= 1;
   document.getElementById('next-page-btn').disabled = currentPreviewPage >= totalPreviewPages;
 
-  // Vyčištění layeru
   document.querySelectorAll('.custom-text-box').forEach(el => el.remove());
   document.querySelectorAll('.moodboard-cell').forEach(el => el.remove());
 
   if (isMoodboard) {
     renderMoodboardOverlay(currentPreviewPage, pageData.cells || []);
   } else {
-    // Vykreslení textových boxů a čar
     (allPagesTexts[currentPreviewPage] || []).forEach(b => {
       if (b.type === 'line') createLineElement(b);
       else createBoxElement(b);
