@@ -1519,7 +1519,12 @@ function measureTextBox(text,size,scale){
 // ============================================================
 function openMoodboardModal() {
   const modal = document.getElementById('moodboard-modal');
-  if (modal) modal.style.display = 'flex';
+  if (modal) {
+    modal.style.display = 'flex';
+    console.log('Moodboard modal otevřen');
+  } else {
+    console.error('Moodboard modal nebyl nalezen');
+  }
 }
 function closeMoodboardModal() {
   document.getElementById('moodboard-modal').style.display = 'none';
@@ -2203,7 +2208,7 @@ async function renderCurrentPagePreview() {
 
   if (isMoodboard) {
     renderMoodboardOverlay(currentPreviewPage, pageData.cells || []);
-  } else {
+  } else if (!info.isCover) { // <-- ZMĚNA: na coveru už nevytváříme HTML elementy
     const pageItems = allPagesTexts[currentPreviewPage] || [];
     if (Array.isArray(pageItems)) {
       pageItems.forEach(b => {
