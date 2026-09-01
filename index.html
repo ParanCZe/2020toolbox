@@ -1515,15 +1515,8 @@ function measureTextBox(text,size,scale){
 }
 
 // ============================================================
-// MOODBOARD FUNKCE
+// PŘEPRACOVANÁ FUNKCE createMoodboard POMOCÍ buildPageRecords
 // ============================================================
-function openMoodboardModal() {
-  document.getElementById('moodboard-modal').style.display = 'flex';
-}
-function closeMoodboardModal() {
-  document.getElementById('moodboard-modal').style.display = 'none';
-}
-
 function createMoodboard(layoutType) {
   closeMoodboardModal();
   pushTextHistory();
@@ -1576,41 +1569,28 @@ function createMoodboard(layoutType) {
     cells.push({ x: marginSide + bigW + gap, y: marginTop + bigH + gap, w: smallW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
   }
   
-  let newTexts = {};
-  let newBlankPages = new Set();
-  let newPdfMap = {};
+  // Vytvoření záznamu pro moodboard
+  const moodboardRecord = {
+    type: 'moodboard',
+    pdfIndex: null,
+    texts: { type: 'moodboard', cells: cells }
+  };
   
-  for (let [pStr, texts] of Object.entries(allPagesTexts)) {
-    let pNum = parseInt(pStr);
-    if (pNum >= currentPreviewPage) {
-      newTexts[pNum + 1] = texts;
-    } else {
-      newTexts[pNum] = texts;
-    }
-  }
-  for (let pNum of customBlankPages) {
-    if (pNum >= currentPreviewPage) newBlankPages.add(pNum + 1);
-    else newBlankPages.add(pNum);
-  }
-  for (let [pStr, idx] of Object.entries(pagePdfIndexMap)) {
-    let pNum = parseInt(pStr);
-    if (pNum >= currentPreviewPage) newPdfMap[pNum + 1] = idx;
-    else newPdfMap[pNum] = idx;
-  }
+  // Získání aktuálních záznamů a vložení na pozici currentPreviewPage
+  const records = buildPageRecords();
+  const insertIndex = currentPreviewPage - 1;
+  records.splice(insertIndex, 0, moodboardRecord);
+  applyPageRecords(records);
   
-  newTexts[currentPreviewPage] = { type: 'moodboard', cells };
-  
-  allPagesTexts = newTexts;
-  customBlankPages = newBlankPages;
-  pagePdfIndexMap = newPdfMap;
-  totalPreviewPages++;
+  // Nastavení aktuální stránky na nově vloženou
+  currentPreviewPage = insertIndex + 1;
   
   renderCurrentPagePreview();
   renderThumbnails();
   scheduleAutosave();
 }
 // ============================================================
-// KONEC MOODBOARD FUNKCÍ
+// KONEC PŘEPRACOVANÉ FUNKCE
 // ============================================================
 
 async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
@@ -2153,6 +2133,14 @@ async function renderCurrentPagePreview() {
 
   if (info.isCover) {
     await drawCover(ctx, pageSize.width, pageSize.height, renderScale);
+    // Vykreslíme texty na coveru
+    const coverTexts = allPagesTexts[currentPreviewPage] || [];
+    if (Array.isArray(coverTexts)) {
+      coverTexts.forEach(b => {
+        if (b.type === 'line') drawLineOnCanvas(ctx, b, pageSize, renderScale);
+        else drawTextOnCanvas(ctx, b, pageSize, renderScale);
+      });
+    }
   } else if (info.isBlank) {
     await drawBlankPage(ctx, pageSize.width, pageSize.height, renderScale);
   } else if (isMoodboard) {
@@ -2187,7 +2175,7 @@ async function renderCurrentPagePreview() {
   if (isMoodboard) {
     renderMoodboardOverlay(currentPreviewPage, pageData.cells || []);
   } else {
-    // Pro cover i normální stránky vykreslíme texty a čáry
+    // Pro normální stránky (včetně coveru) vykreslíme textové boxy
     const pageItems = allPagesTexts[currentPreviewPage] || [];
     if (Array.isArray(pageItems)) {
       pageItems.forEach(b => {
@@ -2197,6 +2185,36 @@ async function renderCurrentPagePreview() {
     }
   }
 }
+
+// Pomocné funkce pro vykreslování textů na canvas
+function drawTextOnCanvas(ctx, b, pageSize, scale) {
+  ctx.save();
+  ctx.font = `${b.size * (96/72) * scale}px "${editorFontFamily}"`;
+  ctx.fillStyle = '#18181b';
+  ctx.textBaseline = 'bottom';
+  const lines = b.text.split(/\r?\n/);
+  const lineHeight = b.size * 1.2 * scale;
+  lines.forEach((line, idx) => {
+    const yPos = (pageSize.height - b.y - (lines.length - 1 - idx) * b.size * 1.2) * scale;
+    ctx.fillText(line, b.x * scale, yPos);
+  });
+  ctx.restore();
+}
+
+function drawLineOnCanvas(ctx, b, pageSize, scale) {
+  ctx.save();
+  ctx.strokeStyle = '#18181b';
+  ctx.lineWidth = 1 * scale;
+  const x1 = (b.x + 5) * scale;
+  const y1 = (pageSize.height - b.y) * scale;
+  const y2 = (pageSize.height - b.y - b.height) * scale;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x1, y2);
+  ctx.stroke();
+  ctx.restore();
+}
+// ============================================================
 
 function addTextBox(){
   pushTextHistory();
@@ -2455,6 +2473,13 @@ async function renderThumbnails() {
 
     if (info.isCover) {
       await drawCover(cctx, pageSize.width, pageSize.height, scale);
+      const coverTexts = allPagesTexts[p] || [];
+      if (Array.isArray(coverTexts)) {
+        coverTexts.forEach(b => {
+          if (b.type === 'line') drawLineOnCanvas(cctx, b, pageSize, scale);
+          else drawTextOnCanvas(cctx, b, pageSize, scale);
+        });
+      }
     } else if (info.isBlank) {
       await drawBlankPage(cctx, pageSize.width, pageSize.height, scale);
     } else if (isMoodboard) {
@@ -2789,7 +2814,6 @@ async function runPanel(fromModal = false){
     const projectDate = document.getElementById('panelDate').value;
     const createCover = document.getElementById('createCover').checked;
 
-    // Vytvoříme kopii ArrayBuffer, aby nedošlo k detached chybě
     const pdfBytesCopy = loadedFileBytes.slice(0);
     const pdf = await PDFDocument.load(pdfBytesCopy, {ignoreEncryption:true});
     pdf.registerFontkit(fontkit);
@@ -2830,7 +2854,6 @@ async function runPanel(fromModal = false){
           const h = 65, w = finalLogo.width * (h / finalLogo.height);
           targetPage.drawImage(finalLogo, {x:standardA3W/2 - w/2, y:42.5, width:w, height:h});
         }
-        // Vykreslení textů na úvodní straně
         (allPagesTexts[previewP] || []).forEach(tb => {
           if(tb.type === 'line') {
             targetPage.drawLine({
@@ -2916,7 +2939,6 @@ async function runPanel(fromModal = false){
             }
           }
         }
-        // Spodní pruh
         const margin = 14.17, barHeight = 28.35;
         targetPage.drawRectangle({x:margin, y:margin, width:standardA3W - 2 * margin, height:barHeight, color:rgb(247/255, 241/255, 151/255)});
         let currentX = margin + 15;
@@ -2984,7 +3006,6 @@ async function runPanel(fromModal = false){
         targetPage.drawText(projectTitle, {x:titleSeparatorX - 15 - titleWidth, y:centerY - 4, size:11, font:finalFont, color:textColor});
       }
 
-      // Pokud to není moodboard a není to cover, vykreslíme texty a čáry
       if (!isMoodboard && !(createCover && previewP === 1)) {
         (allPagesTexts[previewP] || []).forEach(tb => {
           if(tb.type === 'line') {
