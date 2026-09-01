@@ -1126,7 +1126,6 @@ async function loadProject(name) {
     defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
     pendingResumePage = state.currentPreviewPage || 1;
     
-    // Pro každou moodboard stránku načteme obrázky ze složky
     for (let p in allPagesTexts) {
       const page = allPagesTexts[p];
       if (page && page.type === 'moodboard' && page.cells) {
@@ -1139,7 +1138,6 @@ async function loadProject(name) {
         }
       }
     }
-    // Oprava orientace čar
     for (let p in allPagesTexts) {
       const page = allPagesTexts[p];
       if (Array.isArray(page)) {
@@ -1329,7 +1327,6 @@ async function startConversion() {
         updateMetadata: false
       });
       
-      // Pokus o vložení fontů – alespoň nastavíme správné příznaky
       const pages = pdfDoc.getPages();
       for (const page of pages) {
         const node = page.node;
@@ -1341,11 +1338,9 @@ async function startConversion() {
         for (const fontKey of fonts.keys()) {
           const fontObj = fonts.lookup(fontKey);
           if (!fontObj || !fontObj.dict) continue;
-          // Kontrola a případné doplnění FontDescriptor – PDF-lib to neumí přímo
         }
       }
 
-      // XMP metadata
       const xmpdata = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -1471,7 +1466,6 @@ function updateUndoButton(){
 }
 
 function pushTextHistory(){
-  // Uložíme aktuální stav – ale pokud je aktuální stránka moodboard, nevoláme saveCurrentPageBoxes
   const pageData = allPagesTexts[currentPreviewPage];
   if (Array.isArray(pageData)) {
     saveCurrentPageBoxes();
@@ -1541,9 +1535,9 @@ function createMoodboard(layoutType) {
   }
   const pageW = info.width;
   const pageH = info.height;
-  const marginTop = 28.35; // 1 cm
+  const marginTop = 28.35;
   const marginSide = 28.35;
-  const marginBottom = 56.7; // 2 cm
+  const marginBottom = 56.7;
   const gap = 10;
   
   const usableW = pageW - 2 * marginSide;
@@ -1582,7 +1576,6 @@ function createMoodboard(layoutType) {
     cells.push({ x: marginSide + bigW + gap, y: marginTop + bigH + gap, w: smallW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
   }
   
-  // ---- STEJNÝ PRINCIP JAKO addBlankPage ----
   let newTexts = {};
   let newBlankPages = new Set();
   let newPdfMap = {};
@@ -2138,9 +2131,6 @@ async function drawInfoBar(ctx, width, height, scale) {
 }
 
 async function renderCurrentPagePreview() {
-  // Nevoláme saveCurrentPageBoxes, protože může být moodboard – uloží se jen při změnách
-  // saveCurrentPageBoxes se volá v pushTextHistory a při explicitních akcích
-
   const canvas = document.getElementById('preview-canvas');
   const ctx = canvas.getContext('2d');
   const info = getPreviewPageInfo();
@@ -2197,10 +2187,14 @@ async function renderCurrentPagePreview() {
   if (isMoodboard) {
     renderMoodboardOverlay(currentPreviewPage, pageData.cells || []);
   } else {
-    (allPagesTexts[currentPreviewPage] || []).forEach(b => {
-      if (b.type === 'line') createLineElement(b);
-      else createBoxElement(b);
-    });
+    // Pro cover i normální stránky vykreslíme texty a čáry
+    const pageItems = allPagesTexts[currentPreviewPage] || [];
+    if (Array.isArray(pageItems)) {
+      pageItems.forEach(b => {
+        if (b.type === 'line') createLineElement(b);
+        else createBoxElement(b);
+      });
+    }
   }
 }
 
@@ -2549,14 +2543,12 @@ function highlightActiveThumb() {
   });
 }
 
-// Opravená saveCurrentPageBoxes – ošetření pro moodboard
 function saveCurrentPageBoxes(){
   const canvas = document.getElementById('preview-canvas');
   const info = window.__previewInfo;
   if(!canvas||!info) return;
   
   const pageData = allPagesTexts[currentPreviewPage];
-  // Pokud to není pole, nejedná se o normální stránku s textovými boxy – nic neukládáme
   if (!Array.isArray(pageData)) return;
   
   const rect = canvas.getBoundingClientRect();
@@ -2797,7 +2789,9 @@ async function runPanel(fromModal = false){
     const projectDate = document.getElementById('panelDate').value;
     const createCover = document.getElementById('createCover').checked;
 
-    const pdf = await PDFDocument.load(loadedFileBytes, {ignoreEncryption:true});
+    // Vytvoříme kopii ArrayBuffer, aby nedošlo k detached chybě
+    const pdfBytesCopy = loadedFileBytes.slice(0);
+    const pdf = await PDFDocument.load(pdfBytesCopy, {ignoreEncryption:true});
     pdf.registerFontkit(fontkit);
     const fontData = fontBytesCache || await fetch('font/Dunwich Type Founders - Antarctican Mono Semibold.otf').then(r => r.arrayBuffer());
     let logoImage = null;
