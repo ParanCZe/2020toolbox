@@ -77,12 +77,15 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 /* Moodboard layout selector modal */
 #moodboard-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1200; align-items:center; justify-content:center; padding:20px; }
-#moodboard-modal .box { background:#fff; border-radius:12px; padding:24px; width:100%; max-width:420px; }
+#moodboard-modal .box { background:#fff; border-radius:12px; padding:24px; width:100%; max-width:480px; }
 #moodboard-modal h3 { margin:0 0 12px; font-family:'Antarctican Mono', monospace; font-weight:normal; font-size:16px; }
 #moodboard-modal .layout-options { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
-#moodboard-modal .layout-options button { padding:10px 14px; border:1px solid var(--border); border-radius:6px; background:#fafafa; cursor:pointer; font-size:14px; text-align:left; transition:.15s; }
+#moodboard-modal .layout-options button { padding:8px 14px; border:1px solid var(--border); border-radius:6px; background:#fafafa; cursor:pointer; font-size:13px; text-align:left; transition:.15s; display:flex; align-items:center; gap:12px; }
 #moodboard-modal .layout-options button:hover { background:#e4e4e7; border-color:#a1a1aa; }
-#moodboard-modal .layout-options button small { color:var(--muted); font-size:12px; display:block; }
+#moodboard-modal .layout-options button svg { flex-shrink:0; width:36px; height:36px; display:block; }
+#moodboard-modal .layout-options button .label { display:flex; flex-direction:column; }
+#moodboard-modal .layout-options button .label strong { font-weight:600; font-size:14px; }
+#moodboard-modal .layout-options button .label small { color:var(--muted); font-size:12px; }
 
 @media(max-width:700px){
   #preview-body{flex-direction:column; align-items:stretch;}
@@ -383,9 +386,33 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
   <div class="box">
     <h3>Vyberte rozvržení moodboardu</h3>
     <div class="layout-options">
-      <button onclick="createMoodboard('4')">📐 4 čtvrtiny <small>2×2 rovnoměrně</small></button>
-      <button onclick="createMoodboard('2+1')">📐 2+1 <small>horní: velký + malý, dolní: malý + velký</small></button>
-      <button onclick="createMoodboard('1+2')">📐 1+2 <small>horní: malý + velký, dolní: velký + malý</small></button>
+      <button onclick="createMoodboard('4')">
+        <svg viewBox="0 0 36 36" fill="none" stroke="#18181b" stroke-width="1.5">
+          <rect x="2" y="2" width="14" height="14" stroke="currentColor"/>
+          <rect x="20" y="2" width="14" height="14" stroke="currentColor"/>
+          <rect x="2" y="20" width="14" height="14" stroke="currentColor"/>
+          <rect x="20" y="20" width="14" height="14" stroke="currentColor"/>
+        </svg>
+        <span class="label"><strong>4 čtvrtiny</strong><small>2×2 rovnoměrně</small></span>
+      </button>
+      <button onclick="createMoodboard('2+1')">
+        <svg viewBox="0 0 36 36" fill="none" stroke="#18181b" stroke-width="1.5">
+          <rect x="2" y="2" width="20" height="14" stroke="currentColor"/>
+          <rect x="24" y="2" width="10" height="14" stroke="currentColor"/>
+          <rect x="2" y="20" width="10" height="14" stroke="currentColor"/>
+          <rect x="14" y="20" width="20" height="14" stroke="currentColor"/>
+        </svg>
+        <span class="label"><strong>2+1</strong><small>horní: velký + malý, dolní: malý + velký</small></span>
+      </button>
+      <button onclick="createMoodboard('1+2')">
+        <svg viewBox="0 0 36 36" fill="none" stroke="#18181b" stroke-width="1.5">
+          <rect x="2" y="2" width="10" height="14" stroke="currentColor"/>
+          <rect x="14" y="2" width="20" height="14" stroke="currentColor"/>
+          <rect x="2" y="20" width="20" height="14" stroke="currentColor"/>
+          <rect x="24" y="20" width="10" height="14" stroke="currentColor"/>
+        </svg>
+        <span class="label"><strong>1+2</strong><small>horní: malý + velký, dolní: velký + malý</small></span>
+      </button>
     </div>
     <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
       <button class="back-btn" onclick="closeMoodboardModal()">Zrušit</button>
@@ -461,12 +488,6 @@ let textUndoStack = [];
 let selectedBoxEl = null;
 let pendingAutoFocusId = null;
 let editorGlobalHandlersInit = false;
-
-// Globální proměnné pro moodboard manipulaci
-let moodboardCellBeingDragged = null;
-let moodboardDragStartX = 0, moodboardDragStartY = 0;
-let moodboardStartOffsetX = 0, moodboardStartOffsetY = 0;
-let moodboardCurrentCellId = null;
 
 function initEditorGlobalHandlers() {
   if (editorGlobalHandlersInit) return;
@@ -1499,7 +1520,7 @@ function measureTextBox(text,size,scale){
 }
 
 // ============================================================
-// MOODBOARD FUNKCE
+// MOODBOARD FUNKCE – opravený způsob přidávání stránek
 // ============================================================
 function openMoodboardModal() {
   document.getElementById('moodboard-modal').style.display = 'flex';
@@ -1528,7 +1549,6 @@ function createMoodboard(layoutType) {
   const usableH = pageH - marginTop - marginBottom;
   
   let cells = [];
-  const id = textIdCounter++;
   
   if (layoutType === '4') {
     const cols = 2, rows = 2;
@@ -1538,7 +1558,7 @@ function createMoodboard(layoutType) {
       for (let c = 0; c < cols; c++) {
         const x = marginSide + c * (cellW + gap);
         const y = marginTop + r * (cellH + gap);
-        cells.push({ x, y, w: cellW, h: cellH, img: null, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+        cells.push({ x, y, w: cellW, h: cellH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
       }
     }
   } else if (layoutType === '2+1') {
@@ -1546,32 +1566,36 @@ function createMoodboard(layoutType) {
     const smallW = (usableW - gap) * 0.4;
     const bigH = (usableH - gap) * 0.6;
     const smallH = (usableH - gap) * 0.4;
-    cells.push({ x: marginSide, y: marginTop, w: bigW, h: bigH, img: null, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
-    cells.push({ x: marginSide + bigW + gap, y: marginTop, w: smallW, h: bigH, img: null, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
-    cells.push({ x: marginSide, y: marginTop + bigH + gap, w: smallW, h: smallH, img: null, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
-    cells.push({ x: marginSide + smallW + gap, y: marginTop + bigH + gap, w: bigW, h: smallH, img: null, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide, y: marginTop, w: bigW, h: bigH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide + bigW + gap, y: marginTop, w: smallW, h: bigH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide, y: marginTop + bigH + gap, w: smallW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide + smallW + gap, y: marginTop + bigH + gap, w: bigW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
   } else if (layoutType === '1+2') {
     const bigW = (usableW - gap) * 0.6;
     const smallW = (usableW - gap) * 0.4;
     const bigH = (usableH - gap) * 0.6;
     const smallH = (usableH - gap) * 0.4;
-    cells.push({ x: marginSide, y: marginTop, w: smallW, h: bigH, img: null, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
-    cells.push({ x: marginSide + smallW + gap, y: marginTop, w: bigW, h: bigH, img: null, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
-    cells.push({ x: marginSide, y: marginTop + bigH + gap, w: bigW, h: smallH, img: null, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
-    cells.push({ x: marginSide + bigW + gap, y: marginTop + bigH + gap, w: smallW, h: smallH, img: null, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide, y: marginTop, w: smallW, h: bigH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide + smallW + gap, y: marginTop, w: bigW, h: bigH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide, y: marginTop + bigH + gap, w: bigW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide + bigW + gap, y: marginTop + bigH + gap, w: smallW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
   }
   
-  allPagesTexts[id] = { type: 'moodboard', cells };
+  // Vytvoření objektu stránky
+  const moodboardPage = { type: 'moodboard', cells };
   
+  // Posuneme všechny existující stránky od aktuální pozice o 1 doprava
   let newTexts = {};
   let newBlank = new Set();
   let newPdfMap = {};
   
+  // Získáme všechny pozice
   const allKeys = new Set([...Object.keys(allPagesTexts).map(Number), ...customBlankPages, ...Object.keys(pagePdfIndexMap).map(Number)]);
   const positions = Array.from(allKeys).sort((a,b)=>a-b);
   
   for (let p of positions) {
     if (p >= currentPreviewPage) {
+      // posuneme o 1
       if (allPagesTexts[p]) newTexts[p+1] = allPagesTexts[p];
       if (customBlankPages.has(p)) newBlank.add(p+1);
       if (pagePdfIndexMap[p] !== undefined) newPdfMap[p+1] = pagePdfIndexMap[p];
@@ -1581,15 +1605,16 @@ function createMoodboard(layoutType) {
       if (pagePdfIndexMap[p] !== undefined) newPdfMap[p] = pagePdfIndexMap[p];
     }
   }
-  newTexts[currentPreviewPage] = { type: 'moodboard', cells };
+  
+  // Vložíme novou stránku na aktuální pozici
+  newTexts[currentPreviewPage] = moodboardPage;
   
   allPagesTexts = newTexts;
   customBlankPages = newBlank;
   pagePdfIndexMap = newPdfMap;
   totalPreviewPages++;
   
-  currentPreviewPage = currentPreviewPage;
-  
+  // Přepneme na novou stránku
   renderCurrentPagePreview();
   renderThumbnails();
   scheduleAutosave();
@@ -1764,12 +1789,10 @@ async function addImageToCell(pageNum, idx, dataUrl, originalName) {
   const cells = allPagesTexts[pageNum]?.cells;
   if (!cells || !cells[idx]) return;
   
-  // Určíme příponu
   const ext = originalName ? originalName.split('.').pop().toLowerCase() : 
               (dataUrl.startsWith('data:image/png') ? 'png' : 'jpg');
   const filename = `moodboard_img_${Date.now()}_${idx}.${ext}`;
   
-  // Pokus o uložení do složky projektu
   let savedRef = null;
   if (currentProjectDirHandle) {
     savedRef = await saveImageToProject(filename, dataUrl);
@@ -1779,7 +1802,6 @@ async function addImageToCell(pageNum, idx, dataUrl, originalName) {
     cells[idx].imageRef = savedRef;
     cells[idx].imageData = dataUrl;
   } else {
-    // Náhradní řešení – uložíme přímo dataUrl (pro Safari / bez složky)
     cells[idx].imageRef = null;
     cells[idx].imageData = dataUrl;
   }
@@ -2172,14 +2194,14 @@ async function renderCurrentPagePreview() {
   document.getElementById('prev-page-btn').disabled = currentPreviewPage <= 1;
   document.getElementById('next-page-btn').disabled = currentPreviewPage >= totalPreviewPages;
 
-  // Vyčištění layeru, ale zachováme moodboard buňky – ty se vykreslí zvlášť
+  // Vyčištění layeru
   document.querySelectorAll('.custom-text-box').forEach(el => el.remove());
   document.querySelectorAll('.moodboard-cell').forEach(el => el.remove());
 
   if (isMoodboard) {
     renderMoodboardOverlay(currentPreviewPage, pageData.cells || []);
   } else {
-    // Vykreslení textových boxů a čar (pro cover, blank, pdf)
+    // Vykreslení textových boxů a čar
     (allPagesTexts[currentPreviewPage] || []).forEach(b => {
       if (b.type === 'line') createLineElement(b);
       else createBoxElement(b);
