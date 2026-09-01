@@ -75,6 +75,15 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 #zip-import-area { display:none; margin:10px 0; padding:12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; }
 #zip-import-area label { font-weight:bold; }
 
+/* Moodboard layout selector modal */
+#moodboard-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1200; align-items:center; justify-content:center; padding:20px; }
+#moodboard-modal .box { background:#fff; border-radius:12px; padding:24px; width:100%; max-width:420px; }
+#moodboard-modal h3 { margin:0 0 12px; font-family:'Antarctican Mono', monospace; font-weight:normal; font-size:16px; }
+#moodboard-modal .layout-options { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
+#moodboard-modal .layout-options button { padding:10px 14px; border:1px solid var(--border); border-radius:6px; background:#fafafa; cursor:pointer; font-size:14px; text-align:left; transition:.15s; }
+#moodboard-modal .layout-options button:hover { background:#e4e4e7; border-color:#a1a1aa; }
+#moodboard-modal .layout-options button small { color:var(--muted); font-size:12px; display:block; }
+
 @media(max-width:700px){
   #preview-body{flex-direction:column; align-items:stretch;}
   #thumbs-sidebar{width:100%; flex-direction:row; max-height:none; overflow-x:auto; overflow-y:visible;}
@@ -160,6 +169,33 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .custom-text-box .tb-controls .rotate-btn:hover {
   background: #1d4ed8;
 }
+
+/* Moodboard cell overlay */
+.moodboard-cell {
+  position:absolute; z-index:25; pointer-events:auto; cursor:default;
+  border:2px solid #18181b; background:rgba(200,200,200,0.15);
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden; box-sizing:border-box; user-select:none;
+}
+.moodboard-cell .cell-plus {
+  font-size:28px; color:#888; font-weight:300; cursor:pointer; z-index:2;
+  background:rgba(255,255,255,0.7); border-radius:50%; width:40px; height:40px;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .15s, color .15s;
+}
+.moodboard-cell .cell-plus:hover { background:#fff; color:#18181b; }
+.moodboard-cell .cell-img {
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none;
+  transition:transform 0.1s; display:block;
+}
+.moodboard-cell .cell-delete {
+  position:absolute; top:4px; right:4px; width:22px; height:22px;
+  background:#dc2626; color:#fff; border:none; border-radius:50%;
+  font-size:14px; line-height:22px; text-align:center; cursor:pointer; z-index:10;
+  display:none; box-shadow:0 1px 4px rgba(0,0,0,0.3);
+}
+.moodboard-cell .cell-delete:hover { background:#b91c1c; }
+.moodboard-cell:hover .cell-delete { display:block; }
 
 #undo-text-btn{background:#52525b;}
 #undo-text-btn:disabled{opacity:.4;cursor:not-allowed;}
@@ -342,6 +378,21 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 </div></div>
 
+<!-- MODÁLNÍ OKNO PRO VÝBĚR LAYOUTU MOODBOARD -->
+<div id="moodboard-modal">
+  <div class="box">
+    <h3>Vyberte rozvržení moodboardu</h3>
+    <div class="layout-options">
+      <button onclick="createMoodboard('4')">📐 4 čtvrtiny <small>2×2 rovnoměrně</small></button>
+      <button onclick="createMoodboard('2+1')">📐 2+1 <small>horní: velký + malý, dolní: malý + velký</small></button>
+      <button onclick="createMoodboard('1+2')">📐 1+2 <small>horní: malý + velký, dolní: velký + malý</small></button>
+    </div>
+    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
+      <button class="back-btn" onclick="closeMoodboardModal()">Zrušit</button>
+    </div>
+  </div>
+</div>
+
 <div id="preview-modal">
   <div id="preview-content">
     <div id="preview-header">
@@ -354,6 +405,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <button class="action" onclick="addTextBox()" style="background:#16a34a;">+ Přidat textové pole</button>
           <button class="action" onclick="addLineBox()" style="background:#0284c7;">+ Přidat čáru</button>
           <button class="action" onclick="addBlankPage()" style="background:#2563eb;">+ Přidat prázdnou stránku</button>
+          <button class="action" onclick="openMoodboardModal()" style="background:#8b5cf6;">+ Přidat moodboard</button>
           <button class="action" id="undo-text-btn" onclick="undoTextEdit()" disabled>↶ Zpět</button>
           <span class="muted" style="margin:0;">(Volný pohyb ve všech směrech, přichytávání k ostatním prvkům)</span>
         </div>
@@ -409,6 +461,12 @@ let textUndoStack = [];
 let selectedBoxEl = null;
 let pendingAutoFocusId = null;
 let editorGlobalHandlersInit = false;
+
+// Globální proměnné pro moodboard manipulaci
+let moodboardCellBeingDragged = null;
+let moodboardDragStartX = 0, moodboardDragStartY = 0;
+let moodboardStartOffsetX = 0, moodboardStartOffsetY = 0;
+let moodboardCurrentCellId = null;
 
 function initEditorGlobalHandlers() {
   if (editorGlobalHandlersInit) return;
@@ -1013,9 +1071,12 @@ async function loadProject(name) {
     defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
     pendingResumePage = state.currentPreviewPage || 1;
     for (let p in allPagesTexts) {
-      allPagesTexts[p].forEach(b => {
-        if (b.type === 'line' && !b.orientation) b.orientation = 'vertical';
-      });
+      const page = allPagesTexts[p];
+      if (Array.isArray(page)) {
+        page.forEach(b => {
+          if (b.type === 'line' && !b.orientation) b.orientation = 'vertical';
+        });
+      }
     }
   } else {
     initAuthorsUI();
@@ -1178,7 +1239,7 @@ function createZip(files) {
 }
 
 // ============================================================
-// NOVÁ FUNKCE PRO KONVERZI DO PDF/A – vylepšená pro validátory
+// FUNKCE PRO KONVERZI DO PDF/A
 // ============================================================
 async function startConversion() {
   if (!filesData.pdfa.length) return;
@@ -1193,17 +1254,12 @@ async function startConversion() {
       el.textContent = `⏳ ${filesData.pdfa[i].name} — zpracovávám...`;
       const arrayBuffer = await filesData.pdfa[i].arrayBuffer();
       
-      // Načtení PDF s možností extrahovat fonty
       const pdfDoc = await PDFDocument.load(arrayBuffer, { 
         ignoreEncryption: true,
         updateMetadata: false
       });
       
-      // ------------------------------------------------------------
-      // 1. POKUS O VLOŽENÍ FONTŮ (PDF/A vyžaduje všechny fonty embedded)
-      // ------------------------------------------------------------
-      // PDF-lib bohužel neumí automaticky embedovat existující fonty,
-      // ale alespoň nastavíme správné příznaky a pokusíme se o částečné vložení.
+      // Pokus o vložení fontů – alespoň nastavíme správné příznaky
       const pages = pdfDoc.getPages();
       for (const page of pages) {
         const node = page.node;
@@ -1212,19 +1268,14 @@ async function startConversion() {
         if (!resources || !resources.has(PDFName.of('Font'))) continue;
         const fonts = resources.lookup(PDFName.of('Font'));
         if (!fonts || !fonts.dict) continue;
-        
-        // Pro každý font zkontrolujeme, zda má FontDescriptor
         for (const fontKey of fonts.keys()) {
           const fontObj = fonts.lookup(fontKey);
           if (!fontObj || !fontObj.dict) continue;
-          // Pokud font nemá FontDescriptor, zkusíme ho přidat (PDF-lib to neumí přímo)
-          // Toto je pouze ilustrativní – plné embedování vyžaduje profesionální nástroje
+          // Kontrola a případné doplnění FontDescriptor – PDF-lib to neumí přímo
         }
       }
 
-      // ------------------------------------------------------------
-      // 2. PŘIDÁME KOMPLETNÍ XMP METADATA PRO PDF/A
-      // ------------------------------------------------------------
+      // XMP metadata
       const xmpdata = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -1250,7 +1301,6 @@ async function startConversion() {
 </x:xmpmeta>
 <?xpacket end="w"?>`;
 
-      // Vytvoření metadata streamu
       const catalog = pdfDoc.catalog;
       const metadataStream = pdfDoc.context.flateStream(xmpdata);
       metadataStream.dict.set(PDFName.of('Type'), PDFName.of('Metadata'));
@@ -1258,23 +1308,15 @@ async function startConversion() {
       const metadataRef = pdfDoc.context.register(metadataStream);
       catalog.set(PDFName.of('Metadata'), metadataRef);
       
-      // ------------------------------------------------------------
-      // 3. PŘIDÁME IDENTIFIKÁTOR (PDF/A požadavek)
-      // ------------------------------------------------------------
-      // Vygenerujeme jednoduché ID
       const idArray = pdfDoc.context.obj([
         pdfDoc.context.obj(''), 
         pdfDoc.context.obj('')
       ]);
       catalog.set(PDFName.of('ID'), idArray);
       
-      // Nastavení výrobce a tvůrce
       pdfDoc.setProducer(`PDF/A-${version}b Converter (20-20-TOOLBOX)`);
       pdfDoc.setCreator('20-20-TOOLBOX PDF/A Converter');
       
-      // ------------------------------------------------------------
-      // 4. ULOŽENÍ S OPTIMALIZACÍ PRO PDF/A
-      // ------------------------------------------------------------
       const pdfBytes = await pdfDoc.save({
         useObjectStreams: true,
         addDefaultPage: false,
@@ -1298,7 +1340,6 @@ async function startConversion() {
     document.getElementById('fill-pdfa').style.width = ((i + 1) / filesData.pdfa.length * 100) + '%';
   }
 
-  // Stažení výsledků
   if (outputs.length > 0) {
     if (outputs.length === 1) {
       const link = document.createElement('a');
@@ -1321,9 +1362,6 @@ async function startConversion() {
   }
   document.getElementById('btn-pdfa').disabled = false;
 }
-// ============================================================
-// KONEC NOVÉ FUNKCE
-// ============================================================
 
 let editorFontReady = false;
 let editorFontFamily = 'Antarctican Mono';
@@ -1408,6 +1446,328 @@ function measureTextBox(text,size,scale){
   return {width: maxW + 2, height};
 }
 
+// ============================================================
+// MOODBOARD FUNKCE
+// ============================================================
+function openMoodboardModal() {
+  document.getElementById('moodboard-modal').style.display = 'flex';
+}
+function closeMoodboardModal() {
+  document.getElementById('moodboard-modal').style.display = 'none';
+}
+
+function createMoodboard(layoutType) {
+  closeMoodboardModal();
+  pushTextHistory();
+  
+  // Získáme rozměry stránky
+  const info = window.__previewInfo;
+  if (!info) {
+    alert('Nejprve otevřete náhled.');
+    return;
+  }
+  const pageW = info.width;
+  const pageH = info.height;
+  const marginTop = 28.35; // 1 cm
+  const marginSide = 28.35; // 1 cm
+  const marginBottom = 56.7; // 2 cm (kvůli spodnímu pruhu)
+  const gap = 10; // mezera mezi buňkami (v bodech)
+  
+  const usableW = pageW - 2 * marginSide;
+  const usableH = pageH - marginTop - marginBottom;
+  
+  let cells = [];
+  const id = textIdCounter++;
+  
+  if (layoutType === '4') {
+    // 2x2 rovnoměrně
+    const cols = 2, rows = 2;
+    const cellW = (usableW - (cols - 1) * gap) / cols;
+    const cellH = (usableH - (rows - 1) * gap) / rows;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = marginSide + c * (cellW + gap);
+        const y = marginTop + r * (cellH + gap);
+        cells.push({ x, y, w: cellW, h: cellH, img: null, zoom: 1, offsetX: 0, offsetY: 0 });
+      }
+    }
+  } else if (layoutType === '2+1') {
+    // horní: velký (vlevo) + malý (vpravo), dolní: malý (vlevo) + velký (vpravo)
+    const bigW = (usableW - gap) * 0.6;
+    const smallW = (usableW - gap) * 0.4;
+    const bigH = (usableH - gap) * 0.6;
+    const smallH = (usableH - gap) * 0.4;
+    
+    // horní řada: velký vlevo, malý vpravo
+    cells.push({ x: marginSide, y: marginTop, w: bigW, h: bigH, img: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide + bigW + gap, y: marginTop, w: smallW, h: bigH, img: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    // dolní řada: malý vlevo, velký vpravo
+    cells.push({ x: marginSide, y: marginTop + bigH + gap, w: smallW, h: smallH, img: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide + smallW + gap, y: marginTop + bigH + gap, w: bigW, h: smallH, img: null, zoom: 1, offsetX: 0, offsetY: 0 });
+  } else if (layoutType === '1+2') {
+    // horní: malý (vlevo) + velký (vpravo), dolní: velký (vlevo) + malý (vpravo)
+    const bigW = (usableW - gap) * 0.6;
+    const smallW = (usableW - gap) * 0.4;
+    const bigH = (usableH - gap) * 0.6;
+    const smallH = (usableH - gap) * 0.4;
+    
+    cells.push({ x: marginSide, y: marginTop, w: smallW, h: bigH, img: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide + smallW + gap, y: marginTop, w: bigW, h: bigH, img: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide, y: marginTop + bigH + gap, w: bigW, h: smallH, img: null, zoom: 1, offsetX: 0, offsetY: 0 });
+    cells.push({ x: marginSide + bigW + gap, y: marginTop + bigH + gap, w: smallW, h: smallH, img: null, zoom: 1, offsetX: 0, offsetY: 0 });
+  }
+  
+  // Uložíme jako speciální stránku s typem 'moodboard'
+  allPagesTexts[id] = { type: 'moodboard', cells };
+  // Vložíme odkaz na tuto stránku do seznamu stránek na aktuální pozici
+  // Protože allPagesTexts je mapováno podle pozice stránky, musíme posunout ostatní stránky
+  // a vložit tuto na aktuální pozici.
+  // Pro jednoduchost vytvoříme novou stránku na pozici currentPreviewPage a posuneme ostatní.
+  // Nejprve si připravíme nové mapy
+  let newTexts = {};
+  let newBlank = new Set();
+  let newPdfMap = {};
+  
+  // Projdeme všechny existující stránky (podle pozic)
+  const allKeys = new Set([...Object.keys(allPagesTexts).map(Number), ...customBlankPages, ...Object.keys(pagePdfIndexMap).map(Number)]);
+  const positions = Array.from(allKeys).sort((a,b)=>a-b);
+  
+  // Vložíme novou stránku na pozici currentPreviewPage
+  for (let p of positions) {
+    if (p >= currentPreviewPage) {
+      // posuneme o 1 doprava
+      if (allPagesTexts[p]) newTexts[p+1] = allPagesTexts[p];
+      if (customBlankPages.has(p)) newBlank.add(p+1);
+      if (pagePdfIndexMap[p] !== undefined) newPdfMap[p+1] = pagePdfIndexMap[p];
+    } else {
+      if (allPagesTexts[p]) newTexts[p] = allPagesTexts[p];
+      if (customBlankPages.has(p)) newBlank.add(p);
+      if (pagePdfIndexMap[p] !== undefined) newPdfMap[p] = pagePdfIndexMap[p];
+    }
+  }
+  // Vložíme novou stránku na pozici currentPreviewPage
+  newTexts[currentPreviewPage] = { type: 'moodboard', cells };
+  
+  allPagesTexts = newTexts;
+  customBlankPages = newBlank;
+  pagePdfIndexMap = newPdfMap;
+  totalPreviewPages++;
+  
+  // Přepneme na novou stránku
+  currentPreviewPage = currentPreviewPage;
+  
+  renderCurrentPagePreview();
+  renderThumbnails();
+  scheduleAutosave();
+}
+
+// Vykreslení moodboard stránky na canvas
+async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
+  // Pozadí - světle šedé
+  ctx.fillStyle = '#e8e8e8';
+  ctx.fillRect(0, 0, pageW * scale, pageH * scale);
+  
+  for (let cell of cells) {
+    const x = cell.x * scale;
+    const y = cell.y * scale;
+    const w = cell.w * scale;
+    const h = cell.h * scale;
+    
+    // Rámeček
+    ctx.strokeStyle = '#18181b';
+    ctx.lineWidth = 2 * scale;
+    ctx.strokeRect(x, y, w, h);
+    
+    if (cell.img) {
+      // Obrázek – použijeme canvas clipping
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+      
+      // Vykreslení obrázku s zoomem a posunem
+      const img = new Image();
+      img.src = cell.img;
+      await new Promise(resolve => {
+        img.onload = () => {
+          const zoom = cell.zoom || 1;
+          const offX = (cell.offsetX || 0) * scale;
+          const offY = (cell.offsetY || 0) * scale;
+          const imgW = img.width * scale * zoom;
+          const imgH = img.height * scale * zoom;
+          // Vycentrování s posunem
+          const drawX = x + (w - imgW) / 2 + offX;
+          const drawY = y + (h - imgH) / 2 + offY;
+          ctx.drawImage(img, drawX, drawY, imgW, imgH);
+          resolve();
+        };
+        img.onerror = resolve;
+      });
+      ctx.restore();
+    }
+  }
+}
+
+// Vytvoření overlay prvků pro moodboard (interaktivní buňky)
+function renderMoodboardOverlay(pageNum, cells) {
+  const layer = document.getElementById('boxes-layer');
+  // Odstraníme staré moodboard prvky (ale zachováme textové boxy)
+  // Budeme je spravovat samostatně – jednoduše smažeme všechny prvky s třídou moodboard-cell
+  document.querySelectorAll('.moodboard-cell').forEach(el => el.remove());
+  
+  const canvas = document.getElementById('preview-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const info = window.__previewInfo;
+  const sx = rect.width / info.width;
+  const sy = rect.height / info.height;
+  
+  for (let idx = 0; idx < cells.length; idx++) {
+    const cell = cells[idx];
+    const div = document.createElement('div');
+    div.className = 'moodboard-cell';
+    div.dataset.cellIndex = idx;
+    div.dataset.page = pageNum;
+    div.style.left = (cell.x * sx) + 'px';
+    div.style.top = (cell.y * sy) + 'px';
+    div.style.width = (cell.w * sx) + 'px';
+    div.style.height = (cell.h * sy) + 'px';
+    
+    if (cell.img) {
+      // Obrázek
+      const img = document.createElement('img');
+      img.className = 'cell-img';
+      img.src = cell.img;
+      img.style.transform = `translate(${(cell.offsetX||0)*sx}px, ${(cell.offsetY||0)*sy}px) scale(${cell.zoom||1})`;
+      div.appendChild(img);
+      
+      // Tlačítko pro smazání
+      const del = document.createElement('button');
+      del.className = 'cell-delete';
+      del.textContent = '✕';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeImageFromCell(pageNum, idx);
+      });
+      div.appendChild(del);
+      
+      // Interakce – zoom kolečkem
+      div.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        let newZoom = (cell.zoom || 1) + delta;
+        newZoom = Math.max(0.2, Math.min(5, newZoom));
+        cell.zoom = newZoom;
+        updateCellImageTransform(pageNum, idx);
+        scheduleAutosave();
+      }, { passive: false });
+      
+      // Drag pro posun obrázku
+      let isDragging = false;
+      let startX, startY, startOffX, startOffY;
+      div.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('cell-delete')) return;
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startOffX = cell.offsetX || 0;
+        startOffY = cell.offsetY || 0;
+        div.style.cursor = 'grabbing';
+        e.preventDefault();
+      });
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = (e.clientX - startX) / sx;
+        const dy = (e.clientY - startY) / sy;
+        cell.offsetX = startOffX + dx;
+        cell.offsetY = startOffY + dy;
+        updateCellImageTransform(pageNum, idx);
+        scheduleAutosave();
+      });
+      document.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          div.style.cursor = 'default';
+        }
+      });
+      
+    } else {
+      // Symbol +
+      const plus = document.createElement('div');
+      plus.className = 'cell-plus';
+      plus.textContent = '+';
+      plus.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openImageUpload(pageNum, idx);
+      });
+      div.appendChild(plus);
+    }
+    
+    layer.appendChild(div);
+  }
+}
+
+function updateCellImageTransform(pageNum, idx) {
+  const cells = allPagesTexts[pageNum]?.cells;
+  if (!cells || !cells[idx]) return;
+  const cell = cells[idx];
+  const div = document.querySelector(`.moodboard-cell[data-page="${pageNum}"][data-cell-index="${idx}"]`);
+  if (!div) return;
+  const img = div.querySelector('.cell-img');
+  if (!img) return;
+  const canvas = document.getElementById('preview-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const info = window.__previewInfo;
+  const sx = rect.width / info.width;
+  const sy = rect.height / info.height;
+  img.style.transform = `translate(${(cell.offsetX||0)*sx}px, ${(cell.offsetY||0)*sy}px) scale(${cell.zoom||1})`;
+}
+
+function openImageUpload(pageNum, idx) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/jpeg,image/png';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      addImageToCell(pageNum, idx, dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+function addImageToCell(pageNum, idx, dataUrl) {
+  pushTextHistory();
+  const cells = allPagesTexts[pageNum]?.cells;
+  if (!cells || !cells[idx]) return;
+  cells[idx].img = dataUrl;
+  cells[idx].zoom = 1;
+  cells[idx].offsetX = 0;
+  cells[idx].offsetY = 0;
+  renderCurrentPagePreview();
+  scheduleAutosave();
+}
+
+function removeImageFromCell(pageNum, idx) {
+  pushTextHistory();
+  const cells = allPagesTexts[pageNum]?.cells;
+  if (!cells || !cells[idx]) return;
+  cells[idx].img = null;
+  cells[idx].zoom = 1;
+  cells[idx].offsetX = 0;
+  cells[idx].offsetY = 0;
+  renderCurrentPagePreview();
+  scheduleAutosave();
+}
+
+// ============================================================
+// KONEC MOODBOARD FUNKCÍ
+// ============================================================
+
 async function openPreviewModal() {
   if (!pdfJsDoc) return;
   initEditorGlobalHandlers();
@@ -1483,11 +1843,17 @@ function getPreviewPageInfo(pageNum) {
   if (isCoverPage) {
     return { isCover: true, isBlank: false, pdfIndex: -1 };
   }
+  // Kontrola, zda je to moodboard stránka
+  const pageData = allPagesTexts[pageNum];
+  if (pageData && pageData.type === 'moodboard') {
+    return { isCover: false, isBlank: false, pdfIndex: -1, isMoodboard: true };
+  }
   const pdfIndex = pagePdfIndexMap[pageNum];
   return {
     isCover: false,
     isBlank: false,
-    pdfIndex: (pdfIndex !== undefined) ? pdfIndex : 0
+    pdfIndex: (pdfIndex !== undefined) ? pdfIndex : 0,
+    isMoodboard: false
   };
 }
 
@@ -1498,10 +1864,14 @@ function buildPageRecords() {
     let type = 'pdf';
     if (createCover && p === 1) type = 'cover';
     else if (customBlankPages.has(p)) type = 'blank';
+    else {
+      const pageData = allPagesTexts[p];
+      if (pageData && pageData.type === 'moodboard') type = 'moodboard';
+    }
     records.push({
       type,
       pdfIndex: (type === 'pdf') ? (pagePdfIndexMap[p] !== undefined ? pagePdfIndexMap[p] : 0) : null,
-      texts: allPagesTexts[p] || []
+      texts: (type === 'moodboard') ? pageData : (allPagesTexts[p] || [])
     });
   }
   return records;
@@ -1513,9 +1883,20 @@ function applyPageRecords(records) {
   const newPdfMap = {};
   records.forEach((rec, idx) => {
     const pos = idx + 1;
-    if (rec.texts && rec.texts.length) newTexts[pos] = rec.texts;
     if (rec.type === 'blank') newBlank.add(pos);
-    if (rec.type === 'pdf') newPdfMap[pos] = rec.pdfIndex;
+    else if (rec.type === 'pdf') newPdfMap[pos] = rec.pdfIndex;
+    else if (rec.type === 'moodboard') {
+      newTexts[pos] = rec.texts; // rec.texts je objekt { type: 'moodboard', cells: [...] }
+    } else {
+      // cover nebo normální stránka s texty
+      if (rec.texts && !Array.isArray(rec.texts) && rec.texts.type === 'moodboard') {
+        newTexts[pos] = rec.texts;
+      } else if (Array.isArray(rec.texts)) {
+        newTexts[pos] = rec.texts;
+      } else {
+        newTexts[pos] = [];
+      }
+    }
   });
   allPagesTexts = newTexts;
   customBlankPages = newBlank;
@@ -1720,7 +2101,13 @@ async function renderCurrentPagePreview() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  if (info.isCover) {
+  // Kontrola, zda je to moodboard
+  const pageData = allPagesTexts[currentPreviewPage];
+  if (info.isMoodboard || (pageData && pageData.type === 'moodboard')) {
+    await drawMoodboard(ctx, pageSize.width, pageSize.height, renderScale, pageData.cells || []);
+    // Vykreslíme info bar
+    await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale);
+  } else if (info.isCover) {
     await drawCover(ctx, pageSize.width, pageSize.height, renderScale);
   } else if (info.isBlank) {
     await drawBlankPage(ctx, pageSize.width, pageSize.height, renderScale);
@@ -1735,25 +2122,34 @@ async function renderCurrentPagePreview() {
       renderViewport = page.getViewport({scale: renderScale});
     }
     await page.render({canvasContext: ctx, viewport: renderViewport}).promise;
+    await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale);
   }
-
-  if (!info.isCover && !info.isBlank) await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale);
 
   document.getElementById('page-indicator').textContent =
     info.isCover ? `Úvodní strana (Stránka ${currentPreviewPage} z ${totalPreviewPages})`
                  : (info.isBlank ? `Prázdná stránka s pruhem (Stránka ${currentPreviewPage} z ${totalPreviewPages})`
-                                 : `Stránka ${currentPreviewPage} z ${totalPreviewPages}`);
+                 : (pageData && pageData.type === 'moodboard' ? `Moodboard (Stránka ${currentPreviewPage} z ${totalPreviewPages})`
+                 : `Stránka ${currentPreviewPage} z ${totalPreviewPages}`));
 
   document.getElementById('prev-page-btn').disabled = currentPreviewPage <= 1;
   document.getElementById('next-page-btn').disabled = currentPreviewPage >= totalPreviewPages;
 
   const layer = document.getElementById('boxes-layer');
   selectedBoxEl = null;
-  layer.innerHTML = '';
-  (allPagesTexts[currentPreviewPage] || []).forEach(b => {
-    if (b.type === 'line') createLineElement(b);
-    else createBoxElement(b);
-  });
+  // Zachováme pouze textové a čárové boxy – moodboard buňky smažeme a vykreslíme znovu
+  document.querySelectorAll('.custom-text-box').forEach(el => el.remove());
+  document.querySelectorAll('.moodboard-cell').forEach(el => el.remove());
+  
+  // Pokud je to moodboard, vykreslíme buňky
+  if (pageData && pageData.type === 'moodboard') {
+    renderMoodboardOverlay(currentPreviewPage, pageData.cells || []);
+  } else {
+    // Jinak vykreslíme textové boxy a čáry
+    (allPagesTexts[currentPreviewPage] || []).forEach(b => {
+      if (b.type === 'line') createLineElement(b);
+      else createBoxElement(b);
+    });
+  }
 }
 
 function addTextBox(){
@@ -2008,7 +2404,11 @@ async function renderThumbnails() {
     c.height = Math.round(pageSize.height * scale);
     const cctx = c.getContext('2d');
 
-    if (info.isCover) {
+    const pageData = allPagesTexts[p];
+    if (info.isMoodboard || (pageData && pageData.type === 'moodboard')) {
+      await drawMoodboard(cctx, pageSize.width, pageSize.height, scale, (pageData?.cells || []));
+      await drawInfoBar(cctx, pageSize.width, pageSize.height, scale);
+    } else if (info.isCover) {
       await drawCover(cctx, pageSize.width, pageSize.height, scale);
     } else if (info.isBlank) {
       await drawBlankPage(cctx, pageSize.width, pageSize.height, scale);
@@ -2024,7 +2424,7 @@ async function renderThumbnails() {
 
     const label = document.createElement('div');
     label.className = 'thumb-label';
-    label.textContent = p + (info.isCover ? ' • úvod' : info.isBlank ? ' • prázdná' : '');
+    label.textContent = p + (info.isCover ? ' • úvod' : info.isBlank ? ' • prázdná' : (pageData && pageData.type === 'moodboard' ? ' • moodboard' : ''));
 
     wrap.append(c, label);
 
@@ -2365,6 +2765,10 @@ async function runPanel(fromModal = false){
       let targetPage;
       let targetW = standardA3W, targetH = standardA3H;
 
+      // Kontrola, zda je to moodboard
+      const pageData = allPagesTexts[previewP];
+      const isMoodboard = pageData && pageData.type === 'moodboard';
+
       if(createCover && previewP === 1){
         targetPage = finalPdf.addPage([standardA3W, standardA3H]);
         targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(247/255, 241/255, 151/255)});
@@ -2373,10 +2777,107 @@ async function runPanel(fromModal = false){
           const h = 65, w = finalLogo.width * (h / finalLogo.height);
           targetPage.drawImage(finalLogo, {x:standardA3W/2 - w/2, y:42.5, width:w, height:h});
         }
+        // Vykreslení textů na úvodní stránce
+        (allPagesTexts[previewP] || []).forEach(tb => {
+          if(tb.type === 'line') {
+            targetPage.drawLine({
+              start: { x: tb.x + 5, y: tb.y },
+              end: { x: tb.x + 5, y: tb.y + tb.height },
+              thickness: 1,
+              color: textColor
+            });
+          } else if(tb.text) {
+            const lines = tb.text.split(/\r?\n/);
+            const lineHeight = tb.size * 1.2;
+            lines.forEach((line, idx) => {
+              const lineY = tb.y + (lines.length - 1 - idx) * lineHeight;
+              targetPage.drawText(line, {x: tb.x, y: lineY, size: tb.size, font: finalFont, color: textColor});
+            });
+          }
+        });
       } else if(customBlankPages.has(previewP)){
         targetPage = finalPdf.addPage([standardA3W, standardA3H]);
         targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(1,1,1)});
         
+        const margin = 14.17, barHeight = 28.35;
+        targetPage.drawRectangle({x:margin, y:margin, width:standardA3W - 2 * margin, height:barHeight, color:rgb(247/255, 241/255, 151/255)});
+        let currentX = margin + 15;
+        const centerY = margin + barHeight / 2;
+        if(finalLogo){
+          const d = finalLogo.scale(22 / finalLogo.height);
+          targetPage.drawImage(finalLogo, {x:currentX, y:centerY - d.height / 2, width:d.width, height:d.height});
+          currentX += d.width + 15;
+        }
+        targetPage.drawLine({start:{x:currentX, y:margin + 6}, end:{x:currentX, y:margin + barHeight - 6}, thickness:1, color:textColor});
+        currentX += 15;
+        targetPage.drawText(projectType, {x:currentX, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        const rightMargin = margin + standardA3W - 2 * margin - 20;
+        targetPage.drawText(projectDate, {x:rightMargin - 80, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        const titleSeparatorX = rightMargin - 95;
+        targetPage.drawLine({start:{x:titleSeparatorX, y:margin + 6}, end:{x:titleSeparatorX, y:margin + barHeight - 6}, thickness:1, color:textColor});
+        const titleWidth = finalFont.widthOfTextAtSize(projectTitle, 11);
+        targetPage.drawText(projectTitle, {x:titleSeparatorX - 15 - titleWidth, y:centerY - 4, size:11, font:finalFont, color:textColor});
+      } else if(isMoodboard) {
+        // Vytvoříme stránku s moodboardem
+        targetPage = finalPdf.addPage([standardA3W, standardA3H]);
+        // Pozadí
+        targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(232/255, 232/255, 232/255)});
+        // Vykreslíme buňky
+        const cells = pageData.cells || [];
+        for (let cell of cells) {
+          // Rámeček
+          targetPage.drawRectangle({
+            x: cell.x, y: cell.y,
+            width: cell.w, height: cell.h,
+            borderColor: rgb(24/255, 24/255, 27/255),
+            borderWidth: 2,
+            color: rgb(1,1,1) // průhledné
+          });
+          // Obrázek
+          if (cell.img) {
+            try {
+              // Získání obrázku z base64
+              const imgBytes = await fetch(cell.img).then(r => r.arrayBuffer());
+              let imageObj;
+              // Rozpoznání typu
+              if (cell.img.startsWith('data:image/png')) {
+                imageObj = await finalPdf.embedPng(imgBytes);
+              } else if (cell.img.startsWith('data:image/jpeg')) {
+                imageObj = await finalPdf.embedJpg(imgBytes);
+              } else {
+                // Zkusíme PNG
+                imageObj = await finalPdf.embedPng(imgBytes);
+              }
+              if (imageObj) {
+                const zoom = cell.zoom || 1;
+                const offX = cell.offsetX || 0;
+                const offY = cell.offsetY || 0;
+                // Výpočet vykreslení s oříznutím (cover)
+                const imgAspect = imageObj.width / imageObj.height;
+                const cellAspect = cell.w / cell.h;
+                let drawW, drawH;
+                if (imgAspect > cellAspect) {
+                  drawW = cell.w * zoom;
+                  drawH = drawW / imgAspect;
+                } else {
+                  drawH = cell.h * zoom;
+                  drawW = drawH * imgAspect;
+                }
+                const dx = cell.x + (cell.w - drawW) / 2 + offX;
+                const dy = cell.y + (cell.h - drawH) / 2 + offY;
+                // Oříznutí pomocí masky – v pdf-lib to jde přes clip
+                targetPage.drawImage(imageObj, {
+                  x: dx, y: dy,
+                  width: drawW, height: drawH,
+                  xScale: 1, yScale: 1
+                });
+              }
+            } catch(e) {
+              console.warn('Chyba při vkládání obrázku do PDF:', e);
+            }
+          }
+        }
+        // Spodní pruh
         const margin = 14.17, barHeight = 28.35;
         targetPage.drawRectangle({x:margin, y:margin, width:standardA3W - 2 * margin, height:barHeight, color:rgb(247/255, 241/255, 151/255)});
         let currentX = margin + 15;
@@ -2444,32 +2945,35 @@ async function runPanel(fromModal = false){
         targetPage.drawText(projectTitle, {x:titleSeparatorX - 15 - titleWidth, y:centerY - 4, size:11, font:finalFont, color:textColor});
       }
 
-      (allPagesTexts[previewP]||[]).forEach(tb => {
-        if(tb.type === 'line') {
-          if (tb.orientation === 'horizontal') {
-            targetPage.drawLine({
-              start: { x: tb.x, y: tb.y + tb.height/2 },
-              end: { x: tb.x + tb.height, y: tb.y + tb.height/2 },
-              thickness: 1,
-              color: textColor
-            });
-          } else {
-            targetPage.drawLine({
-              start: { x: tb.x + 5, y: tb.y },
-              end: { x: tb.x + 5, y: tb.y + tb.height },
-              thickness: 1,
-              color: textColor
+      // Pokud to není moodboard a není to cover, vykreslíme texty a čáry
+      if (!isMoodboard && !(createCover && previewP === 1)) {
+        (allPagesTexts[previewP] || []).forEach(tb => {
+          if(tb.type === 'line') {
+            if (tb.orientation === 'horizontal') {
+              targetPage.drawLine({
+                start: { x: tb.x, y: tb.y + tb.height/2 },
+                end: { x: tb.x + tb.height, y: tb.y + tb.height/2 },
+                thickness: 1,
+                color: textColor
+              });
+            } else {
+              targetPage.drawLine({
+                start: { x: tb.x + 5, y: tb.y },
+                end: { x: tb.x + 5, y: tb.y + tb.height },
+                thickness: 1,
+                color: textColor
+              });
+            }
+          } else if(tb.text) {
+            const lines = tb.text.split(/\r?\n/);
+            const lineHeight = tb.size * 1.2;
+            lines.forEach((line, idx) => {
+              const lineY = tb.y + (lines.length - 1 - idx) * lineHeight;
+              targetPage.drawText(line, {x: tb.x, y: lineY, size: tb.size, font: finalFont, color: textColor});
             });
           }
-        } else if(tb.text) {
-          const lines = tb.text.split(/\r?\n/);
-          const lineHeight = tb.size * 1.2;
-          lines.forEach((line, idx) => {
-            const lineY = tb.y + (lines.length - 1 - idx) * lineHeight;
-            targetPage.drawText(line, {x: tb.x, y: lineY, size: tb.size, font: finalFont, color: textColor});
-          });
-        }
-      });
+        });
+      }
     }
 
     const bytes = await finalPdf.save({useObjectStreams:true});
