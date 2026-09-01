@@ -40,6 +40,8 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .err{color:#b91c1c;background:#fef2f2;border-color:#fecaca}
 .info-box{margin-top:20px;background:#fafafa;border:1px solid var(--border);padding:15px;border-radius:8px;font-size:13px;line-height:1.5;color:var(--text)}
 .info-box h3{margin:0 0 8px;font-family:'Antarctican Mono', monospace;font-weight:normal;font-size:14px}
+.browser-warning{background:#fef2f2;border:1px solid #fecaca;padding:12px 16px;border-radius:8px;margin:10px 0;color:#b91c1c;font-size:14px;display:none;}
+.browser-warning strong{color:#dc2626;}
 
 /* MODÁLNÍ OKNO PRO NÁHLED */
 #preview-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; align-items:center; justify-content:center; padding:20px; }
@@ -69,6 +71,9 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 #new-project-modal .box { background:#fff; border-radius:12px; padding:24px; width:100%; max-width:360px; }
 #new-project-modal h3 { margin:0 0 12px; font-family:'Antarctican Mono', monospace; font-weight:normal; font-size:16px; }
 #new-project-modal input[type="text"] { width:100%; padding:8px 10px; margin-bottom:14px; }
+
+#zip-import-area { display:none; margin:10px 0; padding:12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; }
+#zip-import-area label { font-weight:bold; }
 
 @media(max-width:700px){
   #preview-body{flex-direction:column; align-items:stretch;}
@@ -227,11 +232,29 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
     <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
     <h1>Prezentační nástroj — projekty</h1>
     <div class="muted">Vyberte existující projekt, nebo založte nový. Projekty se ukládají do složky <code>saved_projects</code> vedle této aplikace.</div>
+    
+    <div id="browser-warning" class="browser-warning">
+      ⚠️ <strong>Pozor:</strong> Váš prohlížeč (Safari) nepodporuje ukládání do složky. <br>
+      Použijte prosím <strong>Chrome</strong> nebo <strong>Edge</strong> pro plnou funkčnost, nebo použijte alternativní režim níže.
+    </div>
+
     <div class="row" style="margin-top:0;">
       <button class="action" onclick="handleNewProjectClick()">+ Nový projekt</button>
       <button class="action" style="background:#52525b;" onclick="refreshProjectsList(true)">🔄 Připojit / obnovit složku saved_projects</button>
       <span id="st-projects" class="muted" style="margin:0;"></span>
     </div>
+
+    <!-- Alternativní režim pro Safari – import/export ZIP -->
+    <div id="zip-import-area">
+      <label>📦 Alternativní režim (funguje ve všech prohlížečích):</label>
+      <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;">
+        <button class="action" onclick="exportProjectAsZip()" style="background:#16a34a;">📥 Stáhnout projekt jako ZIP</button>
+        <button class="action" onclick="document.getElementById('zip-import-input').click()" style="background:#2563eb;">📤 Nahrát projekt ze ZIP</button>
+        <input id="zip-import-input" type="file" accept=".zip" style="display:none" onchange="importProjectFromZip(this.files)">
+      </div>
+      <div style="font-size:12px; color:var(--muted); margin-top:4px;">Projekty se uloží jako ZIP soubor, který můžete kdykoliv znovu nahrát.</div>
+    </div>
+
     <div id="projects-grid" class="grid" style="margin-top:18px;"></div>
   </div>
 
@@ -365,6 +388,17 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 </div>
 
 <script>
+// Detekce Safari
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+const isChrome = /chrome/i.test(navigator.userAgent) && /google inc/i.test(navigator.vendor);
+const isEdge = /edg/i.test(navigator.userAgent);
+
+// Zobrazení varování pro Safari
+if (isSafari && !isChrome && !isEdge) {
+  document.getElementById('browser-warning').style.display = 'block';
+  document.getElementById('zip-import-area').style.display = 'block';
+}
+
 window.preventDrop = e => { e.preventDefault(); };
 let filesData = { pdfa: [], panel: [] };
 let allPagesTexts = {}; 
@@ -464,8 +498,16 @@ function sanitizeProjectName(name) {
 }
 
 async function getSavedProjectsDirHandle(forcePicker) {
+  // Pokud je Safari, rovnou vrátíme null a ukážeme ZIP režim
+  if (isSafari && !isChrome && !isEdge) {
+    document.getElementById('browser-warning').style.display = 'block';
+    document.getElementById('zip-import-area').style.display = 'block';
+    return null;
+  }
+  
   if (!('showDirectoryPicker' in window)) {
-    alert('Tento prohlížeč nepodporuje ukládání projektů do složky (funguje v Chrome nebo Edge, spuštěné přes http://). Zkuste prosím jiný prohlížeč.');
+    alert('Tento prohlížeč nepodporuje ukládání projektů do složky (funguje v Chrome nebo Edge, spuštěné přes http://). Zkuste prosím jiný prohlížeč nebo použijte alternativní ZIP režim.');
+    document.getElementById('zip-import-area').style.display = 'block';
     return null;
   }
   if (savedProjectsDirHandle && !forcePicker) {
@@ -489,9 +531,259 @@ async function getSavedProjectsDirHandle(forcePicker) {
     return dir;
   } catch (e) {
     console.warn('Výběr složky zrušen nebo selhal', e);
+    document.getElementById('zip-import-area').style.display = 'block';
     return null;
   }
 }
+
+// ---- ZIP EXPORT/IMPORT pro Safari ----
+function getProjectState() {
+  return {
+    version: 1,
+    sourceFileName: filesData.panel[0] ? filesData.panel[0].name : null,
+    form: collectFormState(),
+    allPagesTexts: allPagesTexts,
+    customBlankPages: Array.from(customBlankPages),
+    pagePdfIndexMap: pagePdfIndexMap,
+    textIdCounter: textIdCounter,
+    totalPreviewPages: totalPreviewPages,
+    defaultCoverLayoutInitialized: defaultCoverLayoutInitialized,
+    currentPreviewPage: currentPreviewPage
+  };
+}
+
+async function exportProjectAsZip() {
+  if (!currentProjectName) {
+    alert('Nejprve otevřete nebo vytvořte projekt.');
+    return;
+  }
+  
+  try {
+    const state = getProjectState();
+    const stateJson = JSON.stringify(state);
+    const stateBlob = new Blob([stateJson], { type: 'application/json' });
+    
+    // Vytvoříme ZIP pomocí JSZip (jednoduchá implementace)
+    // Použijeme jednoduchý ZIP builder
+    const zipData = await createSimpleZip([
+      { name: 'project.json', data: stateJson },
+      { name: 'source.pdf', data: loadedFileBytes || new ArrayBuffer(0) }
+    ]);
+    
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(zipData);
+    link.download = sanitizeProjectName(currentProjectName) + '.zip';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  } catch(e) {
+    alert('Chyba při exportu: ' + e.message);
+  }
+}
+
+async function importProjectFromZip(files) {
+  if (!files || files.length === 0) return;
+  const file = files[0];
+  try {
+    const zipBytes = await file.arrayBuffer();
+    // Jednoduchá extrakce ZIP – hledáme soubory
+    const entries = await parseZip(zipBytes);
+    const projectJsonEntry = entries.find(e => e.name === 'project.json');
+    const pdfEntry = entries.find(e => e.name === 'source.pdf');
+    
+    if (!projectJsonEntry) {
+      alert('Soubor project.json nebyl v ZIP nalezen.');
+      return;
+    }
+    
+    const state = JSON.parse(new TextDecoder().decode(projectJsonEntry.data));
+    
+    // Načteme PDF pokud existuje
+    if (pdfEntry && pdfEntry.data.byteLength > 0) {
+      const pdfFile = new File([pdfEntry.data], state.sourceFileName || 'source.pdf', { type: 'application/pdf' });
+      filesData.panel = [pdfFile];
+      loadedFileBytes = pdfEntry.data;
+      pdfJsDoc = await pdfjsLib.getDocument({ data: pdfEntry.data.slice(0) }).promise;
+      document.getElementById('btn-preview').disabled = false;
+      document.getElementById('btn-panel').disabled = false;
+    }
+    
+    // Aplikujeme stav
+    applyFormState(state.form);
+    allPagesTexts = state.allPagesTexts || {};
+    customBlankPages = new Set(state.customBlankPages || []);
+    pagePdfIndexMap = state.pagePdfIndexMap || {};
+    textIdCounter = state.textIdCounter || 1;
+    totalPreviewPages = state.totalPreviewPages || 1;
+    defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
+    currentPreviewPage = state.currentPreviewPage || 1;
+    
+    currentProjectName = state.form?.panelTitle || 'importovany-projekt';
+    document.getElementById('current-project-label').textContent = currentProjectName;
+    document.getElementById('st-panel').textContent = `Projekt „${currentProjectName}“ načten ze ZIP`;
+    document.getElementById('list-panel').innerHTML = pdfEntry ? `<div class="item">📄 ${state.sourceFileName || 'source.pdf'}</div>` : '';
+    
+    // Obnovíme zobrazení
+    document.getElementById('menu-view').style.display = 'none';
+    document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+    document.getElementById('tool-panel').classList.add('active');
+    
+    alert('Projekt úspěšně načten ze ZIP!');
+  } catch(e) {
+    alert('Chyba při importu ZIP: ' + e.message);
+  }
+}
+
+// Jednoduchý ZIP parser (pro malé soubory)
+async function parseZip(data) {
+  const entries = [];
+  const dv = new DataView(data);
+  let offset = 0;
+  
+  while (offset < data.byteLength - 22) {
+    const sig = dv.getUint32(offset, true);
+    if (sig === 0x04034b50) { // local file header
+      const nameLen = dv.getUint16(offset + 26, true);
+      const extraLen = dv.getUint16(offset + 28, true);
+      const compSize = dv.getUint32(offset + 18, true);
+      const uncompSize = dv.getUint32(offset + 22, true);
+      const nameBytes = new Uint8Array(data, offset + 30, nameLen);
+      const name = new TextDecoder().decode(nameBytes);
+      const dataStart = offset + 30 + nameLen + extraLen;
+      
+      let fileData;
+      if (compSize > 0) {
+        // Zjednodušeně – předpokládáme nekomprimované (metoda 0)
+        const method = dv.getUint16(offset + 8, true);
+        if (method === 0) {
+          fileData = new Uint8Array(data, dataStart, compSize);
+        } else {
+          // Pro zjednodušení – jen deflate nepodporujeme
+          fileData = new Uint8Array(0);
+        }
+      } else {
+        fileData = new Uint8Array(0);
+      }
+      
+      entries.push({ name, data: fileData });
+      offset = dataStart + compSize;
+    } else if (sig === 0x06054b50) { // end of central directory
+      break;
+    } else {
+      offset++;
+    }
+  }
+  return entries;
+}
+
+// Jednoduchý ZIP builder (bez komprese)
+async function createSimpleZip(files) {
+  const enc = new TextEncoder();
+  let parts = [];
+  let central = [];
+  let offset = 0;
+  
+  for (const f of files) {
+    const nameBytes = enc.encode(f.name);
+    const data = typeof f.data === 'string' ? enc.encode(f.data) : new Uint8Array(f.data);
+    const crc = crc32(data);
+    
+    // Local file header
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    let p = 0;
+    localHeader.set([0x50, 0x4b, 0x03, 0x04], p); p += 4;
+    localHeader.set([0x0a, 0x00], p); p += 2; // version
+    localHeader.set([0x00, 0x00], p); p += 2; // general purpose
+    localHeader.set([0x00, 0x00], p); p += 2; // compression method
+    localHeader.set([0x00, 0x00], p); p += 2; // last mod time
+    localHeader.set([0x00, 0x00], p); p += 2; // last mod date
+    p = writeU32(localHeader, p, crc);
+    p = writeU32(localHeader, p, data.length);
+    p = writeU32(localHeader, p, data.length);
+    p = writeU16(localHeader, p, nameBytes.length);
+    p = writeU16(localHeader, p, 0);
+    localHeader.set(nameBytes, p);
+    
+    parts.push(localHeader);
+    parts.push(data);
+    
+    // Central directory
+    const centralHeader = new Uint8Array(46 + nameBytes.length);
+    p = 0;
+    centralHeader.set([0x50, 0x4b, 0x01, 0x02], p); p += 4;
+    centralHeader.set([0x0a, 0x00], p); p += 2;
+    centralHeader.set([0x0a, 0x00], p); p += 2;
+    centralHeader.set([0x00, 0x00], p); p += 2;
+    centralHeader.set([0x00, 0x00], p); p += 2;
+    centralHeader.set([0x00, 0x00], p); p += 2;
+    centralHeader.set([0x00, 0x00], p); p += 2;
+    p = writeU32(centralHeader, p, crc);
+    p = writeU32(centralHeader, p, data.length);
+    p = writeU32(centralHeader, p, data.length);
+    p = writeU16(centralHeader, p, nameBytes.length);
+    p = writeU16(centralHeader, p, 0);
+    p = writeU16(centralHeader, p, 0);
+    p = writeU16(centralHeader, p, 0);
+    p = writeU16(centralHeader, p, 0);
+    p = writeU32(centralHeader, p, 0);
+    p = writeU32(centralHeader, p, offset);
+    centralHeader.set(nameBytes, p);
+    central.push(centralHeader);
+    
+    offset += localHeader.length + data.length;
+  }
+  
+  const start = offset;
+  for (const c of central) {
+    parts.push(c);
+    offset += c.length;
+  }
+  
+  // End of central directory
+  const end = new Uint8Array(22);
+  let p = 0;
+  end.set([0x50, 0x4b, 0x05, 0x06], p); p += 4;
+  end.set([0x00, 0x00], p); p += 2;
+  end.set([0x00, 0x00], p); p += 2;
+  p = writeU16(end, p, files.length);
+  p = writeU16(end, p, files.length);
+  p = writeU32(end, p, offset - start);
+  p = writeU32(end, p, start);
+  end.set([0x00, 0x00], p);
+  parts.push(end);
+  
+  return new Blob(parts, { type: 'application/zip' });
+}
+
+function crc32(data) {
+  let c = 0xffffffff;
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let crc = i;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 1) ? (0xedb88320 ^ (crc >>> 1)) : (crc >>> 1);
+    }
+    table[i] = crc;
+  }
+  for (let i = 0; i < data.length; i++) {
+    c = table[(c ^ data[i]) & 0xff] ^ (c >>> 8);
+  }
+  return c ^ 0xffffffff;
+}
+
+function writeU16(arr, pos, val) {
+  arr[pos] = val & 0xff;
+  arr[pos+1] = (val >>> 8) & 0xff;
+  return pos + 2;
+}
+function writeU32(arr, pos, val) {
+  arr[pos] = val & 0xff;
+  arr[pos+1] = (val >>> 8) & 0xff;
+  arr[pos+2] = (val >>> 16) & 0xff;
+  arr[pos+3] = (val >>> 24) & 0xff;
+  return pos + 4;
+}
+
+// ---- Konec ZIP funkcí ----
 
 async function listProjects() {
   const dir = await getSavedProjectsDirHandle(false);
@@ -656,7 +948,7 @@ async function refreshProjectsList(forcePicker) {
   grid.innerHTML = '';
   const dir = await getSavedProjectsDirHandle(forcePicker);
   if (!dir) {
-    status.textContent = 'Složka „saved_projects“ není připojena. Klikněte na „Připojit / obnovit složku“.';
+    status.textContent = 'Složka „saved_projects“ není připojena. Klikněte na „Připojit / obnovit složku“ nebo použijte ZIP režim.';
     return;
   }
   const names = await listProjects();
