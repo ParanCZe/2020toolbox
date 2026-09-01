@@ -1,0 +1,2167 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20-20-TOOLBOX</title>
+<style>
+@import url('https://fonts.cdnfonts.com/css/antarctican-mono');
+
+:root{--bg:#f4f4f5;--card:#fff;--border:#e4e4e7;--text:#18181b;--muted:#71717a;--accent:#f7f197;--header-bg:#f7f197;}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,Segoe UI,sans-serif}
+header{background:var(--header-bg);border-bottom:1px solid #e2db7d;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:'Antarctican Mono', monospace;font-weight:normal;font-size:18px;letter-spacing:.5px;display:flex;align-items:center;gap:8px;color:#18181b}
+.wrap{max-width:1200px;margin:24px auto;padding:0 24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;font-size:22px}
+.muted{color:var(--muted);font-size:13px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+.tile{background:#fafafa;border:1px solid var(--border);border-radius:10px;padding:18px;text-align:left;cursor:pointer;transition:.15s;display:flex;flex-direction:column;justify-content:center;min-height:90px}
+.tile:hover{background:#fff;border-color:#d4cc5d;box-shadow:0 2px 6px rgba(247,241,151,.25)}
+.tile b{font-size:14px;margin-bottom:4px;color:var(--text);font-weight:normal;}
+.tile span{font-size:12px;color:var(--muted)}
+.tool-view{display:none;margin-top:10px}
+.tool-view.active{display:block}
+.back-btn{background:#f4f4f5;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 12px;cursor:pointer;margin-bottom:15px;font-size:13px}
+.back-btn:hover{background:#e4e4e7}
+.drop{margin:15px 0;padding:35px 20px;border:2px dashed #cbd5e1;border-radius:10px;text-align:center;cursor:pointer;background:#fafafa}
+.drop.over{border-color:#18181b;background:#fefce8}
+.settings{margin:15px 0;display:flex;gap:15px;align-items:center;flex-wrap:wrap;background:#fafafa;padding:12px;border:1px solid var(--border);border-radius:8px}
+select, input[type="text"], input[type="number"], textarea{background:#fff;color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:13px}
+button.action{background:#18181b;color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:13px}
+button.action:hover{background:#27272a}
+button.action:disabled{opacity:.4;cursor:not-allowed}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:15px}
+.bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin:15px 0}
+.fill{height:100%;width:0;background:#16a34a;transition:.2s}
+.list{margin-top:15px;display:grid;gap:6px;max-height:200px;overflow-y:auto}
+.item{padding:8px 12px;background:#fafafa;border:1px solid var(--border);border-radius:6px;font-size:12px}
+.ok{color:#15803d;background:#f0fdf4;border-color:#bbf7d0}
+.err{color:#b91c1c;background:#fef2f2;border-color:#fecaca}
+.info-box{margin-top:20px;background:#fafafa;border:1px solid var(--border);padding:15px;border-radius:8px;font-size:13px;line-height:1.5;color:var(--text)}
+.info-box h3{margin:0 0 8px;font-family:'Antarctican Mono', monospace;font-weight:normal;font-size:14px}
+
+/* MODÁLNÍ OKNO PRO NÁHLED */
+#preview-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; align-items:center; justify-content:center; padding:20px; }
+#preview-content { background:#fff; border-radius:12px; width:100%; max-width:1220px; max-height:95vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.2); }
+#preview-header { padding:15px 20px; background:#f7f197; display:flex; justify-content:space-between; align-items:center; font-weight:bold; }
+#preview-body { padding:20px; overflow-y:auto; display:flex; flex-direction:row; gap:15px; align-items:flex-start; background:#e4e4e7; }
+#preview-main { display:flex; flex-direction:column; gap:15px; align-items:center; flex:1; min-width:0; }
+#preview-footer { padding:15px 20px; background:#fafafa; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.preview-tools { background:#fafafa; border:1px solid var(--border); padding:10px; border-radius:8px; width:100%; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+
+/* BOČNÍ PANEL S MINIATURAMI */
+#thumbs-sidebar { width:120px; flex-shrink:0; display:flex; flex-direction:column; gap:8px; max-height:80vh; overflow-y:auto; padding-right:4px; }
+.thumb-item { position:relative; cursor:grab; border:1px solid var(--border); border-radius:6px; padding:4px; background:#fff; transition:border-color .15s,box-shadow .15s,opacity .15s; }
+.thumb-item:hover { border-color:#a1a1aa; }
+.thumb-item.active { border-color:#16a34a; box-shadow:0 0 0 2px rgba(22,163,74,.25); }
+.thumb-item.locked { cursor:default; }
+.thumb-item.dragging { opacity:.4; }
+.thumb-item.drop-before { box-shadow:inset 0 3px 0 0 #2563eb; }
+.thumb-item.drop-after { box-shadow:inset 0 -3px 0 0 #2563eb; }
+.thumb-item canvas { display:block; width:100%; height:auto; border-radius:2px; pointer-events:none; }
+.thumb-label { font-size:10px; color:var(--muted); text-align:center; margin-top:3px; }
+.thumb-delete { position:absolute; top:2px; right:2px; width:18px; height:18px; line-height:16px; text-align:center; border-radius:50%; background:#dc2626; color:#fff; font-size:11px; border:1px solid #fff; cursor:pointer; z-index:2; box-shadow:0 1px 3px rgba(0,0,0,.3); }
+.thumb-delete:hover { background:#b91c1c; }
+
+/* OBRAZOVKA PROJEKTŮ */
+#new-project-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1100; align-items:center; justify-content:center; padding:20px; }
+#new-project-modal .box { background:#fff; border-radius:12px; padding:24px; width:100%; max-width:360px; }
+#new-project-modal h3 { margin:0 0 12px; font-family:'Antarctican Mono', monospace; font-weight:normal; font-size:16px; }
+#new-project-modal input[type="text"] { width:100%; padding:8px 10px; margin-bottom:14px; }
+
+@media(max-width:700px){
+  #preview-body{flex-direction:column; align-items:stretch;}
+  #thumbs-sidebar{width:100%; flex-direction:row; max-height:none; overflow-x:auto; overflow-y:visible;}
+  .thumb-item{min-width:70px;}
+}
+
+/* PREZENTAČNÍ EDITOR – UPRAVENÉ OVLÁDÁNÍ */
+#canvas-container { position:relative; display:inline-block; box-shadow:0 4px 12px rgba(0,0,0,0.15); background:#fff; max-width:100%; overflow:hidden; }
+#preview-canvas { display:block; max-width:100%; height:auto; background:#fff; }
+#boxes-layer { position:absolute; inset:0; pointer-events:none; }
+.custom-text-box{
+  position:absolute; z-index:20; pointer-events:auto; cursor:default;
+  border:1px dashed rgba(37,99,235,.85); background:transparent;
+  color:#18181b; padding:0; margin:0; border-radius:1px;
+  display:block; user-select:none; line-height:1.2; box-shadow:none;
+}
+.custom-text-box:hover{border-color:rgba(37,99,235,1);}
+.custom-text-box.selected{border:1px solid #dc2626;}
+.custom-text-box .tb-main{
+  display:block; box-sizing:border-box; min-width:2px; width:auto; height:auto;
+  border:0; outline:0; background:transparent; color:#18181b;
+  padding:0; margin:0; font:inherit; line-height:1.2; letter-spacing:normal;
+  user-select:text; cursor:text; resize:none; overflow:hidden; white-space:pre-wrap;
+}
+.custom-text-box .tb-handle{
+  position:absolute; left:-18px; top:50%; transform:translateY(-50%);
+  width:12px; height:12px; border-radius:50%;
+  border:2px solid #2563eb; background:#fff; cursor:grab; z-index:31;
+  box-sizing:border-box;
+}
+.custom-text-box.selected .tb-handle{border-color:#dc2626;}
+.custom-text-box .tb-handle:active{cursor:grabbing;}
+
+/* Ovládací prvky – zobrazeny jen při najetí nebo výběru */
+.custom-text-box .tb-controls {
+  display: none;
+  position: absolute;
+  left: calc(100% + 7px);
+  top: 0;
+  gap: 3px;
+  background: #fff;
+  border: 1px solid #d4d4d8;
+  border-radius: 4px;
+  padding: 3px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.12);
+  z-index: 30;
+  white-space: nowrap;
+}
+.custom-text-box:hover .tb-controls,
+.custom-text-box.selected .tb-controls {
+  display: flex;
+}
+.custom-text-box .tb-controls input {
+  width: 44px !important;
+  padding: 2px 4px !important;
+  font-size: 11px !important;
+  -moz-appearance: textfield;
+  appearance: textfield;
+  border: 1px solid #d4d4d8;
+  border-radius: 4px;
+}
+.custom-text-box .tb-controls input::-webkit-inner-spin-button,
+.custom-text-box .tb-controls input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.custom-text-box .tb-controls button {
+  padding: 2px 6px !important;
+  font-size: 12px !important;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.custom-text-box .tb-controls button:hover {
+  background: #b91c1c;
+}
+.custom-text-box .tb-controls .rotate-btn {
+  background: #2563eb;
+}
+.custom-text-box .tb-controls .rotate-btn:hover {
+  background: #1d4ed8;
+}
+
+#undo-text-btn{background:#52525b;}
+#undo-text-btn:disabled{opacity:.4;cursor:not-allowed;}
+@media(max-width:700px){
+  #preview-body{padding:10px}
+  #preview-content{max-height:98vh}
+  .custom-text-box .tb-controls{left:0;top:calc(100% + 7px)}
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://unpkg.com/@pdf-lib/fontkit/dist/fontkit.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+</script>
+</head>
+<body ondragover="window.preventDrop(event)" ondrop="window.preventDrop(event)">
+
+<header>
+  <div class="logo">20-20-TOOLBOX</div>
+  <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
+</header>
+
+<div class="wrap"><div class="card">
+  
+  <div id="menu-view">
+    <h1>Co chcete dělat?</h1>
+    <div class="muted">Rychlé přípravy prezentací z exportovaných PDF. Vše běží bezpečně offline.</div>
+    <div class="grid">
+      <div class="tile" onclick="openTool('pdfa')"><b>Konverze do PDF/A</b><span>Standardy 1b, 2b, 3b + hromadný ZIP</span></div>
+      <div class="tile" onclick="openPanelProjects()"><b>Prezentační nástroj</b><span>Vytvářejte prezentace v pár kliknutích</span></div>
+    </div>
+  </div>
+
+  <div id="tool-pdfa" class="tool-view">
+    <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+    <h1>Konverze do PDF/A</h1>
+    <div class="muted">Úprava PDF pro dlouhodobou archivaci přímo v prohlížeči (včetně robustního ošetření textů a fontů).</div>
+
+    <div class="settings">
+      <label for="pdfaVersion"><b>Cílový standard:</b></label>
+      <select id="pdfaVersion">
+        <option value="1">PDF/A-1b (Základní, přísný, starší standard)</option>
+        <option value="2">PDF/A-2b (Modernější, podporuje vrstvy a JPEG2000)</option>
+        <option value="3" selected>PDF/A-3b (Moderní + povoluje přibalit libovolné přílohy)</option>
+      </select>
+    </div>
+
+    <div id="drop-pdfa" class="drop" onclick="document.getElementById('f-pdfa').click()">
+      <b>Sem přetáhni PDF soubory</b><br><span style="color:var(--muted); font-size:12px;">nebo klikni pro výběr souborů</span>
+      <input id="f-pdfa" type="file" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files, 'pdfa')">
+    </div>
+
+    <div class="row">
+      <button class="action" id="btn-pdfa" disabled onclick="startConversion()">Konvertovat a stáhnout</button>
+      <span id="st-pdfa" class="muted" style="margin:0;">Připraveno</span>
+    </div>
+    <div class="bar"><div id="fill-pdfa" class="fill"></div></div>
+    <div id="list-pdfa" class="list"></div>
+
+    <div class="info-box">
+      <h3>Průvodce výběrem verze (dle čeho vybrat?):</h3>
+      • <b>PDF/A-1b:</b> Zvolte, pokud to po vás vyžadují starší úřady, spisové služby nebo systémy, které odmítají novější formáty. Zakazuje některé moderní prvky.<br>
+      • <b>PDF/A-2b:</b> Univerzální volba pro běžné dokumenty. Podporuje modernější kompresi obrazu a průhlednosti.<br>
+      • <b>PDF/A-3b:</b> Zvolte tehdy, pokud potřebujete k PDF přibalit i jiné soubory (např. XML faktury, jako je ISDOC, výkresy nebo tabulky) a přesto zachovat archivní standard.
+    </div>
+  </div>
+
+  <div id="tool-panel-projects" class="tool-view">
+    <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+    <h1>Prezentační nástroj — projekty</h1>
+    <div class="muted">Vyberte existující projekt, nebo založte nový. Projekty se ukládají do složky <code>saved_projects</code> vedle této aplikace.</div>
+    <div class="row" style="margin-top:0;">
+      <button class="action" onclick="handleNewProjectClick()">+ Nový projekt</button>
+      <button class="action" style="background:#52525b;" onclick="refreshProjectsList(true)">🔄 Připojit / obnovit složku saved_projects</button>
+      <span id="st-projects" class="muted" style="margin:0;"></span>
+    </div>
+    <div id="projects-grid" class="grid" style="margin-top:18px;"></div>
+  </div>
+
+  <div id="tool-panel" class="tool-view">
+    <button class="back-btn" onclick="backToProjectsList()">← Zpět na projekty</button>
+    <h1>Prezentační nástroj – vytvořte prezentace v pár kliknutích</h1>
+    <div class="muted">Projekt: <b id="current-project-label">–</b> <span style="font-size:11px;">(ukládá se automaticky do saved_projects)</span></div>
+    <div class="muted">Vytvořte si profesionální prezentaci doplněním úvodní stránky a žlutého pruhu s logem pro formát A3 na šířku.</div>
+    <div class="settings" style="flex-direction:column; align-items:stretch; gap:10px;">
+      <div style="font-weight:bold; border-bottom:1px solid var(--border); padding-bottom:4px;">Údaje pro prezentaci (výchozí hodnoty pro úvodní stranu):</div>
+      
+      <div style="display:flex; gap:15px; align-items:center;">
+        <label style="min-width:150px;">Vytvořit úvodní stranu:</label>
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="createCover" checked onchange="scheduleAutosave()"> Ano, vytvořit úvodní stránku</label>
+      </div>
+      <div style="display:flex; gap:15px; align-items:center;">
+        <label style="min-width:150px;">Typ projektu:</label>
+        <select id="panelType" style="flex:1;" onchange="handleProjectTypeChange(this.value); scheduleAutosave();">
+          <option value="architektonický koncept">architektonický koncept</option>
+          <option value="Návrh interiéru" selected>Návrh interiéru</option>
+          <option value="urbanistická studie">urbanistická studie</option>
+          <option value="vlastní">Vlastní...</option>
+        </select>
+      </div>
+      <div id="custom-type-container" style="display:none; gap:15px; align-items:center;">
+        <label style="min-width:150px;">Vlastní typ:</label>
+        <input type="text" id="panelCustomType" placeholder="Zadejte vlastní typ projektu..." style="flex:1;" oninput="scheduleAutosave()">
+      </div>
+      <div style="display:flex; gap:15px; align-items:center;">
+        <label style="min-width:150px;">Název akce:</label>
+        <input type="text" id="panelTitle" value="RD Rosovi" style="flex:1;" oninput="scheduleAutosave()">
+      </div>
+      <div style="display:flex; gap:15px; align-items:center;">
+        <label style="min-width:150px;">Měsíc a rok:</label>
+        <select id="panelDate" style="flex:1;" onchange="scheduleAutosave()">
+          <option value="leden 2026">leden 2026</option>
+          <option value="únor 2026">únor 2026</option>
+          <option value="březen 2026">březen 2026</option>
+          <option value="duben 2026">duben 2026</option>
+          <option value="květen 2026">květen 2026</option>
+          <option value="červen 2026" selected>červen 2026</option>
+          <option value="červenec 2026">červenec 2026</option>
+          <option value="srpen 2026">srpen 2026</option>
+          <option value="září 2026">září 2026</option>
+          <option value="říjen 2026">říjen 2026</option>
+          <option value="listopad 2026">listopad 2026</option>
+          <option value="prosinec 2026">prosinec 2026</option>
+          <option value="leden 2027">leden 2027</option>
+          <option value="únor 2027">únor 2027</option>
+          <option value="březen 2027">březen 2027</option>
+          <option value="duben 2027">duben 2027</option>
+          <option value="květen 2027">květen 2027</option>
+          <option value="červen 2027">červen 2027</option>
+          <option value="červenec 2027">červenec 2027</option>
+          <option value="srpen 2027">srpen 2027</option>
+          <option value="září 2027">září 2027</option>
+          <option value="říjen 2027">říjen 2027</option>
+          <option value="listopad 2027">listopad 2027</option>
+          <option value="prosinec 2027">prosinec 2027</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:15px; align-items:flex-start;">
+        <label style="min-width:150px; padding-top:6px;">Autoři (vyberte kliknutím):</label>
+        <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+          <div id="authors-checkbox-container" style="display:flex; flex-wrap:wrap; gap:8px; background:#fff; border:1px solid var(--border); padding:10px; border-radius:6px; max-height:150px; overflow-y:auto;">
+            </div>
+          <div style="font-size:12px; color:var(--muted);">Seřazeno dle pořadí kliknutí: <b id="authors-preview-text" style="color:var(--text);">Žádný</b></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="drop" id="drop-panel" onclick="document.getElementById('f-panel').click()">
+      <b>Sem přetáhni PDF soubor (A3 na šířku)</b><br><span style="color:var(--muted); font-size:12px;">nebo klikni pro výběr</span>
+      <input id="f-panel" type="file" accept=".pdf" style="display:none" onchange="handleFiles(this.files, 'panel')">
+    </div>
+    <div class="muted" style="margin-top:-8px;">Nahrání nového PDF nahradí zdrojový soubor projektu — přidané prázdné stránky a texty zůstanou zachovány.</div>
+
+    <div class="row">
+      <button class="action" id="btn-preview" disabled onclick="openPreviewModal()">Otevřít náhled a upravit texty/pozice</button>
+      <button class="action" id="btn-panel" disabled onclick="runPanel(false)" style="background:#27272a;">Rychlé stáhnutí bez náhledu</button>
+      <span id="st-panel" class="muted" style="margin:0;">Připraveno</span>
+    </div>
+    <div id="list-panel" class="list"></div>
+  </div>
+
+</div></div>
+
+<div id="preview-modal">
+  <div id="preview-content">
+    <div id="preview-header">
+      <span>Náhled prezentace – editujte texty, velikosti i pozice (včetně úvodní stránky)</span>
+      <button onclick="closePreviewModal()" style="background:none;border:none;font-size:16px;cursor:pointer;font-weight:bold;">✕</button>
+    </div>
+    <div id="preview-body">
+      <div id="preview-main">
+        <div class="preview-tools">
+          <button class="action" onclick="addTextBox()" style="background:#16a34a;">+ Přidat textové pole</button>
+          <button class="action" onclick="addLineBox()" style="background:#0284c7;">+ Přidat čáru</button>
+          <button class="action" onclick="addBlankPage()" style="background:#2563eb;">+ Přidat prázdnou stránku</button>
+          <button class="action" id="undo-text-btn" onclick="undoTextEdit()" disabled>↶ Zpět</button>
+          <span class="muted" style="margin:0;">(Volný pohyb ve všech směrech, přichytávání k ostatním prvkům)</span>
+        </div>
+        <div id="page-indicator" style="font-size:13px; font-weight:bold; color:var(--muted);">Stránka 1 z 1</div>
+
+        <div id="canvas-container">
+          <canvas id="preview-canvas"></canvas>
+          <div id="boxes-layer" style="position:absolute; inset:0; pointer-events:none;"></div>
+        </div>
+      </div>
+      <div id="thumbs-sidebar"></div>
+    </div>
+    <div id="preview-footer">
+      <div>
+        <button class="action" onclick="prevPage()" id="prev-page-btn">← Předchozí</button>
+        <button class="action" onclick="nextPage()" id="next-page-btn">Následující →</button>
+      </div>
+      <button class="action" onclick="runPanel(true)" style="background:#16a34a;">Dokončit a stáhnout prezentaci</button>
+    </div>
+  </div>
+</div>
+
+<div id="new-project-modal">
+  <div class="box">
+    <h3>Nový projekt</h3>
+    <input id="new-project-name" type="text" placeholder="Název projektu" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmNewProject();}">
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button class="back-btn" onclick="closeNewProjectModal()">Zrušit</button>
+      <button class="action" onclick="confirmNewProject()">Založit</button>
+    </div>
+  </div>
+</div>
+
+<script>
+window.preventDrop = e => { e.preventDefault(); };
+let filesData = { pdfa: [], panel: [] };
+let allPagesTexts = {}; 
+let customBlankPages = new Set();
+let pagePdfIndexMap = {};
+let textIdCounter = 1;
+let textUndoStack = [];
+let selectedBoxEl = null;
+let pendingAutoFocusId = null;
+let editorGlobalHandlersInit = false;
+
+function initEditorGlobalHandlers() {
+  if (editorGlobalHandlersInit) return;
+  editorGlobalHandlersInit = true;
+
+  document.addEventListener('mousedown', (e) => {
+    if (selectedBoxEl && !selectedBoxEl.contains(e.target)) {
+      selectedBoxEl.classList.remove('selected');
+      selectedBoxEl = null;
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (!selectedBoxEl) return;
+    if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+    const active = document.activeElement;
+    const isTyping = active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT');
+    if (isTyping) return;
+    e.preventDefault();
+    const delBtn = selectedBoxEl.querySelector('.tb-controls .del-btn');
+    if (delBtn) delBtn.click();
+  });
+}
+
+function selectBox(div) {
+  if (selectedBoxEl && selectedBoxEl !== div) selectedBoxEl.classList.remove('selected');
+  selectedBoxEl = div;
+  div.classList.add('selected');
+}
+
+let loadedFileBytes = null;
+let currentPreviewPage = 1;
+let totalPreviewPages = 1;
+let pdfJsDoc = null;
+let fontBytesCache = null;
+let logoBytesCache = null;
+
+let defaultCoverLayoutInitialized = false;
+
+let savedProjectsDirHandle = null;
+let currentProjectDirHandle = null;
+let currentProjectName = null;
+let projectAutosaveTimer = null;
+let pendingResumePage = null;
+
+const PROJ_DB_NAME = 'toolbox-fs';
+const PROJ_STORE_NAME = 'handles';
+
+function idbGet(key) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(PROJ_DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(PROJ_STORE_NAME);
+    req.onsuccess = () => {
+      const tx = req.result.transaction(PROJ_STORE_NAME, 'readonly');
+      const g = tx.objectStore(PROJ_STORE_NAME).get(key);
+      g.onsuccess = () => resolve(g.result || null);
+      g.onerror = () => reject(g.error);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+function idbSet(key, val) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(PROJ_DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(PROJ_STORE_NAME);
+    req.onsuccess = () => {
+      const tx = req.result.transaction(PROJ_STORE_NAME, 'readwrite');
+      tx.objectStore(PROJ_STORE_NAME).put(val, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function ensurePermission(handle, mode) {
+  const opts = { mode: mode || 'readwrite' };
+  try {
+    if ((await handle.queryPermission(opts)) === 'granted') return true;
+    if ((await handle.requestPermission(opts)) === 'granted') return true;
+  } catch (e) {}
+  return false;
+}
+
+function sanitizeProjectName(name) {
+  return name.replace(/[\\/:*?"<>|]/g, '-').trim();
+}
+
+async function getSavedProjectsDirHandle(forcePicker) {
+  if (!('showDirectoryPicker' in window)) {
+    alert('Tento prohlížeč nepodporuje ukládání projektů do složky (funguje v Chrome nebo Edge, spuštěné přes http://). Zkuste prosím jiný prohlížeč.');
+    return null;
+  }
+  if (savedProjectsDirHandle && !forcePicker) {
+    if (await ensurePermission(savedProjectsDirHandle)) return savedProjectsDirHandle;
+  }
+  try {
+    let handle = forcePicker ? null : await idbGet('savedProjectsDir');
+    if (handle) {
+      if (await ensurePermission(handle)) {
+        savedProjectsDirHandle = handle;
+        return handle;
+      }
+    }
+    const picked = await window.showDirectoryPicker({ id: 'toolbox-saved-projects', mode: 'readwrite' });
+    let dir = picked;
+    if (picked.name !== 'saved_projects') {
+      dir = await picked.getDirectoryHandle('saved_projects', { create: true });
+    }
+    savedProjectsDirHandle = dir;
+    await idbSet('savedProjectsDir', dir);
+    return dir;
+  } catch (e) {
+    console.warn('Výběr složky zrušen nebo selhal', e);
+    return null;
+  }
+}
+
+async function listProjects() {
+  const dir = await getSavedProjectsDirHandle(false);
+  if (!dir) return [];
+  const names = [];
+  for await (const [name, handle] of dir.entries()) {
+    if (handle.kind === 'directory') names.push(name);
+  }
+  return names.sort((a, b) => a.localeCompare(b, 'cs'));
+}
+
+async function createProject(name) {
+  const dir = await getSavedProjectsDirHandle(false);
+  if (!dir) throw new Error('Složka saved_projects není připojena.');
+  const safeName = sanitizeProjectName(name);
+  if (!safeName) throw new Error('Zadejte název projektu.');
+  return await dir.getDirectoryHandle(safeName, { create: true });
+}
+
+async function openProjectFolder(name) {
+  const dir = await getSavedProjectsDirHandle(false);
+  if (!dir) return null;
+  return await dir.getDirectoryHandle(name, { create: false });
+}
+
+const availableAuthors = [
+  "Zdeněk Rychtařík",
+  "Kristina Sudreová",
+  "Pavel Marek",
+  "Martin Šafránek",
+  "Tomáš Maceška",
+  "Šimon Matějovský",
+  "Vojtěch Lstibůrek",
+  "Petr Hora",
+  "Jan Hřebíček",
+  "Jakub Nesládek",
+  "Filip Turek",
+  "Adam Balda",
+  "Timea Wagner",
+  "Anna Šrámková"
+];
+let selectedAuthorsOrder = [
+  "Zdeněk Rychtařík",
+  "Kristina Sudreová",
+  "Filip Turek"
+];
+
+function initAuthorsUI() {
+  const container = document.getElementById('authors-checkbox-container');
+  if (!container) return;
+  container.innerHTML = '';
+  availableAuthors.forEach(name => {
+    const isChecked = selectedAuthorsOrder.includes(name);
+    const label = document.createElement('label');
+    label.style.cssText = "display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; background:#f4f4f5; padding:4px 8px; border-radius:4px; border:1px solid var(--border);";
+    
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = name;
+    cb.checked = isChecked;
+    cb.addEventListener('change', () => {
+      if (cb.checked) {
+        if (!selectedAuthorsOrder.includes(name)) selectedAuthorsOrder.push(name);
+      } else {
+        selectedAuthorsOrder = selectedAuthorsOrder.filter(n => n !== name);
+      }
+      updateAuthorsPreviewText();
+      scheduleAutosave();
+    });
+
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(name));
+    container.appendChild(label);
+  });
+  updateAuthorsPreviewText();
+}
+
+function updateAuthorsPreviewText() {
+  const prev = document.getElementById('authors-preview-text');
+  if (prev) {
+    prev.textContent = selectedAuthorsOrder.length > 0 ? selectedAuthorsOrder.join(', ') : 'Žádný';
+  }
+}
+
+function getSelectedAuthorsString() {
+  return selectedAuthorsOrder.join('\n');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  initAuthorsUI();
+});
+
+function collectFormState() {
+  return {
+    createCover: document.getElementById('createCover').checked,
+    panelType: document.getElementById('panelType').value,
+    panelCustomType: document.getElementById('panelCustomType').value,
+    panelTitle: document.getElementById('panelTitle').value,
+    panelDate: document.getElementById('panelDate').value,
+    selectedAuthorsOrder: selectedAuthorsOrder.slice()
+  };
+}
+function applyFormState(s) {
+  if (!s) { initAuthorsUI(); return; }
+  document.getElementById('createCover').checked = !!s.createCover;
+  document.getElementById('panelType').value = s.panelType || 'Návrh interiéru';
+  handleProjectTypeChange(document.getElementById('panelType').value);
+  document.getElementById('panelCustomType').value = s.panelCustomType || '';
+  document.getElementById('panelTitle').value = s.panelTitle || '';
+  if (s.panelDate) document.getElementById('panelDate').value = s.panelDate;
+  selectedAuthorsOrder = Array.isArray(s.selectedAuthorsOrder) ? s.selectedAuthorsOrder.slice() : [];
+  initAuthorsUI();
+}
+
+async function saveProjectState() {
+  if (!currentProjectDirHandle) return;
+  const state = {
+    version: 1,
+    sourceFileName: filesData.panel[0] ? filesData.panel[0].name : null,
+    form: collectFormState(),
+    allPagesTexts,
+    customBlankPages: Array.from(customBlankPages),
+    pagePdfIndexMap,
+    textIdCounter,
+    totalPreviewPages,
+    defaultCoverLayoutInitialized,
+    currentPreviewPage
+  };
+  const fh = await currentProjectDirHandle.getFileHandle('project.json', { create: true });
+  const w = await fh.createWritable();
+  await w.write(JSON.stringify(state));
+  await w.close();
+}
+
+async function savePdfIntoProject(bytes) {
+  if (!currentProjectDirHandle) return;
+  const fh = await currentProjectDirHandle.getFileHandle('source.pdf', { create: true });
+  const w = await fh.createWritable();
+  await w.write(bytes);
+  await w.close();
+}
+
+function scheduleAutosave() {
+  if (!currentProjectDirHandle) return;
+  clearTimeout(projectAutosaveTimer);
+  projectAutosaveTimer = setTimeout(() => {
+    saveProjectState().catch(e => console.warn('Automatické uložení projektu selhalo', e));
+  }, 800);
+}
+
+async function openPanelProjects() {
+  document.getElementById('menu-view').style.display = 'none';
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('tool-panel-projects').classList.add('active');
+  await refreshProjectsList(false);
+}
+
+async function refreshProjectsList(forcePicker) {
+  const status = document.getElementById('st-projects');
+  const grid = document.getElementById('projects-grid');
+  status.textContent = 'Načítám…';
+  grid.innerHTML = '';
+  const dir = await getSavedProjectsDirHandle(forcePicker);
+  if (!dir) {
+    status.textContent = 'Složka „saved_projects“ není připojena. Klikněte na „Připojit / obnovit složku“.';
+    return;
+  }
+  const names = await listProjects();
+  status.textContent = names.length ? `${names.length} projekt(ů)` : 'Zatím žádné projekty — založte první.';
+  grid.innerHTML = names.map(n =>
+    `<div class="tile" onclick="loadProject('${n.replace(/'/g, "\\'")}')"><b>${n}</b><span>Otevřít projekt</span></div>`
+  ).join('');
+}
+
+function handleNewProjectClick() {
+  document.getElementById('new-project-name').value = '';
+  document.getElementById('new-project-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('new-project-name').focus(), 50);
+}
+function closeNewProjectModal() {
+  document.getElementById('new-project-modal').style.display = 'none';
+}
+async function confirmNewProject() {
+  const name = document.getElementById('new-project-name').value.trim();
+  if (!name) { alert('Zadejte název projektu.'); return; }
+  try {
+    await createProject(name);
+    closeNewProjectModal();
+    await loadProject(sanitizeProjectName(name));
+  } catch (e) {
+    alert('Nepodařilo se založit projekt: ' + e.message);
+  }
+}
+
+function backToProjectsList() {
+  saveCurrentPageBoxes();
+  saveProjectState().catch(() => {});
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('tool-panel-projects').classList.add('active');
+  refreshProjectsList(false);
+}
+
+async function loadProject(name) {
+  const dir = await openProjectFolder(name);
+  if (!dir) { alert('Projekt se nepodařilo otevřít.'); return; }
+  currentProjectDirHandle = dir;
+  currentProjectName = name;
+
+  let state = null;
+  try {
+    const fh = await dir.getFileHandle('project.json');
+    const file = await fh.getFile();
+    state = JSON.parse(await file.text());
+  } catch (e) { state = null; }
+
+  let pdfFile = null;
+  try {
+    const pfh = await dir.getFileHandle('source.pdf');
+    pdfFile = await pfh.getFile();
+  } catch (e) { pdfFile = null; }
+
+  allPagesTexts = {};
+  customBlankPages = new Set();
+  pagePdfIndexMap = {};
+  textIdCounter = 1;
+  textUndoStack = [];
+  defaultCoverLayoutInitialized = false;
+  totalPreviewPages = 1;
+  currentPreviewPage = 1;
+  pendingResumePage = null;
+  filesData.panel = [];
+  loadedFileBytes = null;
+  pdfJsDoc = null;
+  updateUndoButton();
+
+  if (state) {
+    applyFormState(state.form);
+    allPagesTexts = state.allPagesTexts || {};
+    customBlankPages = new Set(state.customBlankPages || []);
+    pagePdfIndexMap = state.pagePdfIndexMap || {};
+    textIdCounter = state.textIdCounter || 1;
+    defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
+    pendingResumePage = state.currentPreviewPage || 1;
+    for (let p in allPagesTexts) {
+      allPagesTexts[p].forEach(b => {
+        if (b.type === 'line' && !b.orientation) b.orientation = 'vertical';
+      });
+    }
+  } else {
+    initAuthorsUI();
+  }
+
+  if (pdfFile) {
+    const displayName = (state && state.sourceFileName) || pdfFile.name;
+    const namedFile = new File([await pdfFile.arrayBuffer()], displayName, { type: 'application/pdf' });
+    filesData.panel = [namedFile];
+    document.getElementById('list-panel').innerHTML =
+      `<div class="item">📄 ${namedFile.name} (${(namedFile.size / 1024).toFixed(1)} KB)</div>`;
+    loadedFileBytes = await namedFile.arrayBuffer();
+    pdfJsDoc = await pdfjsLib.getDocument({ data: loadedFileBytes.slice(0) }).promise;
+    totalPreviewPages = (state && state.totalPreviewPages)
+      ? state.totalPreviewPages
+      : (pdfJsDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0) + customBlankPages.size);
+    ensurePagePdfIndexMap();
+    document.getElementById('btn-preview').disabled = false;
+    document.getElementById('btn-panel').disabled = false;
+    document.getElementById('st-panel').textContent = `Projekt „${name}“ načten`;
+  } else {
+    document.getElementById('list-panel').innerHTML = '';
+    document.getElementById('btn-preview').disabled = true;
+    document.getElementById('btn-panel').disabled = true;
+    document.getElementById('st-panel').textContent = `Projekt „${name}“ — zatím bez nahraného PDF`;
+  }
+
+  document.getElementById('current-project-label').textContent = name;
+  document.getElementById('menu-view').style.display = 'none';
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('tool-panel').classList.add('active');
+  setupDropZone('panel');
+}
+
+async function loadOrReplacePdfInProject(file) {
+  const newBytes = await file.arrayBuffer();
+  const newDoc = await pdfjsLib.getDocument({ data: newBytes.slice(0) }).promise;
+  const oldNumPages = pdfJsDoc ? pdfJsDoc.numPages : 0;
+
+  loadedFileBytes = newBytes;
+  pdfJsDoc = newDoc;
+  textUndoStack = [];
+  updateUndoButton();
+
+  if (oldNumPages === 0) {
+    totalPreviewPages = newDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0) + customBlankPages.size;
+    pagePdfIndexMap = {};
+    ensurePagePdfIndexMap();
+  } else {
+    const records = buildPageRecords();
+    const pdfPositions = [];
+    records.forEach((rec, idx) => { if (rec.type === 'pdf') pdfPositions.push(idx); });
+
+    pdfPositions.forEach((idx, i) => {
+      if (i < newDoc.numPages) records[idx].pdfIndex = i;
+    });
+    if (pdfPositions.length > newDoc.numPages) {
+      let toRemove = pdfPositions.length - newDoc.numPages;
+      for (let i = pdfPositions.length - 1; i >= 0 && toRemove > 0; i--) {
+        records.splice(pdfPositions[i], 1);
+        toRemove--;
+      }
+    } else if (pdfPositions.length < newDoc.numPages) {
+      for (let i = pdfPositions.length; i < newDoc.numPages; i++) {
+        records.push({ type: 'pdf', pdfIndex: i, texts: [] });
+      }
+    }
+    applyPageRecords(records);
+  }
+  if (currentPreviewPage > totalPreviewPages) currentPreviewPage = totalPreviewPages;
+  if (currentPreviewPage < 1) currentPreviewPage = 1;
+
+  if (currentProjectDirHandle) {
+    try {
+      await savePdfIntoProject(newBytes.slice(0));
+      await saveProjectState();
+    } catch (e) { console.warn('Uložení PDF do projektu selhalo', e); }
+  }
+  document.getElementById('st-panel').textContent = `PDF „${file.name}“ nahráno`;
+}
+
+function openTool(name) {
+  document.getElementById('menu-view').style.display = 'none';
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('tool-' + name).classList.add('active');
+  setupDropZone(name);
+}
+function closeTool() {
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('menu-view').style.display = 'block';
+}
+
+function handleProjectTypeChange(val) {
+  const customContainer = document.getElementById('custom-type-container');
+  if (val === 'vlastní') {
+    customContainer.style.display = 'flex';
+  } else {
+    customContainer.style.display = 'none';
+  }
+}
+
+function getActiveProjectType() {
+  const typeSelect = document.getElementById('panelType').value;
+  return typeSelect === 'vlastní' ? document.getElementById('panelCustomType').value.trim() : typeSelect;
+}
+
+function setupDropZone(type) {
+  const dropZone = document.getElementById('drop-' + type);
+  if (!dropZone || dropZone.dataset.init) return;
+  dropZone.dataset.init = "true";
+  ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('over'); }));
+  dropZone.addEventListener('drop', ev => {
+    if (ev.dataTransfer && ev.dataTransfer.files) handleFiles(ev.dataTransfer.files, type);
+  });
+}
+
+function handleFiles(files, type) {
+  filesData[type] = Array.from(files).filter(f => /\.pdf$/i.test(f.name));
+  
+  if(type === 'pdfa') {
+    document.getElementById('list-pdfa').innerHTML = filesData[type].map((f, i) => 
+      `<div class="item" id="i${i}">⏳ ${f.name} — čeká</div>`
+    ).join('');
+    document.getElementById('btn-pdfa').disabled = !filesData[type].length;
+    document.getElementById('st-pdfa').textContent = filesData[type].length ? `${filesData[type].length} souborů připraveno` : 'Žádné soubory';
+  } else {
+    document.getElementById('list-' + type).innerHTML = filesData[type].map(f => `<div class="item">📄 ${f.name} (${(f.size/1024).toFixed(1)} KB)</div>`).join('');
+    if(type === 'panel') {
+      const hasFiles = filesData[type].length > 0;
+      document.getElementById('btn-preview').disabled = !hasFiles;
+      document.getElementById('btn-panel').disabled = !hasFiles;
+      if(hasFiles) loadOrReplacePdfInProject(filesData[type][0]);
+    }
+    document.getElementById('st-' + type).textContent = `${filesData[type].length} souborů připraveno`;
+  }
+}
+
+function removeDiacritics(str) {
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function createZip(files) {
+  const enc = new TextEncoder(); let parts = [], central = [], offset = 0;
+  const crcTable = (() => { let t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
+  const crc32 = a => { let c = 0xffffffff; for (const x of a) c = crcTable[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const u16 = n => new Uint8Array([n & 255, n >>> 8 & 255]), u32 = n => new Uint8Array([n & 255, n >>> 8 & 255, n >>> 16 & 255, n >>> 24 & 255]);
+  
+  for (const f of files) {
+    const nb = enc.encode(f.name), data = f.bytes, crc = crc32(data);
+    const local = new Uint8Array(30 + nb.length); let p = 0;
+    local.set([80,75,3,4], p); p += 4; local.set(u16(20), p); p += 2; local.set(u16(0), p); p += 2; local.set(u16(0), p); p += 2; local.set(u16(0), p); p += 2; local.set(u16(0), p); p += 2; local.set(u32(crc), p); p += 4; local.set(u32(data.length), p); p += 4; local.set(u32(data.length), p); p += 4; local.set(u16(nb.length), p); p += 2; local.set(u16(0), p); p += 2; local.set(nb, p);
+    parts.push(local, data);
+    const c = new Uint8Array(46 + nb.length); p = 0; c.set([80,75,1,2], p); p += 4; c.set(u16(20), p); p += 2; c.set(u16(20), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u32(crc), p); p += 4; c.set(u32(data.length), p); p += 4; c.set(u32(data.length), p); p += 4; c.set(u16(nb.length), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u32(0), p); p += 4; c.set(u32(offset), p); p += 4; c.set(nb, p); central.push(c); offset += local.length + data.length;
+  }
+  const start = offset; for (const c of central) { parts.push(c); offset += c.length; }
+  const e = new Uint8Array(22); let p = 0; e.set([80,75,5,6], p); p += 4; e.set(u16(0), p); p += 2; e.set(u16(0), p); p += 2; e.set(u16(files.length), p); p += 2; e.set(u16(files.length), p); p += 2; e.set(u32(offset - start), p); p += 4; e.set(u32(start), p); p += 4; e.set(u16(0), p);
+  parts.push(e);
+  return new Blob(parts, { type: 'application/zip' });
+}
+
+async function startConversion() {
+  if (!filesData.pdfa.length) return;
+  document.getElementById('btn-pdfa').disabled = true;
+  const { PDFDocument, PDFName } = PDFLib;
+  const version = document.getElementById('pdfaVersion').value;
+  let outputs = [];
+
+  for (let i = 0; i < filesData.pdfa.length; i++) {
+    const el = document.getElementById(`i${i}`);
+    try {
+      el.textContent = `⏳ ${filesData.pdfa[i].name} — zpracovávám a ošetřuji fonty...`;
+      const arrayBuffer = await filesData.pdfa[i].arrayBuffer();
+      const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+      
+      pdfDoc.setTitle(filesData.pdfa[i].name.replace(/\.pdf$/i, ''));
+      pdfDoc.setProducer(`PDF-A-${version}b Local Converter`);
+      
+      const pages = pdfDoc.getPages();
+      for (const page of pages) {
+        const node = page.node;
+        if (!node.has(PDFName.of('Resources'))) continue;
+        const resources = node.lookup(PDFName.of('Resources'));
+        if (resources && resources.has(PDFName.of('Font'))) {
+          const fonts = resources.lookup(PDFName.of('Font'));
+          if (fonts && fonts.dict) {
+            for (const fontKey of fonts.keys()) {
+              const fontObj = fonts.lookup(fontKey);
+              if (fontObj && fontObj.dict) {
+                if (!fontObj.dict.has(PDFName.of('FontDescriptor'))) {
+                }
+              }
+            }
+          }
+        }
+      }
+
+      const xmpdata = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">
+   <pdfaid:part>${version}</pdfaid:part>
+   <pdfaid:conformance>B</pdfaid:conformance>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`;
+
+      const catalog = pdfDoc.catalog;
+      const metadataStream = pdfDoc.context.flateStream(xmpdata);
+      metadataStream.dict.set(PDFName.of('Type'), PDFName.of('Metadata'));
+      metadataStream.dict.set(PDFName.of('Subtype'), PDFName.of('XML'));
+      const metadataRef = pdfDoc.context.register(metadataStream);
+      catalog.set(PDFName.of('Metadata'), metadataRef);
+
+      const pdfBytes = await pdfDoc.save();
+      
+      let baseName = filesData.pdfa[i].name.replace(/\.pdf$/i, '');
+      baseName = removeDiacritics(baseName);
+      const outName = baseName + '_EAR.pdf';
+      
+      outputs.push({ name: outName, bytes: pdfBytes });
+
+      el.className = 'item ok';
+      el.textContent = `✓ ${filesData.pdfa[i].name} — Hotovo`;
+    } catch (err) {
+      el.className = 'item err';
+      el.textContent = `✗ ${filesData.pdfa[i].name} — Chyba: ${err.message}`;
+    }
+    document.getElementById('fill-pdfa').style.width = ((i + 1) / filesData.pdfa.length * 100) + '%';
+  }
+
+  if (outputs.length > 0) {
+    if (outputs.length === 1) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([outputs[0].bytes], { type: 'application/pdf' }));
+      link.download = outputs[0].name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      document.getElementById('st-pdfa').textContent = 'Hotovo! Soubor stažen.';
+    } else {
+      const zipBlob = createZip(outputs);
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = `PDF-A-${version}b_vysledky.zip`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      document.getElementById('st-pdfa').textContent = 'Hotovo! Vše uloženo v ZIP archivu.';
+    }
+  } else {
+    document.getElementById('st-pdfa').textContent = 'Žádné soubory se nepodařilo převést.';
+  }
+  document.getElementById('btn-pdfa').disabled = false;
+}
+
+let editorFontReady = false;
+let editorFontFamily = 'Antarctican Mono';
+
+async function loadEditorAssets() {
+  if (!fontBytesCache) {
+    try {
+      fontBytesCache = await fetch('font/Dunwich Type Founders - Antarctican Mono Semibold.otf').then(r => {
+        if (!r.ok) throw new Error('Font nebyl nalezen');
+        return r.arrayBuffer();
+      });
+      const blob = new Blob([fontBytesCache], {type:'font/otf'});
+      const url = URL.createObjectURL(blob);
+      const face = new FontFace('20-20-Editor', `url(${url})`);
+      await face.load();
+      document.fonts.add(face);
+      editorFontFamily = '20-20-Editor';
+      editorFontReady = true;
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      console.warn('Lokální font se nepodařilo načíst:', e);
+    }
+  }
+  if (!logoBytesCache) {
+    try {
+      logoBytesCache = await fetch('2020.png').then(r => {
+        if (!r.ok) throw new Error('Logo nebylo nalezeno');
+        return r.arrayBuffer();
+      });
+    } catch(e) { console.warn('Logo se nepodařilo načíst:', e); }
+  }
+}
+
+function updateUndoButton(){
+  const btn = document.getElementById('undo-text-btn');
+  if(btn) btn.disabled = textUndoStack.length === 0;
+}
+
+function pushTextHistory(){
+  saveCurrentPageBoxes();
+  textUndoStack.push({
+    pages: JSON.parse(JSON.stringify(allPagesTexts)),
+    blankPages: Array.from(customBlankPages),
+    pdfIndexMap: JSON.parse(JSON.stringify(pagePdfIndexMap)),
+    currentPage: currentPreviewPage,
+    total: totalPreviewPages,
+    idCounter: textIdCounter,
+    coverInitialized: defaultCoverLayoutInitialized
+  });
+  if(textUndoStack.length > 50) textUndoStack.shift();
+  updateUndoButton();
+}
+
+function undoTextEdit(){
+  const snap = textUndoStack.pop();
+  if(!snap) return;
+  allPagesTexts = snap.pages || {};
+  customBlankPages = new Set(snap.blankPages || []);
+  pagePdfIndexMap = snap.pdfIndexMap || {};
+  currentPreviewPage = snap.currentPage || 1;
+  totalPreviewPages = snap.total || 1;
+  textIdCounter = snap.idCounter || 1;
+  defaultCoverLayoutInitialized = snap.coverInitialized;
+  selectedBoxEl = null;
+  updateUndoButton();
+  renderCurrentPagePreview();
+  renderThumbnails();
+  scheduleAutosave();
+}
+
+function measureTextBox(text,size,scale){
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  ctx.font = `${size*(96/72)*scale}px "${editorFontFamily}"`;
+  const lines = (text || '').split(/\r?\n/);
+  let maxW = 2;
+  lines.forEach(l => {
+    maxW = Math.max(maxW, ctx.measureText(l || ' ').width);
+  });
+  const lineHeight = size * 1.2 * (96 / 72) * scale;
+  const height = Math.max(1, lines.length * lineHeight);
+  return {width: maxW + 2, height};
+}
+
+async function openPreviewModal() {
+  if (!pdfJsDoc) return;
+  initEditorGlobalHandlers();
+  await loadEditorAssets();
+  totalPreviewPages = pdfJsDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0) + customBlankPages.size;
+  ensurePagePdfIndexMap();
+  currentPreviewPage = (pendingResumePage && pendingResumePage <= totalPreviewPages) ? pendingResumePage : 1;
+  pendingResumePage = null;
+  
+  if (document.getElementById('createCover').checked && !defaultCoverLayoutInitialized) {
+    const pInfo = await getPageSize({isCover: true});
+    const title = document.getElementById('panelTitle').value.trim();
+    const type = getActiveProjectType();
+    const authors = getSelectedAuthorsString();
+
+    let boxes = [];
+    if (title) {
+      boxes.push({ id: textIdCounter++, type: 'text', text: title, size: 48, x: 80, y: 265 });
+    }
+    if (type) {
+      boxes.push({ id: textIdCounter++, type: 'text', text: type, size: 36, font: editorFontFamily, x: 80, y: 200 });
+    }
+    if (authors) {
+      const linesCount = authors.split(/\r?\n/).length;
+      const authorsY = (295 - 10) - ((linesCount - 1) * 14 * 1.2);
+      const authorX = pInfo.width - 320 + 25;
+      boxes.push({ id: textIdCounter++, type: 'text', text: authors, size: 14, x: authorX, y: authorsY });
+      // čára nalevo od jmen
+      const lineX = authorX - 15;
+      boxes.push({ id: textIdCounter++, type: 'line', x: lineX, y: authorsY, height: Math.max(40, linesCount * 14 * 1.2 + 10), orientation: 'vertical' });
+    }
+    allPagesTexts[1] = boxes;
+    defaultCoverLayoutInitialized = true;
+  }
+
+  document.getElementById('preview-modal').style.display = 'flex';
+  textUndoStack = [];
+  updateUndoButton();
+  await renderCurrentPagePreview();
+  await renderThumbnails();
+}
+
+function closePreviewModal() {
+  saveCurrentPageBoxes();
+  document.getElementById('preview-modal').style.display = 'none';
+}
+
+function ensurePagePdfIndexMap() {
+  if (!pdfJsDoc) return;
+  const createCover = document.getElementById('createCover').checked;
+  const mappedCount = Object.keys(pagePdfIndexMap).length;
+  if (mappedCount >= pdfJsDoc.numPages) return;
+
+  pagePdfIndexMap = {};
+  let nextPdfIndex = 0;
+  for (let p = 1; p <= totalPreviewPages; p++) {
+    if (customBlankPages.has(p)) continue;
+    if (createCover && p === 1) continue;
+    if (nextPdfIndex < pdfJsDoc.numPages) {
+      pagePdfIndexMap[p] = nextPdfIndex;
+      nextPdfIndex++;
+    }
+  }
+}
+
+function getPreviewPageInfo(pageNum) {
+  if (pageNum === undefined) pageNum = currentPreviewPage;
+  const createCover = document.getElementById('createCover').checked;
+  const isBlank = customBlankPages.has(pageNum);
+  if (isBlank) {
+    return { isCover: false, isBlank: true, pdfIndex: -1 };
+  }
+  const isCoverPage = createCover && pageNum === 1;
+  if (isCoverPage) {
+    return { isCover: true, isBlank: false, pdfIndex: -1 };
+  }
+  const pdfIndex = pagePdfIndexMap[pageNum];
+  return {
+    isCover: false,
+    isBlank: false,
+    pdfIndex: (pdfIndex !== undefined) ? pdfIndex : 0
+  };
+}
+
+function buildPageRecords() {
+  const createCover = document.getElementById('createCover').checked;
+  const records = [];
+  for (let p = 1; p <= totalPreviewPages; p++) {
+    let type = 'pdf';
+    if (createCover && p === 1) type = 'cover';
+    else if (customBlankPages.has(p)) type = 'blank';
+    records.push({
+      type,
+      pdfIndex: (type === 'pdf') ? (pagePdfIndexMap[p] !== undefined ? pagePdfIndexMap[p] : 0) : null,
+      texts: allPagesTexts[p] || []
+    });
+  }
+  return records;
+}
+
+function applyPageRecords(records) {
+  const newTexts = {};
+  const newBlank = new Set();
+  const newPdfMap = {};
+  records.forEach((rec, idx) => {
+    const pos = idx + 1;
+    if (rec.texts && rec.texts.length) newTexts[pos] = rec.texts;
+    if (rec.type === 'blank') newBlank.add(pos);
+    if (rec.type === 'pdf') newPdfMap[pos] = rec.pdfIndex;
+  });
+  allPagesTexts = newTexts;
+  customBlankPages = newBlank;
+  pagePdfIndexMap = newPdfMap;
+  totalPreviewPages = records.length;
+}
+
+function movePage(from, to) {
+  const createCover = document.getElementById('createCover').checked;
+  const lockedPos = createCover ? 1 : 0;
+  if (from === to) return;
+  if (from === lockedPos || to === lockedPos) return;
+  if (from < 1 || from > totalPreviewPages || to < 1 || to > totalPreviewPages) return;
+
+  pushTextHistory();
+  const records = buildPageRecords();
+  const [moved] = records.splice(from - 1, 1);
+  records.splice(to - 1, 0, moved);
+  applyPageRecords(records);
+
+  if (currentPreviewPage === from) currentPreviewPage = to;
+  else if (from < currentPreviewPage && to >= currentPreviewPage) currentPreviewPage--;
+  else if (from > currentPreviewPage && to <= currentPreviewPage) currentPreviewPage++;
+}
+
+async function deletePreviewPage(pos) {
+  const createCover = document.getElementById('createCover').checked;
+  if (createCover && pos === 1) return;
+  if (totalPreviewPages <= 1) return;
+  if (!confirm('Opravdu chcete tuto stránku odstranit?')) return;
+
+  pushTextHistory();
+  const records = buildPageRecords();
+  records.splice(pos - 1, 1);
+  applyPageRecords(records);
+
+  if (currentPreviewPage > totalPreviewPages) currentPreviewPage = totalPreviewPages;
+  else if (currentPreviewPage > pos) currentPreviewPage--;
+
+  await renderCurrentPagePreview();
+  await renderThumbnails();
+}
+
+async function getPageSize(info) {
+  if (info.isCover || info.isBlank) {
+    const p = await pdfJsDoc.getPage(1);
+    const vp = p.getViewport({scale:1});
+    const w = Math.max(vp.width, vp.height);
+    const h = Math.min(vp.width, vp.height);
+    return {width: w, height: h};
+  }
+  const p = await pdfJsDoc.getPage(info.pdfIndex + 1);
+  const vp = p.getViewport({scale:1});
+  const w = Math.max(vp.width, vp.height);
+  const h = Math.min(vp.width, vp.height);
+  return {width: w, height: h};
+}
+
+async function addBlankPage(){
+  pushTextHistory();
+  
+  let newAllTexts = {};
+  let newBlankPages = new Set();
+  let newPdfMap = {};
+  
+  for(let [pStr, texts] of Object.entries(allPagesTexts)){
+    let pNum = parseInt(pStr);
+    if(pNum >= currentPreviewPage) {
+      newAllTexts[pNum + 1] = texts;
+    } else {
+      newAllTexts[pNum] = texts;
+    }
+  }
+  for(let pNum of customBlankPages){
+    if(pNum >= currentPreviewPage) newBlankPages.add(pNum + 1);
+    else newBlankPages.add(pNum);
+  }
+  for(let [pStr, idx] of Object.entries(pagePdfIndexMap)){
+    let pNum = parseInt(pStr);
+    if(pNum >= currentPreviewPage) newPdfMap[pNum + 1] = idx;
+    else newPdfMap[pNum] = idx;
+  }
+  
+  allPagesTexts = newAllTexts;
+  customBlankPages = newBlankPages;
+  pagePdfIndexMap = newPdfMap;
+  customBlankPages.add(currentPreviewPage);
+  
+  totalPreviewPages++;
+  await renderCurrentPagePreview();
+  await renderThumbnails();
+}
+
+async function drawCover(ctx, width, height, scale) {
+  const bg = '#f7f197';
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width * scale, height * scale);
+
+  if (logoBytesCache) {
+    try {
+      const img = new Image();
+      const url = URL.createObjectURL(new Blob([logoBytesCache]));
+      img.src = url;
+      await new Promise(resolve => {
+        img.onload = () => {
+          const h = 65;
+          const w = img.width * (h / img.height);
+          const x = width / 2 - w / 2;
+          const y = 42.5; 
+          ctx.drawImage(img, x * scale, (height - y - h) * scale, w * scale, h * scale);
+          URL.revokeObjectURL(url);
+          resolve();
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+      });
+    } catch (e) {}
+  }
+}
+
+async function drawBlankPage(ctx, width, height, scale) {
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width * scale, height * scale);
+  await drawInfoBar(ctx, width, height, scale);
+}
+
+async function drawInfoBar(ctx, width, height, scale) {
+  const margin = 14.17; 
+  const barHeight = 28.35;
+  const realWidth = width;
+  const realHeight = height;
+
+  const x = margin, y = realHeight - margin - barHeight;
+  ctx.fillStyle = '#f7f197';
+  ctx.fillRect(x * scale, y * scale, (realWidth - 2 * margin) * scale, barHeight * scale);
+
+  ctx.strokeStyle = '#18181b'; ctx.lineWidth = 1 * scale;
+  let currentX = margin + 15;
+
+  const drawLogo = async () => {
+    if (logoBytesCache) {
+      try {
+        const img = new Image(), url = URL.createObjectURL(new Blob([logoBytesCache]));
+        img.src = url;
+        await new Promise(resolve => {
+          img.onload = () => {
+            const h = 22;
+            const w = img.width * (h / img.height);
+            ctx.drawImage(img, currentX * scale, (y + (barHeight - h) / 2) * scale, w * scale, h * scale);
+            currentX += w + 15;
+            URL.revokeObjectURL(url); resolve();
+          };
+          img.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+        });
+      } catch(e) {}
+    }
+    ctx.beginPath();
+    ctx.moveTo(currentX * scale, (y + 6) * scale);
+    ctx.lineTo(currentX * scale, (y + barHeight - 6) * scale);
+    ctx.stroke();
+    currentX += 15;
+
+    ctx.fillStyle = '#18181b';
+    ctx.font = `${11 * (96/72)}px "${editorFontFamily}"`;
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(getActiveProjectType(), currentX * scale, (y + barHeight / 2 + 4) * scale);
+
+    const title = document.getElementById('panelTitle').value;
+    const date = document.getElementById('panelDate').value;
+    const rightMargin = margin + realWidth - 2 * margin - 20;
+    ctx.fillText(date, (rightMargin - 80) * scale, (y + barHeight / 2 + 4) * scale);
+    ctx.beginPath();
+    ctx.moveTo((rightMargin - 95) * scale, (y + 6) * scale);
+    ctx.lineTo((rightMargin - 95) * scale, (y + barHeight - 6) * scale);
+    ctx.stroke();
+
+    const titleFontSize = 11 * (96/72);
+    ctx.font = `${titleFontSize}px "${editorFontFamily}"`;
+    const titleWidthPx = ctx.measureText(title).width;
+    const titleRight = (rightMargin - 95) - 15;
+    ctx.fillText(title, (titleRight * scale) - titleWidthPx, (y + barHeight / 2 + 4) * scale);
+  };
+  return drawLogo();
+}
+
+async function renderCurrentPagePreview() {
+  saveCurrentPageBoxes();
+
+  const canvas = document.getElementById('preview-canvas');
+  const ctx = canvas.getContext('2d');
+  const info = getPreviewPageInfo();
+  const pageSize = await getPageSize(info);
+
+  const maxCssWidth = Math.min(900, document.getElementById('preview-main').clientWidth - 30);
+  const cssScale = Math.max(0.1, Math.min(1.5, maxCssWidth / pageSize.width));
+  const renderScale = cssScale * 2;
+  canvas.width = Math.round(pageSize.width * renderScale);
+  canvas.height = Math.round(pageSize.height * renderScale);
+  canvas.style.width = (pageSize.width * cssScale) + 'px';
+  canvas.style.height = (pageSize.height * cssScale) + 'px';
+  window.__previewInfo = {width: pageSize.width, height: pageSize.height, scale: renderScale};
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (info.isCover) {
+    await drawCover(ctx, pageSize.width, pageSize.height, renderScale);
+  } else if (info.isBlank) {
+    await drawBlankPage(ctx, pageSize.width, pageSize.height, renderScale);
+  } else {
+    const page = await pdfJsDoc.getPage(info.pdfIndex + 1);
+    const origVp = page.getViewport({scale: 1});
+    
+    let renderViewport;
+    if (origVp.height > origVp.width) {
+      renderViewport = page.getViewport({scale: renderScale, rotation: 90});
+    } else {
+      renderViewport = page.getViewport({scale: renderScale});
+    }
+    await page.render({canvasContext: ctx, viewport: renderViewport}).promise;
+  }
+
+  if (!info.isCover && !info.isBlank) await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale);
+
+  document.getElementById('page-indicator').textContent =
+    info.isCover ? `Úvodní strana (Stránka ${currentPreviewPage} z ${totalPreviewPages})`
+                 : (info.isBlank ? `Prázdná stránka s pruhem (Stránka ${currentPreviewPage} z ${totalPreviewPages})`
+                                 : `Stránka ${currentPreviewPage} z ${totalPreviewPages}`);
+
+  document.getElementById('prev-page-btn').disabled = currentPreviewPage <= 1;
+  document.getElementById('next-page-btn').disabled = currentPreviewPage >= totalPreviewPages;
+
+  const layer = document.getElementById('boxes-layer');
+  selectedBoxEl = null;
+  layer.innerHTML = '';
+  (allPagesTexts[currentPreviewPage] || []).forEach(b => {
+    if (b.type === 'line') createLineElement(b);
+    else createBoxElement(b);
+  });
+}
+
+function addTextBox(){
+  pushTextHistory();
+  if(!allPagesTexts[currentPreviewPage]) allPagesTexts[currentPreviewPage] = [];
+  const info = window.__previewInfo;
+  const id = textIdCounter++;
+  const existingCount = allPagesTexts[currentPreviewPage].filter(x => x.type !== 'line').length;
+  const cascade = (existingCount % 8) * 14;
+  allPagesTexts[currentPreviewPage].push({
+    id, type: 'text', text:'Nový text', size:16, x:info.width/3 + cascade, y:Math.max(20, info.height/2 - cascade)
+  });
+  pendingAutoFocusId = id;
+  renderCurrentPagePreview();
+}
+
+function addLineBox(){
+  pushTextHistory();
+  if(!allPagesTexts[currentPreviewPage]) allPagesTexts[currentPreviewPage] = [];
+  const info = window.__previewInfo;
+  const id = textIdCounter++;
+  allPagesTexts[currentPreviewPage].push({
+    id, type: 'line', x: info.width - 320, y: 180, height: 115, orientation: 'vertical'
+  });
+  renderCurrentPagePreview();
+}
+
+function createBoxElement(b){
+  const layer = document.getElementById('boxes-layer');
+  const canvas = document.getElementById('preview-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const info = window.__previewInfo;
+  const sx = rect.width/info.width, sy = rect.height/info.height;
+  const div = document.createElement('div');
+  div.className = 'custom-text-box';
+  div.dataset.id = b.id;
+  div.style.left = (b.x*sx)+'px';
+  
+  const linesCount = (b.text || '').split(/\r?\n/).length;
+  const totalBoxHeightPts = b.size * linesCount * 1.2;
+  div.style.top = ((info.height - b.y - totalBoxHeightPts) * sy) + 'px';
+
+  div.style.fontFamily = `"${editorFontFamily}"`;
+  div.style.fontSize = (b.size*(96/72)*sx)+'px';
+
+  const textarea = document.createElement('textarea');
+  textarea.className = 'tb-main';
+  textarea.value = b.text;
+  textarea.style.fontFamily = `"${editorFontFamily}"`;
+  textarea.style.fontSize = (b.size*(96/72)*sx)+'px';
+
+  const refreshBoxMetrics = () => {
+    const lines = (textarea.value || '').split(/\r?\n/);
+    const lCount = lines.length;
+    const m = measureTextBox(textarea.value, b.size, sx);
+    div.style.width = m.width+'px';
+    div.style.height = m.height+'px';
+    textarea.style.width = m.width+'px';
+    textarea.style.height = m.height+'px';
+    const currentBoxHeightPts = b.size * lCount * 1.2;
+    div.style.top = ((info.height - b.y - currentBoxHeightPts) * sy) + 'px';
+  };
+  refreshBoxMetrics();
+
+  let typingTimeout = null;
+  textarea.addEventListener('focus', () => {
+    pushTextHistory();
+    selectBox(div);
+  });
+  textarea.addEventListener('input', () => {
+    b.text = textarea.value;
+    refreshBoxMetrics();
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => { scheduleAutosave(); }, 400);
+  });
+  div.addEventListener('mousedown', () => selectBox(div));
+
+  const handle = document.createElement('div');
+  handle.className = 'tb-handle';
+  handle.title = 'Přetáhni pro posunutí textu (volný pohyb)';
+
+  const controls = document.createElement('div');
+  controls.className = 'tb-controls';
+  controls.innerHTML = `<input type="number" min="6" max="144" step="1" value="${b.size}" title="Velikost písma"><button class="del-btn" type="button" title="Smazat">✕</button>`;
+  const sizeInput = controls.querySelector('input');
+  
+  let sizeHistoryPushed = false;
+  sizeInput.addEventListener('focus', () => {
+    pushTextHistory();
+    sizeHistoryPushed = true;
+  });
+  sizeInput.addEventListener('input', () => {
+    if (!sizeHistoryPushed) { pushTextHistory(); sizeHistoryPushed = true; }
+    b.size = Math.max(6, Math.min(144, parseFloat(sizeInput.value)||16));
+    div.style.fontSize = (b.size*(96/72)*sx)+'px';
+    textarea.style.fontSize = (b.size*(96/72)*sx)+'px';
+    refreshBoxMetrics();
+    scheduleAutosave();
+  });
+  sizeInput.addEventListener('blur', () => { sizeHistoryPushed = false; saveCurrentPageBoxes(); });
+
+  controls.querySelector('.del-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    pushTextHistory();
+    allPagesTexts[currentPreviewPage] = (allPagesTexts[currentPreviewPage]||[]).filter(x => x.id !== b.id);
+    if (selectedBoxEl === div) selectedBoxEl = null;
+    div.remove();
+    updateUndoButton();
+    scheduleAutosave();
+  });
+
+  div.append(textarea, handle, controls);
+  makeDraggable(div, b, handle);
+  layer.appendChild(div);
+
+  if (pendingAutoFocusId === b.id) {
+    pendingAutoFocusId = null;
+    setTimeout(() => { textarea.focus(); textarea.select(); }, 0);
+  }
+}
+
+function createLineElement(b){
+  const layer = document.getElementById('boxes-layer');
+  const canvas = document.getElementById('preview-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const info = window.__previewInfo;
+  const sx = rect.width/info.width, sy = rect.height/info.height;
+  b.orientation = b.orientation || 'vertical';
+  const isVertical = b.orientation === 'vertical';
+
+  const div = document.createElement('div');
+  div.className = 'custom-text-box';
+  div.dataset.id = b.id;
+
+  if (isVertical) {
+    div.style.width = '10px';
+    div.style.height = (b.height * sy) + 'px';
+    div.style.left = (b.x * sx) + 'px';
+    div.style.top = ((info.height - b.y - b.height) * sy) + 'px';
+  } else {
+    div.style.width = (b.height * sy) + 'px';
+    div.style.height = '10px';
+    div.style.left = (b.x * sx) + 'px';
+    div.style.top = ((info.height - b.y - 10/sy) * sy) + 'px';
+  }
+
+  const lineVisual = document.createElement('div');
+  lineVisual.style.position = 'absolute';
+  if (isVertical) {
+    lineVisual.style.left = '5px';
+    lineVisual.style.top = '0';
+    lineVisual.style.bottom = '0';
+    lineVisual.style.width = '1px';
+    lineVisual.style.background = '#18181b';
+  } else {
+    lineVisual.style.left = '0';
+    lineVisual.style.top = '5px';
+    lineVisual.style.right = '0';
+    lineVisual.style.height = '1px';
+    lineVisual.style.background = '#18181b';
+  }
+
+  const handle = document.createElement('div');
+  handle.className = 'tb-handle';
+  handle.title = 'Přetáhni pro posunutí čáry (volný pohyb)';
+
+  const controls = document.createElement('div');
+  controls.className = 'tb-controls';
+  controls.innerHTML = `<input type="number" min="10" max="500" step="1" value="${Math.round(b.height)}" title="Délka čáry"><button class="rotate-btn" type="button" title="Otočit o 90°">↻</button><button class="del-btn" type="button" title="Smazat">✕</button>`;
+  const heightInput = controls.querySelector('input');
+  const rotateBtn = controls.querySelector('.rotate-btn');
+
+  let heightHistoryPushed = false;
+  heightInput.addEventListener('focus', () => {
+    pushTextHistory();
+    heightHistoryPushed = true;
+  });
+  heightInput.addEventListener('input', () => {
+    if (!heightHistoryPushed) { pushTextHistory(); heightHistoryPushed = true; }
+    b.height = Math.max(10, Math.min(500, parseFloat(heightInput.value)||100));
+    if (isVertical) {
+      div.style.height = (b.height * sy) + 'px';
+      div.style.top = ((info.height - b.y - b.height) * sy) + 'px';
+    } else {
+      div.style.width = (b.height * sy) + 'px';
+    }
+    scheduleAutosave();
+  });
+  heightInput.addEventListener('blur', () => { heightHistoryPushed = false; saveCurrentPageBoxes(); });
+
+  rotateBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    rotateLine(b);
+  });
+
+  controls.querySelector('.del-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    pushTextHistory();
+    allPagesTexts[currentPreviewPage] = (allPagesTexts[currentPreviewPage]||[]).filter(x => x.id !== b.id);
+    if (selectedBoxEl === div) selectedBoxEl = null;
+    div.remove();
+    updateUndoButton();
+    scheduleAutosave();
+  });
+
+  div.addEventListener('mousedown', () => selectBox(div));
+  div.append(lineVisual, handle, controls);
+  makeDraggableLine(div, b, handle);
+  layer.appendChild(div);
+}
+
+function rotateLine(b) {
+  pushTextHistory();
+  const isVertical = b.orientation === 'vertical';
+  if (isVertical) {
+    b.x = b.x - b.height / 2;
+    b.y = b.y + b.height / 2;
+    b.orientation = 'horizontal';
+  } else {
+    b.x = b.x + b.height / 2;
+    b.y = b.y - b.height / 2;
+    b.orientation = 'vertical';
+  }
+  renderCurrentPagePreview();
+  scheduleAutosave();
+}
+
+let dragSourcePage = null;
+
+async function renderThumbnails() {
+  const sidebar = document.getElementById('thumbs-sidebar');
+  if (!sidebar) return;
+  if (!pdfJsDoc) { sidebar.innerHTML = ''; return; }
+  sidebar.innerHTML = '';
+  const thumbW = 100;
+  const createCover = document.getElementById('createCover').checked;
+
+  for (let p = 1; p <= totalPreviewPages; p++) {
+    const info = getPreviewPageInfo(p);
+    const pageSize = await getPageSize(info);
+    const scale = thumbW / pageSize.width;
+    const isLocked = createCover && p === 1;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'thumb-item' + (p === currentPreviewPage ? ' active' : '') + (isLocked ? ' locked' : '');
+    wrap.dataset.page = p;
+    wrap.draggable = !isLocked;
+    wrap.title = isLocked ? 'Úvodní strana je vždy první' : 'Přetažením změníte pořadí stránek';
+
+    const c = document.createElement('canvas');
+    c.width = Math.round(pageSize.width * scale);
+    c.height = Math.round(pageSize.height * scale);
+    const cctx = c.getContext('2d');
+
+    if (info.isCover) {
+      await drawCover(cctx, pageSize.width, pageSize.height, scale);
+    } else if (info.isBlank) {
+      await drawBlankPage(cctx, pageSize.width, pageSize.height, scale);
+    } else {
+      const page = await pdfJsDoc.getPage(info.pdfIndex + 1);
+      const origVp = page.getViewport({ scale: 1 });
+      const vp = origVp.height > origVp.width
+        ? page.getViewport({ scale, rotation: 90 })
+        : page.getViewport({ scale });
+      await page.render({ canvasContext: cctx, viewport: vp }).promise;
+      await drawInfoBar(cctx, pageSize.width, pageSize.height, scale);
+    }
+
+    const label = document.createElement('div');
+    label.className = 'thumb-label';
+    label.textContent = p + (info.isCover ? ' • úvod' : info.isBlank ? ' • prázdná' : '');
+
+    wrap.append(c, label);
+
+    if (!isLocked && totalPreviewPages > 1) {
+      const delBtn = document.createElement('div');
+      delBtn.className = 'thumb-delete';
+      delBtn.textContent = '✕';
+      delBtn.title = 'Odstranit stránku';
+      delBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await deletePreviewPage(parseInt(wrap.dataset.page));
+      });
+      wrap.appendChild(delBtn);
+    }
+
+    wrap.addEventListener('click', async () => {
+      saveCurrentPageBoxes();
+      currentPreviewPage = p;
+      await renderCurrentPagePreview();
+      highlightActiveThumb();
+    });
+
+    if (!isLocked) {
+      wrap.addEventListener('dragstart', (e) => {
+        dragSourcePage = parseInt(wrap.dataset.page);
+        wrap.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', String(dragSourcePage)); } catch(err) {}
+      });
+      wrap.addEventListener('dragend', () => {
+        wrap.classList.remove('dragging');
+        document.querySelectorAll('.thumb-item').forEach(el => el.classList.remove('drop-before', 'drop-after'));
+        dragSourcePage = null;
+      });
+    }
+
+    wrap.addEventListener('dragover', (e) => {
+      if (dragSourcePage === null || isLocked) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const targetPage = parseInt(wrap.dataset.page);
+      wrap.classList.toggle('drop-before', targetPage < dragSourcePage);
+      wrap.classList.toggle('drop-after', targetPage > dragSourcePage);
+    });
+    wrap.addEventListener('dragleave', () => {
+      wrap.classList.remove('drop-before', 'drop-after');
+    });
+    wrap.addEventListener('drop', async (e) => {
+      if (dragSourcePage === null || isLocked) return;
+      e.preventDefault();
+      wrap.classList.remove('drop-before', 'drop-after');
+      const targetPage = parseInt(wrap.dataset.page);
+      const from = dragSourcePage;
+      dragSourcePage = null;
+      if (from === targetPage) return;
+      movePage(from, targetPage);
+      await renderCurrentPagePreview();
+      await renderThumbnails();
+    });
+
+    sidebar.appendChild(wrap);
+  }
+}
+
+function highlightActiveThumb() {
+  document.querySelectorAll('.thumb-item').forEach(el => {
+    el.classList.toggle('active', parseInt(el.dataset.page) === currentPreviewPage);
+  });
+}
+
+function saveCurrentPageBoxes(){
+  const canvas = document.getElementById('preview-canvas');
+  const info = window.__previewInfo;
+  if(!canvas||!info) return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = rect.width/info.width, sy = rect.height/info.height;
+  const existing = allPagesTexts[currentPreviewPage]||[];
+  const byId = new Map(existing.map(b => [b.id, b]));
+
+  document.querySelectorAll('.custom-text-box').forEach(el => {
+    const id = parseInt(el.dataset.id);
+    const b = byId.get(id);
+    if(!b) return;
+    const left = parseFloat(el.style.left)||0;
+    const top = parseFloat(el.style.top)||0;
+    b.x = Math.max(0, Math.min(info.width, left/sx));
+
+    if(b.type === 'line') {
+      const heightInput = el.querySelector('.tb-controls input');
+      if (heightInput) b.height = Math.max(10, Math.min(500, parseFloat(heightInput.value)||100));
+      if (b.orientation === 'vertical') {
+        b.y = Math.max(0, Math.min(info.height, (info.height - (top/sy) - b.height)));
+      } else {
+        b.y = Math.max(0, Math.min(info.height, (info.height - (top/sy) - 10/sy)));
+      }
+    } else {
+      const sizeInput = el.querySelector('.tb-controls input');
+      if (sizeInput) b.size = Math.max(6, Math.min(144, parseFloat(sizeInput.value)||16));
+      
+      const textarea = el.querySelector('.tb-main');
+      b.text = textarea ? textarea.value : b.text;
+      const linesCount = (b.text || '').split(/\r?\n/).length;
+      const currentBoxHeightPts = b.size * linesCount * 1.2;
+      b.y = Math.max(0, Math.min(info.height, (info.height - (top/sy) - currentBoxHeightPts)));
+    }
+  });
+  scheduleAutosave();
+}
+
+// Přetažení textového pole – volný pohyb v obou osách s přichytáváním ke všem okrajům
+function makeDraggable(element, b, handle){
+  let dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+  const startDrag = e => {
+    if(e.button !== undefined && e.button !== 0) return;
+    pushTextHistory();
+    dragging = true;
+    selectBox(element);
+    startX = e.clientX; startY = e.clientY;
+    startLeft = parseFloat(element.style.left)||0;
+    startTop = parseFloat(element.style.top)||0;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  handle.addEventListener('mousedown', startDrag);
+  handle.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    if(!t) return;
+    pushTextHistory();
+    dragging = true;
+    selectBox(element);
+    startX = t.clientX; startY = t.clientY;
+    startLeft = parseFloat(element.style.left)||0;
+    startTop = parseFloat(element.style.top)||0;
+    e.preventDefault();
+  }, {passive:false});
+
+  const move = e => {
+    if(!dragging) return;
+    const canvas = document.getElementById('preview-canvas'), rect = canvas.getBoundingClientRect();
+    let dx = e.clientX - startX;
+    let dy = e.clientY - startY;
+    let newLeft = startLeft + dx;
+    let newTop = startTop + dy;
+    
+    // Omezení na rozsah plátna
+    newLeft = Math.max(0, Math.min(rect.width - element.offsetWidth, newLeft));
+    newTop = Math.max(0, Math.min(rect.height - element.offsetHeight, newTop));
+
+    // Přichytávání v X a Y k ostatním prvkům
+    const snapThreshold = 8;
+    const allBoxes = document.querySelectorAll('.custom-text-box');
+    allBoxes.forEach(el => {
+      if (el === element) return;
+      const otherLeft = parseFloat(el.style.left) || 0;
+      const otherRight = otherLeft + el.offsetWidth;
+      const myWidth = element.offsetWidth;
+      const otherTop = parseFloat(el.style.top) || 0;
+      const otherBottom = otherTop + el.offsetHeight;
+      const myHeight = element.offsetHeight;
+
+      // Horizontální snap
+      if (Math.abs(newLeft - otherLeft) < snapThreshold) newLeft = otherLeft;
+      if (Math.abs((newLeft + myWidth) - otherRight) < snapThreshold) newLeft = otherRight - myWidth;
+      if (Math.abs(newLeft - otherRight) < snapThreshold) newLeft = otherRight;
+      if (Math.abs((newLeft + myWidth) - otherLeft) < snapThreshold) newLeft = otherLeft - myWidth;
+
+      // Vertikální snap
+      if (Math.abs(newTop - otherTop) < snapThreshold) newTop = otherTop;
+      if (Math.abs((newTop + myHeight) - otherBottom) < snapThreshold) newTop = otherBottom - myHeight;
+      if (Math.abs(newTop - otherBottom) < snapThreshold) newTop = otherBottom;
+      if (Math.abs((newTop + myHeight) - otherTop) < snapThreshold) newTop = otherTop - myHeight;
+    });
+
+    element.style.left = Math.max(0, Math.min(rect.width - element.offsetWidth, newLeft)) + 'px';
+    element.style.top = Math.max(0, Math.min(rect.height - element.offsetHeight, newTop)) + 'px';
+  };
+
+  const touchMove = e => {
+    if(!dragging) return;
+    const t = e.touches[0]; if(!t) return;
+    move({clientX:t.clientX, clientY:t.clientY});
+    e.preventDefault();
+  };
+  const up = () => {
+    if(!dragging) return;
+    dragging = false;
+    saveCurrentPageBoxes();
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up);
+    document.removeEventListener('touchmove', touchMove);
+    document.removeEventListener('touchend', up);
+  };
+  handle.addEventListener('mousedown', () => {
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+  handle.addEventListener('touchstart', () => {
+    document.addEventListener('touchmove', touchMove, {passive:false});
+    document.addEventListener('touchend', up);
+  }, {passive:false});
+}
+
+// Přetažení čáry – volný pohyb v obou osách s přichytáváním
+function makeDraggableLine(element, b, handle){
+  let dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+  const startDrag = e => {
+    if(e.button !== undefined && e.button !== 0) return;
+    pushTextHistory();
+    dragging = true;
+    selectBox(element);
+    startX = e.clientX; startY = e.clientY;
+    startLeft = parseFloat(element.style.left)||0;
+    startTop = parseFloat(element.style.top)||0;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  handle.addEventListener('mousedown', startDrag);
+  handle.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    if(!t) return;
+    pushTextHistory();
+    dragging = true;
+    selectBox(element);
+    startX = t.clientX; startY = t.clientY;
+    startLeft = parseFloat(element.style.left)||0;
+    startTop = parseFloat(element.style.top)||0;
+    e.preventDefault();
+  }, {passive:false});
+
+  const move = e => {
+    if(!dragging) return;
+    const canvas = document.getElementById('preview-canvas'), rect = canvas.getBoundingClientRect();
+    let dx = e.clientX - startX;
+    let dy = e.clientY - startY;
+    let newLeft = startLeft + dx;
+    let newTop = startTop + dy;
+    
+    newLeft = Math.max(0, Math.min(rect.width - element.offsetWidth, newLeft));
+    newTop = Math.max(0, Math.min(rect.height - element.offsetHeight, newTop));
+
+    const snapThreshold = 8;
+    const allBoxes = document.querySelectorAll('.custom-text-box');
+    allBoxes.forEach(el => {
+      if (el === element) return;
+      const otherLeft = parseFloat(el.style.left) || 0;
+      const otherRight = otherLeft + el.offsetWidth;
+      const myWidth = element.offsetWidth;
+      const otherTop = parseFloat(el.style.top) || 0;
+      const otherBottom = otherTop + el.offsetHeight;
+      const myHeight = element.offsetHeight;
+
+      if (Math.abs(newLeft - otherLeft) < snapThreshold) newLeft = otherLeft;
+      if (Math.abs((newLeft + myWidth) - otherRight) < snapThreshold) newLeft = otherRight - myWidth;
+      if (Math.abs(newLeft - otherRight) < snapThreshold) newLeft = otherRight;
+      if (Math.abs((newLeft + myWidth) - otherLeft) < snapThreshold) newLeft = otherLeft - myWidth;
+
+      if (Math.abs(newTop - otherTop) < snapThreshold) newTop = otherTop;
+      if (Math.abs((newTop + myHeight) - otherBottom) < snapThreshold) newTop = otherBottom - myHeight;
+      if (Math.abs(newTop - otherBottom) < snapThreshold) newTop = otherBottom;
+      if (Math.abs((newTop + myHeight) - otherTop) < snapThreshold) newTop = otherTop - myHeight;
+    });
+
+    element.style.left = Math.max(0, Math.min(rect.width - element.offsetWidth, newLeft)) + 'px';
+    element.style.top = Math.max(0, Math.min(rect.height - element.offsetHeight, newTop)) + 'px';
+  };
+
+  const touchMove = e => {
+    if(!dragging) return;
+    const t = e.touches[0]; if(!t) return;
+    move({clientX:t.clientX, clientY:t.clientY});
+    e.preventDefault();
+  };
+  const up = () => {
+    if(!dragging) return;
+    dragging = false;
+    saveCurrentPageBoxes();
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up);
+    document.removeEventListener('touchmove', touchMove);
+    document.removeEventListener('touchend', up);
+  };
+  handle.addEventListener('mousedown', () => {
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+  handle.addEventListener('touchstart', () => {
+    document.addEventListener('touchmove', touchMove, {passive:false});
+    document.addEventListener('touchend', up);
+  }, {passive:false});
+}
+
+async function prevPage(){
+  saveCurrentPageBoxes();
+  if(currentPreviewPage > 1){ currentPreviewPage--; await renderCurrentPagePreview(); highlightActiveThumb(); }
+}
+async function nextPage(){
+  saveCurrentPageBoxes();
+  if(currentPreviewPage < totalPreviewPages){ currentPreviewPage++; await renderCurrentPagePreview(); highlightActiveThumb(); }
+}
+
+async function runPanel(fromModal = false){
+  const {PDFDocument, rgb} = PDFLib;
+  if(!filesData.panel.length) return;
+
+  if (document.getElementById('preview-modal').style.display === 'flex') {
+    saveCurrentPageBoxes();
+  }
+
+  document.getElementById('btn-panel').disabled = true;
+  try{
+    const f = filesData.panel[0];
+    const projectType = getActiveProjectType();
+    const projectTitle = document.getElementById('panelTitle').value;
+    const projectDate = document.getElementById('panelDate').value;
+    const createCover = document.getElementById('createCover').checked;
+
+    const pdf = await PDFDocument.load(loadedFileBytes, {ignoreEncryption:true});
+    pdf.registerFontkit(fontkit);
+    const fontData = fontBytesCache || await fetch('font/Dunwich Type Founders - Antarctican Mono Semibold.otf').then(r => r.arrayBuffer());
+    let logoImage = null;
+    try{
+      const logoData = logoBytesCache || await fetch('2020.png').then(r => r.arrayBuffer());
+      logoImage = await pdf.embedPng(logoData);
+    }catch(e){}
+    const textColor = rgb(24/255, 24/255, 27/255);
+
+    const firstRefPage = pdf.getPage(0);
+    let {width: refW, height: refH} = firstRefPage.getSize();
+    const standardA3W = Math.max(refW, refH);
+    const standardA3H = Math.min(refW, refH);
+
+    const finalPdf = await PDFDocument.create();
+    finalPdf.registerFontkit(fontkit);
+    const finalFont = await finalPdf.embedFont(fontData);
+    let finalLogo = null;
+    if(logoImage){
+      const logoBytes = logoBytesCache || await fetch('2020.png').then(r => r.arrayBuffer());
+      finalLogo = await finalPdf.embedPng(logoBytes);
+    }
+
+    for(let previewP = 1; previewP <= totalPreviewPages; previewP++){
+      let targetPage;
+      let targetW = standardA3W, targetH = standardA3H;
+
+      if(createCover && previewP === 1){
+        targetPage = finalPdf.addPage([standardA3W, standardA3H]);
+        targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(247/255, 241/255, 151/255)});
+        
+        if(finalLogo){
+          const h = 65, w = finalLogo.width * (h / finalLogo.height);
+          targetPage.drawImage(finalLogo, {x:standardA3W/2 - w/2, y:42.5, width:w, height:h});
+        }
+      } else if(customBlankPages.has(previewP)){
+        targetPage = finalPdf.addPage([standardA3W, standardA3H]);
+        targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(1,1,1)});
+        
+        const margin = 14.17, barHeight = 28.35;
+        targetPage.drawRectangle({x:margin, y:margin, width:standardA3W - 2 * margin, height:barHeight, color:rgb(247/255, 241/255, 151/255)});
+        let currentX = margin + 15;
+        const centerY = margin + barHeight / 2;
+        if(finalLogo){
+          const d = finalLogo.scale(22 / finalLogo.height);
+          targetPage.drawImage(finalLogo, {x:currentX, y:centerY - d.height / 2, width:d.width, height:d.height});
+          currentX += d.width + 15;
+        }
+        targetPage.drawLine({start:{x:currentX, y:margin + 6}, end:{x:currentX, y:margin + barHeight - 6}, thickness:1, color:textColor});
+        currentX += 15;
+        targetPage.drawText(projectType, {x:currentX, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        const rightMargin = margin + standardA3W - 2 * margin - 20;
+        targetPage.drawText(projectDate, {x:rightMargin - 80, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        const titleSeparatorX = rightMargin - 95;
+        targetPage.drawLine({start:{x:titleSeparatorX, y:margin + 6}, end:{x:titleSeparatorX, y:margin + barHeight - 6}, thickness:1, color:textColor});
+        const titleWidth = finalFont.widthOfTextAtSize(projectTitle, 11);
+        targetPage.drawText(projectTitle, {x:titleSeparatorX - 15 - titleWidth, y:centerY - 4, size:11, font:finalFont, color:textColor});
+      } else {
+        const srcPdfIndex = (pagePdfIndexMap[previewP] !== undefined) ? pagePdfIndexMap[previewP] : 0;
+        const [embeddedPage] = await finalPdf.embedPdf(pdf, [srcPdfIndex]);
+        
+        let {width: origW, height: origH} = embeddedPage;
+        let drawWidth = origW, drawHeight = origH, rotateAngle = 0;
+        
+        if (origH > origW) {
+          rotateAngle = 90;
+          drawWidth = origH;
+          drawHeight = origW;
+        }
+
+        targetPage = finalPdf.addPage([drawWidth, drawHeight]);
+        if(rotateAngle > 0){
+          targetPage.drawPage(embeddedPage, {
+            x: drawWidth,
+            y: 0,
+            xScale: 1,
+            yScale: 1,
+            rotate: PDFLib.degrees(rotateAngle)
+          });
+        } else {
+          targetPage.drawPage(embeddedPage, { x: 0, y: 0 });
+        }
+
+        targetW = drawWidth;
+        targetH = drawHeight;
+
+        const margin = 14.17, barHeight = 28.35;
+        targetPage.drawRectangle({x:margin, y:margin, width:targetW - 2 * margin, height:barHeight, color:rgb(247/255, 241/255, 151/255)});
+        let currentX = margin + 15;
+        const centerY = margin + barHeight / 2;
+        if(finalLogo){
+          const d = finalLogo.scale(22 / finalLogo.height);
+          targetPage.drawImage(finalLogo, {x:currentX, y:centerY - d.height / 2, width:d.width, height:d.height});
+          currentX += d.width + 15;
+        }
+        targetPage.drawLine({start:{x:currentX, y:margin + 6}, end:{x:currentX, y:margin + barHeight - 6}, thickness:1, color:textColor});
+        currentX += 15;
+        targetPage.drawText(projectType, {x:currentX, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        const rightMapping = margin + targetW - 2 * margin - 20;
+        targetPage.drawText(projectDate, {x:rightMapping - 80, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        const titleSeparatorX = rightMapping - 95;
+        targetPage.drawLine({start:{x:titleSeparatorX, y:margin + 6}, end:{x:titleSeparatorX, y:margin + barHeight - 6}, thickness:1, color:textColor});
+        const titleWidth = finalFont.widthOfTextAtSize(projectTitle, 11);
+        targetPage.drawText(projectTitle, {x:titleSeparatorX - 15 - titleWidth, y:centerY - 4, size:11, font:finalFont, color:textColor});
+      }
+
+      (allPagesTexts[previewP]||[]).forEach(tb => {
+        if(tb.type === 'line') {
+          if (tb.orientation === 'horizontal') {
+            targetPage.drawLine({
+              start: { x: tb.x, y: tb.y + tb.height/2 },
+              end: { x: tb.x + tb.height, y: tb.y + tb.height/2 },
+              thickness: 1,
+              color: textColor
+            });
+          } else {
+            targetPage.drawLine({
+              start: { x: tb.x + 5, y: tb.y },
+              end: { x: tb.x + 5, y: tb.y + tb.height },
+              thickness: 1,
+              color: textColor
+            });
+          }
+        } else if(tb.text) {
+          const lines = tb.text.split(/\r?\n/);
+          const lineHeight = tb.size * 1.2;
+          lines.forEach((line, idx) => {
+            const lineY = tb.y + (lines.length - 1 - idx) * lineHeight;
+            targetPage.drawText(line, {x: tb.x, y: lineY, size: tb.size, font: finalFont, color: textColor});
+          });
+        }
+      });
+    }
+
+    const bytes = await finalPdf.save({useObjectStreams:true});
+    const blob = new Blob([bytes], {type:'application/pdf'});
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = f.name.replace(/\.pdf$/i, '') + '_prezentace.pdf';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    document.getElementById('st-panel').textContent = 'Hotovo, prezentace vytvořena!';
+    if(fromModal) document.getElementById('preview-modal').style.display = 'none';
+  }catch(err){
+    alert('Chyba: '+err.message);
+    console.error(err);
+  }
+  document.getElementById('btn-panel').disabled = false;
+  document.getElementById('btn-preview').disabled = false;
+}
+</script>
+</body>
+</html>

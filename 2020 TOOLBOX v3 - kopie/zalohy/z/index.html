@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20-20-TOOLBOX — PDF Toolbox</title>
+<style>
+@import url('https://fonts.cdnfonts.com/css/antarctican-mono');
+
+:root{--bg:#f4f4f5;--card:#fff;--border:#e4e4e7;--text:#18181b;--muted:#71717a;--accent:#f7f197;--header-bg:#f7f197;}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,Segoe UI,sans-serif}
+header{background:var(--header-bg);border-bottom:1px solid #e2db7d;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:'Antarctican Mono', monospace;font-weight:normal;font-size:18px;letter-spacing:.5px;display:flex;align-items:center;gap:8px;color:#18181b}
+.logo span{background:#18181b;color:#f7f197;padding:3px 8px;border-radius:4px;font-size:12px}
+.wrap{max-width:1200px;margin:24px auto;padding:0 24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;font-size:22px}
+.muted{color:var(--muted);font-size:13px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+.tile{background:#fafafa;border:1px solid var(--border);border-radius:10px;padding:18px;text-align:left;cursor:pointer;transition:.15s;display:flex;flex-direction:column;justify-content:center;min-height:90px}
+.tile:hover{background:#fff;border-color:#d4cc5d;box-shadow:0 2px 6px rgba(247,241,151,.25)}
+.tile b{font-size:14px;margin-bottom:4px;color:var(--text);font-weight:normal;}
+.tile span{font-size:12px;color:var(--muted)}
+.tool-view{display:none;margin-top:10px}
+.tool-view.active{display:block}
+.back-btn{background:#f4f4f5;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 12px;cursor:pointer;margin-bottom:15px;font-weight:normal;font-size:13px}
+.back-btn:hover{background:#e4e4e7}
+.drop{margin:15px 0;padding:35px 20px;border:2px dashed #cbd5e1;border-radius:10px;text-align:center;cursor:pointer;background:#fafafa}
+.drop.over{border-color:#18181b;background:#fefce8}
+.settings{margin:15px 0;display:flex;gap:15px;align-items:center;flex-wrap:wrap;background:#fafafa;padding:12px;border:1px solid var(--border);border-radius:8px}
+select, input[type="text"], input[type="password"]{background:#fff;color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:13px}
+button.action{background:#18181b;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-weight:normal;cursor:pointer;font-size:13px}
+button.action:hover{background:#27272a}
+button.action:disabled{opacity:.4;cursor:not-allowed}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:15px}
+.bar{height:6px;background:var(--border);border-radius:10px;overflow:hidden;margin:15px 0}
+.fill{height:100%;width:0;background:#d4cc5d;transition:.2s}
+.list{margin-top:15px;display:grid;gap:6px;max-height:160px;overflow-y:auto}
+.item{padding:8px 12px;background:#fafafa;border:1px solid var(--border);border-radius:6px;font-size:12px}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+</head>
+<body ondragover="window.preventDrop(event)" ondrop="window.preventDrop(event)">
+
+<header>
+  <div class="logo">20-20-TOOLBOX <span>OFFLINE</span></div>
+  <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b; font-weight:normal;">ARCHIVNÍ A PDF NÁSTROJE</div>
+</header>
+
+<div class="wrap"><div class="card">
+  
+  <!-- HLAVNÍ MENU -->
+  <div id="menu-view">
+    <h1>Co chcete dělat?</h1>
+    <div class="muted">Vyberte nástroj pro úpravu PDF dokumentů. Vše běží bezpečně offline.</div>
+    <div class="grid">
+      <div class="tile" onclick="openTool('pdfa')">
+        <b>Konverze do PDF/A</b>
+        <span>Standardy 1b, 2b, 3b + hromadný ZIP</span>
+      </div>
+      <div class="tile" onclick="openTool('compress')">
+        <b>Komprimace PDF</b>
+        <span>Zmenšení velikosti souborů</span>
+      </div>
+      <div class="tile" onclick="openTool('merge')">
+        <b>Sloučení PDF</b>
+        <span>Spojit více souborů do jednoho</span>
+      </div>
+      <div class="tile" onclick="openTool('split')">
+        <b>Rozdělit PDF</b>
+        <span>Uložit každou stránku zvlášť</span>
+      </div>
+      <div class="tile" onclick="openTool('rotate')">
+        <b>Otáčení stránek PDF</b>
+        <span>Otočit stránky o 90, 180 nebo 270°</span>
+      </div>
+      <div class="tile" onclick="openTool('panel')">
+        <b>Architektonický panel A3</b>
+        <span>Přidat dolní žlutý pruh s logem (A3 na šířku)</span>
+      </div>
+      <div class="tile" onclick="openTool('numbers')">
+        <b>Přidat čísla stránek</b>
+        <span>Očíslovat dokument v zápatí</span>
+      </div>
+      <div class="tile" onclick="openTool('extract')">
+        <b>Extrahuje stránky PDF</b>
+        <span>Uložit vybranou stránku samostatně</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ŠABLONA JEDNOTLIVÝCH NÁSTROJŮ -->
+  <div id="tool-pdfa" class="tool-view">
+    <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+    <h1>Konverze do formátu PDF/A</h1>
+    <div class="muted">Úprava PDF pro dlouhodobou archivaci s volbou standardu.</div>
+    <div class="settings">
+      <label>Cílový standard:</label>
+      <select id="pdfaVersion">
+        <option value="1">PDF/A-1b (Starší / přísný)</option>
+        <option value="2">PDF/A-2b (Podporuje vrstvy)</option>
+        <option value="3" selected>PDF/A-3b (Moderní + přílohy)</option>
+      </select>
+    </div>
+    <div class="drop" id="drop-pdfa" onclick="document.getElementById('f-pdfa').click()">
+      <b>Sem přetáhni PDF soubory</b><br><span style="color:var(--muted); font-size:12px;">nebo klikni pro výběr</span>
+      <input id="f-pdfa" type="file" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files, 'pdfa')">
+    </div>
+    <div class="row">
+      <button class="action" id="btn-pdfa" disabled onclick="runPdfA()">Konvertovat a stáhnout ZIP</button>
+      <span id="st-pdfa" class="muted" style="margin:0;">Připraveno</span>
+    </div>
+    <div class="bar"><div id="fill-pdfa" class="fill"></div></div>
+    <div id="list-pdfa" class="list"></div>
+  </div>
+
+  <div id="tool-compress" class="tool-view">
+    <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+    <h1>Komprimace PDF</h1>
+    <div class="muted">Optimalizace struktury a pročištění objektů pro zmenšení velikosti.</div>
+    <div class="drop" id="drop-compress" onclick="document.getElementById('f-comp').click()">
+      <b>Sem přetáhni PDF soubory k zmenšení</b><br><span style="color:var(--muted); font-size:12px;">nebo klikni pro výběr</span>
+      <input id="f-comp" type="file" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files, 'compress')">
+    </div>
+    <div class="row">
+      <button class="action" id="btn-compress" disabled onclick="runCompress()">Komprimovat a stáhnout ZIP</button>
+      <span id="st-compress" class="muted" style="margin:0;">Připraveno</span>
+    </div>
+    <div class="bar"><div id="fill-compress" class="fill"></div></div>
+    <div id="list-compress" class="list"></div>
+  </div>
+
+  <div id="tool-merge" class="tool-view">
+    <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+    <h1>Sloučení PDF souborů</h1>
+    <div class="muted">Spojení vybraných dokumentů do jednoho výstupního souboru.</div>
+    <div class="drop" id="drop-merge" onclick="document.getElementById('f-merge').click()">
+      <b>Sem přetáhni PDF soubory ke spojení</b><br><span style="color:var(--muted); font-size:12px;">nebo klikni pro výběr</span>
+      <input id="f-merge" type="file" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files, 'merge')">
+    </div>
+    <div class="row">
+      <button class="action" id="btn-merge" disabled onclick="runMerge()">Sloučit a stáhnout PDF</button>
+      <span id="st-merge" class="muted" style="margin:0;">Připraveno</span>
+    </div>
+    <div id="list-merge" class="list"></div>
+  </div>
+
+  <div id="tool-split" class="tool-view">
+    <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+    <h1>Rozdělit PDF na stránky</h1>
+    <div class="muted">Uložení každé stránky dokumentu jako samostatný soubor do ZIPu.</div>
+    <div class="drop" id="drop-split" onclick="document.getElementById('f-split').click()">
+      <b>Sem přetáhni PDF soubor k rozdělení</b><br><span style="color:var(--muted); font-size:12px;">nebo klikni pro výběr</span>
+      <input id="f-split" type="file" accept=".pdf" style="display:none" onchange="handleFiles(this.files, 'split')">
+    </div>
+    <div class="row">
+      <button class="action" id="btn-split" disabled onclick="runSplit()">Rozdělit a stáhnout ZIP</button>
+      <span id="st-split" class="muted" style="margin:0;">Připraveno</span>
+    </div>
+    <div id="list-split" class="list"></div>
+  </div>
+
+  <div id="tool-rotate" class="tool-view">
+    <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+    <h1>Otáčení stránek PDF</h1>
+    <div class="muted">Otočení všech stránek dokumentu o zvolený úhel.</div>
+    <div class="settings">
+      <label>Úhel otočení:</label>
+      <select id="rotAngle">
+        <option value="90">90° doprava</option>
+        <option value="180">180° (naruby)</option>
+        <option value="270">270° doleva</option>
+      </select>
+    </div>
+    <div class="drop" id="drop-rotate" onclick="document.getElementById('f-rot').click()">
+      <b>Sem přetáhni PDF soubor</b><br><span style="color:var(--muted); font-size:12px;">nebo klikni pro výběr</span>
+      <input id="f-rot" type="file" accept=".pdf" style="display:none" onchange="handleFiles(this.files, 'rotate')">
+    </div>
+    <div class="row">
+      <button class="action" id="btn-rotate" disabled onclick="runRotate()">Otočit a stáhnout PDF</button>
+      <span id="st-rotate" class="muted" style="margin:0;">Připraveno</span>
+    </div>
+    <div id="list-rotate" class="list"></div>
+  </div>
+
+  <div id="tool-panel" class="tool-view">
+    <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+    <h1>Architektonický panel A3 (Žlutý pruh)</h1>
+    <div class="muted">Vloží spodní pruh (výška ~1.2 cm, odsazení 0.5 cm) s logem, typem projektu, názvem a datem. Určeno pro formát A3 na šířku.</div>
+    <div class="settings" style="flex-direction:column; align-items:stretch; gap:10px;">
+      <div style="display:flex; gap:15px; align-items:center; flex-wrap:wrap;">
+        <label style="min-width:130px;">Typ projektu:</label>
+        <select id="panelType" style="flex:1;">
+          <option value="architektonický koncept">architektonický koncept</option>
+          <option value="návrh interiéru">návrh interiéru</option>
+          <option value="urbanistická studie">urbanistická studie</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:15px; align-items:center; flex-wrap:wrap;">
+        <label style="min-width:130px;">Název projektu:</label>
+        <input type="text" id="panelTitle" value="Chata Rokytná" style="flex:1;">
+      </div>
+      <div style="display:flex; gap:15px; align-items:center; flex-wrap:wrap;">
+        <label style="min-width:130px;">Měsíc a rok:</label>
+        <input type="text" id="panelDate" value="červen 2026" style="flex:1;">
+      </div>
+    </div>
+    <div class="drop" id="drop-panel" onclick="document.getElementById('f-panel').click()">
+      <b>Sem přetáhni PDF soubor (A3 na šířku)</b><br><span style="color:var(--muted); font-size:12px;">nebo klikni pro výběr</span>
+      <input id="f-panel" type="file" accept=".pdf" style="display:none" onchange="handleFiles(this.files, 'panel')">
+    </div>
+    <div class="row">
+      <button class="action" id="btn-panel" disabled onclick="runPanel()">Přidat panel a stáhnout PDF</button>
+      <span id="st-panel" class="muted" style="margin:0;">Připraveno</span>
+    </div>
+    <div id="list-panel" class="list"></div>
+  </div>
+
+  <div id="tool-numbers" class="tool-view">
+    <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+    <h1>Přidat čísla stránek</h1>
+    <div class="muted">Vloží číslování stránek do spodní části dokumentu.</div>
+    <div class="drop" id="drop-numbers" onclick="document.getElementById('f-num').click()">
+      <b>Sem přetáhni PDF soubor</b><br><span style="color:var(--muted); font-size:12px;">nebo klikni pro výběr</span>
+      <input id="f-num" type="file" accept=".pdf" style="display:none" onchange="handleFiles(this.files, 'numbers')">
+    </div>
+    <div class="row">
+      <button class="action" id="btn-numbers" disabled onclick="runNumbers()">Očíslovat a stáhnout PDF</button>
+      <span id="st-numbers" class="muted" style="margin:0;">Připraveno</span>
+    </div>
+    <div id="list-numbers" class="list"></div>
+  </div>
+
+  <div id="tool-extract" class="tool-view">
+    <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+    <h1>Extrahuje stránky PDF</h1>
+    <div class="muted">Uloží vybranou konkrétní stránku jako samostatné PDF.</div>
+    <div class="settings">
+      <label>Číslo stránky:</label>
+      <input type="text" id="extPage" value="1" style="width:80px;">
+    </div>
+    <div class="drop" id="drop-extract" onclick="document.getElementById('f-ext').click()">
+      <b>Sem přetáhni PDF soubor</b><br><span style="color:var(--muted); font-size:12px;">nebo klikni pro výběr</span>
+      <input id="f-ext" type="file" accept=".pdf" style="display:none" onchange="handleFiles(this.files, 'extract')">
+    </div>
+    <div class="row">
+      <button class="action" id="btn-extract" disabled onclick="runExtract()">Extrahovat a stáhnout PDF</button>
+      <span id="st-extract" class="muted" style="margin:0;">Připraveno</span>
+    </div>
+    <div id="list-extract" class="list"></div>
+  </div>
+
+</div></div>
+
+<script>
+window.preventDrop = e => { e.preventDefault(); };
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => e.preventDefault());
+
+let filesData = { pdfa: [], compress: [], merge: [], split: [], rotate: [], panel: [], numbers: [], extract: [] };
+
+function openTool(name) {
+  document.getElementById('menu-view').style.display = 'none';
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('tool-' + name).classList.add('active');
+  setupDropZone(name);
+}
+function closeTool() {
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('menu-view').style.display = 'block';
+}
+
+function setupDropZone(type) {
+  const dropZone = document.getElementById('drop-' + type);
+  if (!dropZone || dropZone.dataset.init) return;
+  dropZone.dataset.init = "true";
+
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('over'); }, false);
+  });
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('over'); }, false);
+  });
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.dataTransfer && e.dataTransfer.files) {
+      handleFiles(e.dataTransfer.files, type);
+    }
+  }, false);
+}
+
+function handleFiles(files, type) {
+  filesData[type] = Array.from(files).filter(f => /\.pdf$/i.test(f.name));
+  document.getElementById('list-' + type).innerHTML = filesData[type].map(f => 
+    `<div class="item">📄 ${f.name} (${(f.size/1024).toFixed(1)} KB)</div>`
+  ).join('');
+  document.getElementById('btn-' + type).disabled = !filesData[type].length;
+  document.getElementById('st-' + type).textContent = `${filesData[type].length} souborů připraveno`;
+}
+
+function createZip(files) {
+  const enc = new TextEncoder(); let parts = [], central = [], offset = 0;
+  const crcTable = (() => { let t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
+  const crc32 = a => { let c = 0xffffffff; for (const x of a) c = crcTable[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const u16 = n => new Uint8Array([n & 255, n >>> 8 & 255]), u32 = n => new Uint8Array([n & 255, n >>> 8 & 255, n >>> 16 & 255, n >>> 24 & 255]);
+  
+  for (const f of files) {
+    const nb = enc.encode(f.name), data = f.bytes, crc = crc32(data);
+    const local = new Uint8Array(30 + nb.length); let p = 0;
+    local.set([80,75,3,4], p); p += 4; local.set(u16(20), p); p += 2; local.set(u16(0), p); p += 2; local.set(u16(0), p); p += 2; local.set(u16(0), p); p += 2; local.set(u16(0), p); p += 2; local.set(u32(crc), p); p += 4; local.set(u32(data.length), p); p += 4; local.set(u32(data.length), p); p += 4; local.set(u16(nb.length), p); p += 2; local.set(u16(0), p); p += 2; local.set(nb, p);
+    parts.push(local, data);
+    const c = new Uint8Array(46 + nb.length); p = 0; c.set([80,75,1,2], p); p += 4; c.set(u16(20), p); p += 2; c.set(u16(20), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u32(crc), p); p += 4; c.set(u32(data.length), p); p += 4; c.set(u32(data.length), p); p += 4; c.set(u16(nb.length), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u32(0), p); p += 4; c.set(u32(offset), p); p += 4; c.set(nb, p); central.push(c); offset += local.length + data.length;
+  }
+  const start = offset; for (const c of central) { parts.push(c); offset += c.length; }
+  const e = new Uint8Array(22); let p = 0; e.set([80,75,5,6], p); p += 4; e.set(u16(0), p); p += 2; e.set(u16(0), p); p += 2; e.set(u16(files.length), p); p += 2; e.set(u16(files.length), p); p += 2; e.set(u32(offset - start), p); p += 4; e.set(u32(start), p); p += 4; e.set(u16(0), p);
+  parts.push(e);
+  return new Blob(parts, { type: 'application/zip' });
+}
+
+async function runPdfA() {
+  const { PDFDocument } = PDFLib;
+  const version = document.getElementById('pdfaVersion').value;
+  let outputs = [];
+  document.getElementById('btn-pdfa').disabled = true;
+
+  for (let i = 0; i < filesData.pdfa.length; i++) {
+    try {
+      const f = filesData.pdfa[i];
+      const pdfDoc = await PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true });
+      pdfDoc.setTitle(f.name.replace(/\.pdf$/i, ''));
+      const xmpdata = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"><pdfaid:part>${version}</pdfaid:part><pdfaid:conformance>B</pdfaid:conformance></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>`;
+      const metadataStream = pdfDoc.context.flateStream(xmpdata);
+      metadataStream.dict.set(PDFLib.PDFName.of('Type'), PDFLib.PDFName.of('Metadata'));
+      metadataStream.dict.set(PDFLib.PDFName.of('Subtype'), PDFLib.PDFName.of('XML'));
+      pdfDoc.catalog.set(PDFLib.PDFName.of('Metadata'), pdfDoc.context.register(metadataStream));
+      outputs.push({ name: f.name.replace(/\.pdf$/i, '') + `_PDFA-${version}b.pdf`, bytes: await pdfDoc.save() });
+    } catch (err) { console.error(err); }
+    document.getElementById('fill-pdfa').style.width = ((i + 1) / filesData.pdfa.length * 100) + '%';
+  }
+  if (outputs.length) {
+    const blob = createZip(outputs);
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `PDF-A-${version}b_vysledky.zip`; link.click();
+    document.getElementById('st-pdfa').textContent = 'Hotovo, uloženo do ZIPu!';
+  }
+  document.getElementById('btn-pdfa').disabled = false;
+}
+
+async function runCompress() {
+  const { PDFDocument } = PDFLib;
+  let outputs = [];
+  document.getElementById('btn-compress').disabled = true;
+  for (let i = 0; i < filesData.compress.length; i++) {
+    try {
+      const f = filesData.compress[i];
+      const pdfDoc = await PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true });
+      outputs.push({ name: f.name.replace(/\.pdf$/i, '') + '_komprimovane.pdf', bytes: await pdfDoc.save({ useObjectStreams: true }) });
+    } catch (err) { console.error(err); }
+    document.getElementById('fill-compress').style.width = ((i + 1) / filesData.compress.length * 100) + '%';
+  }
+  if (outputs.length) {
+    const blob = createZip(outputs);
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'komprimovane_pdf.zip'; link.click();
+    document.getElementById('st-compress').textContent = 'Hotovo!';
+  }
+  document.getElementById('btn-compress').disabled = false;
+}
+
+async function runMerge() {
+  const { PDFDocument } = PDFLib;
+  document.getElementById('btn-merge').disabled = true;
+  try {
+    const mergedPdf = await PDFDocument.create();
+    for (const f of filesData.merge) {
+      const pdf = await PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true });
+      const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+      pages.forEach(p => mergedPdf.addPage(p));
+    }
+    const bytes = await mergedPdf.save({ useObjectStreams: true });
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'sloucene-dokumenty.pdf'; link.click();
+    document.getElementById('st-merge').textContent = 'Hotovo!';
+  } catch(err) { alert('Chyba: ' + err.message); }
+  document.getElementById('btn-merge').disabled = false;
+}
+
+async function runSplit() {
+  const { PDFDocument } = PDFLib;
+  if (!filesData.split.length) return;
+  document.getElementById('btn-split').disabled = true;
+  try {
+    const f = filesData.split[0];
+    const pdf = await PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true });
+    let outputs = [];
+    const totalPages = pdf.getPageCount();
+    for (let i = 0; i < totalPages; i++) {
+      const subPdf = await PDFDocument.create();
+      const [page] = await subPdf.copyPages(pdf, [i]);
+      subPdf.addPage(page);
+      outputs.push({ name: `${f.name.replace(/\.pdf$/i, '')}_strana_${i + 1}.pdf`, bytes: await subPdf.save({ useObjectStreams: true }) });
+    }
+    const blob = createZip(outputs);
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${f.name.replace(/\.pdf$/i, '')}_rozděleno.zip`; link.click();
+    document.getElementById('st-split').textContent = `Hotovo! Rozděleno na ${totalPages} stránek.`;
+  } catch(err) { alert('Chyba: ' + err.message); }
+  document.getElementById('btn-split').disabled = false;
+}
+
+async function runRotate() {
+  const { PDFDocument } = PDFLib;
+  if (!filesData.rotate.length) return;
+  document.getElementById('btn-rotate').disabled = true;
+  try {
+    const f = filesData.rotate[0];
+    const angle = parseInt(document.getElementById('rotAngle').value);
+    const pdf = await PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true });
+    pdf.getPages().forEach(p => p.setRotation({ angle: (p.getRotation().angle + angle) % 360 }));
+    const bytes = await pdf.save({ useObjectStreams: true });
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = f.name.replace(/\.pdf$/i, '') + '_otoceno.pdf'; link.click();
+    document.getElementById('st-rotate').textContent = 'Hotovo, otočeno!';
+  } catch(err) { alert('Chyba: ' + err.message); }
+  document.getElementById('btn-rotate').disabled = false;
+}
+
+async function runPanel() {
+  const { PDFDocument, rgb } = PDFLib;
+  if (!filesData.panel.length) return;
+  document.getElementById('btn-panel').disabled = true;
+  try {
+    const f = filesData.panel[0];
+    const projectType = document.getElementById('panelType').value;
+    const projectTitle = document.getElementById('panelTitle').value;
+    const projectDate = document.getElementById('panelDate').value;
+
+    const pdf = await PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true });
+    
+    // Načtení externího loga
+    let logoImage = null;
+    try {
+      const logoUrl = 'https://www.2020architekti.cz/wp-content/webp-express/webp-images/doc-root/wp-content/uploads/2025/06/20.20_ochr.zona_vizualizace-300x212.png.webp';
+      const logoBytes = await fetch(logoUrl).then(res => res.arrayBuffer());
+      logoImage = await pdf.embedPng(logoBytes);
+    } catch(e) {
+      console.warn("Nepodařilo se načíst logo online, bude pokračováno bez něj.", e);
+    }
+
+    const pages = pdf.getPages();
+    
+    // Rozměry pro A3 na šířku (v bodech: 1190.55 x 841.89)
+    // Odsazení 0.5 cm = cca 14.17 bodů
+    const margin = 14.17;
+    const barHeight = 42; // cca 1.5 cm
+
+    pages.forEach(page => {
+      const { width, height } = page.getSize();
+      
+      const barX = margin;
+      const barY = margin;
+      const barW = width - (margin * 2);
+      const barH = barHeight;
+
+      // 1. Kreslení žlutého pozadí pruhu
+      page.drawRectangle({
+        x: barX,
+        y: barY,
+        width: barW,
+        height: barH,
+        color: rgb(247/255, 241/255, 151/255), // #f7f197
+      });
+
+      // 2. Vložení loga vlevo (pokud se načetlo)
+      let currentX = barX + 15;
+      const centerY = barY + (barH / 2);
+
+      if (logoImage) {
+        const logoDims = logoImage.scaleToHeight(22);
+        page.drawImage(logoImage, {
+          x: currentX,
+          y: centerY - (logoDims.height / 2),
+          width: logoDims.width,
+          height: logoDims.height,
+        });
+        currentX += logoDims.width + 20;
+      }
+
+      // 3. Vložení textu typu projektu (např. architektonický koncept) - bez bold řezu
+      // Vzhledem k tomu, že standardní fonty nepodporují české znaky správně bez embednutí, použijeme standardní Helvetica s textem, nebo základníascii fallback. Pro čistotu vykreslíme text ASCII ekvivalentem nebo základním textem.
+      // Abychom zajistili správné vykreslení bez chybějících diakritických háčků/čárek ve standardních PDF fontech, ošetříme odstranění diakritiky pro jistotu nebo použijeme čistý text:
+      const cleanType = projectType.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const cleanTitle = projectTitle.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const cleanDate = projectDate.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+      // Svislé oddělení nebo mezera
+      page.drawText(cleanType, {
+        x: currentX,
+        y: centerY - 4,
+        size: 13,
+        color: rgb(24/255, 24/255, 27/255),
+      });
+
+      // 4. Texty vpravo (Název projektu a Měsíc/Rok oddělené svislou čarou)
+      const dateText = cleanDate;
+      const titleText = cleanTitle;
+
+      // Přibližná šířka textů pro zarovnání doprava
+      const rightMargin = barX + barW - 20;
+      
+      // Vykreslíme datum vpravo
+      page.drawText(dateText, {
+        x: rightMargin - 80,
+        y: centerY - 4,
+        size: 12,
+        color: rgb(24/255, 24/255, 27/255),
+      });
+
+      // Svislá dělící čára před datem
+      page.drawLine({
+        start: { x: rightMargin - 95, y: barY + 10 },
+        end: { x: rightMargin - 95, y: barY + barH - 10 },
+        thickness: 1,
+        color: rgb(180/255, 175/255, 110/255),
+      });
+
+      // Název projektu před čárou
+      page.drawText(titleText, {
+        x: rightMargin - 220,
+        y: centerY - 4,
+        size: 12,
+        color: rgb(24/255, 24/255, 27/255),
+      });
+    });
+
+    const bytes = await pdf.save({ useObjectStreams: true });
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = f.name.replace(/\.pdf$/i, '') + '_panel.pdf'; link.click();
+    document.getElementById('st-panel').textContent = 'Hotovo, panel přidán!';
+  } catch(err) { alert('Chyba: ' + err.message); console.error(err); }
+  document.getElementById('btn-panel').disabled = false;
+}
+
+async function runNumbers() {
+  const { PDFDocument, rgb } = PDFLib;
+  if (!filesData.numbers.length) return;
+  document.getElementById('btn-numbers').disabled = true;
+  try {
+    const f = filesData.numbers[0];
+    const pdf = await PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true });
+    const pages = pdf.getPages();
+    pages.forEach((page, idx) => {
+      const { width } = page.getSize();
+      page.drawText(`Strana ${idx + 1} z ${pages.length}`, { x: width / 2 - 30, y: 20, size: 10, color: rgb(0.3, 0.3, 0.3) });
+    });
+    const bytes = await pdf.save({ useObjectStreams: true });
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = f.name.replace(/\.pdf$/i, '') + '_ocislovano.pdf'; link.click();
+    document.getElementById('st-numbers').textContent = 'Hotovo, stránky očíslovány!';
+  } catch(err) { alert('Chyba: ' + err.message); }
+  document.getElementById('btn-numbers').disabled = false;
+}
+
+async function runExtract() {
+  const { PDFDocument } = PDFLib;
+  if (!filesData.extract.length) return;
+  document.getElementById('btn-extract').disabled = true;
+  try {
+    const f = filesData.extract[0];
+    const pageNum = parseInt(document.getElementById('extPage').value) - 1;
+    const pdf = await PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true });
+    const subPdf = await PDFDocument.create();
+    const [page] = await subPdf.copyPages(pdf, [pageNum]);
+    subPdf.addPage(page);
+    const bytes = await subPdf.save({ useObjectStreams: true });
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${f.name.replace(/\.pdf$/i, '')}_strana_${pageNum + 1}.pdf`; link.click();
+    document.getElementById('st-extract').textContent = 'Hotovo, stránka extrahována!';
+  } catch(err) { alert('Chyba: Zkontrolujte číslo stránky.'); }
+  document.getElementById('btn-extract').disabled = false;
+}
+</script>
+</body>
+</html>

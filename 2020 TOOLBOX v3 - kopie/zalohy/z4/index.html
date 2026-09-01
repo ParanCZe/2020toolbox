@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20-20-TOOLBOX</title>
+<style>
+@import url('https://fonts.cdnfonts.com/css/antarctican-mono');
+
+:root{--bg:#f4f4f5;--card:#fff;--border:#e4e4e7;--text:#18181b;--muted:#71717a;--accent:#f7f197;--header-bg:#f7f197;}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,Segoe UI,sans-serif}
+header{background:var(--header-bg);border-bottom:1px solid #e2db7d;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:'Antarctican Mono', monospace;font-weight:normal;font-size:18px;letter-spacing:.5px;display:flex;align-items:center;gap:8px;color:#18181b}
+.wrap{max-width:1200px;margin:24px auto;padding:0 24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;font-size:22px}
+.muted{color:var(--muted);font-size:13px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+.tile{background:#fafafa;border:1px solid var(--border);border-radius:10px;padding:18px;text-align:left;cursor:pointer;transition:.15s;display:flex;flex-direction:column;justify-content:center;min-height:90px}
+.tile:hover{background:#fff;border-color:#d4cc5d;box-shadow:0 2px 6px rgba(247,241,151,.25)}
+.tile b{font-size:14px;margin-bottom:4px;color:var(--text);font-weight:normal;}
+.tile span{font-size:12px;color:var(--muted)}
+.tool-view{display:none;margin-top:10px}
+.tool-view.active{display:block}
+.back-btn{background:#f4f4f5;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 12px;cursor:pointer;margin-bottom:15px;font-size:13px}
+.back-btn:hover{background:#e4e4e7}
+.drop{margin:15px 0;padding:35px 20px;border:2px dashed #cbd5e1;border-radius:10px;text-align:center;cursor:pointer;background:#fafafa}
+.drop.over{border-color:#18181b;background:#fefce8}
+.settings{margin:15px 0;display:flex;gap:15px;align-items:center;flex-wrap:wrap;background:#fafafa;padding:12px;border:1px solid var(--border);border-radius:8px}
+select, input[type="text"], input[type="number"], textarea{background:#fff;color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:13px}
+button.action{background:#18181b;color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:13px}
+button.action:hover{background:#27272a}
+button.action:disabled{opacity:.4;cursor:not-allowed}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:15px}
+.bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin:15px 0}
+.fill{height:100%;width:0;background:#16a34a;transition:.2s}
+.list{margin-top:15px;display:grid;gap:6px;max-height:200px;overflow-y:auto}
+.item{padding:8px 12px;background:#fafafa;border:1px solid var(--border);border-radius:6px;font-size:12px}
+.ok{color:#15803d;background:#f0fdf4;border-color:#bbf7d0}
+.err{color:#b91c1c;background:#fef2f2;border-color:#fecaca}
+.info-box{margin-top:20px;background:#fafafa;border:1px solid var(--border);padding:15px;border-radius:8px;font-size:13px;line-height:1.5;color:var(--text)}
+.info-box h3{margin:0 0 8px;font-family:'Antarctican Mono', monospace;font-weight:normal;font-size:14px}
+
+/* MODÁLNÍ OKNO PRO NÁHLED */
+#preview-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; align-items:center; justify-content:center; padding:20px; }
+#preview-content { background:#fff; border-radius:12px; width:100%; max-width:1050px; max-height:95vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.2); }
+#preview-header { padding:15px 20px; background:#f7f197; display:flex; justify-content:space-between; align-items:center; font-weight:bold; }
+#preview-body { padding:20px; overflow-y:auto; display:flex; flex-direction:column; gap:15px; align-items:center; background:#e4e4e7; }
+#preview-footer { padding:15px 20px; background:#fafafa; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.preview-tools { background:#fafafa; border:1px solid var(--border); padding:10px; border-radius:8px; width:100%; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+
+/* PREZENTAČNÍ EDITOR – přesný rámeček, průhledné pozadí a manipulační bod */
+#canvas-container { position:relative; display:inline-block; box-shadow:0 4px 12px rgba(0,0,0,0.15); background:#fff; max-width:100%; overflow:hidden; }
+#preview-canvas { display:block; max-width:100%; height:auto; background:#fff; }
+#boxes-layer { position:absolute; inset:0; pointer-events:none; }
+.custom-text-box{
+  position:absolute; z-index:20; pointer-events:auto; cursor:default;
+  border:1px dashed rgba(37,99,235,.85); background:transparent;
+  color:#18181b; padding:0; margin:0; border-radius:1px;
+  display:block; user-select:none; line-height:1; box-shadow:none;
+}
+.custom-text-box.selected{border:1px solid #dc2626;}
+.custom-text-box .tb-main{
+  display:block; box-sizing:border-box; min-width:2px; width:auto; height:auto;
+  border:0; outline:0; background:transparent; color:#18181b;
+  padding:0; margin:0; font:inherit; line-height:1; letter-spacing:normal;
+  user-select:text; cursor:text; resize:none; overflow:hidden;
+}
+.custom-text-box .tb-handle{
+  position:absolute; left:-7px; top:50%; transform:translateY(-50%);
+  width:12px; height:12px; border-radius:50%;
+  border:2px solid #2563eb; background:#fff; cursor:grab; z-index:31;
+  box-sizing:border-box;
+}
+.custom-text-box.selected .tb-handle{border-color:#dc2626;}
+.custom-text-box .tb-handle:active{cursor:grabbing;}
+.custom-text-box .tb-controls{
+  position:absolute; left:calc(100% + 7px); top:0; display:flex; gap:3px;
+  background:#fff; border:1px solid #d4d4d8; border-radius:4px; padding:3px;
+  box-shadow:0 2px 8px rgba(0,0,0,.12); z-index:30; white-space:nowrap;
+}
+.custom-text-box .tb-controls input{width:52px!important;padding:3px!important;font:12px system-ui!important}
+.custom-text-box .tb-controls button{padding:3px 6px!important}
+#undo-text-btn{background:#52525b;}
+#undo-text-btn:disabled{opacity:.45;cursor:not-allowed;}
+@media(max-width:700px){
+  #preview-body{padding:10px}
+  #preview-content{max-height:98vh}
+  .custom-text-box .tb-controls{left:0;top:calc(100% + 7px)}
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://unpkg.com/@pdf-lib/fontkit/dist/fontkit.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+</script>
+</head>
+<body ondragover="window.preventDrop(event)" ondrop="window.preventDrop(event)">
+
+<header>
+  <div class="logo">20-20-TOOLBOX</div>
+  <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
+</header>
+
+<div class="wrap"><div class="card">
+  
+  <!-- HLAVNÍ MENU -->
+  <div id="menu-view">
+    <h1>Co chcete dělat?</h1>
+    <div class="muted">Rychlé přípravy prezentací z exportovaných PDF. Vše běží bezpečně offline.</div>
+    <div class="grid">
+      <div class="tile" onclick="openTool('pdfa')"><b>Konverze do PDF/A</b><span>Standardy 1b, 2b, 3b + hromadný ZIP</span></div>
+      <div class="tile" onclick="openTool('compress')"><b>Komprimace PDF</b><span>Zmenšení velikosti souborů</span></div>
+      <div class="tile" onclick="openTool('merge')"><b>Sloučení PDF</b><span>Spojit více souborů do jednoho</span></div>
+      <div class="tile" onclick="openTool('split')"><b>Rozdělit PDF</b><span>Uložit každou stránku zvlášť</span></div>
+      <div class="tile" onclick="openTool('rotate')"><b>Otáčení stránek PDF</b><span>Otočit stránky o 90, 180 nebo 270°</span></div>
+      <div class="tile" onclick="openTool('panel')"><b>Prezentační nástroj</b><span>Vytvářejte prezentace v pár kliknutích</span></div>
+      <div class="tile" onclick="openTool('numbers')"><b>Přidat čísla stránek</b><span>Očíslovat dokument v zápatí</span></div>
+      <div class="tile" onclick="openTool('extract')"><b>Extrahuje stránky PDF</b><span>Uložit vybranou stránku samostatně</span></div>
+    </div>
+  </div>
+
+  <!-- NÁSTROJ PDF/A -->
+  <div id="tool-pdfa" class="tool-view">
+    <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+    <h1>Konverze do PDF/A</h1>
+    <div class="muted">Úprava PDF pro dlouhodobou archivaci přímo v prohlížeči.</div>
+
+    <div class="settings">
+      <label for="pdfaVersion"><b>Cílový standard:</b></label>
+      <select id="pdfaVersion">
+        <option value="1">PDF/A-1b (Základní, přísný, starší standard)</option>
+        <option value="2">PDF/A-2b (Modernější, podporuje vrstvy a JPEG2000)</option>
+        <option value="3" selected>PDF/A-3b (Moderní + povoluje přibalit libovolné přílohy)</option>
+      </select>
+    </div>
+
+    <div id="drop-pdfa" class="drop" onclick="document.getElementById('f-pdfa').click()">
+      <b>Sem přetáhni PDF soubory</b><br><span style="color:var(--muted); font-size:12px;">nebo klikni pro výběr souborů</span>
+      <input id="f-pdfa" type="file" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files, 'pdfa')">
+    </div>
+
+    <div class="row">
+      <button class="action" id="btn-pdfa" disabled onclick="startConversion()">Konvertovat a stáhnout ZIP</button>
+      <span id="st-pdfa" class="muted" style="margin:0;">Připraveno</span>
+    </div>
+    <div class="bar"><div id="fill-pdfa" class="fill"></div></div>
+    <div id="list-pdfa" class="list"></div>
+
+    <div class="info-box">
+      <h3>Průvodce výběrem verze (dle čeho vybrat?):</h3>
+      • <b>PDF/A-1b:</b> Zvolte, pokud to po vás vyžadují starší úřady, spisové služby nebo systémy, které odmítají novější formáty. Zakazuje některé moderní prvky.<br>
+      • <b>PDF/A-2b:</b> Univerzální volba pro běžné dokumenty. Podporuje modernější kompresi obrazu a průhlednosti.<br>
+      • <b>PDF/A-3b:</b> Zvolte tehdy, pokud potřebujete k PDF přibalit i jiné soubory (např. XML faktury, jako je ISDOC, výkresy nebo tabulky) a přesto zachovat archivní standard.
+    </div>
+  </div>
+
+  <!-- NÁSTROJ PANEL -->
+  <div id="tool-panel" class="tool-view">
+    <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+    <h1>Prezentační nástroj – vytvořte prezentace v pár kliknutích</h1>
+    <div class="muted">Vytvořte si profesionální prezentaci doplněním úvodní stránky a žlutého pruhu s logem pro formát A3 na šířku.</div>
+    <div class="settings" style="flex-direction:column; align-items:stretch; gap:10px;">
+      <div style="font-weight:bold; border-bottom:1px solid var(--border); padding-bottom:4px;">Údaje pro prezentaci:</div>
+      
+      <div style="display:flex; gap:15px; align-items:center;">
+        <label style="min-width:150px;">Vytvořit úvodní stranu:</label>
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="createCover" checked> Ano, vytvořit úvodní stránku</label>
+      </div>
+      <div style="display:flex; gap:15px; align-items:center;">
+        <label style="min-width:150px;">Typ projektu:</label>
+        <select id="panelType" style="flex:1;">
+          <option value="architektonický koncept">architektonický koncept</option>
+          <option value="Návrh interiéru" selected>Návrh interiéru</option>
+          <option value="urbanistická studie">urbanistická studie</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:15px; align-items:center;">
+        <label style="min-width:150px;">Název akce:</label>
+        <input type="text" id="panelTitle" value="RD Rosovi" style="flex:1;">
+      </div>
+      <div style="display:flex; gap:15px; align-items:center;">
+        <label style="min-width:150px;">Měsíc a rok:</label>
+        <input type="text" id="panelDate" value="červen 2026" style="flex:1;">
+      </div>
+      <div style="display:flex; gap:15px; align-items:flex-start;">
+        <label style="min-width:150px; padding-top:6px;">Jména (autoři vpravo):</label>
+        <textarea id="panelAuthors" rows="3" style="flex:1;">Zdeněk Rychtařík
+Kristina Sudreová
+Filip Turek</textarea>
+      </div>
+    </div>
+    
+    <div class="drop" id="drop-panel" onclick="document.getElementById('f-panel').click()">
+      <b>Sem přetáhni PDF soubor (A3 na šířku)</b><br><span style="color:var(--muted); font-size:12px;">nebo klikni pro výběr</span>
+      <input id="f-panel" type="file" accept=".pdf" style="display:none" onchange="handleFiles(this.files, 'panel')">
+    </div>
+
+    <div class="row">
+      <button class="action" id="btn-preview" disabled onclick="openPreviewModal()">Otevřít náhled a přidat textová pole</button>
+      <button class="action" id="btn-panel" disabled onclick="runPanel(false)" style="background:#27272a;">Rychlé stáhnutí bez náhledu</button>
+      <span id="st-panel" class="muted" style="margin:0;">Připraveno</span>
+    </div>
+    <div id="list-panel" class="list"></div>
+  </div>
+
+  <!-- OSTATNÍ NÁSTROJE (PLACEHOLDERY) -->
+  <div id="tool-compress" class="tool-view"><button class="back-btn" onclick="closeTool()">← Zpět</button><h1>Komprese</h1><div class="drop" onclick="document.getElementById('f-comp').click()"><b>Vybrat soubory</b><input id="f-comp" type="file" multiple style="display:none" onchange="handleFiles(this.files,'compress')"></div><button class="action" id="btn-compress" disabled onclick="runCompress()">Komprimovat</button><div id="list-compress" class="list"></div></div>
+  <div id="tool-merge" class="tool-view"><button class="back-btn" onclick="closeTool()">← Zpět</button><h1>Sloučit</h1><div class="drop" onclick="document.getElementById('f-merge').click()"><b>Vybrat soubory</b><input id="f-merge" type="file" multiple style="display:none" onchange="handleFiles(this.files,'merge')"></div><button class="action" id="btn-merge" disabled onclick="runMerge()">Sloučit</button><div id="list-merge" class="list"></div></div>
+  <div id="tool-split" class="tool-view"><button class="back-btn" onclick="closeTool()">← Zpět</button><h1>Rozdělit</h1><div class="drop" onclick="document.getElementById('f-split').click()"><b>Vybrat soubor</b><input id="f-split" type="file" style="display:none" onchange="handleFiles(this.files,'split')"></div><button class="action" id="btn-split" disabled onclick="runSplit()">Rozdělit</button><div id="list-split" class="list"></div></div>
+  <div id="tool-rotate" class="tool-view"><button class="back-btn" onclick="closeTool()">← Zpět</button><h1>Otočit</h1><div class="drop" onclick="document.getElementById('f-rot').click()"><b>Vybrat soubor</b><input id="f-rot" type="file" style="display:none" onchange="handleFiles(this.files,'rotate')"></div><button class="action" id="btn-rotate" disabled onclick="runRotate()">Otočit</button><div id="list-rotate" class="list"></div></div>
+  <div id="tool-numbers" class="tool-view"><button class="back-btn" onclick="closeTool()">← Zpět</button><h1>Čísla stránek</h1><div class="drop" onclick="document.getElementById('f-num').click()"><b>Vybrat soubor</b><input id="f-num" type="file" style="display:none" onchange="handleFiles(this.files,'numbers')"></div><button class="action" id="btn-numbers" disabled onclick="runNumbers()">Očíslovat</button><div id="list-numbers" class="list"></div></div>
+  <div id="tool-extract" class="tool-view"><button class="back-btn" onclick="closeTool()">← Zpět</button><h1>Extrahovat</h1><div class="drop" onclick="document.getElementById('f-ext').click()"><b>Vybrat soubor</b><input id="f-ext" type="file" style="display:none" onchange="handleFiles(this.files,'extract')"></div><button class="action" id="btn-extract" disabled onclick="runExtract()">Extrahovat</button><div id="list-extract" class="list"></div></div>
+
+</div></div>
+
+<!-- MODÁLNÍ OKNO PRO NÁHLED A NEOMEZENÉ TEXTY -->
+<div id="preview-modal">
+  <div id="preview-content">
+    <div id="preview-header">
+      <span>Náhled prezentace – přidávejte libovolný počet textových polí</span>
+      <button onclick="closePreviewModal()" style="background:none;border:none;font-size:16px;cursor:pointer;font-weight:bold;">✕</button>
+    </div>
+    <div id="preview-body">
+      <div class="preview-tools">
+        <button class="action" onclick="addTextBox()" style="background:#16a34a;">+ Přidat textové pole</button>
+        <button class="action" id="undo-text-btn" onclick="undoTextEdit()" disabled>↶ Zpět</button>
+        <span class="muted" style="margin:0;">(Text se umisťuje v reálném měřítku PDF; modrý bod slouží k posunutí)</span>
+      </div>
+      <div id="page-indicator" style="font-size:13px; font-weight:bold; color:var(--muted);">Stránka 1 z 1</div>
+      
+      <div id="canvas-container">
+        <canvas id="preview-canvas"></canvas>
+        <div id="boxes-layer" style="position:absolute; inset:0; pointer-events:none;"></div>
+      </div>
+    </div>
+    <div id="preview-footer">
+      <div>
+        <button class="action" onclick="prevPage()" id="prev-page-btn">← Předchozí</button>
+        <button class="action" onclick="nextPage()" id="next-page-btn">Následující →</button>
+      </div>
+      <button class="action" onclick="runPanel(true)" style="background:#16a34a;">Dokončit a stáhnout prezentaci</button>
+    </div>
+  </div>
+</div>
+
+<script>
+window.preventDrop = e => { e.preventDefault(); };
+let filesData = { pdfa: [], compress: [], merge: [], split: [], rotate: [], panel: [], numbers: [], extract: [] };
+let allPagesTexts = {}; // { pageIndex: [ {id, text, size, x, y} ] }
+let textIdCounter = 1;
+let textUndoStack = [];
+let activeTextEditHistory = false;
+
+let loadedFileBytes = null;
+let currentPreviewPage = 1;
+let totalPreviewPages = 1;
+let pdfJsDoc = null;
+let fontBytesCache = null;
+let logoBytesCache = null;
+
+function openTool(name) {
+  document.getElementById('menu-view').style.display = 'none';
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('tool-' + name).classList.add('active');
+  setupDropZone(name);
+}
+function closeTool() {
+  document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('menu-view').style.display = 'block';
+}
+
+function setupDropZone(type) {
+  const dropZone = document.getElementById('drop-' + type);
+  if (!dropZone || dropZone.dataset.init) return;
+  dropZone.dataset.init = "true";
+  ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('over'); }));
+  dropZone.addEventListener('drop', ev => {
+    if (ev.dataTransfer && ev.dataTransfer.files) handleFiles(ev.dataTransfer.files, type);
+  });
+}
+
+function handleFiles(files, type) {
+  filesData[type] = Array.from(files).filter(f => /\.pdf$/i.test(f.name));
+  
+  if(type === 'pdfa') {
+    document.getElementById('list-pdfa').innerHTML = filesData[type].map((f, i) => 
+      `<div class="item" id="i${i}">⏳ ${f.name} — čeká</div>`
+    ).join('');
+    document.getElementById('btn-pdfa').disabled = !filesData[type].length;
+    document.getElementById('st-pdfa').textContent = filesData[type].length ? `${filesData[type].length} souborů připraveno` : 'Žádné soubory';
+  } else {
+    document.getElementById('list-' + type).innerHTML = filesData[type].map(f => `<div class="item">📄 ${f.name} (${(f.size/1024).toFixed(1)} KB)</div>`).join('');
+    if(type === 'panel') {
+      const hasFiles = filesData[type].length > 0;
+      document.getElementById('btn-preview').disabled = !hasFiles;
+      document.getElementById('btn-panel').disabled = !hasFiles;
+      if(hasFiles) loadFileForPreview(filesData[type][0]);
+    } else {
+      document.getElementById('btn-' + type).disabled = !filesData[type].length;
+    }
+    document.getElementById('st-' + type).textContent = `${filesData[type].length} souborů připraveno`;
+  }
+}
+
+// LOGIKA PRO PDF/A PŘEVODNÍK
+function createZip(files) {
+  const enc = new TextEncoder(); let parts = [], central = [], offset = 0;
+  const crcTable = (() => { let t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
+  const crc32 = a => { let c = 0xffffffff; for (const x of a) c = crcTable[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const u16 = n => new Uint8Array([n & 255, n >>> 8 & 255]), u32 = n => new Uint8Array([n & 255, n >>> 8 & 255, n >>> 16 & 255, n >>> 24 & 255]);
+  
+  for (const f of files) {
+    const nb = enc.encode(f.name), data = f.bytes, crc = crc32(data);
+    const local = new Uint8Array(30 + nb.length); let p = 0;
+    local.set([80,75,3,4], p); p += 4; local.set(u16(20), p); p += 2; local.set(u16(0), p); p += 2; local.set(u16(0), p); p += 2; local.set(u16(0), p); p += 2; local.set(u16(0), p); p += 2; local.set(u32(crc), p); p += 4; local.set(u32(data.length), p); p += 4; local.set(u32(data.length), p); p += 4; local.set(u16(nb.length), p); p += 2; local.set(u16(0), p); p += 2; local.set(nb, p);
+    parts.push(local, data);
+    const c = new Uint8Array(46 + nb.length); p = 0; c.set([80,75,1,2], p); p += 4; c.set(u16(20), p); p += 2; c.set(u16(20), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u32(crc), p); p += 4; c.set(u32(data.length), p); p += 4; c.set(u32(data.length), p); p += 4; c.set(u16(nb.length), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u16(0), p); p += 2; c.set(u32(0), p); p += 4; c.set(u32(offset), p); p += 4; c.set(nb, p); central.push(c); offset += local.length + data.length;
+  }
+  const start = offset; for (const c of central) { parts.push(c); offset += c.length; }
+  const e = new Uint8Array(22); let p = 0; e.set([80,75,5,6], p); p += 4; e.set(u16(0), p); p += 2; e.set(u16(0), p); p += 2; e.set(u16(files.length), p); p += 2; e.set(u16(files.length), p); p += 2; e.set(u32(offset - start), p); p += 4; e.set(u32(start), p); p += 4; e.set(u16(0), p);
+  parts.push(e);
+  return new Blob(parts, { type: 'application/zip' });
+}
+
+async function startConversion() {
+  if (!filesData.pdfa.length) return;
+  document.getElementById('btn-pdfa').disabled = true;
+  const { PDFDocument } = PDFLib;
+  const version = document.getElementById('pdfaVersion').value;
+  let outputs = [];
+
+  for (let i = 0; i < filesData.pdfa.length; i++) {
+    const el = document.getElementById(`i${i}`);
+    try {
+      el.textContent = `⏳ ${filesData.pdfa[i].name} — zpracovávám...`;
+      const arrayBuffer = await filesData.pdfa[i].arrayBuffer();
+      const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+      
+      pdfDoc.setTitle(filesData.pdfa[i].name.replace(/\.pdf$/i, ''));
+      pdfDoc.setProducer(`PDF-A-${version}b Local Converter`);
+      
+      const xmpdata = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">
+   <pdfaid:part>${version}</pdfaid:part>
+   <pdfaid:conformance>B</pdfaid:conformance>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`;
+
+      const catalog = pdfDoc.catalog;
+      const metadataStream = pdfDoc.context.flateStream(xmpdata);
+      metadataStream.dict.set(PDFLib.PDFName.of('Type'), PDFLib.PDFName.of('Metadata'));
+      metadataStream.dict.set(PDFLib.PDFName.of('Subtype'), PDFLib.PDFName.of('XML'));
+      const metadataRef = pdfDoc.context.register(metadataStream);
+      catalog.set(PDFLib.PDFName.of('Metadata'), metadataRef);
+
+      const pdfBytes = await pdfDoc.save();
+      const outName = filesData.pdfa[i].name.replace(/\.pdf$/i, '') + `_PDFA-${version}b.pdf`;
+      outputs.push({ name: outName, bytes: pdfBytes });
+
+      el.className = 'item ok';
+      el.textContent = `✓ ${filesData.pdfa[i].name} — Hotovo`;
+    } catch (err) {
+      el.className = 'item err';
+      el.textContent = `✗ ${filesData.pdfa[i].name} — Chyba: ${err.message}`;
+    }
+    document.getElementById('fill-pdfa').style.width = ((i + 1) / filesData.pdfa.length * 100) + '%';
+  }
+
+  if (outputs.length > 0) {
+    const zipBlob = createZip(outputs);
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(zipBlob);
+    link.download = `PDF-A-${version}b_vysledky.zip`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    document.getElementById('st-pdfa').textContent = 'Hotovo! Vše uloženo v ZIP archivu.';
+  } else {
+    document.getElementById('st-pdfa').textContent = 'Žádné soubory se nepodařilo převést.';
+  }
+  document.getElementById('btn-pdfa').disabled = false;
+}
+
+// LOGIKA PRO PREZENTAČNÍ NÁSTROJ
+let editorFontReady = false;
+let editorFontFamily = 'Antarctican Mono';
+
+async function loadEditorAssets() {
+  if (!fontBytesCache) {
+    try {
+      fontBytesCache = await fetch('font/Dunwich Type Founders - Antarctican Mono Semibold.otf').then(r => {
+        if (!r.ok) throw new Error('Font nebyl nalezen');
+        return r.arrayBuffer();
+      });
+      const blob = new Blob([fontBytesCache], {type:'font/otf'});
+      const url = URL.createObjectURL(blob);
+      const face = new FontFace('20-20-Editor', `url(${url})`);
+      await face.load();
+      document.fonts.add(face);
+      editorFontFamily = '20-20-Editor';
+      editorFontReady = true;
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      console.warn('Lokální font se nepodařilo načíst:', e);
+    }
+  }
+  if (!logoBytesCache) {
+    try {
+      logoBytesCache = await fetch('2020.png').then(r => {
+        if (!r.ok) throw new Error('Logo nebylo nalezeno');
+        return r.arrayBuffer();
+      });
+    } catch(e) { console.warn('Logo se nepodařilo načíst:', e); }
+  }
+}
+
+function updateUndoButton(){
+  const btn=document.getElementById('undo-text-btn');
+  if(btn) btn.disabled=textUndoStack.length===0;
+}
+function pushTextHistory(){
+  textUndoStack.push({
+    pages:JSON.parse(JSON.stringify(allPagesTexts)),
+    currentPage:currentPreviewPage,
+    idCounter:textIdCounter
+  });
+  if(textUndoStack.length>50) textUndoStack.shift();
+  updateUndoButton();
+}
+function undoTextEdit(){
+  saveCurrentPageBoxes();
+  const snap=textUndoStack.pop();
+  if(!snap) return;
+  allPagesTexts=snap.pages||{};
+  currentPreviewPage=snap.currentPage||1;
+  textIdCounter=snap.idCounter||1;
+  activeTextEditHistory=false;
+  updateUndoButton();
+  renderCurrentPagePreview();
+}
+function beginTextEditHistory(){
+  if(!activeTextEditHistory){ pushTextHistory(); activeTextEditHistory=true; }
+}
+function measureTextBox(text,size,scale){
+  const c=document.createElement('canvas');
+  const ctx=c.getContext('2d');
+  ctx.font=`${size*(96/72)*scale}px "${editorFontFamily}"`;
+  const measured=Math.max(2,ctx.measureText(text||' ').width);
+  const height=Math.max(1,size*(96/72)*scale);
+  return {width:measured+2,height};
+}
+async function loadFileForPreview(file) {
+  loadedFileBytes = await file.arrayBuffer();
+  pdfJsDoc = await pdfjsLib.getDocument({data: loadedFileBytes.slice(0)}).promise;
+  totalPreviewPages = pdfJsDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0);
+  allPagesTexts = {};
+  textIdCounter = 1;
+  textUndoStack = [];
+  activeTextEditHistory = false;
+  updateUndoButton();
+}
+
+async function openPreviewModal() {
+  if (!pdfJsDoc) return;
+  await loadEditorAssets();
+  currentPreviewPage = 1;
+  totalPreviewPages = pdfJsDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0);
+  document.getElementById('preview-modal').style.display = 'flex';
+  await renderCurrentPagePreview();
+}
+
+function closePreviewModal() {
+  saveCurrentPageBoxes();
+  document.getElementById('preview-modal').style.display = 'none';
+}
+
+function getPreviewPageInfo() {
+  const createCover = document.getElementById('createCover').checked;
+  return {
+    isCover: createCover && currentPreviewPage === 1,
+    pdfIndex: createCover ? currentPreviewPage - 1 : currentPreviewPage
+  };
+}
+
+function pdfToCanvasY(pdfY, pageHeight, scale) {
+  return (pageHeight - pdfY) * scale;
+}
+
+function canvasToPdfPoint(clientX, clientY) {
+  const canvas = document.getElementById('preview-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const info = window.__previewInfo;
+  const sx = info.width / rect.width;
+  const sy = info.height / rect.height;
+  return {
+    x: Math.max(0, Math.min(info.width, (clientX - rect.left) * sx)),
+    y: Math.max(0, Math.min(info.height, (clientY - rect.top) * sy))
+  };
+}
+
+async function getPageSize(info) {
+  if (info.isCover) {
+    const p = await pdfJsDoc.getPage(1);
+    const vp = p.getViewport({scale:1});
+    return {width:vp.width, height:vp.height};
+  }
+  const p = await pdfJsDoc.getPage(info.pdfIndex);
+  const vp = p.getViewport({scale:1});
+  return {width:vp.width, height:vp.height};
+}
+
+async function drawCover(ctx, width, height, scale) {
+  // PDF používá body (72 DPI), Canvas/CSS používá pixely (96 DPI).
+  // Export přes pdf-lib proto potřebuje převod 1 pt = 96/72 px,
+  // jinak je text v náhledu zhruba o 25 % menší než ve výsledném PDF.
+  const PT_TO_PX = 96 / 72;
+  // Tohle je záměrně stejná geometrie jako při exportu přes pdf-lib.
+  // Canvas používá horní levý počátek, PDF-lib spodní levý, proto převádíme Y.
+  const bg = '#f7f197';
+  const text = '#18181b';
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width * scale, height * scale);
+  ctx.fillStyle = text;
+  ctx.strokeStyle = text;
+  ctx.lineWidth = 1 * scale;
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+
+  const title = document.getElementById('panelTitle').value.trim();
+  const type = document.getElementById('panelType').value.trim();
+  const date = document.getElementById('panelDate').value.trim();
+  const authors = document.getElementById('panelAuthors').value
+    .split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+
+  // Stejné souřadnice a velikosti jako v runPanel().
+  ctx.font = `${48 * PT_TO_PX}px "${editorFontFamily}"`;
+  ctx.fillText(title, 80 * scale, (height - 265) * scale);
+
+  ctx.font = `${36 * PT_TO_PX}px "${editorFontFamily}"`;
+  ctx.fillText(type, 80 * scale, (height - 200) * scale);
+
+  // Logo: stejné rozměry jako export (45 PDF bodů na výšku).
+  if (logoBytesCache) {
+    try {
+      const img = new Image();
+      const url = URL.createObjectURL(new Blob([logoBytesCache]));
+      img.src = url;
+      await new Promise(resolve => {
+        img.onload = () => {
+          const h = 45;
+          const w = img.width * (h / img.height);
+          const x = width / 2 - w / 2 - 40;
+          const y = 80;
+          ctx.drawImage(img, x * scale, (height - y - h) * scale, w * scale, h * scale);
+          URL.revokeObjectURL(url);
+          resolve();
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+      });
+    } catch (e) {}
+  }
+
+  // Pravý blok autorů – byl v exportu, ale v původním náhledu úplně chyběl.
+  const rightX = width - 320;
+  const lineTopY = 295;
+  const lineBottomY = 180;
+  ctx.beginPath();
+  ctx.moveTo(rightX * scale, (height - lineBottomY) * scale);
+  ctx.lineTo(rightX * scale, (height - lineTopY) * scale);
+  ctx.stroke();
+
+  ctx.font = `${14 * PT_TO_PX}px "${editorFontFamily}"`;
+  authors.forEach((author, i) => {
+    const pdfY = (lineTopY - 10) - (i * 22);
+    ctx.fillText(author, (rightX + 25) * scale, (height - pdfY) * scale);
+  });
+
+  // Datum je součástí vstupních údajů; na titulní stránce ho zatím
+  // nekreslíme, protože export ho na titulní stránku také nekreslí.
+}
+function drawInfoBar(ctx, width, height, scale) {
+  const margin=14.17, barHeight=42;
+  const x=margin, y=height-margin-barHeight;
+  ctx.fillStyle='#f7f197';
+  ctx.fillRect(x*scale,y*scale,(width-2*margin)*scale,barHeight*scale);
+
+  ctx.strokeStyle='#18181b'; ctx.lineWidth=1*scale;
+  let currentX=margin+15;
+
+  const drawLogo = async()=>{
+    if (logoBytesCache) {
+      try {
+        const img=new Image(), url=URL.createObjectURL(new Blob([logoBytesCache]));
+        img.src=url;
+        await new Promise(resolve=>{
+          img.onload=()=>{
+            const h=22,w=img.width*(h/img.height);
+            ctx.drawImage(img,currentX*scale,(y+(barHeight-h)/2)*scale,w*scale,h*scale);
+            currentX+=w+15;
+            URL.revokeObjectURL(url); resolve();
+          };
+          img.onerror=()=>{URL.revokeObjectURL(url);resolve();};
+        });
+      }catch(e){}
+    }
+    ctx.beginPath();
+    ctx.moveTo(currentX*scale,(y+10)*scale);
+    ctx.lineTo(currentX*scale,(y+barHeight-10)*scale);
+    ctx.stroke();
+    currentX+=15;
+
+    ctx.fillStyle='#18181b';
+    ctx.font=`${12 * (96/72)}px "${editorFontFamily}"`;
+    ctx.textBaseline='alphabetic';
+    ctx.fillText(document.getElementById('panelType').value, currentX*scale,(y+barHeight/2+4)*scale);
+
+    const title=document.getElementById('panelTitle').value;
+    const date=document.getElementById('panelDate').value;
+    const rightMargin=margin+width-2*margin-20;
+    ctx.fillText(date,(rightMargin-80)*scale,(y+barHeight/2+4)*scale);
+    ctx.beginPath();
+    ctx.moveTo((rightMargin-95)*scale,(y+10)*scale);
+    ctx.lineTo((rightMargin-95)*scale,(y+barHeight-10)*scale);
+    ctx.stroke();
+
+    // Název projektu je ukotvený k oddělovací čáře.
+    // Pravý okraj textu zůstává vždy 15 pt od čáry a při delším textu
+    // se celý text posouvá doleva místo toho, aby se měnila mezera u čáry.
+    const titleFontSize = 12 * (96/72);
+    ctx.font=`${titleFontSize}px "${editorFontFamily}"`;
+    const titleWidthPx=ctx.measureText(title).width;
+    const titleRight=(rightMargin-95)-15;
+    ctx.fillText(title,(titleRight*scale)-titleWidthPx,(y+barHeight/2+4)*scale);
+  };
+  return drawLogo();
+}
+
+async function renderCurrentPagePreview() {
+  saveCurrentPageBoxes();
+
+  const canvas=document.getElementById('preview-canvas');
+  const ctx=canvas.getContext('2d');
+  const info=getPreviewPageInfo();
+  const pageSize=await getPageSize(info);
+
+  const maxCssWidth=Math.min(980, document.getElementById('preview-body').clientWidth-30);
+  const cssScale=Math.max(0.1,Math.min(1.5,maxCssWidth/pageSize.width));
+  const renderScale=cssScale*2; // ostrý interní canvas, CSS rozměr zůstává přesný
+  canvas.width=Math.round(pageSize.width*renderScale);
+  canvas.height=Math.round(pageSize.height*renderScale);
+  canvas.style.width=(pageSize.width*cssScale)+'px';
+  canvas.style.height=(pageSize.height*cssScale)+'px';
+  window.__previewInfo={width:pageSize.width,height:pageSize.height,scale:renderScale};
+
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  if(info.isCover){
+    await drawCover(ctx,pageSize.width,pageSize.height,renderScale);
+  }else{
+    const page=await pdfJsDoc.getPage(info.pdfIndex);
+    const viewport=page.getViewport({scale:renderScale});
+    await page.render({canvasContext:ctx,viewport}).promise;
+  }
+
+  // Bar je součást náhledu stejně jako export.
+  if(!info.isCover) await drawInfoBar(ctx,pageSize.width,pageSize.height,renderScale);
+
+  document.getElementById('page-indicator').textContent =
+    info.isCover ? `Úvodní strana (Stránka 1 z ${totalPreviewPages})`
+                 : `Stránka ${currentPreviewPage} z ${totalPreviewPages}`;
+
+  document.getElementById('prev-page-btn').disabled=currentPreviewPage<=1;
+  document.getElementById('next-page-btn').disabled=currentPreviewPage>=totalPreviewPages;
+
+  const layer=document.getElementById('boxes-layer');
+  layer.innerHTML='';
+  (allPagesTexts[currentPreviewPage]||[]).forEach(b=>createBoxElement(b));
+}
+
+function addTextBox(){
+  const info=window.__previewInfo;
+  if(!info) return;
+  pushTextHistory();
+  activeTextEditHistory=false;
+  if(!allPagesTexts[currentPreviewPage]) allPagesTexts[currentPreviewPage]=[];
+  const id=textIdCounter++;
+  allPagesTexts[currentPreviewPage].push({
+    id,text:'Nový text',size:16,x:info.width/3,y:info.height/2
+  });
+  renderCurrentPagePreview();
+}
+
+function createBoxElement(b){
+  const layer=document.getElementById('boxes-layer');
+  const canvas=document.getElementById('preview-canvas');
+  const rect=canvas.getBoundingClientRect();
+  const info=window.__previewInfo;
+  const sx=rect.width/info.width, sy=rect.height/info.height;
+  const div=document.createElement('div');
+  div.className='custom-text-box';
+  div.dataset.id=b.id;
+  div.style.left=(b.x*sx)+'px';
+  div.style.top=((info.height-b.y-b.size)*sy)+'px';
+  div.style.fontFamily=`"${editorFontFamily}"`;
+  div.style.fontSize=(b.size*(96/72)*sx)+'px';
+
+  const input=document.createElement('input');
+  input.className='tb-main';
+  input.type='text';
+  input.value=b.text;
+  input.style.fontFamily=`"${editorFontFamily}"`;
+  input.style.fontSize=(b.size*(96/72)*sx)+'px';
+
+  const refreshBoxMetrics=()=>{
+    const m=measureTextBox(input.value,b.size,sx);
+    div.style.width=m.width+'px';
+    div.style.height=m.height+'px';
+    input.style.width=m.width+'px';
+    input.style.height=m.height+'px';
+    div.style.top=((info.height-b.y-b.size)*sy)+'px';
+  };
+  refreshBoxMetrics();
+
+  input.addEventListener('focus',()=>{ beginTextEditHistory(); });
+  input.addEventListener('input',()=>{
+    b.text=input.value;
+    refreshBoxMetrics();
+  });
+  input.addEventListener('blur',()=>{ activeTextEditHistory=false; saveCurrentPageBoxes(); });
+
+  const handle=document.createElement('div');
+  handle.className='tb-handle';
+  handle.title='Přetáhni pro posunutí textu';
+
+  const controls=document.createElement('div');
+  controls.className='tb-controls';
+  controls.innerHTML=`<input type="number" min="6" max="144" step="1" value="${b.size}" title="Velikost písma"><button type="button" title="Smazat">✕</button>`;
+  const sizeInput=controls.querySelector('input');
+  sizeInput.addEventListener('focus',()=>beginTextEditHistory());
+  sizeInput.addEventListener('input',()=>{
+    b.size=Math.max(6,Math.min(144,parseFloat(sizeInput.value)||16));
+    div.style.fontSize=(b.size*(96/72)*sx)+'px';
+    input.style.fontSize=(b.size*(96/72)*sx)+'px';
+    refreshBoxMetrics();
+  });
+  sizeInput.addEventListener('blur',()=>{activeTextEditHistory=false;saveCurrentPageBoxes();});
+  controls.querySelector('button').addEventListener('click',e=>{
+    e.stopPropagation();
+    pushTextHistory();
+    activeTextEditHistory=false;
+    allPagesTexts[currentPreviewPage]=(allPagesTexts[currentPreviewPage]||[]).filter(x=>x.id!==b.id);
+    div.remove();
+    updateUndoButton();
+  });
+
+  div.append(input,handle,controls);
+  makeDraggable(div,b,handle);
+  layer.appendChild(div);
+}
+
+function updateBoxData(id,input){
+  const b=(allPagesTexts[currentPreviewPage]||[]).find(x=>x.id===id);
+  if(b)b.text=input.value;
+}
+function updateBoxSize(id,input){
+  const b=(allPagesTexts[currentPreviewPage]||[]).find(x=>x.id===id);
+  if(b)b.size=parseFloat(input.value)||16;
+}
+function removeTextBox(id){
+  pushTextHistory();
+  activeTextEditHistory=false;
+  allPagesTexts[currentPreviewPage]=(allPagesTexts[currentPreviewPage]||[]).filter(x=>x.id!==id);
+  renderCurrentPagePreview();
+}
+
+function saveCurrentPageBoxes(){
+  const canvas=document.getElementById('preview-canvas');
+  const info=window.__previewInfo;
+  if(!canvas||!info)return;
+  const rect=canvas.getBoundingClientRect();
+  const sx=rect.width/info.width, sy=rect.height/info.height;
+  const existing=allPagesTexts[currentPreviewPage]||[];
+  const byId=new Map(existing.map(b=>[b.id,b]));
+
+  document.querySelectorAll('.custom-text-box').forEach(el=>{
+    const id=parseInt(el.dataset.id);
+    const b=byId.get(id);
+    if(!b)return;
+    const input=el.querySelector('.tb-main');
+    b.text=input?input.value:b.text;
+    const left=parseFloat(el.style.left)||0;
+    const top=parseFloat(el.style.top)||0;
+    b.x=Math.max(0,Math.min(info.width,left/sx));
+    b.y=Math.max(0,Math.min(info.height,(info.height-(top/sy)-b.size)));
+  });
+}
+
+function makeDraggable(element,b,handle){
+  let dragging=false,startX=0,startY=0,startLeft=0,startTop=0;
+  const startDrag=e=>{
+    if(e.button!==undefined && e.button!==0)return;
+    pushTextHistory();
+    activeTextEditHistory=false;
+    dragging=true;
+    element.classList.add('selected');
+    startX=e.clientX; startY=e.clientY;
+    startLeft=parseFloat(element.style.left)||0;
+    startTop=parseFloat(element.style.top)||0;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  handle.addEventListener('mousedown',startDrag);
+  handle.addEventListener('touchstart',e=>{
+    const t=e.touches[0];
+    if(!t)return;
+    pushTextHistory();
+    activeTextEditHistory=false;
+    dragging=true;
+    element.classList.add('selected');
+    startX=t.clientX; startY=t.clientY;
+    startLeft=parseFloat(element.style.left)||0;
+    startTop=parseFloat(element.style.top)||0;
+    e.preventDefault();
+  },{passive:false});
+  const move=e=>{
+    if(!dragging)return;
+    const canvas=document.getElementById('preview-canvas'), rect=canvas.getBoundingClientRect(), info=window.__previewInfo;
+    const dx=e.clientX-startX, dy=e.clientY-startY;
+    const maxLeft=Math.max(0,rect.width-element.offsetWidth);
+    const maxTop=Math.max(0,rect.height-element.offsetHeight);
+    element.style.left=Math.max(0,Math.min(maxLeft,startLeft+dx))+'px';
+    element.style.top=Math.max(0,Math.min(maxTop,startTop+dy))+'px';
+  };
+  const touchMove=e=>{
+    if(!dragging)return;
+    const t=e.touches[0]; if(!t)return;
+    move({clientX:t.clientX,clientY:t.clientY});
+    e.preventDefault();
+  };
+  const up=()=>{
+    if(!dragging)return;
+    dragging=false;
+    element.classList.remove('selected');
+    saveCurrentPageBoxes();
+    document.removeEventListener('mousemove',move);
+    document.removeEventListener('mouseup',up);
+    document.removeEventListener('touchmove',touchMove);
+    document.removeEventListener('touchend',up);
+  };
+  handle.addEventListener('mousedown',()=>{
+    document.addEventListener('mousemove',move);
+    document.addEventListener('mouseup',up);
+  });
+  handle.addEventListener('touchstart',()=>{
+    document.addEventListener('touchmove',touchMove,{passive:false});
+    document.addEventListener('touchend',up);
+  },{passive:false});
+}
+
+async function prevPage(){
+  saveCurrentPageBoxes();
+  if(currentPreviewPage>1){currentPreviewPage--;await renderCurrentPagePreview();}
+}
+async function nextPage(){
+  saveCurrentPageBoxes();
+  if(currentPreviewPage<totalPreviewPages){currentPreviewPage++;await renderCurrentPagePreview();}
+}
+
+async function runPanel(fromModal=false){
+  const {PDFDocument,rgb}=PDFLib;
+  if(!filesData.panel.length)return;
+  if(fromModal)saveCurrentPageBoxes();
+
+  document.getElementById('btn-panel').disabled=true;
+  try{
+    const f=filesData.panel[0];
+    const projectType=document.getElementById('panelType').value;
+    const projectTitle=document.getElementById('panelTitle').value;
+    const projectDate=document.getElementById('panelDate').value;
+    const createCover=document.getElementById('createCover').checked;
+    const authors=document.getElementById('panelAuthors').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+
+    const pdf=await PDFDocument.load(loadedFileBytes,{ignoreEncryption:true});
+    pdf.registerFontkit(fontkit);
+    const fontData=fontBytesCache || await fetch('font/Dunwich Type Founders - Antarctican Mono Semibold.otf').then(r=>r.arrayBuffer());
+    const customFont=await pdf.embedFont(fontData);
+    let logoImage=null;
+    try{
+      const logoData=logoBytesCache || await fetch('2020.png').then(r=>r.arrayBuffer());
+      logoImage=await pdf.embedPng(logoData);
+    }catch(e){}
+    const textColor=rgb(24/255,24/255,27/255);
+
+    if(createCover){
+      const first=pdf.getPage(0), {width:origW,height:origH}=first.getSize();
+      const cover=pdf.insertPage(0,[origW,origH]);
+      cover.drawRectangle({x:0,y:0,width:origW,height:origH,color:rgb(247/255,241/255,151/255)});
+      if(projectTitle)cover.drawText(projectTitle,{x:80,y:265,size:48,font:customFont,color:textColor});
+      cover.drawText(projectType,{x:80,y:200,size:36,font:customFont,color:textColor});
+      if(logoImage){
+        const h=45,w=logoImage.width*(h/logoImage.height);
+        cover.drawImage(logoImage,{x:origW/2-w/2-40,y:80,width:w,height:h});
+      }
+      const rightX=origW-320,lineTopY=295,lineBottomY=180;
+      cover.drawLine({start:{x:rightX,y:lineBottomY},end:{x:rightX,y:lineTopY},thickness:1,color:textColor});
+      authors.forEach((a,i)=>cover.drawText(a,{x:rightX+25,y:(lineTopY-10)-(i*22),size:14,font:customFont,color:textColor}));
+      (allPagesTexts[1]||[]).forEach(tb=>{if(tb.text)cover.drawText(tb.text,{x:tb.x,y:tb.y,size:tb.size,font:customFont,color:textColor});});
+    }
+
+    const pages=pdf.getPages(),margin=14.17,barHeight=42;
+    for(let i=0;i<pages.length;i++){
+      if(createCover&&i===0)continue;
+      const page=pages[i],{width}=page.getSize();
+      page.drawRectangle({x:margin,y:margin,width:width-2*margin,height:barHeight,color:rgb(247/255,241/255,151/255)});
+      let currentX=margin+15;
+      const centerY=margin+barHeight/2;
+      if(logoImage){
+        const d=logoImage.scale(22/logoImage.height);
+        page.drawImage(logoImage,{x:currentX,y:centerY-d.height/2,width:d.width,height:d.height});
+        currentX+=d.width+15;
+      }
+      page.drawLine({start:{x:currentX,y:margin+10},end:{x:currentX,y:margin+barHeight-10},thickness:1,color:textColor});
+      currentX+=15;
+      page.drawText(projectType,{x:currentX,y:centerY-4,size:12,font:customFont,color:textColor});
+      const rightMargin=margin+width-2*margin-20;
+      page.drawText(projectDate,{x:rightMargin-80,y:centerY-4,size:12,font:customFont,color:textColor});
+      const titleSeparatorX=rightMargin-95;
+      page.drawLine({start:{x:titleSeparatorX,y:margin+10},end:{x:titleSeparatorX,y:margin+barHeight-10},thickness:1,color:textColor});
+      // Název je ukotvený zprava 15 pt od oddělovací čáry.
+      // Když je delší, jeho levý okraj se automaticky posune doleva.
+      const titleWidth=customFont.widthOfTextAtSize(projectTitle,12);
+      page.drawText(projectTitle,{x:titleSeparatorX-15-titleWidth,y:centerY-4,size:12,font:customFont,color:textColor});
+      const previewPage=createCover?i+1:i+1;
+      (allPagesTexts[previewPage]||[]).forEach(tb=>{
+        if(tb.text)page.drawText(tb.text,{x:tb.x,y:tb.y,size:tb.size,font:customFont,color:textColor});
+      });
+    }
+
+    const bytes=await pdf.save({useObjectStreams:true});
+    const blob=new Blob([bytes],{type:'application/pdf'});
+    const link=document.createElement('a');
+    link.href=URL.createObjectURL(blob);
+    link.download=f.name.replace(/\.pdf$/i,'')+'_prezentace.pdf';
+    link.click();
+    setTimeout(()=>URL.revokeObjectURL(link.href),1000);
+    document.getElementById('st-panel').textContent='Hotovo, prezentace vytvořena!';
+    if(fromModal)document.getElementById('preview-modal').style.display='none';
+  }catch(err){
+    alert('Chyba: '+err.message);
+    console.error(err);
+  }
+  document.getElementById('btn-panel').disabled=false;
+  document.getElementById('btn-preview').disabled=false;
+}
+
+// Ostatní nástroje placeholder
+async function runCompress() { alert("Spuštěno"); }
+async function runMerge() { alert("Spuštěno"); }
+async function runSplit() { alert("Spuštěno"); }
+async function runRotate() { alert("Spuštěno"); }
+async function runNumbers() { alert("Spuštěno"); }
+async function runExtract() { alert("Spuštěno"); }
+</script>
+</body>
+</html>
