@@ -1515,7 +1515,7 @@ function measureTextBox(text,size,scale){
 }
 
 // ============================================================
-// PŘEPRACOVANÁ FUNKCE createMoodboard POMOCÍ buildPageRecords
+// OPRAVENÁ FUNKCE createMoodboard – POUŽÍVÁ STEJNÝ PRINCIP JAKO addBlankPage
 // ============================================================
 function createMoodboard(layoutType) {
   closeMoodboardModal();
@@ -1569,28 +1569,49 @@ function createMoodboard(layoutType) {
     cells.push({ x: marginSide + bigW + gap, y: marginTop + bigH + gap, w: smallW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
   }
   
-  // Vytvoření záznamu pro moodboard
-  const moodboardRecord = {
-    type: 'moodboard',
-    pdfIndex: null,
-    texts: { type: 'moodboard', cells: cells }
-  };
+  // ---- STEJNÝ PRINCIP JAKO addBlankPage ----
+  let newTexts = {};
+  let newBlankPages = new Set();
+  let newPdfMap = {};
   
-  // Získání aktuálních záznamů a vložení na pozici currentPreviewPage
-  const records = buildPageRecords();
-  const insertIndex = currentPreviewPage - 1;
-  records.splice(insertIndex, 0, moodboardRecord);
-  applyPageRecords(records);
+  // Pro všechny existující stránky v allPagesTexts
+  for (let [pStr, texts] of Object.entries(allPagesTexts)) {
+    let pNum = parseInt(pStr);
+    if (pNum >= currentPreviewPage) {
+      newTexts[pNum + 1] = texts;
+    } else {
+      newTexts[pNum] = texts;
+    }
+  }
+  // Pro prázdné stránky
+  for (let pNum of customBlankPages) {
+    if (pNum >= currentPreviewPage) newBlankPages.add(pNum + 1);
+    else newBlankPages.add(pNum);
+  }
+  // Pro mapování PDF stránek
+  for (let [pStr, idx] of Object.entries(pagePdfIndexMap)) {
+    let pNum = parseInt(pStr);
+    if (pNum >= currentPreviewPage) newPdfMap[pNum + 1] = idx;
+    else newPdfMap[pNum] = idx;
+  }
   
-  // Nastavení aktuální stránky na nově vloženou
-  currentPreviewPage = insertIndex + 1;
+  // Vložíme moodboard stránku na pozici currentPreviewPage
+  newTexts[currentPreviewPage] = { type: 'moodboard', cells };
+  
+  allPagesTexts = newTexts;
+  customBlankPages = newBlankPages;
+  pagePdfIndexMap = newPdfMap;
+  totalPreviewPages++;
+  
+  // Zůstaneme na stejné stránce (ta se teď stala moodboardem)
+  // currentPreviewPage zůstává stejné
   
   renderCurrentPagePreview();
   renderThumbnails();
   scheduleAutosave();
 }
 // ============================================================
-// KONEC PŘEPRACOVANÉ FUNKCE
+// KONEC OPRAVENÉ FUNKCE
 // ============================================================
 
 async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
@@ -2175,7 +2196,6 @@ async function renderCurrentPagePreview() {
   if (isMoodboard) {
     renderMoodboardOverlay(currentPreviewPage, pageData.cells || []);
   } else {
-    // Pro normální stránky (včetně coveru) vykreslíme textové boxy
     const pageItems = allPagesTexts[currentPreviewPage] || [];
     if (Array.isArray(pageItems)) {
       pageItems.forEach(b => {
