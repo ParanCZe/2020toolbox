@@ -248,7 +248,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
   <div id="tool-pdfa" class="tool-view">
     <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
     <h1>Konverze do PDF/A</h1>
-    <div class="muted">Úprava PDF pro dlouhodobou archivaci přímo v prohlížeči (včetně robustního ošetření textů a fontů).</div>
+    <div class="muted">Skutečná konverze pro dlouhodobou archivaci. Dokument zůstává v počítači; při prvním převodu se načte konverzní engine.</div>
 
     <div class="settings">
       <label for="pdfaVersion"><b>Cílový standard:</b></label>
@@ -1423,86 +1423,117 @@ function createZip(files) {
 }
 
 // ============================================================
-// FUNKCE PRO KONVERZI DO PDF/A
+// SKUTEČNÁ KONVERZE DO PDF/A (Ghostscript WebAssembly)
 // ============================================================
+const GS_WASM_BASE = 'https://cdn.jsdelivr.net/npm/@jspawn/ghostscript-wasm@0.0.2/';
+const PDFA_SRGB_ICC_BASE64 = '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';
+let ghostscriptLoaderPromise = null;
+
+function base64ToBytes(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function buildPdfaDefinition() {
+  return `%!
+/ICCProfile (/work/default_rgb.icc) def
+[/_objdef {icc_PDFA} /type /stream /OBJ pdfmark
+[{icc_PDFA} << /N 3 >> /PUT pdfmark
+[{icc_PDFA} ICCProfile (r) file /PUT pdfmark
+[/_objdef {OutputIntent_PDFA} /type /dict /OBJ pdfmark
+[{OutputIntent_PDFA} <<
+  /Type /OutputIntent
+  /S /GTS_PDFA1
+  /DestOutputProfile {icc_PDFA}
+  /OutputConditionIdentifier (sRGB IEC61966-2.1)
+  /Info (sRGB IEC61966-2.1)
+>> /PUT pdfmark
+[{Catalog} << /OutputIntents [ {OutputIntent_PDFA} ] >> /PUT pdfmark
+`;
+}
+
+async function getGhostscriptLoader() {
+  if (!ghostscriptLoaderPromise) {
+    ghostscriptLoaderPromise = import(GS_WASM_BASE + 'gs.mjs').then(module => module.default);
+  }
+  return ghostscriptLoaderPromise;
+}
+
+async function convertPdfToPdfa(inputBytes, version) {
+  const loadGhostscript = await getGhostscriptLoader();
+  const gs = await loadGhostscript({
+    locateFile: file => GS_WASM_BASE + file,
+    noInitialRun: true
+  });
+  const inputPath = '/work/input.pdf';
+  const outputPath = '/work/output.pdf';
+  const defPath = '/work/PDFA_def.ps';
+
+  try { gs.FS.mkdir('/work'); } catch (_) {}
+  gs.FS.writeFile(inputPath, inputBytes);
+  gs.FS.writeFile('/work/default_rgb.icc', base64ToBytes(PDFA_SRGB_ICC_BASE64));
+  gs.FS.writeFile(defPath, new TextEncoder().encode(buildPdfaDefinition()));
+
+  const compatibility = version === '1' ? '1.4' : '1.7';
+  const exitCode = gs.callMain([
+    '-dSAFER',
+    '--permit-file-read=/work/default_rgb.icc',
+    '--permit-file-read=/work/input.pdf',
+    '--permit-file-read=/work/PDFA_def.ps',
+    '--permit-file-write=/work/output.pdf',
+    '-dBATCH',
+    '-dNOPAUSE',
+    '-dQUIET',
+    '-sDEVICE=pdfwrite',
+    `-dPDFA=${version}`,
+    '-dPDFACompatibilityPolicy=1',
+    `-dCompatibilityLevel=${compatibility}`,
+    '-sColorConversionStrategy=RGB',
+    '-sProcessColorModel=DeviceRGB',
+    '-dEmbedAllFonts=true',
+    '-dSubsetFonts=true',
+    '-dCompressFonts=true',
+    '-dPreserveAnnots=false',
+    '-dPreserveMarkedContent=true',
+    `-sOutputFile=${outputPath}`,
+    defPath,
+    inputPath
+  ]);
+  if (typeof exitCode === 'number' && exitCode !== 0) {
+    throw new Error(`Konverzní engine skončil s kódem ${exitCode}`);
+  }
+  const result = gs.FS.readFile(outputPath);
+  if (!result || result.length < 100 || String.fromCharCode(...result.slice(0, 5)) !== '%PDF-') {
+    throw new Error('Konverzní engine nevytvořil platný PDF soubor');
+  }
+  return new Uint8Array(result);
+}
+
 async function startConversion() {
   if (!filesData.pdfa.length) return;
-  document.getElementById('btn-pdfa').disabled = true;
-  const { PDFDocument, PDFName } = PDFLib;
+  const button = document.getElementById('btn-pdfa');
+  button.disabled = true;
   const version = document.getElementById('pdfaVersion').value;
-  let outputs = [];
+  const outputs = [];
+  document.getElementById('st-pdfa').textContent = 'Načítám PDF/A engine…';
 
   for (let i = 0; i < filesData.pdfa.length; i++) {
     const el = document.getElementById(`i${i}`);
     try {
-      el.textContent = `⏳ ${filesData.pdfa[i].name} — zpracovávám...`;
-      const arrayBuffer = await filesData.pdfa[i].arrayBuffer();
-      
-      const pdfDoc = await PDFDocument.load(arrayBuffer, { 
-        ignoreEncryption: true,
-        updateMetadata: false
-      });
-      
-      const pages = pdfDoc.getPages();
-      for (const page of pages) {
-        const node = page.node;
-        if (!node.has(PDFName.of('Resources'))) continue;
-        const resources = node.lookup(PDFName.of('Resources'));
-        if (!resources || !resources.has(PDFName.of('Font'))) continue;
-        const fonts = resources.lookup(PDFName.of('Font'));
-        if (!fonts || !fonts.dict) continue;
-        for (const fontKey of fonts.keys()) {
-          const fontObj = fonts.lookup(fontKey);
-          if (!fontObj || !fontObj.dict) continue;
-        }
-      }
-
-      const xmpdata = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/">
- <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-  <rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">
-   <pdfaid:part>${version}</pdfaid:part>
-   <pdfaid:conformance>B</pdfaid:conformance>
-  </rdf:Description>
- </rdf:RDF>
-</x:xmpmeta>
-<?xpacket end="w"?>`;
-
-      const catalog = pdfDoc.catalog;
-      const metadataStream = pdfDoc.context.flateStream(xmpdata);
-      metadataStream.dict.set(PDFName.of('Type'), PDFName.of('Metadata'));
-      metadataStream.dict.set(PDFName.of('Subtype'), PDFName.of('XML'));
-      const metadataRef = pdfDoc.context.register(metadataStream);
-      catalog.set(PDFName.of('Metadata'), metadataRef);
-      
-      const idArray = pdfDoc.context.obj([
-        pdfDoc.context.obj(''), 
-        pdfDoc.context.obj('')
-      ]);
-      catalog.set(PDFName.of('ID'), idArray);
-      
-      pdfDoc.setProducer(`PDF/A-${version}b Converter (20-20-TOOLBOX)`);
-      pdfDoc.setCreator('20-20-TOOLBOX PDF/A Converter');
-      
-      const pdfBytes = await pdfDoc.save({
-        useObjectStreams: true,
-        addDefaultPage: false,
-        objectsPerTick: 100
-      });
-      
-      let baseName = filesData.pdfa[i].name.replace(/\.pdf$/i, '');
-      baseName = removeDiacritics(baseName);
-      const outName = baseName + '_EAR.pdf';
-      
-      outputs.push({ name: outName, bytes: pdfBytes });
-
+      el.textContent = `⏳ ${filesData.pdfa[i].name} — skutečně převádím do PDF/A-${version}b…`;
+      await new Promise(resolve => setTimeout(resolve, 20));
+      const inputBytes = new Uint8Array(await filesData.pdfa[i].arrayBuffer());
+      const pdfBytes = await convertPdfToPdfa(inputBytes, version);
+      let baseName = removeDiacritics(filesData.pdfa[i].name.replace(/\.pdf$/i, ''));
+      outputs.push({ name: baseName + '_EAR.pdf', bytes: pdfBytes });
       el.className = 'item ok';
-      el.textContent = `✓ ${filesData.pdfa[i].name} — Hotovo (PDF/A-${version}b)`;
-      
+      el.textContent = `✓ ${filesData.pdfa[i].name} — skutečně převedeno (PDF/A-${version}b)`;
     } catch (err) {
       el.className = 'item err';
       el.textContent = `✗ ${filesData.pdfa[i].name} — Chyba: ${err.message}`;
-      console.error('Chyba konverze:', err);
+      console.error('Chyba skutečné PDF/A konverze:', err);
     }
     document.getElementById('fill-pdfa').style.width = ((i + 1) / filesData.pdfa.length * 100) + '%';
   }
@@ -1527,7 +1558,7 @@ async function startConversion() {
   } else {
     document.getElementById('st-pdfa').textContent = 'Žádné soubory se nepodařilo převést.';
   }
-  document.getElementById('btn-pdfa').disabled = false;
+  button.disabled = false;
 }
 
 let editorFontReady = false;
