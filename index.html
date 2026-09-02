@@ -3047,7 +3047,7 @@ async function nextPage(){
 }
 
 async function runPanel(fromModal = false){
-  const {PDFDocument, rgb, pushGraphicsState, popGraphicsState, rectangle, clip, endPath, moveTo, lineTo, closePath, fill, setFillingRgbColor} = PDFLib;
+  const {PDFDocument, rgb, pushGraphicsState, popGraphicsState, rectangle, clip, endPath} = PDFLib;
   if(!filesData.panel.length) return;
 
   if (document.getElementById('preview-modal').style.display === 'flex') {
@@ -3103,24 +3103,24 @@ async function runPanel(fromModal = false){
       const cfg=getInfoBarPageConfig(pageNumber), h=ARCH_BAR_HEIGHT_PT;
       page.drawRectangle({x:0,y:0,width:pageW,height:h,color:rgb(247/255,241/255,151/255)});
       const num=String(pageNumber), numW=finalFont.widthOfTextAtSize(num,28);
-      page.drawText(num,{x:49-numW,y:3,size:28,font:finalFont,color:textColor});
+      page.drawText(num,{x:49-numW,y:7,size:28,font:finalFont,color:textColor});
       page.drawLine({start:{x:54,y:5},end:{x:54,y:h-5},thickness:.85,color:textColor});
-      if(cfg.text) page.drawText(cfg.text,{x:62,y:19,size:ARCH_PAGE_TEXT_PT,font:finalFont,color:textColor});
-      page.drawText(formatArchitectDate(projectDate),{x:62,y:6,size:ARCH_DATE_TEXT_PT,font:finalFont,color:textColor});
+      if(cfg.text) page.drawText(cfg.text,{x:62,y:23,size:ARCH_PAGE_TEXT_PT,font:finalFont,color:textColor});
+      page.drawText(formatArchitectDate(projectDate),{x:62,y:10,size:ARCH_DATE_TEXT_PT,font:finalFont,color:textColor});
       if(cfg.rightMode!=='scale'){
         const office='20-20-ARCHITEKTI', size=ARCH_OFFICE_TEXT_PT, tw=finalFont.widthOfTextAtSize(office,size);
-        page.drawText(office,{x:pageW-130-tw/2,y:9,size,font:finalFont,color:textColor}); return;
+        page.drawText(office,{x:pageW-130-tw/2,y:13,size,font:finalFont,color:textColor}); return;
       }
       const denom=Math.max(1,Number(cfg.scale)||100), unit=(1000/denom)*(72/25.4), shown=Math.max(1,Math.min(5,Math.floor(230/unit)));
       const end=pageW-75,start=end-shown*unit,lineY=25.02;
       page.drawLine({start:{x:start,y:lineY},end:{x:end,y:lineY},thickness:.85,color:textColor});
       for(let i=0;i<=shown;i++){const x=start+i*unit;page.drawLine({start:{x,y:lineY},end:{x,y:lineY-(i===0||i===shown?3:2)},thickness:.85,color:textColor});const s=String(i),w=finalFont.widthOfTextAtSize(s,8);page.drawText(s,{x:x-w/2,y:7,size:8,font:finalFont,color:textColor});}
       page.drawText('m',{x:end+7,y:7,size:8,font:finalFont,color:textColor});
-      const nx=pageW-25,ny=h/2,r=11,a=(Number(document.getElementById('northAngle').value)||0)*Math.PI/180;
+      const nx=pageW-25,ny=h/2,r=11;
       page.drawCircle({x:nx,y:ny,size:r,borderColor:textColor,borderWidth:.85});
-      const rot=(x,y)=>({x:nx+x*Math.cos(a)-y*Math.sin(a),y:ny+x*Math.sin(a)+y*Math.cos(a)});
-      const p1=rot(0,r-2),p2=rot(-3.8,-3.5),p4=rot(3.8,-3.5);
-      page.pushOperators(setFillingRgbColor(24/255,24/255,27/255),moveTo(p1.x,p1.y),lineTo(p2.x,p2.y),lineTo(p4.x,p4.y),closePath(),fill());
+      page.drawSvgPath('M 0 -9 L -3.8 3.5 L 3.8 3.5 Z', {
+        x:nx, y:ny, color:textColor, rotate:PDFLib.degrees(-Number(document.getElementById('northAngle').value || 0))
+      });
     }
 
     for(let previewP = 1; previewP <= totalPreviewPages; previewP++){
