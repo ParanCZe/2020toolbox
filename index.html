@@ -391,6 +391,16 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <button type="button" class="style-choice" data-style="diamond" onclick="setNorthStyle('diamond')" title="Kompasový kosočtverec"><svg viewBox="0 0 80 44"><path d="M40 3 L31 24 L40 41 L49 24 Z" fill="none" stroke="currentColor"/><path d="M40 3 L31 24 L40 20 Z" fill="currentColor"/></svg></button>
         </div>
       </div>
+      <div id="project-scale-style-row" style="display:flex;gap:15px;align-items:center;">
+        <label style="min-width:150px;">Vzhled měřítka:</label>
+        <input type="hidden" id="defaultScaleStyle" value="ticks">
+        <div class="style-picker" id="projectScaleStylePicker">
+          <button type="button" class="style-choice active" data-style="ticks" onclick="setProjectScaleStyle('ticks')" title="Čára s dílky"><svg viewBox="0 0 80 44"><path d="M7 15H73M7 15v8m22-8v5m22-5v5m22-5v8" stroke="currentColor" fill="none"/><text x="7" y="35" font-size="8">0</text><text x="27" y="35" font-size="8">1</text><text x="49" y="35" font-size="8">2</text><text x="68" y="35" font-size="8">5m</text></svg></button>
+          <button type="button" class="style-choice" data-style="blocks" onclick="setProjectScaleStyle('blocks')" title="Černobílé bloky"><svg viewBox="0 0 80 44"><rect x="7" y="12" width="16" height="10" fill="currentColor"/><rect x="23" y="12" width="16" height="10" fill="none" stroke="currentColor"/><rect x="39" y="12" width="16" height="10" fill="currentColor"/><rect x="55" y="12" width="16" height="10" fill="none" stroke="currentColor"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
+          <button type="button" class="style-choice" data-style="double" onclick="setProjectScaleStyle('double')" title="Dvojitá stupnice"><svg viewBox="0 0 80 44"><path d="M7 12H73M7 20H73M7 10v13m22-13v13m22-13v13m22-13v13" stroke="currentColor" fill="none"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
+        </div>
+        <small style="color:var(--muted)">Nastaví variantu měřítka pro stránky projektu.</small>
+      </div>
       <div style="display:flex; gap:15px; align-items:flex-start;">
         <label style="min-width:150px; padding-top:6px;">Autoři (vyberte kliknutím):</label>
         <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
@@ -1056,6 +1066,7 @@ function collectFormState() {
     infoBarVariant: document.getElementById('infoBarVariant').value,
     northAngle: Number(document.getElementById('northAngle').value) || 0,
     northStyle: document.getElementById('northStyle').value || 'circle',
+    defaultScaleStyle: document.getElementById('defaultScaleStyle').value || 'ticks',
     selectedAuthorsOrder: selectedAuthorsOrder.slice()
   };
 }
@@ -1071,6 +1082,8 @@ function applyFormState(s) {
   document.getElementById('northAngle').value = Number(s.northAngle) || 0;
   document.getElementById('northStyle').value = s.northStyle || 'circle';
   updateStylePicker('northStylePicker', document.getElementById('northStyle').value);
+  document.getElementById('defaultScaleStyle').value = s.defaultScaleStyle || 'ticks';
+  updateStylePicker('projectScaleStylePicker', document.getElementById('defaultScaleStyle').value);
   updateNorthDialVisual();
   handleInfoBarVariantChange(false);
   selectedAuthorsOrder = Array.isArray(s.selectedAuthorsOrder) ? s.selectedAuthorsOrder.slice() : [];
@@ -1858,6 +1871,16 @@ function renderMoodboardOverlay(pageNum, cells) {
     }
     
     document.getElementById('boxes-layer').appendChild(div);
+    // Rozměry rámečku jsou spolehlivé až po vložení do DOM.
+    // Přepočet v dalším snímku odstraní náhodné rozměry 0×0 a nutnost znovu klikat na miniaturu.
+    if (cell.imageData) {
+      requestAnimationFrame(() => {
+        const placedImg = div.querySelector('.cell-img');
+        if (!placedImg) return;
+        if (placedImg.complete) applyMoodboardImageLayout(placedImg, div, cell, sx, sy);
+        else placedImg.addEventListener('load', () => applyMoodboardImageLayout(placedImg, div, cell, sx, sy), {once:true});
+      });
+    }
   }
 }
 
@@ -2225,8 +2248,9 @@ async function drawBlankPage(ctx, width, height, scale) {
 }
 
 function getInfoBarPageConfig(pageNumber) {
-  if (!infoBarPages[pageNumber]) infoBarPages[pageNumber] = { text:'', rightMode:'office', scale:100, scaleStyle:'ticks' };
-  if (!infoBarPages[pageNumber].scaleStyle) infoBarPages[pageNumber].scaleStyle = 'ticks';
+  const defaultStyle = document.getElementById('defaultScaleStyle')?.value || 'ticks';
+  if (!infoBarPages[pageNumber]) infoBarPages[pageNumber] = { text:'', rightMode:'office', scale:100, scaleStyle:defaultStyle };
+  if (!infoBarPages[pageNumber].scaleStyle) infoBarPages[pageNumber].scaleStyle = defaultStyle;
   return infoBarPages[pageNumber];
 }
 
@@ -2243,6 +2267,13 @@ function setScaleStyle(style) {
   getInfoBarPageConfig(currentPreviewPage).scaleStyle = style;
   updateStylePicker('scaleStylePicker', style);
   updateCurrentInfoBarPage();
+}
+function setProjectScaleStyle(style) {
+  document.getElementById('defaultScaleStyle').value = style;
+  Object.values(infoBarPages).forEach(cfg => { if (cfg) cfg.scaleStyle = style; });
+  updateStylePicker('projectScaleStylePicker', style);
+  updateStylePicker('scaleStylePicker', style);
+  refreshInfoBarPreview(); scheduleAutosave();
 }
 
 function formatArchitectDate(value) {
@@ -2261,6 +2292,7 @@ function handleInfoBarVariantChange(redraw = true) {
   const architect = document.getElementById('infoBarVariant').value === 'architect';
   document.getElementById('north-angle-row').style.display = architect ? 'flex' : 'none';
   document.getElementById('north-style-row').style.display = architect ? 'flex' : 'none';
+  document.getElementById('project-scale-style-row').style.display = architect ? 'flex' : 'none';
   const tools = document.getElementById('info-bar-page-tools');
   if (tools) tools.style.display = architect ? 'flex' : 'none';
   if (redraw && pdfJsDoc) { renderCurrentPagePreview(); renderThumbnails(); }
