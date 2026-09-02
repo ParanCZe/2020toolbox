@@ -44,10 +44,10 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .browser-warning strong{color:#dc2626;}
 
 /* MODÁLNÍ OKNO PRO NÁHLED */
-#preview-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; align-items:center; justify-content:center; padding:20px; }
-#preview-content { background:#fff; border-radius:12px; width:100%; max-width:1220px; max-height:95vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.2); }
+#preview-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; align-items:center; justify-content:center; padding:10px; }
+#preview-content { background:#fff; border-radius:12px; width:calc(100vw - 20px); max-width:none; height:calc(100vh - 20px); max-height:none; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.2); }
 #preview-header { padding:15px 20px; background:#f7f197; display:flex; justify-content:space-between; align-items:center; font-weight:bold; }
-#preview-body { padding:20px; overflow-y:auto; display:flex; flex-direction:row; gap:15px; align-items:flex-start; background:#e4e4e7; }
+#preview-body { padding:16px; overflow:auto; display:flex; flex-direction:row; gap:15px; align-items:flex-start; background:#e4e4e7; flex:1; min-height:0; }
 #preview-main { display:flex; flex-direction:column; gap:15px; align-items:center; flex:1; min-width:0; }
 #preview-footer { padding:15px 20px; background:#fafafa; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
 .preview-tools { background:#fafafa; border:1px solid var(--border); padding:10px; border-radius:8px; width:100%; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
@@ -63,7 +63,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 #style-variant-row{width:100%;display:flex;align-items:center;gap:22px;flex-wrap:nowrap;overflow-x:auto;padding-top:3px}#style-variant-row #scale-style-controls{order:1;flex-wrap:nowrap;flex-shrink:0}#page-north-style-controls{order:2;display:inline-flex;align-items:center;gap:7px;flex-shrink:0}#page-north-style-controls .style-picker{flex-wrap:nowrap}
 
 /* BOČNÍ PANEL S MINIATURAMI */
-#thumbs-sidebar { width:120px; flex-shrink:0; display:flex; flex-direction:column; gap:8px; max-height:80vh; overflow-y:auto; padding-right:4px; }
+#thumbs-sidebar { width:140px; flex-shrink:0; display:flex; flex-direction:column; gap:8px; max-height:calc(100vh - 165px); overflow-y:auto; padding-right:4px; position:sticky; top:0; }
 .thumb-item { position:relative; cursor:grab; border:1px solid var(--border); border-radius:6px; padding:4px; background:#fff; transition:border-color .15s,box-shadow .15s,opacity .15s; }
 .thumb-item:hover { border-color:#a1a1aa; }
 .thumb-item.active { border-color:#16a34a; box-shadow:0 0 0 2px rgba(22,163,74,.25); }
@@ -1974,11 +1974,40 @@ function removeImageFromCell(pageNum, idx) {
   scheduleAutosave();
 }
 
+async function syncCoverTextsFromProject() {
+  if (!document.getElementById('createCover').checked) return;
+  const pInfo = await getPageSize({isCover:true});
+  const boxes = Array.isArray(allPagesTexts[1]) ? allPagesTexts[1] : [];
+  allPagesTexts[1] = boxes;
+  const title = document.getElementById('panelTitle').value.trim();
+  const type = getActiveProjectType();
+  const authors = getSelectedAuthorsString();
+
+  let titleBox = boxes.find(b => b.coverRole === 'title') || boxes.find(b => b.type === 'text' && b.size >= 40 && !b.coverRole);
+  if (!titleBox) { titleBox={id:textIdCounter++,type:'text',size:48,x:80,y:265}; boxes.push(titleBox); }
+  titleBox.coverRole='title'; titleBox.text=title;
+
+  let typeBox = boxes.find(b => b.coverRole === 'type') || boxes.find(b => b.type === 'text' && b.size >= 25 && b.size < 40 && !b.coverRole);
+  if (!typeBox) { typeBox={id:textIdCounter++,type:'text',size:36,x:80,y:200}; boxes.push(typeBox); }
+  typeBox.coverRole='type'; typeBox.text=type;
+
+  let authorsBox = boxes.find(b => b.coverRole === 'authors') || boxes.find(b => b.type === 'text' && b.size < 25 && /\n/.test(b.text||'') && !b.coverRole);
+  const authorsY = 285 - Math.max(0, authors.split(/\r?\n/).length-1)*14*1.2;
+  if (!authorsBox) { authorsBox={id:textIdCounter++,type:'text',size:14,x:pInfo.width-295,y:authorsY}; boxes.push(authorsBox); }
+  authorsBox.coverRole='authors'; authorsBox.text=authors;
+
+  let authorsLine = boxes.find(b => b.coverRole === 'authorsLine') || boxes.find(b => b.type === 'line' && !b.coverRole);
+  if (!authorsLine) { authorsLine={id:textIdCounter++,type:'line',x:pInfo.width-320,y:authorsY,height:40,orientation:'vertical'}; boxes.push(authorsLine); }
+  authorsLine.coverRole='authorsLine';
+  authorsLine.height=Math.max(40,Math.max(1,authors.split(/\r?\n/).length)*authorsBox.size*1.2+10);
+}
+
 async function openPreviewModal() {
   if (!pdfJsDoc) return;
   initEditorGlobalHandlers();
   await loadEditorAssets();
-  totalPreviewPages = pdfJsDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0) + customBlankPages.size;
+  const moodboardCount = Object.values(allPagesTexts).filter(page => page && page.type === 'moodboard').length;
+  totalPreviewPages = pdfJsDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0) + customBlankPages.size + moodboardCount;
   ensurePagePdfIndexMap();
   currentPreviewPage = (pendingResumePage && pendingResumePage <= totalPreviewPages) ? pendingResumePage : 1;
   pendingResumePage = null;
@@ -1991,20 +2020,22 @@ async function openPreviewModal() {
 
     let boxes = [];
     if (title) {
-      boxes.push({ id: textIdCounter++, type: 'text', text: title, size: 48, x: 80, y: 265 });
+      boxes.push({ id: textIdCounter++, type: 'text', coverRole:'title', text: title, size: 48, x: 80, y: 265 });
     }
     if (type) {
-      boxes.push({ id: textIdCounter++, type: 'text', text: type, size: 36, font: editorFontFamily, x: 80, y: 200 });
+      boxes.push({ id: textIdCounter++, type: 'text', coverRole:'type', text: type, size: 36, font: editorFontFamily, x: 80, y: 200 });
     }
     if (authors) {
       const linesCount = authors.split(/\r?\n/).length;
       const authorsY = (295 - 10) - ((linesCount - 1) * 14 * 1.2);
-      boxes.push({ id: textIdCounter++, type: 'text', text: authors, size: 14, x: pInfo.width - 320 + 25, y: authorsY });
-      boxes.push({ id: textIdCounter++, type: 'line', x: pInfo.width - 320, y: authorsY, height: Math.max(40, linesCount * 14 * 1.2 + 10) });
+      boxes.push({ id: textIdCounter++, type: 'text', coverRole:'authors', text: authors, size: 14, x: pInfo.width - 320 + 25, y: authorsY });
+      boxes.push({ id: textIdCounter++, type: 'line', coverRole:'authorsLine', x: pInfo.width - 320, y: authorsY, height: Math.max(40, linesCount * 14 * 1.2 + 10) });
     }
     allPagesTexts[1] = boxes;
     defaultCoverLayoutInitialized = true;
   }
+  await syncCoverTextsFromProject();
+  dragSourcePage = null;
 
   document.getElementById('preview-modal').style.display = 'flex';
   textUndoStack = [];
@@ -2023,20 +2054,27 @@ function closePreviewModal() {
 function ensurePagePdfIndexMap() {
   if (!pdfJsDoc) return;
   const createCover = document.getElementById('createCover').checked;
-  
-  // Seřadíme stránky podle jejich pořadí a přiřadíme indexy postupně
-  let pdfIndex = 0;
+  const used = new Set();
   const newMap = {};
   for (let p = 1; p <= totalPreviewPages; p++) {
     if (customBlankPages.has(p)) continue;
     if (createCover && p === 1) continue;
     const pageData = allPagesTexts[p];
     if (pageData && pageData.type === 'moodboard') continue;
-    // Toto je PDF stránka
-    if (pdfIndex < pdfJsDoc.numPages) {
-      newMap[p] = pdfIndex;
-      pdfIndex++;
+    const existing = pagePdfIndexMap[p];
+    if (Number.isInteger(existing) && existing >= 0 && existing < pdfJsDoc.numPages && !used.has(existing)) {
+      newMap[p] = existing; used.add(existing);
     }
+  }
+  // Doplnit pouze chybějící mapování; existující ruční pořadí se nesmí přepsat.
+  let nextPdfIndex = 0;
+  for (let p = 1; p <= totalPreviewPages; p++) {
+    if (customBlankPages.has(p) || (createCover && p === 1)) continue;
+    const pageData = allPagesTexts[p];
+    if (pageData && pageData.type === 'moodboard') continue;
+    if (newMap[p] !== undefined) continue;
+    while (used.has(nextPdfIndex) && nextPdfIndex < pdfJsDoc.numPages) nextPdfIndex++;
+    if (nextPdfIndex < pdfJsDoc.numPages) { newMap[p] = nextPdfIndex; used.add(nextPdfIndex); }
   }
   pagePdfIndexMap = newMap;
 }
@@ -2474,7 +2512,7 @@ async function renderCurrentPagePreview() {
   
   const canvas = document.getElementById('preview-canvas');
   const ctx = canvas.getContext('2d');
-  const maxCssWidth = Math.min(900, document.getElementById('preview-main').clientWidth - 30);
+  const maxCssWidth = Math.min(1600, document.getElementById('preview-main').clientWidth - 20);
   const cssScale = Math.max(0.1, Math.min(1.5, maxCssWidth / pageSize.width));
   const renderScale = cssScale * 2;
   
@@ -2494,13 +2532,8 @@ async function renderCurrentPagePreview() {
   
   if (isCover) {
     await drawCover(ctx, pageSize.width, pageSize.height, renderScale);
-    const coverTexts = allPagesTexts[currentPreviewPage] || [];
-    if (Array.isArray(coverTexts)) {
-      coverTexts.forEach(b => {
-        if (b.type === 'line') drawLineOnCanvas(ctx, b, pageSize, renderScale);
-        else drawTextOnCanvas(ctx, b, pageSize, renderScale);
-      });
-    }
+    // Text úvodní strany vykresluje v editoru pouze interaktivní vrstva.
+    // Miniatury a PDF jej nadále kreslí standardně jednou.
   } else if (isBlank) {
     await drawBlankPage(ctx, pageSize.width, pageSize.height, renderScale);
     const pageItems = allPagesTexts[currentPreviewPage] || [];
