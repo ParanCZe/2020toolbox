@@ -51,6 +51,8 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 #preview-main { display:flex; flex-direction:column; gap:15px; align-items:center; flex:1; min-width:0; }
 #preview-footer { padding:15px 20px; background:#fafafa; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
 .preview-tools { background:#fafafa; border:1px solid var(--border); padding:10px; border-radius:8px; width:100%; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.info-bar-page-tools{background:#fff;border:1px solid var(--border);padding:9px 10px;border-radius:8px;width:100%;display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:12px}
+.info-bar-page-tools label{display:flex;align-items:center;gap:5px}.info-bar-page-tools input[type="text"]{width:150px}.info-bar-page-tools input[type="number"]{width:74px}
 
 /* BOČNÍ PANEL S MINIATURAMI */
 #thumbs-sidebar { width:120px; flex-shrink:0; display:flex; flex-direction:column; gap:8px; max-height:80vh; overflow-y:auto; padding-right:4px; }
@@ -359,6 +361,17 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
         </select>
       </div>
       <div style="display:flex; gap:15px; align-items:flex-start;">
+        <label style="min-width:150px;">Varianta spodního pruhu:</label>
+        <select id="infoBarVariant" style="flex:1;" onchange="handleInfoBarVariantChange(); scheduleAutosave();">
+          <option value="classic">Původní pruh s logem</option>
+          <option value="architect" selected>Nový pruh 20-20</option>
+        </select>
+      </div>
+      <div id="north-angle-row" style="display:flex; gap:15px; align-items:center;">
+        <label style="min-width:150px;">Natočení severky:</label>
+        <span><input type="number" id="northAngle" value="0" step="1" style="width:90px;" oninput="refreshInfoBarPreview(); scheduleAutosave();"> ° (společné pro všechny stránky)</span>
+      </div>
+      <div style="display:flex; gap:15px; align-items:flex-start;">
         <label style="min-width:150px; padding-top:6px;">Autoři (vyberte kliknutím):</label>
         <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
           <div id="authors-checkbox-container" style="display:flex; flex-wrap:wrap; gap:8px; background:#fff; border:1px solid var(--border); padding:10px; border-radius:6px; max-height:150px; overflow-y:auto;">
@@ -449,6 +462,12 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <button class="action" id="undo-text-btn" onclick="undoTextEdit()" disabled>↶ Zpět</button>
           <span class="muted" style="margin:0;">(Volný pohyb ve všech směrech, přichytávání k ostatním prvkům)</span>
         </div>
+        <div id="info-bar-page-tools" class="info-bar-page-tools">
+          <b>Pruh této stránky:</b>
+          <label>Popis <input type="text" id="infoBarPageText" placeholder="např. půdorys" oninput="updateCurrentInfoBarPage()"></label>
+          <label>Pravá část <select id="infoBarRightMode" onchange="updateCurrentInfoBarPage()"><option value="office">20-20-ARCHITEKTI</option><option value="scale">Měřítko + severka</option></select></label>
+          <label id="info-bar-scale-label">Měřítko 1 : <input type="number" id="infoBarScale" value="100" min="1" step="1" oninput="updateCurrentInfoBarPage()"></label>
+        </div>
         <div id="page-indicator" style="font-size:13px; font-weight:bold; color:var(--muted);">Stránka 1 z 1</div>
 
         <div id="canvas-container">
@@ -496,6 +515,7 @@ let filesData = { pdfa: [], panel: [] };
 let allPagesTexts = {}; 
 let customBlankPages = new Set();
 let pagePdfIndexMap = {};
+let infoBarPages = {};
 let textIdCounter = 1;
 let textUndoStack = [];
 let selectedBoxEl = null;
@@ -636,6 +656,7 @@ function getProjectState() {
     allPagesTexts: allPagesTexts,
     customBlankPages: Array.from(customBlankPages),
     pagePdfIndexMap: pagePdfIndexMap,
+    infoBarPages: infoBarPages,
     textIdCounter: textIdCounter,
     totalPreviewPages: totalPreviewPages,
     defaultCoverLayoutInitialized: defaultCoverLayoutInitialized,
@@ -698,6 +719,7 @@ async function importProjectFromZip(files) {
     allPagesTexts = state.allPagesTexts || {};
     customBlankPages = new Set(state.customBlankPages || []);
     pagePdfIndexMap = state.pagePdfIndexMap || {};
+    infoBarPages = state.infoBarPages || {};
     textIdCounter = state.textIdCounter || 1;
     totalPreviewPages = state.totalPreviewPages || 1;
     defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
@@ -1000,6 +1022,8 @@ function collectFormState() {
     panelCustomType: document.getElementById('panelCustomType').value,
     panelTitle: document.getElementById('panelTitle').value,
     panelDate: document.getElementById('panelDate').value,
+    infoBarVariant: document.getElementById('infoBarVariant').value,
+    northAngle: Number(document.getElementById('northAngle').value) || 0,
     selectedAuthorsOrder: selectedAuthorsOrder.slice()
   };
 }
@@ -1011,6 +1035,9 @@ function applyFormState(s) {
   document.getElementById('panelCustomType').value = s.panelCustomType || '';
   document.getElementById('panelTitle').value = s.panelTitle || '';
   if (s.panelDate) document.getElementById('panelDate').value = s.panelDate;
+  document.getElementById('infoBarVariant').value = s.infoBarVariant || 'classic';
+  document.getElementById('northAngle').value = Number(s.northAngle) || 0;
+  handleInfoBarVariantChange(false);
   selectedAuthorsOrder = Array.isArray(s.selectedAuthorsOrder) ? s.selectedAuthorsOrder.slice() : [];
   initAuthorsUI();
 }
@@ -1024,6 +1051,7 @@ async function saveProjectState() {
     allPagesTexts: allPagesTexts,
     customBlankPages: Array.from(customBlankPages),
     pagePdfIndexMap: pagePdfIndexMap,
+    infoBarPages: infoBarPages,
     textIdCounter: textIdCounter,
     totalPreviewPages: totalPreviewPages,
     defaultCoverLayoutInitialized: defaultCoverLayoutInitialized,
@@ -1125,6 +1153,7 @@ async function loadProject(name) {
   allPagesTexts = {};
   customBlankPages = new Set();
   pagePdfIndexMap = {};
+  infoBarPages = {};
   textIdCounter = 1;
   textUndoStack = [];
   defaultCoverLayoutInitialized = false;
@@ -1141,6 +1170,7 @@ async function loadProject(name) {
     allPagesTexts = state.allPagesTexts || {};
     customBlankPages = new Set(state.customBlankPages || []);
     pagePdfIndexMap = state.pagePdfIndexMap || {};
+    infoBarPages = state.infoBarPages || {};
     textIdCounter = state.textIdCounter || 1;
     defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
     pendingResumePage = state.currentPreviewPage || 1;
@@ -1617,6 +1647,7 @@ function createMoodboard(layoutType) {
   let newTexts = {};
   let newBlankPages = new Set();
   let newPdfMap = {};
+  let newInfoBarPages = {};
   
   for (let [pStr, texts] of Object.entries(allPagesTexts)) {
     let pNum = parseInt(pStr);
@@ -1635,12 +1666,18 @@ function createMoodboard(layoutType) {
     if (pNum >= insertAt) newPdfMap[pNum + 1] = idx;
     else newPdfMap[pNum] = idx;
   }
+  for (let [pStr, cfg] of Object.entries(infoBarPages)) {
+    let pNum = parseInt(pStr);
+    if (pNum >= insertAt) newInfoBarPages[pNum + 1] = cfg;
+    else newInfoBarPages[pNum] = cfg;
+  }
   
   newTexts[insertAt] = { type: 'moodboard', cells };
   
   allPagesTexts = newTexts;
   customBlankPages = newBlankPages;
   pagePdfIndexMap = newPdfMap;
+  infoBarPages = newInfoBarPages;
   totalPreviewPages++;
   currentPreviewPage = insertAt;
   
@@ -1967,7 +2004,8 @@ function buildPageRecords() {
     records.push({
       type,
       pdfIndex: (type === 'pdf') ? (pagePdfIndexMap[p] !== undefined ? pagePdfIndexMap[p] : 0) : null,
-      texts: (type === 'moodboard') ? pageData : (allPagesTexts[p] || [])
+      texts: (type === 'moodboard') ? pageData : (allPagesTexts[p] || []),
+      infoBar: infoBarPages[p] ? {...infoBarPages[p]} : null
     });
   }
   return records;
@@ -1977,8 +2015,10 @@ function applyPageRecords(records) {
   const newTexts = {};
   const newBlank = new Set();
   const newPdfMap = {};
+  const newInfoBarPages = {};
   records.forEach((rec, idx) => {
     const pos = idx + 1;
+    if (rec.infoBar) newInfoBarPages[pos] = rec.infoBar;
     if (rec.type === 'blank') newBlank.add(pos);
     else if (rec.type === 'pdf') newPdfMap[pos] = rec.pdfIndex;
     else if (rec.type === 'moodboard') {
@@ -1996,6 +2036,7 @@ function applyPageRecords(records) {
   allPagesTexts = newTexts;
   customBlankPages = newBlank;
   pagePdfIndexMap = newPdfMap;
+  infoBarPages = newInfoBarPages;
   totalPreviewPages = records.length;
   // Po aplikaci přepočítat mapování
   ensurePagePdfIndexMap();
@@ -2064,6 +2105,7 @@ async function addBlankPage(){
   let newAllTexts = {};
   let newBlankPages = new Set();
   let newPdfMap = {};
+  let newInfoBarPages = {};
   
   for(let [pStr, texts] of Object.entries(allPagesTexts)){
     let pNum = parseInt(pStr);
@@ -2082,10 +2124,16 @@ async function addBlankPage(){
     if(pNum >= insertAt) newPdfMap[pNum + 1] = idx;
     else newPdfMap[pNum] = idx;
   }
+  for(let [pStr, cfg] of Object.entries(infoBarPages)){
+    let pNum = parseInt(pStr);
+    if(pNum >= insertAt) newInfoBarPages[pNum + 1] = cfg;
+    else newInfoBarPages[pNum] = cfg;
+  }
   
   allPagesTexts = newAllTexts;
   customBlankPages = newBlankPages;
   pagePdfIndexMap = newPdfMap;
+  infoBarPages = newInfoBarPages;
   customBlankPages.add(insertAt);
   currentPreviewPage = insertAt;
   
@@ -2124,10 +2172,54 @@ async function drawCover(ctx, width, height, scale) {
 async function drawBlankPage(ctx, width, height, scale) {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, width * scale, height * scale);
-  await drawInfoBar(ctx, width, height, scale);
+  await drawInfoBar(ctx, width, height, scale, currentPreviewPage);
 }
 
-async function drawInfoBar(ctx, width, height, scale) {
+function getInfoBarPageConfig(pageNumber) {
+  if (!infoBarPages[pageNumber]) infoBarPages[pageNumber] = { text:'', rightMode:'office', scale:100 };
+  return infoBarPages[pageNumber];
+}
+
+function formatArchitectDate(value) {
+  const parts = String(value || '').trim().split(/\s+/);
+  return parts.length > 1 ? `${parts.slice(0,-1).join(' ')} _ ${parts[parts.length-1]}` : value;
+}
+
+function handleInfoBarVariantChange(redraw = true) {
+  const architect = document.getElementById('infoBarVariant').value === 'architect';
+  document.getElementById('north-angle-row').style.display = architect ? 'flex' : 'none';
+  const tools = document.getElementById('info-bar-page-tools');
+  if (tools) tools.style.display = architect ? 'flex' : 'none';
+  if (redraw && pdfJsDoc) { renderCurrentPagePreview(); renderThumbnails(); }
+}
+
+function loadCurrentInfoBarControls() {
+  const text = document.getElementById('infoBarPageText');
+  if (!text) return;
+  const cfg = getInfoBarPageConfig(currentPreviewPage);
+  text.value = cfg.text || '';
+  document.getElementById('infoBarRightMode').value = cfg.rightMode || 'office';
+  document.getElementById('infoBarScale').value = cfg.scale || 100;
+  document.getElementById('info-bar-scale-label').style.display = cfg.rightMode === 'scale' ? 'flex' : 'none';
+  handleInfoBarVariantChange(false);
+}
+
+function updateCurrentInfoBarPage() {
+  const cfg = getInfoBarPageConfig(currentPreviewPage);
+  cfg.text = document.getElementById('infoBarPageText').value;
+  cfg.rightMode = document.getElementById('infoBarRightMode').value;
+  cfg.scale = Math.max(1, Number(document.getElementById('infoBarScale').value) || 100);
+  document.getElementById('info-bar-scale-label').style.display = cfg.rightMode === 'scale' ? 'flex' : 'none';
+  scheduleAutosave(); renderCurrentPagePreview(); renderThumbnails();
+}
+
+function refreshInfoBarPreview() { if (pdfJsDoc) { renderCurrentPagePreview(); renderThumbnails(); } }
+
+async function drawInfoBar(ctx, width, height, scale, pageNumber = currentPreviewPage) {
+  if (document.getElementById('infoBarVariant').value === 'architect') {
+    drawArchitectInfoBarCanvas(ctx, width, height, scale, pageNumber);
+    return;
+  }
   const margin = 14.17; 
   const barHeight = 28.35;
   const realWidth = width;
@@ -2186,12 +2278,38 @@ async function drawInfoBar(ctx, width, height, scale) {
   return drawLogo();
 }
 
+function drawArchitectInfoBarCanvas(ctx, width, height, scale, pageNumber) {
+  const cfg = getInfoBarPageConfig(pageNumber), barHeight = 22.68, y = height - barHeight;
+  ctx.save();
+  ctx.fillStyle = '#f7f197'; ctx.fillRect(0, y*scale, width*scale, barHeight*scale);
+  ctx.fillStyle = ctx.strokeStyle = '#18181b'; ctx.lineWidth = .45*scale;
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'right'; ctx.font = `${9*scale}px "${editorFontFamily}"`;
+  ctx.fillText(String(pageNumber), 19*scale, (y+barHeight/2)*scale);
+  const sepX=21; ctx.beginPath(); ctx.moveTo(sepX*scale,(y+2)*scale); ctx.lineTo(sepX*scale,(y+barHeight-2)*scale); ctx.stroke();
+  ctx.textAlign='left'; ctx.font=`bold ${4.8*scale}px "${editorFontFamily}"`; ctx.fillText(cfg.text||'',23.5*scale,(y+7.5)*scale);
+  ctx.font=`${3.7*scale}px "${editorFontFamily}"`; ctx.fillText(formatArchitectDate(document.getElementById('panelDate').value),23.5*scale,(y+15.5)*scale);
+  if(cfg.rightMode==='scale') drawScaleNorthCanvas(ctx,width,y,barHeight,scale,cfg.scale,Number(document.getElementById('northAngle').value)||0);
+  else { ctx.textAlign='center'; ctx.font=`bold ${4.6*scale}px "${editorFontFamily}"`; ctx.fillText('20-20-ARCHITEKTI',(width-48)*scale,(y+barHeight/2)*scale); }
+  ctx.restore();
+}
+
+function drawScaleNorthCanvas(ctx,width,y,barHeight,scale,denom,angle) {
+  const mmPerM=(1000/Math.max(1,denom))*(72/25.4), shownM=Math.max(1,Math.min(5,Math.floor(150/mmPerM))), len=shownM*mmPerM;
+  const end=width-28,start=end-len,lineY=y+7;
+  ctx.textAlign='center'; ctx.font=`${3.7*scale}px "${editorFontFamily}"`; ctx.lineWidth=.45*scale;
+  ctx.beginPath();ctx.moveTo(start*scale,lineY*scale);ctx.lineTo(end*scale,lineY*scale);ctx.stroke();
+  for(let i=0;i<=shownM;i++){const x=start+i*mmPerM;ctx.beginPath();ctx.moveTo(x*scale,lineY*scale);ctx.lineTo(x*scale,(lineY+(i===0||i===shownM?1.7:1))*scale);ctx.stroke();ctx.fillText(String(i),x*scale,(y+14)*scale);}
+  ctx.textAlign='left';ctx.fillText('m',(end+3)*scale,(y+14)*scale);
+  const nx=width-11,ny=y+barHeight/2,r=5;ctx.save();ctx.translate(nx*scale,ny*scale);ctx.rotate(angle*Math.PI/180);ctx.beginPath();ctx.arc(0,0,r*scale,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(0,-(r-1)*scale);ctx.lineTo(-1.25*scale,1.2*scale);ctx.lineTo(0,0);ctx.lineTo(1.25*scale,1.2*scale);ctx.stroke();ctx.restore();
+}
+
 // ============================================================
 // HLAVNÍ FUNKCE PRO VYKRESLENÍ STRÁNKY
 // ============================================================
 async function renderCurrentPagePreview() {
   const info = getPreviewPageInfo();
   const pageSize = await getPageSize(info);
+  loadCurrentInfoBarControls();
   
   const canvas = document.getElementById('preview-canvas');
   const ctx = canvas.getContext('2d');
@@ -2233,7 +2351,7 @@ async function renderCurrentPagePreview() {
     }
   } else if (isMoodboard) {
     await drawMoodboard(ctx, pageSize.width, pageSize.height, renderScale, pageData.cells || []);
-    await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale);
+    await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale, currentPreviewPage);
   } else {
     const page = await pdfJsDoc.getPage(info.pdfIndex + 1);
     const origVp = page.getViewport({scale: 1});
@@ -2244,7 +2362,7 @@ async function renderCurrentPagePreview() {
       renderViewport = page.getViewport({scale: renderScale});
     }
     await page.render({canvasContext: ctx, viewport: renderViewport}).promise;
-    await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale);
+    await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale, currentPreviewPage);
   }
   
   let label = '';
@@ -2570,7 +2688,7 @@ async function renderThumbnails() {
       await drawBlankPage(cctx, pageSize.width, pageSize.height, scale);
     } else if (isMoodboard) {
       await drawMoodboard(cctx, pageSize.width, pageSize.height, scale, pageData.cells || []);
-      await drawInfoBar(cctx, pageSize.width, pageSize.height, scale);
+      await drawInfoBar(cctx, pageSize.width, pageSize.height, scale, p);
     } else {
       const page = await pdfJsDoc.getPage(info.pdfIndex + 1);
       const origVp = page.getViewport({ scale: 1 });
@@ -2578,7 +2696,7 @@ async function renderThumbnails() {
         ? page.getViewport({ scale, rotation: 90 })
         : page.getViewport({ scale });
       await page.render({ canvasContext: cctx, viewport: vp }).promise;
-      await drawInfoBar(cctx, pageSize.width, pageSize.height, scale);
+      await drawInfoBar(cctx, pageSize.width, pageSize.height, scale, p);
     }
 
     const label = document.createElement('div');
@@ -2923,6 +3041,42 @@ async function runPanel(fromModal = false){
       finalLogo = await finalPdf.embedPng(logoBytes);
     }
 
+    function drawFinalInfoBar(page, pageW, pageNumber) {
+      if (document.getElementById('infoBarVariant').value !== 'architect') {
+        const margin=14.17, barHeight=28.35, centerY=margin+barHeight/2;
+        page.drawRectangle({x:margin,y:margin,width:pageW-2*margin,height:barHeight,color:rgb(247/255,241/255,151/255)});
+        let currentX=margin+15;
+        if(finalLogo){const d=finalLogo.scale(22/finalLogo.height);page.drawImage(finalLogo,{x:currentX,y:centerY-d.height/2,width:d.width,height:d.height});currentX+=d.width+15;}
+        page.drawLine({start:{x:currentX,y:margin+6},end:{x:currentX,y:margin+barHeight-6},thickness:1,color:textColor});currentX+=15;
+        page.drawText(projectType,{x:currentX,y:centerY-4,size:11,font:finalFont,color:textColor});
+        const right=pageW-margin-20;page.drawText(projectDate,{x:right-80,y:centerY-4,size:11,font:finalFont,color:textColor});
+        const sx=right-95;page.drawLine({start:{x:sx,y:margin+6},end:{x:sx,y:margin+barHeight-6},thickness:1,color:textColor});
+        page.drawText(projectTitle,{x:sx-15-finalFont.widthOfTextAtSize(projectTitle,11),y:centerY-4,size:11,font:finalFont,color:textColor});
+        return;
+      }
+      const cfg=getInfoBarPageConfig(pageNumber), h=22.68;
+      page.drawRectangle({x:0,y:0,width:pageW,height:h,color:rgb(247/255,241/255,151/255)});
+      const num=String(pageNumber), numW=finalFont.widthOfTextAtSize(num,9);
+      page.drawText(num,{x:19-numW,y:7.4,size:9,font:finalFont,color:textColor});
+      page.drawLine({start:{x:21,y:2},end:{x:21,y:h-2},thickness:.45,color:textColor});
+      if(cfg.text) page.drawText(cfg.text,{x:23.5,y:13,size:4.8,font:finalFont,color:textColor});
+      page.drawText(formatArchitectDate(projectDate),{x:23.5,y:5,size:3.7,font:finalFont,color:textColor});
+      if(cfg.rightMode!=='scale'){
+        const office='20-20-ARCHITEKTI', size=4.6, tw=finalFont.widthOfTextAtSize(office,size);
+        page.drawText(office,{x:pageW-48-tw/2,y:9,size,font:finalFont,color:textColor}); return;
+      }
+      const denom=Math.max(1,Number(cfg.scale)||100), unit=(1000/denom)*(72/25.4), shown=Math.max(1,Math.min(5,Math.floor(150/unit)));
+      const end=pageW-28,start=end-shown*unit,lineY=15.68;
+      page.drawLine({start:{x:start,y:lineY},end:{x:end,y:lineY},thickness:.45,color:textColor});
+      for(let i=0;i<=shown;i++){const x=start+i*unit;page.drawLine({start:{x,y:lineY},end:{x,y:lineY-(i===0||i===shown?1.7:1)},thickness:.45,color:textColor});const s=String(i),w=finalFont.widthOfTextAtSize(s,3.7);page.drawText(s,{x:x-w/2,y:8.68,size:3.7,font:finalFont,color:textColor});}
+      page.drawText('m',{x:end+3,y:8.68,size:3.7,font:finalFont,color:textColor});
+      const nx=pageW-11,ny=h/2,r=5,a=(Number(document.getElementById('northAngle').value)||0)*Math.PI/180;
+      page.drawCircle({x:nx,y:ny,size:r,borderColor:textColor,borderWidth:.45});
+      const rot=(x,y)=>({x:nx+x*Math.cos(a)-y*Math.sin(a),y:ny+x*Math.sin(a)+y*Math.cos(a)});
+      const p1=rot(0,r-1),p2=rot(-1.25,-1.2),p3=rot(0,0),p4=rot(1.25,-1.2);
+      page.drawLine({start:p1,end:p2,thickness:.45,color:textColor});page.drawLine({start:p2,end:p3,thickness:.45,color:textColor});page.drawLine({start:p3,end:p4,thickness:.45,color:textColor});
+    }
+
     for(let previewP = 1; previewP <= totalPreviewPages; previewP++){
       let targetPage;
       let targetW = standardA3W, targetH = standardA3H;
@@ -2959,24 +3113,7 @@ async function runPanel(fromModal = false){
         targetPage = finalPdf.addPage([standardA3W, standardA3H]);
         targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(1,1,1)});
         
-        const margin = 14.17, barHeight = 28.35;
-        targetPage.drawRectangle({x:margin, y:margin, width:standardA3W - 2 * margin, height:barHeight, color:rgb(247/255, 241/255, 151/255)});
-        let currentX = margin + 15;
-        const centerY = margin + barHeight / 2;
-        if(finalLogo){
-          const d = finalLogo.scale(22 / finalLogo.height);
-          targetPage.drawImage(finalLogo, {x:currentX, y:centerY - d.height / 2, width:d.width, height:d.height});
-          currentX += d.width + 15;
-        }
-        targetPage.drawLine({start:{x:currentX, y:margin + 6}, end:{x:currentX, y:margin + barHeight - 6}, thickness:1, color:textColor});
-        currentX += 15;
-        targetPage.drawText(projectType, {x:currentX, y:centerY - 4, size:11, font:finalFont, color:textColor});
-        const rightMargin = margin + standardA3W - 2 * margin - 20;
-        targetPage.drawText(projectDate, {x:rightMargin - 80, y:centerY - 4, size:11, font:finalFont, color:textColor});
-        const titleSeparatorX = rightMargin - 95;
-        targetPage.drawLine({start:{x:titleSeparatorX, y:margin + 6}, end:{x:titleSeparatorX, y:margin + barHeight - 6}, thickness:1, color:textColor});
-        const titleWidth = finalFont.widthOfTextAtSize(projectTitle, 11);
-        targetPage.drawText(projectTitle, {x:titleSeparatorX - 15 - titleWidth, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        drawFinalInfoBar(targetPage, standardA3W, previewP);
       } else if(isMoodboard) {
         targetPage = finalPdf.addPage([standardA3W, standardA3H]);
         targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(232/255, 232/255, 232/255)});
@@ -3024,24 +3161,7 @@ async function runPanel(fromModal = false){
             console.warn('Chyba při vkládání obrázku do PDF:', e);
           }
         }
-        const margin = 14.17, barHeight = 28.35;
-        targetPage.drawRectangle({x:margin, y:margin, width:standardA3W - 2 * margin, height:barHeight, color:rgb(247/255, 241/255, 151/255)});
-        let currentX = margin + 15;
-        const centerY = margin + barHeight / 2;
-        if(finalLogo){
-          const d = finalLogo.scale(22 / finalLogo.height);
-          targetPage.drawImage(finalLogo, {x:currentX, y:centerY - d.height / 2, width:d.width, height:d.height});
-          currentX += d.width + 15;
-        }
-        targetPage.drawLine({start:{x:currentX, y:margin + 6}, end:{x:currentX, y:margin + barHeight - 6}, thickness:1, color:textColor});
-        currentX += 15;
-        targetPage.drawText(projectType, {x:currentX, y:centerY - 4, size:11, font:finalFont, color:textColor});
-        const rightMargin = margin + standardA3W - 2 * margin - 20;
-        targetPage.drawText(projectDate, {x:rightMargin - 80, y:centerY - 4, size:11, font:finalFont, color:textColor});
-        const titleSeparatorX = rightMargin - 95;
-        targetPage.drawLine({start:{x:titleSeparatorX, y:margin + 6}, end:{x:titleSeparatorX, y:margin + barHeight - 6}, thickness:1, color:textColor});
-        const titleWidth = finalFont.widthOfTextAtSize(projectTitle, 11);
-        targetPage.drawText(projectTitle, {x:titleSeparatorX - 15 - titleWidth, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        drawFinalInfoBar(targetPage, standardA3W, previewP);
       } else {
         const srcPdfIndex = (pagePdfIndexMap[previewP] !== undefined) ? pagePdfIndexMap[previewP] : 0;
         const [embeddedPage] = await finalPdf.embedPdf(pdf, [srcPdfIndex]);
@@ -3071,24 +3191,7 @@ async function runPanel(fromModal = false){
         targetW = drawWidth;
         targetH = drawHeight;
 
-        const margin = 14.17, barHeight = 28.35;
-        targetPage.drawRectangle({x:margin, y:margin, width:targetW - 2 * margin, height:barHeight, color:rgb(247/255, 241/255, 151/255)});
-        let currentX = margin + 15;
-        const centerY = margin + barHeight / 2;
-        if(finalLogo){
-          const d = finalLogo.scale(22 / finalLogo.height);
-          targetPage.drawImage(finalLogo, {x:currentX, y:centerY - d.height / 2, width:d.width, height:d.height});
-          currentX += d.width + 15;
-        }
-        targetPage.drawLine({start:{x:currentX, y:margin + 6}, end:{x:currentX, y:margin + barHeight - 6}, thickness:1, color:textColor});
-        currentX += 15;
-        targetPage.drawText(projectType, {x:currentX, y:centerY - 4, size:11, font:finalFont, color:textColor});
-        const rightMapping = margin + targetW - 2 * margin - 20;
-        targetPage.drawText(projectDate, {x:rightMapping - 80, y:centerY - 4, size:11, font:finalFont, color:textColor});
-        const titleSeparatorX = rightMapping - 95;
-        targetPage.drawLine({start:{x:titleSeparatorX, y:margin + 6}, end:{x:titleSeparatorX, y:margin + barHeight - 6}, thickness:1, color:textColor});
-        const titleWidth = finalFont.widthOfTextAtSize(projectTitle, 11);
-        targetPage.drawText(projectTitle, {x:titleSeparatorX - 15 - titleWidth, y:centerY - 4, size:11, font:finalFont, color:textColor});
+        drawFinalInfoBar(targetPage, targetW, previewP);
       }
 
       if (!isMoodboard && !(createCover && previewP === 1)) {
