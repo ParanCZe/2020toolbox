@@ -79,7 +79,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 #moodboard-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1200; align-items:center; justify-content:center; padding:20px; }
 #moodboard-modal .box { background:#fff; border-radius:12px; padding:24px; width:100%; max-width:460px; }
 #moodboard-modal h3 { margin:0 0 12px; font-family:'Antarctican Mono', monospace; font-weight:normal; font-size:16px; }
-#moodboard-modal .layout-options { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
+#moodboard-modal .layout-options { display:flex; flex-direction:column; gap:8px; margin:12px 0; max-height:70vh; overflow-y:auto; }
 #moodboard-modal .layout-options button { padding:10px 14px; border:1px solid var(--border); border-radius:6px; background:#fafafa; cursor:pointer; font-size:14px; text-align:left; transition:.15s; display:flex; align-items:center; gap:12px; }
 #moodboard-modal .layout-options button:hover { background:#e4e4e7; border-color:#a1a1aa; }
 #moodboard-modal .layout-options button .preview { display:inline-flex; flex-direction:column; gap:2px; flex-shrink:0; }
@@ -409,6 +409,22 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <span class="row"><span class="cell big"></span><span class="cell small"></span></span>
         </span>
         <span class="label">1+2 <small>horní: malý + velký, dolní: velký + malý</small></span>
+      </button>
+      <button onclick="createMoodboard('8-2x4')">
+        <span class="preview">
+          <span class="row"><span class="cell small"></span><span class="cell small"></span><span class="cell small"></span><span class="cell small"></span></span>
+          <span class="row"><span class="cell small"></span><span class="cell small"></span><span class="cell small"></span><span class="cell small"></span></span>
+        </span>
+        <span class="label">8 osmin (2×4) <small>2 řady po 4 sloupcích, stejné obdélníky</small></span>
+      </button>
+      <button onclick="createMoodboard('8-4x2')">
+        <span class="preview">
+          <span class="row"><span class="cell small"></span><span class="cell small"></span></span>
+          <span class="row"><span class="cell small"></span><span class="cell small"></span></span>
+          <span class="row"><span class="cell small"></span><span class="cell small"></span></span>
+          <span class="row"><span class="cell small"></span><span class="cell small"></span></span>
+        </span>
+        <span class="label">8 osmin (4×2) <small>4 řady po 2 sloupcích, stejné obdélníky</small></span>
       </button>
     </div>
     <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
@@ -1575,6 +1591,28 @@ function createMoodboard(layoutType) {
     cells.push({ x: marginSide + smallW + gap, y: marginTop, w: bigW, h: bigH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
     cells.push({ x: marginSide, y: marginTop + bigH + gap, w: bigW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
     cells.push({ x: marginSide + bigW + gap, y: marginTop + bigH + gap, w: smallW, h: smallH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+  } else if (layoutType === '8-2x4') {
+    const cols = 4, rows = 2;
+    const cellW = (usableW - (cols - 1) * gap) / cols;
+    const cellH = (usableH - (rows - 1) * gap) / rows;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = marginSide + c * (cellW + gap);
+        const y = marginTop + r * (cellH + gap);
+        cells.push({ x, y, w: cellW, h: cellH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+      }
+    }
+  } else if (layoutType === '8-4x2') {
+    const cols = 2, rows = 4;
+    const cellW = (usableW - (cols - 1) * gap) / cols;
+    const cellH = (usableH - (rows - 1) * gap) / rows;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = marginSide + c * (cellW + gap);
+        const y = marginTop + r * (cellH + gap);
+        cells.push({ x, y, w: cellW, h: cellH, imageData: null, imageRef: null, zoom: 1, offsetX: 0, offsetY: 0 });
+      }
+    }
   }
   
   // ---- STEJNÝ PRINCIP JAKO addBlankPage ----
@@ -1642,8 +1680,10 @@ async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
           const zoom = cell.zoom || 1;
           const offX = (cell.offsetX || 0) * scale;
           const offY = (cell.offsetY || 0) * scale;
-          const imgW = img.width * scale * zoom;
-          const imgH = img.height * scale * zoom;
+          // "cover" – obrázek vždy vyplní celou buňku (stejně jako object-fit:cover v editoru), přesah se ořízne
+          const coverScale = Math.max(w / img.width, h / img.height) * zoom;
+          const imgW = img.width * coverScale;
+          const imgH = img.height * coverScale;
           const drawX = x + (w - imgW) / 2 + offX;
           const drawY = y + (h - imgH) / 2 + offY;
           ctx.drawImage(img, drawX, drawY, imgW, imgH);
@@ -1995,7 +2035,7 @@ async function deletePreviewPage(pos) {
 }
 
 async function getPageSize(info) {
-  if (info.isCover || info.isBlank) {
+  if (info.isCover || info.isBlank || info.isMoodboard) {
     const p = await pdfJsDoc.getPage(1);
     const vp = p.getViewport({scale:1});
     const w = Math.max(vp.width, vp.height);
@@ -2854,7 +2894,7 @@ async function nextPage(){
 }
 
 async function runPanel(fromModal = false){
-  const {PDFDocument, rgb} = PDFLib;
+  const {PDFDocument, rgb, pushGraphicsState, popGraphicsState, rectangle, clip, endPath} = PDFLib;
   if(!filesData.panel.length) return;
 
   if (document.getElementById('preview-modal').style.display === 'flex') {
@@ -2952,46 +2992,51 @@ async function runPanel(fromModal = false){
         targetPage = finalPdf.addPage([standardA3W, standardA3H]);
         targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(232/255, 232/255, 232/255)});
         const cells = pageData.cells || [];
+        // Rámečky jsou pouze pomůcka v editoru – v exportu se nekreslí, zůstávají jen obrázky.
         for (let cell of cells) {
-          targetPage.drawRectangle({
-            x: cell.x, y: cell.y,
-            width: cell.w, height: cell.h,
-            borderColor: rgb(24/255, 24/255, 27/255),
-            borderWidth: 2,
-            color: rgb(1,1,1)
-          });
-          if (cell.imageData) {
-            try {
-              const imgBytes = await fetch(cell.imageData).then(r => r.arrayBuffer());
-              let imageObj;
-              if (cell.imageData.startsWith('data:image/png')) {
-                imageObj = await finalPdf.embedPng(imgBytes);
-              } else if (cell.imageData.startsWith('data:image/jpeg')) {
-                imageObj = await finalPdf.embedJpg(imgBytes);
-              } else {
-                imageObj = await finalPdf.embedPng(imgBytes);
-              }
-              if (imageObj) {
-                const zoom = cell.zoom || 1;
-                const offX = cell.offsetX || 0;
-                const offY = cell.offsetY || 0;
-                const imgAspect = imageObj.width / imageObj.height;
-                const cellAspect = cell.w / cell.h;
-                let drawW, drawH;
-                if (imgAspect > cellAspect) {
-                  drawW = cell.w * zoom;
-                  drawH = drawW / imgAspect;
-                } else {
-                  drawH = cell.h * zoom;
-                  drawW = drawH * imgAspect;
-                }
-                const dx = cell.x + (cell.w - drawW) / 2 + offX;
-                const dy = cell.y + (cell.h - drawH) / 2 + offY;
-                targetPage.drawImage(imageObj, { x: dx, y: dy, width: drawW, height: drawH });
-              }
-            } catch(e) {
-              console.warn('Chyba při vkládání obrázku do PDF:', e);
+          if (!cell.imageData) continue;
+          try {
+            const imgBytes = await fetch(cell.imageData).then(r => r.arrayBuffer());
+            let imageObj;
+            if (cell.imageData.startsWith('data:image/png')) {
+              imageObj = await finalPdf.embedPng(imgBytes);
+            } else if (cell.imageData.startsWith('data:image/jpeg')) {
+              imageObj = await finalPdf.embedJpg(imgBytes);
+            } else {
+              imageObj = await finalPdf.embedPng(imgBytes);
             }
+            if (imageObj) {
+              const zoom = cell.zoom || 1;
+              const offX = cell.offsetX || 0;
+              const offY = cell.offsetY || 0;
+              const imgAspect = imageObj.width / imageObj.height;
+              const cellAspect = cell.w / cell.h;
+              let drawW, drawH;
+              // "cover" – obrázek musí vyplnit celou buňku, přesah se ořízne (stejné chování jako v editoru)
+              if (imgAspect > cellAspect) {
+                drawH = cell.h * zoom;
+                drawW = drawH * imgAspect;
+              } else {
+                drawW = cell.w * zoom;
+                drawH = drawW / imgAspect;
+              }
+              // cell.x/cell.y jsou v souřadnicích shora dolů (jako canvas), pdf-lib má počátek vlevo dole –
+              // proto je potřeba y-ovou souřadnici i posun (offsetY) převrátit.
+              const cellBottomY = targetH - cell.y - cell.h;
+              const dx = cell.x + (cell.w - drawW) / 2 + offX;
+              const dy = cellBottomY + (cell.h - drawH) / 2 - offY;
+
+              targetPage.pushOperators(
+                pushGraphicsState(),
+                rectangle(cell.x, cellBottomY, cell.w, cell.h),
+                clip(),
+                endPath()
+              );
+              targetPage.drawImage(imageObj, { x: dx, y: dy, width: drawW, height: drawH });
+              targetPage.pushOperators(popGraphicsState());
+            }
+          } catch(e) {
+            console.warn('Chyba při vkládání obrázku do PDF:', e);
           }
         }
         const margin = 14.17, barHeight = 28.35;
