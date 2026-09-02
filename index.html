@@ -1174,9 +1174,17 @@ async function loadProject(name) {
       `<div class="item">📄 ${namedFile.name} (${(namedFile.size / 1024).toFixed(1)} KB)</div>`;
     loadedFileBytes = await namedFile.arrayBuffer();
     pdfJsDoc = await pdfjsLib.getDocument({ data: loadedFileBytes.slice(0) }).promise;
-    totalPreviewPages = (state && state.totalPreviewPages)
-      ? state.totalPreviewPages
-      : (pdfJsDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0) + customBlankPages.size);
+    
+    // Přepočítat totalPreviewPages ze skutečného stavu
+    let pageCount = pdfJsDoc.numPages;
+    if (document.getElementById('createCover').checked) pageCount++;
+    pageCount += customBlankPages.size;
+    // Spočítat moodboard stránky
+    for (let p in allPagesTexts) {
+      if (allPagesTexts[p] && allPagesTexts[p].type === 'moodboard') pageCount++;
+    }
+    totalPreviewPages = pageCount;
+    
     ensurePagePdfIndexMap();
     document.getElementById('btn-preview').disabled = false;
     document.getElementById('btn-panel').disabled = false;
@@ -1878,7 +1886,6 @@ async function openPreviewModal() {
     if (authors) {
       const linesCount = authors.split(/\r?\n/).length;
       const authorsY = (295 - 10) - ((linesCount - 1) * 14 * 1.2);
-      // přesně jako v druhém souboru
       boxes.push({ id: textIdCounter++, type: 'text', text: authors, size: 14, x: pInfo.width - 320 + 25, y: authorsY });
       boxes.push({ id: textIdCounter++, type: 'line', x: pInfo.width - 320, y: authorsY, height: Math.max(40, linesCount * 14 * 1.2 + 10) });
     }
@@ -1896,24 +1903,77 @@ async function openPreviewModal() {
 function closePreviewModal() {
   saveCurrentPageBoxes();
   document.getElementById('preview-modal').style.display = 'none';
-  // explicitní uložení projektu (bod 2)
   saveProjectState().catch(() => {});
 }
 
 function ensurePagePdfIndexMap() {
   if (!pdfJsDoc) return;
   const createCover = document.getElementById('createCover').checked;
-  const mappedCount = Object.keys(pagePdfIndexMap).length;
-  if (mappedCount >= pdfJsDoc.numPages) return;
-
-  pagePdfIndexMap = {};
-  let nextPdfIndex = 0;
+  
+  // Zjistíme, které stránky už mají mapování
+  const existingPages = new Set(Object.keys(pagePdfIndexMap).map(Number));
+  
+  // Najdeme maximální použitý pdfIndex
+  let maxPdfIndex = -1;
+  for (let idx of Object.values(pagePdfIndexMap)) {
+    if (idx > maxPdfIndex) maxPdfIndex = idx;
+  }
+  let nextPdfIndex = maxPdfIndex + 1;
+  
+  // Pro každou stránku, která není cover/blank/moodboard, zajistíme mapování
   for (let p = 1; p <= totalPreviewPages; p++) {
     if (customBlankPages.has(p)) continue;
     if (createCover && p === 1) continue;
-    if (nextPdfIndex < pdfJsDoc.numPages) {
-      pagePdfIndexMap[p] = nextPdfIndex;
-      nextPdfIndex++;
+    const pageData = allPagesTexts[p];
+    if (pageData && pageData.type === 'moodboard') continue;
+    
+    if (!pagePdfIndexMap.hasOwnProperty(p)) {
+      if (nextPdfIndex < pdfJsDoc.numPages) {
+        pagePdfIndexMap[p] = nextPdfIndex++;
+      }
+    }
+  }
+  
+  // Pokud je v mapě méně položek, než je stránek PDF, přidáme chybějící na konec
+  const mappedCount = Object.keys(pagePdfIndexMap).length;
+  if (mappedCount < pdfJsDoc.numPages) {
+    // Najdeme poslední stránku, která není cover/blank/moodboard
+    let lastPage = totalPreviewPages;
+    for (let p = totalPreviewPages; p >= 1; p--) {
+      if (customBlankPages.has(p)) continue;
+      if (createCover && p === 1) continue;
+      const pd = allPagesTexts[p];
+      if (pd && pd.type === 'moodboard') continue;
+      lastPage = p;
+      break;
+    }
+    // Přidáme chybějící PDF stránky za poslední existující PDF stránku
+    for (let i = mappedCount; i < pdfJsDoc.numPages; i++) {
+      let newPage = lastPage + 1;
+      // Posuneme všechny stránky od newPage výše o 1
+      let newTexts = {};
+      for (let [pStr, texts] of Object.entries(allPagesTexts)) {
+        let pNum = parseInt(pStr);
+        if (pNum >= newPage) newTexts[pNum + 1] = texts;
+        else newTexts[pNum] = texts;
+      }
+      allPagesTexts = newTexts;
+      let newBlank = new Set();
+      for (let bp of customBlankPages) {
+        if (bp >= newPage) newBlank.add(bp + 1);
+        else newBlank.add(bp);
+      }
+      customBlankPages = newBlank;
+      let newPdfMap = {};
+      for (let [pStr, idx] of Object.entries(pagePdfIndexMap)) {
+        let pNum = parseInt(pStr);
+        if (pNum >= newPage) newPdfMap[pNum + 1] = idx;
+        else newPdfMap[pNum] = idx;
+      }
+      pagePdfIndexMap = newPdfMap;
+      pagePdfIndexMap[newPage] = i;
+      totalPreviewPages++;
+      lastPage = newPage;
     }
   }
 }
