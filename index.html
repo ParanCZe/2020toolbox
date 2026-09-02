@@ -200,7 +200,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .moodboard-cell .cell-plus:hover { background:#fff; color:#18181b; }
 .moodboard-cell .cell-img {
   position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none;
-  transition:transform 0.1s; display:block;
+  transform-origin:center center; will-change:transform; display:block;
 }
 .moodboard-cell .cell-delete {
   position:absolute; top:4px; right:4px; width:22px; height:22px;
@@ -1719,7 +1719,7 @@ function createMoodboard(layoutType) {
 // KONEC MOODBOARD FUNKCÍ
 // ============================================================
 
-async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
+async function drawMoodboard(ctx, pageW, pageH, scale, cells, drawImages = true) {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, pageW * scale, pageH * scale);
   
@@ -1733,7 +1733,7 @@ async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
     ctx.lineWidth = 2 * scale;
     ctx.strokeRect(x, y, w, h);
     
-    if (cell.imageData) {
+    if (drawImages && cell.imageData) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(x, y, w, h);
@@ -1802,9 +1802,9 @@ function renderMoodboardOverlay(pageNum, cells) {
       div.addEventListener('wheel', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const delta = e.deltaY > 0 ? -0.02 : 0.02;
         let newZoom = (cell.zoom || 1) + delta;
-        newZoom = Math.max(0.2, Math.min(5, newZoom));
+        newZoom = Math.max(0.1, Math.min(5, newZoom));
         cell.zoom = newZoom;
         updateCellImageTransform(pageNum, idx);
         scheduleAutosave();
@@ -1835,6 +1835,8 @@ function renderMoodboardOverlay(pageNum, cells) {
         if (isDragging) {
           isDragging = false;
           div.style.cursor = 'default';
+          renderThumbnails();
+          scheduleAutosave();
         }
       });
       
@@ -2454,7 +2456,9 @@ async function renderCurrentPagePreview() {
       });
     }
   } else if (isMoodboard) {
-    await drawMoodboard(ctx, pageSize.width, pageSize.height, renderScale, pageData.cells || []);
+    // V editoru obrázky zobrazuje pouze interaktivní HTML vrstva nad canvasem.
+    // Zabrání se tak duchu původní polohy při tažení; data obrázku zůstávají celá.
+    await drawMoodboard(ctx, pageSize.width, pageSize.height, renderScale, pageData.cells || [], false);
     await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale, currentPreviewPage);
   } else {
     const page = await pdfJsDoc.getPage(info.pdfIndex + 1);
