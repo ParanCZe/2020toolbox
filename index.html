@@ -2319,28 +2319,28 @@ async function drawInfoBar(ctx, width, height, scale, pageNumber = currentPrevie
 }
 
 function drawArchitectInfoBarCanvas(ctx, width, height, scale, pageNumber) {
-  const cfg = getInfoBarPageConfig(pageNumber), barHeight = 56.69, y = height - barHeight;
+  const cfg = getInfoBarPageConfig(pageNumber), barHeight = 34.02, y = height - barHeight;
   ctx.save();
   ctx.fillStyle = '#f7f197'; ctx.fillRect(0, y*scale, width*scale, barHeight*scale);
   ctx.fillStyle = ctx.strokeStyle = '#18181b'; ctx.lineWidth = .45*scale;
-  ctx.textBaseline = 'middle'; ctx.textAlign = 'right'; ctx.font = `${20*scale}px "${editorFontFamily}"`;
-  ctx.fillText(String(pageNumber), 41*scale, (y+barHeight/2)*scale);
-  const sepX=45; ctx.beginPath(); ctx.moveTo(sepX*scale,(y+5)*scale); ctx.lineTo(sepX*scale,(y+barHeight-5)*scale); ctx.stroke();
-  ctx.textAlign='left'; ctx.font=`bold ${12*scale}px "${editorFontFamily}"`; ctx.fillText(cfg.text||'',52*scale,(y+18)*scale);
-  ctx.font=`${9*scale}px "${editorFontFamily}"`; ctx.fillText(formatArchitectDate(document.getElementById('panelDate').value),52*scale,(y+39)*scale);
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'right'; ctx.font = `${28*scale}px "${editorFontFamily}"`;
+  ctx.fillText(String(pageNumber), 49*scale, (y+barHeight/2)*scale);
+  const sepX=54; ctx.beginPath(); ctx.moveTo(sepX*scale,(y+5)*scale); ctx.lineTo(sepX*scale,(y+barHeight-5)*scale); ctx.stroke();
+  ctx.textAlign='left'; ctx.font=`bold ${8*scale}px "${editorFontFamily}"`; ctx.fillText(cfg.text||'',62*scale,(y+10.5)*scale);
+  ctx.font=`${8*scale}px "${editorFontFamily}"`; ctx.fillText(formatArchitectDate(document.getElementById('panelDate').value),62*scale,(y+23.5)*scale);
   if(cfg.rightMode==='scale') drawScaleNorthCanvas(ctx,width,y,barHeight,scale,cfg.scale,Number(document.getElementById('northAngle').value)||0);
-  else { ctx.textAlign='center'; ctx.font=`bold ${11*scale}px "${editorFontFamily}"`; ctx.fillText('20-20-ARCHITEKTI',(width-105)*scale,(y+barHeight/2)*scale); }
+  else { ctx.textAlign='center'; ctx.font=`bold ${15*scale}px "${editorFontFamily}"`; ctx.fillText('20-20-ARCHITEKTI',(width-130)*scale,(y+barHeight/2)*scale); }
   ctx.restore();
 }
 
 function drawScaleNorthCanvas(ctx,width,y,barHeight,scale,denom,angle) {
   const mmPerM=(1000/Math.max(1,denom))*(72/25.4), shownM=Math.max(1,Math.min(5,Math.floor(230/mmPerM))), len=shownM*mmPerM;
-  const end=width-75,start=end-len,lineY=y+17;
+  const end=width-75,start=end-len,lineY=y+9;
   ctx.textAlign='center'; ctx.font=`${8*scale}px "${editorFontFamily}"`; ctx.lineWidth=.85*scale;
   ctx.beginPath();ctx.moveTo(start*scale,lineY*scale);ctx.lineTo(end*scale,lineY*scale);ctx.stroke();
-  for(let i=0;i<=shownM;i++){const x=start+i*mmPerM;ctx.beginPath();ctx.moveTo(x*scale,lineY*scale);ctx.lineTo(x*scale,(lineY+(i===0||i===shownM?4:2.5))*scale);ctx.stroke();ctx.fillText(String(i),x*scale,(y+37)*scale);}
-  ctx.textAlign='left';ctx.fillText('m',(end+7)*scale,(y+37)*scale);
-  const nx=width-28,ny=y+barHeight/2,r=14;ctx.save();ctx.translate(nx*scale,ny*scale);ctx.rotate(angle*Math.PI/180);ctx.beginPath();ctx.arc(0,0,r*scale,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(0,-(r-2)*scale);ctx.lineTo(-3.5*scale,3.5*scale);ctx.lineTo(0,0);ctx.lineTo(3.5*scale,3.5*scale);ctx.stroke();ctx.restore();
+  for(let i=0;i<=shownM;i++){const x=start+i*mmPerM;ctx.beginPath();ctx.moveTo(x*scale,lineY*scale);ctx.lineTo(x*scale,(lineY+(i===0||i===shownM?3:2))*scale);ctx.stroke();ctx.fillText(String(i),x*scale,(y+24)*scale);}
+  ctx.textAlign='left';ctx.fillText('m',(end+7)*scale,(y+24)*scale);
+  const nx=width-25,ny=y+barHeight/2,r=11;ctx.save();ctx.translate(nx*scale,ny*scale);ctx.rotate(angle*Math.PI/180);ctx.beginPath();ctx.arc(0,0,r*scale,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(0,-(r-2)*scale);ctx.lineTo(-3*scale,3*scale);ctx.lineTo(0,0);ctx.lineTo(3*scale,3*scale);ctx.stroke();ctx.restore();
 }
 
 // ============================================================
@@ -3094,23 +3094,23 @@ async function runPanel(fromModal = false){
         page.drawText(projectTitle,{x:sx-15-finalFont.widthOfTextAtSize(projectTitle,11),y:centerY-4,size:11,font:finalFont,color:textColor});
         return;
       }
-      const cfg=getInfoBarPageConfig(pageNumber), h=56.69;
+      const cfg=getInfoBarPageConfig(pageNumber), h=34.02;
       page.drawRectangle({x:0,y:0,width:pageW,height:h,color:rgb(247/255,241/255,151/255)});
-      const num=String(pageNumber), numW=finalFont.widthOfTextAtSize(num,20);
-      page.drawText(num,{x:41-numW,y:20,size:20,font:finalFont,color:textColor});
-      page.drawLine({start:{x:45,y:5},end:{x:45,y:h-5},thickness:.85,color:textColor});
-      if(cfg.text) page.drawText(cfg.text,{x:52,y:33,size:12,font:finalFont,color:textColor});
-      page.drawText(formatArchitectDate(projectDate),{x:52,y:12,size:9,font:finalFont,color:textColor});
+      const num=String(pageNumber), numW=finalFont.widthOfTextAtSize(num,28);
+      page.drawText(num,{x:49-numW,y:3,size:28,font:finalFont,color:textColor});
+      page.drawLine({start:{x:54,y:5},end:{x:54,y:h-5},thickness:.85,color:textColor});
+      if(cfg.text) page.drawText(cfg.text,{x:62,y:19,size:8,font:finalFont,color:textColor});
+      page.drawText(formatArchitectDate(projectDate),{x:62,y:6,size:8,font:finalFont,color:textColor});
       if(cfg.rightMode!=='scale'){
-        const office='20-20-ARCHITEKTI', size=11, tw=finalFont.widthOfTextAtSize(office,size);
-        page.drawText(office,{x:pageW-105-tw/2,y:22.5,size,font:finalFont,color:textColor}); return;
+        const office='20-20-ARCHITEKTI', size=15, tw=finalFont.widthOfTextAtSize(office,size);
+        page.drawText(office,{x:pageW-130-tw/2,y:9,size,font:finalFont,color:textColor}); return;
       }
       const denom=Math.max(1,Number(cfg.scale)||100), unit=(1000/denom)*(72/25.4), shown=Math.max(1,Math.min(5,Math.floor(230/unit)));
-      const end=pageW-75,start=end-shown*unit,lineY=39.69;
+      const end=pageW-75,start=end-shown*unit,lineY=25.02;
       page.drawLine({start:{x:start,y:lineY},end:{x:end,y:lineY},thickness:.85,color:textColor});
-      for(let i=0;i<=shown;i++){const x=start+i*unit;page.drawLine({start:{x,y:lineY},end:{x,y:lineY-(i===0||i===shown?4:2.5)},thickness:.85,color:textColor});const s=String(i),w=finalFont.widthOfTextAtSize(s,8);page.drawText(s,{x:x-w/2,y:15,size:8,font:finalFont,color:textColor});}
-      page.drawText('m',{x:end+7,y:15,size:8,font:finalFont,color:textColor});
-      const nx=pageW-28,ny=h/2,r=14,a=(Number(document.getElementById('northAngle').value)||0)*Math.PI/180;
+      for(let i=0;i<=shown;i++){const x=start+i*unit;page.drawLine({start:{x,y:lineY},end:{x,y:lineY-(i===0||i===shown?3:2)},thickness:.85,color:textColor});const s=String(i),w=finalFont.widthOfTextAtSize(s,8);page.drawText(s,{x:x-w/2,y:7,size:8,font:finalFont,color:textColor});}
+      page.drawText('m',{x:end+7,y:7,size:8,font:finalFont,color:textColor});
+      const nx=pageW-25,ny=h/2,r=11,a=(Number(document.getElementById('northAngle').value)||0)*Math.PI/180;
       page.drawCircle({x:nx,y:ny,size:r,borderColor:textColor,borderWidth:.85});
       const rot=(x,y)=>({x:nx+x*Math.cos(a)-y*Math.sin(a),y:ny+x*Math.sin(a)+y*Math.cos(a)});
       const p1=rot(0,r-2),p2=rot(-3.5,-3.5),p3=rot(0,0),p4=rot(3.5,-3.5);
