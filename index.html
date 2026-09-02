@@ -9,8 +9,9 @@
 
 :root{--bg:#f4f4f5;--card:#fff;--border:#e4e4e7;--text:#18181b;--muted:#71717a;--accent:#f7f197;--header-bg:#f7f197;}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,Segoe UI,sans-serif}
-header{background:var(--header-bg);border-bottom:1px solid #e2db7d;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+header{background:var(--header-bg);border-bottom:1px solid #e2db7d;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:relative}
 .logo{font-family:'Antarctican Mono', monospace;font-weight:normal;font-size:18px;letter-spacing:.5px;display:flex;align-items:center;gap:8px;color:#18181b}
+.app-version{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:'Antarctican Mono',monospace;font-size:13px;color:#18181b;letter-spacing:.5px;pointer-events:none}
 .wrap{max-width:1200px;margin:24px auto;padding:0 24px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;font-size:22px}
@@ -231,6 +232,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
+  <div class="app-version">V3.1</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
@@ -1379,7 +1381,27 @@ function setupDropZone(type) {
 }
 
 function handleFiles(files, type) {
-  filesData[type] = Array.from(files).filter(f => /\.pdf$/i.test(f.name));
+  const incomingFiles = Array.from(files).filter(f => /\.pdf$/i.test(f.name));
+
+  if (type === 'pdfa') {
+    // Další výběr nebo přetažení rozšíří existující dávku.
+    // Kombinace názvu, velikosti a data změny zabrání náhodným duplicitám.
+    const existingKeys = new Set(
+      filesData[type].map(f => `${f.name}|${f.size}|${f.lastModified}`)
+    );
+    for (const file of incomingFiles) {
+      const key = `${file.name}|${file.size}|${file.lastModified}`;
+      if (!existingKeys.has(key)) {
+        filesData[type].push(file);
+        existingKeys.add(key);
+      }
+    }
+    // Umožní znovu vybrat soubor se stejným názvem po jeho změně na disku.
+    const input = document.getElementById('f-pdfa');
+    if (input) input.value = '';
+  } else {
+    filesData[type] = incomingFiles;
+  }
   
   if(type === 'pdfa') {
     document.getElementById('list-pdfa').innerHTML = filesData[type].map((f, i) => 
