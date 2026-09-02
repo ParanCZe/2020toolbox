@@ -58,6 +58,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .north-dial::before,.north-dial::after{content:"";position:absolute;background:#d4d4d8;pointer-events:none}.north-dial::before{width:1px;height:100%;left:50%;top:0}.north-dial::after{height:1px;width:100%;top:50%;left:0}
 .north-dial-center{position:absolute;width:7px;height:7px;background:#18181b;border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
 .north-dial-point{position:absolute;width:17px;height:17px;background:#18181b;border:3px solid #fff;border-radius:50%;left:50%;top:4px;transform:translate(-50%,-50%);box-shadow:0 0 0 2px #18181b;pointer-events:none}
+.style-picker{display:flex;gap:7px;flex-wrap:wrap;align-items:center}.style-choice{width:88px;height:52px;padding:4px;background:#fff;border:2px solid var(--border);border-radius:7px;cursor:pointer;color:#18181b}.style-choice:hover{border-color:#a1a1aa}.style-choice.active{border-color:#18181b;background:#f7f197}.style-choice svg{width:100%;height:100%;display:block}
 
 /* BOČNÍ PANEL S MINIATURAMI */
 #thumbs-sidebar { width:120px; flex-shrink:0; display:flex; flex-direction:column; gap:8px; max-height:80vh; overflow-y:auto; padding-right:4px; }
@@ -380,6 +381,16 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
         <input type="hidden" id="northAngle" value="0">
         <span><small style="color:var(--muted)">Táhněte černý bod po obvodu kružnice.<br>Bod ukazuje směr severky a nastavení platí pro všechny stránky.</small></span>
       </div>
+      <div id="north-style-row" style="display:flex;gap:15px;align-items:center;">
+        <label style="min-width:150px;">Vzhled severky:</label>
+        <input type="hidden" id="northStyle" value="circle">
+        <div class="style-picker" id="northStylePicker">
+          <button type="button" class="style-choice active" data-style="circle" onclick="setNorthStyle('circle')" title="Kružnice a plná šipka"><svg viewBox="0 0 80 44"><circle cx="40" cy="22" r="17" fill="none" stroke="currentColor"/><path d="M40 6 L34 28 L46 28 Z" fill="currentColor"/></svg></button>
+          <button type="button" class="style-choice" data-style="arrow" onclick="setNorthStyle('arrow')" title="Samostatná šipka"><svg viewBox="0 0 80 44"><path d="M40 3 L29 35 L40 29 L51 35 Z" fill="currentColor"/></svg></button>
+          <button type="button" class="style-choice" data-style="north" onclick="setNorthStyle('north')" title="Kružnice, šipka a N"><svg viewBox="0 0 80 44"><circle cx="40" cy="24" r="16" fill="none" stroke="currentColor"/><path d="M40 9 L35 27 L45 27 Z" fill="currentColor"/><text x="40" y="7" text-anchor="middle" font-size="8" font-weight="bold">N</text></svg></button>
+          <button type="button" class="style-choice" data-style="diamond" onclick="setNorthStyle('diamond')" title="Kompasový kosočtverec"><svg viewBox="0 0 80 44"><path d="M40 3 L31 24 L40 41 L49 24 Z" fill="none" stroke="currentColor"/><path d="M40 3 L31 24 L40 20 Z" fill="currentColor"/></svg></button>
+        </div>
+      </div>
       <div style="display:flex; gap:15px; align-items:flex-start;">
         <label style="min-width:150px; padding-top:6px;">Autoři (vyberte kliknutím):</label>
         <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
@@ -476,6 +487,11 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <label>Popis <input type="text" id="infoBarPageText" placeholder="např. půdorys" oninput="updateCurrentInfoBarPage()"></label>
           <label>Pravá část <select id="infoBarRightMode" onchange="updateCurrentInfoBarPage()"><option value="office">20-20-ARCHITEKTI</option><option value="scale">Měřítko + severka</option></select></label>
           <label id="info-bar-scale-label">Měřítko 1 : <input type="number" id="infoBarScale" value="100" min="1" step="1" oninput="updateCurrentInfoBarPage()"></label>
+          <span id="scale-style-controls"><b>Vzhled měřítka:</b><span class="style-picker" id="scaleStylePicker">
+            <button type="button" class="style-choice active" data-style="ticks" onclick="setScaleStyle('ticks')" title="Čára s dílky"><svg viewBox="0 0 80 44"><path d="M7 15H73M7 15v8m22-8v5m22-5v5m22-5v8" stroke="currentColor" fill="none"/><text x="7" y="35" font-size="8">0</text><text x="27" y="35" font-size="8">1</text><text x="49" y="35" font-size="8">2</text><text x="68" y="35" font-size="8">5m</text></svg></button>
+            <button type="button" class="style-choice" data-style="blocks" onclick="setScaleStyle('blocks')" title="Černobílé bloky"><svg viewBox="0 0 80 44"><rect x="7" y="12" width="16" height="10" fill="currentColor"/><rect x="23" y="12" width="16" height="10" fill="none" stroke="currentColor"/><rect x="39" y="12" width="16" height="10" fill="currentColor"/><rect x="55" y="12" width="16" height="10" fill="none" stroke="currentColor"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
+            <button type="button" class="style-choice" data-style="double" onclick="setScaleStyle('double')" title="Dvojitá stupnice"><svg viewBox="0 0 80 44"><path d="M7 12H73M7 20H73M7 10v13m22-13v13m22-13v13m22-13v13" stroke="currentColor" fill="none"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
+          </span></span>
         </div>
         <div id="page-indicator" style="font-size:13px; font-weight:bold; color:var(--muted);">Stránka 1 z 1</div>
 
@@ -1033,6 +1049,7 @@ function collectFormState() {
     panelDate: document.getElementById('panelDate').value,
     infoBarVariant: document.getElementById('infoBarVariant').value,
     northAngle: Number(document.getElementById('northAngle').value) || 0,
+    northStyle: document.getElementById('northStyle').value || 'circle',
     selectedAuthorsOrder: selectedAuthorsOrder.slice()
   };
 }
@@ -1046,6 +1063,8 @@ function applyFormState(s) {
   if (s.panelDate) document.getElementById('panelDate').value = s.panelDate;
   document.getElementById('infoBarVariant').value = s.infoBarVariant || 'classic';
   document.getElementById('northAngle').value = Number(s.northAngle) || 0;
+  document.getElementById('northStyle').value = s.northStyle || 'circle';
+  updateStylePicker('northStylePicker', document.getElementById('northStyle').value);
   updateNorthDialVisual();
   handleInfoBarVariantChange(false);
   selectedAuthorsOrder = Array.isArray(s.selectedAuthorsOrder) ? s.selectedAuthorsOrder.slice() : [];
@@ -2186,8 +2205,23 @@ async function drawBlankPage(ctx, width, height, scale) {
 }
 
 function getInfoBarPageConfig(pageNumber) {
-  if (!infoBarPages[pageNumber]) infoBarPages[pageNumber] = { text:'', rightMode:'office', scale:100 };
+  if (!infoBarPages[pageNumber]) infoBarPages[pageNumber] = { text:'', rightMode:'office', scale:100, scaleStyle:'ticks' };
+  if (!infoBarPages[pageNumber].scaleStyle) infoBarPages[pageNumber].scaleStyle = 'ticks';
   return infoBarPages[pageNumber];
+}
+
+function updateStylePicker(id, style) {
+  document.querySelectorAll(`#${id} .style-choice`).forEach(btn => btn.classList.toggle('active', btn.dataset.style === style));
+}
+function setNorthStyle(style) {
+  document.getElementById('northStyle').value = style;
+  updateStylePicker('northStylePicker', style);
+  refreshInfoBarPreview(); scheduleAutosave();
+}
+function setScaleStyle(style) {
+  getInfoBarPageConfig(currentPreviewPage).scaleStyle = style;
+  updateStylePicker('scaleStylePicker', style);
+  updateCurrentInfoBarPage();
 }
 
 function formatArchitectDate(value) {
@@ -2205,6 +2239,7 @@ const ARCH_TEXT_LIFT_PT = 3; // optický posun všech textů o 3 pt nahoru
 function handleInfoBarVariantChange(redraw = true) {
   const architect = document.getElementById('infoBarVariant').value === 'architect';
   document.getElementById('north-angle-row').style.display = architect ? 'flex' : 'none';
+  document.getElementById('north-style-row').style.display = architect ? 'flex' : 'none';
   const tools = document.getElementById('info-bar-page-tools');
   if (tools) tools.style.display = architect ? 'flex' : 'none';
   if (redraw && pdfJsDoc) { renderCurrentPagePreview(); renderThumbnails(); }
@@ -2218,6 +2253,8 @@ function loadCurrentInfoBarControls() {
   document.getElementById('infoBarRightMode').value = cfg.rightMode || 'office';
   document.getElementById('infoBarScale').value = cfg.scale || 100;
   document.getElementById('info-bar-scale-label').style.display = cfg.rightMode === 'scale' ? 'flex' : 'none';
+  document.getElementById('scale-style-controls').style.display = cfg.rightMode === 'scale' ? 'inline-flex' : 'none';
+  updateStylePicker('scaleStylePicker', cfg.scaleStyle || 'ticks');
   handleInfoBarVariantChange(false);
 }
 
@@ -2227,6 +2264,7 @@ function updateCurrentInfoBarPage() {
   cfg.rightMode = document.getElementById('infoBarRightMode').value;
   cfg.scale = Math.max(1, Number(document.getElementById('infoBarScale').value) || 100);
   document.getElementById('info-bar-scale-label').style.display = cfg.rightMode === 'scale' ? 'flex' : 'none';
+  document.getElementById('scale-style-controls').style.display = cfg.rightMode === 'scale' ? 'inline-flex' : 'none';
   scheduleAutosave(); renderCurrentPagePreview(); renderThumbnails();
 }
 
@@ -2342,19 +2380,31 @@ function drawArchitectInfoBarCanvas(ctx, width, height, scale, pageNumber) {
   if ((cfg.text || '').trim()) fillVisualCenter(cfg.text,62*scale,(y+10)*scale);
   ctx.font=`${ARCH_DATE_TEXT_PT*scale}px "${editorFontFamily}"`;
   fillVisualCenter(formatArchitectDate(document.getElementById('panelDate').value),62*scale,(y+24)*scale);
-  if(cfg.rightMode==='scale') drawScaleNorthCanvas(ctx,width,y,barHeight,scale,cfg.scale,Number(document.getElementById('northAngle').value)||0);
+  if(cfg.rightMode==='scale') drawScaleNorthCanvas(ctx,width,y,barHeight,scale,cfg.scale,Number(document.getElementById('northAngle').value)||0,cfg.scaleStyle||'ticks',document.getElementById('northStyle').value||'circle');
   else { ctx.textAlign='center'; ctx.font=`bold ${ARCH_OFFICE_TEXT_PT*scale}px "${editorFontFamily}"`; fillVisualCenter('20-20-ARCHITEKTI',(width-130)*scale,(y+barHeight/2)*scale); }
   ctx.restore();
 }
 
-function drawScaleNorthCanvas(ctx,width,y,barHeight,scale,denom,angle) {
+function drawScaleNorthCanvas(ctx,width,y,barHeight,scale,denom,angle,scaleStyle,northStyle) {
   const mmPerM=(1000/Math.max(1,denom))*(72/25.4), shownM=Math.max(1,Math.min(5,Math.floor(230/mmPerM))), len=shownM*mmPerM;
   const end=width-75,start=end-len,lineY=y+9;
   ctx.textAlign='center'; ctx.font=`${8*scale}px "${editorFontFamily}"`; ctx.lineWidth=.85*scale;
-  ctx.beginPath();ctx.moveTo(start*scale,lineY*scale);ctx.lineTo(end*scale,lineY*scale);ctx.stroke();
-  for(let i=0;i<=shownM;i++){const x=start+i*mmPerM;ctx.beginPath();ctx.moveTo(x*scale,lineY*scale);ctx.lineTo(x*scale,(lineY+(i===0||i===shownM?3:2))*scale);ctx.stroke();ctx.fillText(String(i),x*scale,(y+24)*scale);}
-  ctx.textAlign='left';ctx.fillText('m',(end+7)*scale,(y+24)*scale);
-  const nx=width-25,ny=y+barHeight/2,r=11;ctx.save();ctx.translate(nx*scale,ny*scale);ctx.rotate(angle*Math.PI/180);ctx.beginPath();ctx.arc(0,0,r*scale,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(0,-(r-2)*scale);ctx.lineTo(-3.8*scale,3.5*scale);ctx.lineTo(3.8*scale,3.5*scale);ctx.closePath();ctx.fill();ctx.restore();
+  if(scaleStyle==='blocks') {
+    for(let i=0;i<shownM;i++){ctx.fillStyle=i%2===0?'#18181b':'#f7f197';ctx.fillRect((start+i*mmPerM)*scale,lineY*scale,mmPerM*scale,6*scale);ctx.strokeRect((start+i*mmPerM)*scale,lineY*scale,mmPerM*scale,6*scale);}
+    ctx.fillStyle='#18181b';ctx.fillText('0',start*scale,(y+26)*scale);ctx.fillText(String(shownM),end*scale,(y+26)*scale);
+  } else {
+    ctx.beginPath();ctx.moveTo(start*scale,lineY*scale);ctx.lineTo(end*scale,lineY*scale);if(scaleStyle==='double'){ctx.moveTo(start*scale,(lineY+6)*scale);ctx.lineTo(end*scale,(lineY+6)*scale);}ctx.stroke();
+    for(let i=0;i<=shownM;i++){const x=start+i*mmPerM;ctx.beginPath();ctx.moveTo(x*scale,lineY*scale);ctx.lineTo(x*scale,(lineY+(scaleStyle==='double'?8:(i===0||i===shownM?3:2)))*scale);ctx.stroke();ctx.fillText(String(i),x*scale,(y+27)*scale);}
+  }
+  ctx.textAlign='left';ctx.fillText('m',(end+7)*scale,(y+27)*scale);
+  const nx=width-25,ny=y+barHeight/2,r=11;ctx.save();ctx.translate(nx*scale,ny*scale);ctx.rotate(angle*Math.PI/180);ctx.fillStyle='#18181b';ctx.strokeStyle='#18181b';
+  if(northStyle!=='arrow'){ctx.beginPath();ctx.arc(0,0,r*scale,0,Math.PI*2);ctx.stroke();}
+  if(northStyle==='diamond'){
+    ctx.beginPath();ctx.moveTo(0,-r*scale);ctx.lineTo(-5*scale,0);ctx.lineTo(0,r*scale);ctx.lineTo(5*scale,0);ctx.closePath();ctx.stroke();ctx.beginPath();ctx.moveTo(0,-r*scale);ctx.lineTo(-5*scale,0);ctx.lineTo(0,-2*scale);ctx.closePath();ctx.fill();
+  }else{
+    ctx.beginPath();ctx.moveTo(0,-(r-2)*scale);ctx.lineTo(-3.8*scale,3.5*scale);ctx.lineTo(3.8*scale,3.5*scale);ctx.closePath();ctx.fill();
+    if(northStyle==='north'){ctx.save();ctx.rotate(-angle*Math.PI/180);ctx.font=`bold ${6*scale}px "${editorFontFamily}"`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText('N',0,-(r+1)*scale);ctx.restore();}
+  }ctx.restore();
 }
 
 // ============================================================
@@ -3055,7 +3105,7 @@ async function nextPage(){
 }
 
 async function runPanel(fromModal = false){
-  const {PDFDocument, rgb, pushGraphicsState, popGraphicsState, rectangle, clip, endPath} = PDFLib;
+  const {PDFDocument, rgb, pushGraphicsState, popGraphicsState, rectangle, clip, endPath, moveTo, lineTo, closePath, fill, setFillingRgbColor} = PDFLib;
   if(!filesData.panel.length) return;
 
   if (document.getElementById('preview-modal').style.display === 'flex') {
@@ -3128,14 +3178,37 @@ async function runPanel(fromModal = false){
       }
       const denom=Math.max(1,Number(cfg.scale)||100), unit=(1000/denom)*(72/25.4), shown=Math.max(1,Math.min(5,Math.floor(230/unit)));
       const end=pageW-75,start=end-shown*unit,lineY=25.02;
-      page.drawLine({start:{x:start,y:lineY},end:{x:end,y:lineY},thickness:.85,color:textColor});
-      for(let i=0;i<=shown;i++){const x=start+i*unit;page.drawLine({start:{x,y:lineY},end:{x,y:lineY-(i===0||i===shown?3:2)},thickness:.85,color:textColor});const s=String(i),w=finalFont.widthOfTextAtSize(s,8);page.drawText(s,{x:x-w/2,y:7,size:8,font:finalFont,color:textColor});}
+      const scaleStyle=cfg.scaleStyle||'ticks';
+      if(scaleStyle==='blocks'){
+        for(let i=0;i<shown;i++) page.drawRectangle({x:start+i*unit,y:lineY-6,width:unit,height:6,color:i%2===0?textColor:rgb(247/255,241/255,151/255),borderColor:textColor,borderWidth:.6});
+        page.drawText('0',{x:start-2,y:7,size:8,font:finalFont,color:textColor});
+        const sw=finalFont.widthOfTextAtSize(String(shown),8);page.drawText(String(shown),{x:end-sw/2,y:7,size:8,font:finalFont,color:textColor});
+      }else{
+        page.drawLine({start:{x:start,y:lineY},end:{x:end,y:lineY},thickness:.85,color:textColor});
+        if(scaleStyle==='double') page.drawLine({start:{x:start,y:lineY-6},end:{x:end,y:lineY-6},thickness:.85,color:textColor});
+        for(let i=0;i<=shown;i++){const x=start+i*unit;page.drawLine({start:{x,y:lineY},end:{x,y:lineY-(scaleStyle==='double'?8:(i===0||i===shown?3:2))},thickness:.85,color:textColor});const s=String(i),w=finalFont.widthOfTextAtSize(s,8);page.drawText(s,{x:x-w/2,y:7,size:8,font:finalFont,color:textColor});}
+      }
       page.drawText('m',{x:end+7,y:7,size:8,font:finalFont,color:textColor});
       const nx=pageW-25,ny=h/2,r=11;
-      page.drawCircle({x:nx,y:ny,size:r,borderColor:textColor,borderWidth:.85});
-      page.drawSvgPath('M 0 -9 L -3.8 3.5 L 3.8 3.5 Z', {
-        x:nx, y:ny, color:textColor, rotate:PDFLib.degrees(-Number(document.getElementById('northAngle').value || 0))
-      });
+      const northStyle=document.getElementById('northStyle').value||'circle';
+      if(northStyle!=='arrow') page.drawCircle({x:nx,y:ny,size:r,borderColor:textColor,borderWidth:.85});
+      // Přímý výpočet vrcholů v PDF souřadnicích: 0° = sever, 90° = východ.
+      // Nepoužívá SVG transformaci, takže nemůže dojít k zrcadlení osy X.
+      const arrowAngle=(Number(document.getElementById('northAngle').value)||0)*Math.PI/180;
+      const dx=Math.sin(arrowAngle), dy=Math.cos(arrowAngle);
+      const px=Math.cos(arrowAngle), py=-Math.sin(arrowAngle);
+      const tip={x:nx+dx*(r-2),y:ny+dy*(r-2)};
+      const base={x:nx-dx*3.5,y:ny-dy*3.5};
+      const left={x:base.x-px*3.8,y:base.y-py*3.8};
+      const right={x:base.x+px*3.8,y:base.y+py*3.8};
+      if(northStyle==='diamond'){
+        const south={x:nx-dx*r,y:ny-dy*r},west={x:nx-px*5,y:ny-py*5},east={x:nx+px*5,y:ny+py*5};
+        page.drawLine({start:tip,end:west,thickness:.85,color:textColor});page.drawLine({start:west,end:south,thickness:.85,color:textColor});page.drawLine({start:south,end:east,thickness:.85,color:textColor});page.drawLine({start:east,end:tip,thickness:.85,color:textColor});
+        page.pushOperators(pushGraphicsState(),setFillingRgbColor(24/255,24/255,27/255),moveTo(tip.x,tip.y),lineTo(west.x,west.y),lineTo(nx,ny),closePath(),fill(),popGraphicsState());
+      }else{
+        page.pushOperators(pushGraphicsState(),setFillingRgbColor(24/255,24/255,27/255),moveTo(tip.x,tip.y),lineTo(left.x,left.y),lineTo(right.x,right.y),closePath(),fill(),popGraphicsState());
+        if(northStyle==='north'){const nw=finalFont.widthOfTextAtSize('N',6);page.drawText('N',{x:nx-nw/2,y:ny+r+1,size:6,font:finalFont,color:textColor});}
+      }
     }
 
     for(let previewP = 1; previewP <= totalPreviewPages; previewP++){
