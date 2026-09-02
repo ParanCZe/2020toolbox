@@ -1364,20 +1364,6 @@ async function startConversion() {
    <pdfaid:part>${version}</pdfaid:part>
    <pdfaid:conformance>B</pdfaid:conformance>
   </rdf:Description>
-  <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
-   <dc:title>
-    <rdf:Alt>
-     <rdf:li xml:lang="x-default">${filesData.pdfa[i].name.replace(/\.pdf$/i, '')}</rdf:li>
-    </rdf:Alt>
-   </dc:title>
-  </rdf:Description>
-  <rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
-   <pdf:Producer>PDF/A-${version}b Converter (20-20-TOOLBOX)</pdf:Producer>
-  </rdf:Description>
-  <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/">
-   <xmp:CreatorTool>20-20-TOOLBOX PDF/A Converter</xmp:CreatorTool>
-   <xmp:CreateDate>${new Date().toISOString()}</xmp:CreateDate>
-  </rdf:Description>
  </rdf:RDF>
 </x:xmpmeta>
 <?xpacket end="w"?>`;
@@ -1615,9 +1601,6 @@ function createMoodboard(layoutType) {
     }
   }
   
-  // ---- STEJNÝ PRINCIP JAKO addBlankPage ----
-  // Stránka 1 je vyhrazená pro úvodní stranu (pokud je zapnutá) – moodboard se tam nikdy nevloží,
-  // aby se nepřepsaly jména a oddělující čára z úvodní strany.
   const createCover = document.getElementById('createCover').checked;
   const insertAt = (createCover && currentPreviewPage < 2) ? 2 : currentPreviewPage;
 
@@ -1660,7 +1643,8 @@ function createMoodboard(layoutType) {
 // ============================================================
 
 async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
-  ctx.fillStyle = '#e8e8e8';
+  // bílé pozadí (bod 1)
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, pageW * scale, pageH * scale);
   
   for (let cell of cells) {
@@ -1686,7 +1670,6 @@ async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
           const zoom = cell.zoom || 1;
           const offX = (cell.offsetX || 0) * scale;
           const offY = (cell.offsetY || 0) * scale;
-          // "cover" – obrázek vždy vyplní celou buňku (stejně jako object-fit:cover v editoru), přesah se ořízne
           const coverScale = Math.max(w / img.width, h / img.height) * zoom;
           const imgW = img.width * coverScale;
           const imgH = img.height * coverScale;
@@ -1703,7 +1686,6 @@ async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
 }
 
 function renderMoodboardOverlay(pageNum, cells) {
-  // Odstraníme staré moodboard buňky
   document.querySelectorAll('.moodboard-cell').forEach(el => el.remove());
   
   const canvas = document.getElementById('preview-canvas');
@@ -1879,6 +1861,7 @@ async function openPreviewModal() {
   currentPreviewPage = (pendingResumePage && pendingResumePage <= totalPreviewPages) ? pendingResumePage : 1;
   pendingResumePage = null;
   
+  // Úvodní strana – používáme přesně stejnou logiku jako v druhém souboru (bod 3)
   if (document.getElementById('createCover').checked && !defaultCoverLayoutInitialized) {
     const pInfo = await getPageSize({isCover: true});
     const title = document.getElementById('panelTitle').value.trim();
@@ -1895,10 +1878,9 @@ async function openPreviewModal() {
     if (authors) {
       const linesCount = authors.split(/\r?\n/).length;
       const authorsY = (295 - 10) - ((linesCount - 1) * 14 * 1.2);
-      const authorX = pInfo.width - 320 + 25;
-      boxes.push({ id: textIdCounter++, type: 'text', text: authors, size: 14, x: authorX, y: authorsY });
-      const lineX = authorX - 15;
-      boxes.push({ id: textIdCounter++, type: 'line', x: lineX, y: authorsY, height: Math.max(40, linesCount * 14 * 1.2 + 10), orientation: 'vertical' });
+      // přesně jako v druhém souboru
+      boxes.push({ id: textIdCounter++, type: 'text', text: authors, size: 14, x: pInfo.width - 320 + 25, y: authorsY });
+      boxes.push({ id: textIdCounter++, type: 'line', x: pInfo.width - 320, y: authorsY, height: Math.max(40, linesCount * 14 * 1.2 + 10) });
     }
     allPagesTexts[1] = boxes;
     defaultCoverLayoutInitialized = true;
@@ -1914,6 +1896,8 @@ async function openPreviewModal() {
 function closePreviewModal() {
   saveCurrentPageBoxes();
   document.getElementById('preview-modal').style.display = 'none';
+  // explicitní uložení projektu (bod 2)
+  saveProjectState().catch(() => {});
 }
 
 function ensurePagePdfIndexMap() {
@@ -1941,8 +1925,6 @@ function getPreviewPageInfo(pageNum) {
   if (isBlank) {
     return { isCover: false, isBlank: true, pdfIndex: -1 };
   }
-  // Kontrola moodboardu MUSÍ být před kontrolou úvodní strany – jinak by se moodboard
-  // omylem vykreslil jako úvodní strana, pokud by se (např. u starších projektů) ocitl na pozici 1.
   const pageData = allPagesTexts[pageNum];
   if (pageData && pageData.type === 'moodboard') {
     return { isCover: false, isBlank: false, pdfIndex: -1, isMoodboard: true };
@@ -2060,8 +2042,6 @@ async function getPageSize(info) {
 async function addBlankPage(){
   pushTextHistory();
   
-  // Stránka 1 je vyhrazená pro úvodní stranu (pokud je zapnutá) – prázdná stránka se tam nikdy
-  // nevloží, aby se nepřepsal obsah úvodní strany.
   const createCover = document.getElementById('createCover').checked;
   const insertAt = (createCover && currentPreviewPage < 2) ? 2 : currentPreviewPage;
   
@@ -2193,11 +2173,9 @@ async function drawInfoBar(ctx, width, height, scale) {
 // HLAVNÍ FUNKCE PRO VYKRESLENÍ STRÁNKY – KOMPLETNĚ PŘEPRACOVÁNA
 // ============================================================
 async function renderCurrentPagePreview() {
-  // Získáme informace o stránce
   const info = getPreviewPageInfo();
   const pageSize = await getPageSize(info);
   
-  // Nastavení canvasu
   const canvas = document.getElementById('preview-canvas');
   const ctx = canvas.getContext('2d');
   const maxCssWidth = Math.min(900, document.getElementById('preview-main').clientWidth - 30);
@@ -2213,17 +2191,13 @@ async function renderCurrentPagePreview() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   
-  // Zjistíme, o jaký typ stránky se jedná
   const pageData = allPagesTexts[currentPreviewPage];
   const isMoodboard = pageData && pageData.type === 'moodboard';
   const isCover = info.isCover;
   const isBlank = info.isBlank;
   
-  // ----- VYKRESLENÍ OBSAHU STRÁNKY -----
   if (isCover) {
-    // Cover – žluté pozadí + logo + texty
     await drawCover(ctx, pageSize.width, pageSize.height, renderScale);
-    // Texty na coveru vykreslíme pomocí canvas funkcí
     const coverTexts = allPagesTexts[currentPreviewPage] || [];
     if (Array.isArray(coverTexts)) {
       coverTexts.forEach(b => {
@@ -2232,9 +2206,7 @@ async function renderCurrentPagePreview() {
       });
     }
   } else if (isBlank) {
-    // Prázdná stránka s bílým pozadím a spodním pruhem
     await drawBlankPage(ctx, pageSize.width, pageSize.height, renderScale);
-    // Texty na prázdné stránce
     const pageItems = allPagesTexts[currentPreviewPage] || [];
     if (Array.isArray(pageItems)) {
       pageItems.forEach(b => {
@@ -2243,12 +2215,9 @@ async function renderCurrentPagePreview() {
       });
     }
   } else if (isMoodboard) {
-    // Moodboard – šedé pozadí + rámečky + obrázky
     await drawMoodboard(ctx, pageSize.width, pageSize.height, renderScale, pageData.cells || []);
-    // Spodní pruh
     await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale);
   } else {
-    // Normální PDF stránka
     const page = await pdfJsDoc.getPage(info.pdfIndex + 1);
     const origVp = page.getViewport({scale: 1});
     let renderViewport;
@@ -2261,7 +2230,6 @@ async function renderCurrentPagePreview() {
     await drawInfoBar(ctx, pageSize.width, pageSize.height, renderScale);
   }
   
-  // ----- AKTUALIZACE INDIKÁTORU STRÁNKY -----
   let label = '';
   if (isCover) label = 'Úvodní strana';
   else if (isBlank) label = 'Prázdná stránka s pruhem';
@@ -2272,17 +2240,12 @@ async function renderCurrentPagePreview() {
   document.getElementById('prev-page-btn').disabled = currentPreviewPage <= 1;
   document.getElementById('next-page-btn').disabled = currentPreviewPage >= totalPreviewPages;
   
-  // ----- VYTVOŘENÍ OVERLAY PRVKŮ -----
-  // Odstraníme staré prvky
   document.querySelectorAll('.custom-text-box').forEach(el => el.remove());
   document.querySelectorAll('.moodboard-cell').forEach(el => el.remove());
   
-  // Vytvoříme nové overlay prvky podle typu stránky
   if (isMoodboard) {
-    // Pro moodboard vytvoříme interaktivní buňky
     renderMoodboardOverlay(currentPreviewPage, pageData.cells || []);
   } else if (!isCover) {
-    // Pro normální stránky (ne cover) vytvoříme textové boxy
     const pageItems = allPagesTexts[currentPreviewPage] || [];
     if (Array.isArray(pageItems)) {
       pageItems.forEach(b => {
@@ -2291,11 +2254,9 @@ async function renderCurrentPagePreview() {
       });
     }
   }
-  // Pro cover nevytváříme žádné overlay prvky (texty jsou vykresleny na canvas)
 }
 // ============================================================
 
-// Pomocné funkce pro vykreslování textů na canvas
 function drawTextOnCanvas(ctx, b, pageSize, scale) {
   ctx.save();
   ctx.font = `${b.size * (96/72) * scale}px "${editorFontFamily}"`;
@@ -2720,7 +2681,6 @@ function saveCurrentPageBoxes(){
   scheduleAutosave();
 }
 
-// Přetažení textového pole – volný pohyb v obou osách s přichytáváním ke všem okrajům
 function makeDraggable(element, b, handle){
   let dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
   const startDrag = e => {
@@ -2809,7 +2769,6 @@ function makeDraggable(element, b, handle){
   }, {passive:false});
 }
 
-// Přetažení čáry – volný pohyb v obou osách s přichytáváním
 function makeDraggableLine(element, b, handle){
   let dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
   const startDrag = e => {
@@ -3006,7 +2965,6 @@ async function runPanel(fromModal = false){
         targetPage = finalPdf.addPage([standardA3W, standardA3H]);
         targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(232/255, 232/255, 232/255)});
         const cells = pageData.cells || [];
-        // Rámečky jsou pouze pomůcka v editoru – v exportu se nekreslí, zůstávají jen obrázky.
         for (let cell of cells) {
           if (!cell.imageData) continue;
           try {
@@ -3026,7 +2984,6 @@ async function runPanel(fromModal = false){
               const imgAspect = imageObj.width / imageObj.height;
               const cellAspect = cell.w / cell.h;
               let drawW, drawH;
-              // "cover" – obrázek musí vyplnit celou buňku, přesah se ořízne (stejné chování jako v editoru)
               if (imgAspect > cellAspect) {
                 drawH = cell.h * zoom;
                 drawW = drawH * imgAspect;
@@ -3034,8 +2991,6 @@ async function runPanel(fromModal = false){
                 drawW = cell.w * zoom;
                 drawH = drawW / imgAspect;
               }
-              // cell.x/cell.y jsou v souřadnicích shora dolů (jako canvas), pdf-lib má počátek vlevo dole –
-              // proto je potřeba y-ovou souřadnici i posun (offsetY) převrátit.
               const cellBottomY = targetH - cell.y - cell.h;
               const dx = cell.x + (cell.w - drawW) / 2 + offX;
               const dy = cellBottomY + (cell.h - drawH) / 2 - offY;
