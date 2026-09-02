@@ -53,10 +53,11 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .preview-tools { background:#fafafa; border:1px solid var(--border); padding:10px; border-radius:8px; width:100%; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 .info-bar-page-tools{background:#fff;border:1px solid var(--border);padding:9px 10px;border-radius:8px;width:100%;display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:12px}
 .info-bar-page-tools label{display:flex;align-items:center;gap:5px}.info-bar-page-tools input[type="text"]{width:150px}.info-bar-page-tools input[type="number"]{width:74px}
-.north-dial{width:74px;height:74px;border:2px solid #18181b;border-radius:50%;position:relative;background:#fff;cursor:crosshair;touch-action:none;box-shadow:inset 0 0 0 1px #e4e4e7}
+.north-dial{width:110px;height:110px;border:3px solid #18181b;border-radius:50%;position:relative;background:#fff;cursor:grab;touch-action:none;box-shadow:inset 0 0 0 1px #e4e4e7}
+.north-dial:active{cursor:grabbing}
 .north-dial::before,.north-dial::after{content:"";position:absolute;background:#d4d4d8;pointer-events:none}.north-dial::before{width:1px;height:100%;left:50%;top:0}.north-dial::after{height:1px;width:100%;top:50%;left:0}
-.north-dial-center{position:absolute;width:6px;height:6px;background:#18181b;border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
-.north-dial-point{position:absolute;width:13px;height:13px;background:#18181b;border:2px solid #fff;border-radius:50%;left:50%;top:4px;transform:translate(-50%,-50%);box-shadow:0 0 0 1px #18181b;pointer-events:none}
+.north-dial-center{position:absolute;width:7px;height:7px;background:#18181b;border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
+.north-dial-point{position:absolute;width:17px;height:17px;background:#18181b;border:3px solid #fff;border-radius:50%;left:50%;top:4px;transform:translate(-50%,-50%);box-shadow:0 0 0 2px #18181b;pointer-events:none}
 
 /* BOČNÍ PANEL S MINIATURAMI */
 #thumbs-sidebar { width:120px; flex-shrink:0; display:flex; flex-direction:column; gap:8px; max-height:80vh; overflow-y:auto; padding-right:4px; }
@@ -377,7 +378,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <span class="north-dial-center"></span><span id="northDialPoint" class="north-dial-point"></span>
         </div>
         <input type="hidden" id="northAngle" value="0">
-        <span><b id="northAngleLabel">0°</b><br><small style="color:var(--muted)">Táhněte černý bod směrem, kam má mířit severka.<br>Nastavení platí pro všechny stránky.</small></span>
+        <span><small style="color:var(--muted)">Táhněte černý bod po obvodu kružnice.<br>Bod ukazuje směr severky a nastavení platí pro všechny stránky.</small></span>
       </div>
       <div style="display:flex; gap:15px; align-items:flex-start;">
         <label style="min-width:150px; padding-top:6px;">Autoři (vyberte kliknutím):</label>
@@ -2232,7 +2233,6 @@ function updateNorthDialVisual() {
   const radius = dial.clientWidth / 2 - 5, rad = angle * Math.PI / 180;
   point.style.left = (dial.clientWidth/2 + Math.sin(rad)*radius) + 'px';
   point.style.top = (dial.clientHeight/2 - Math.cos(rad)*radius) + 'px';
-  document.getElementById('northAngleLabel').textContent = Math.round(angle) + '°';
 }
 
 function initNorthDial() {
@@ -2319,28 +2319,28 @@ async function drawInfoBar(ctx, width, height, scale, pageNumber = currentPrevie
 }
 
 function drawArchitectInfoBarCanvas(ctx, width, height, scale, pageNumber) {
-  const cfg = getInfoBarPageConfig(pageNumber), barHeight = 42.52, y = height - barHeight;
+  const cfg = getInfoBarPageConfig(pageNumber), barHeight = 56.69, y = height - barHeight;
   ctx.save();
   ctx.fillStyle = '#f7f197'; ctx.fillRect(0, y*scale, width*scale, barHeight*scale);
   ctx.fillStyle = ctx.strokeStyle = '#18181b'; ctx.lineWidth = .45*scale;
-  ctx.textBaseline = 'middle'; ctx.textAlign = 'right'; ctx.font = `${15*scale}px "${editorFontFamily}"`;
-  ctx.fillText(String(pageNumber), 31*scale, (y+barHeight/2)*scale);
-  const sepX=34; ctx.beginPath(); ctx.moveTo(sepX*scale,(y+4)*scale); ctx.lineTo(sepX*scale,(y+barHeight-4)*scale); ctx.stroke();
-  ctx.textAlign='left'; ctx.font=`bold ${8*scale}px "${editorFontFamily}"`; ctx.fillText(cfg.text||'',39*scale,(y+14)*scale);
-  ctx.font=`${6*scale}px "${editorFontFamily}"`; ctx.fillText(formatArchitectDate(document.getElementById('panelDate').value),39*scale,(y+29)*scale);
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'right'; ctx.font = `${20*scale}px "${editorFontFamily}"`;
+  ctx.fillText(String(pageNumber), 41*scale, (y+barHeight/2)*scale);
+  const sepX=45; ctx.beginPath(); ctx.moveTo(sepX*scale,(y+5)*scale); ctx.lineTo(sepX*scale,(y+barHeight-5)*scale); ctx.stroke();
+  ctx.textAlign='left'; ctx.font=`bold ${12*scale}px "${editorFontFamily}"`; ctx.fillText(cfg.text||'',52*scale,(y+18)*scale);
+  ctx.font=`${9*scale}px "${editorFontFamily}"`; ctx.fillText(formatArchitectDate(document.getElementById('panelDate').value),52*scale,(y+39)*scale);
   if(cfg.rightMode==='scale') drawScaleNorthCanvas(ctx,width,y,barHeight,scale,cfg.scale,Number(document.getElementById('northAngle').value)||0);
-  else { ctx.textAlign='center'; ctx.font=`bold ${7.5*scale}px "${editorFontFamily}"`; ctx.fillText('20-20-ARCHITEKTI',(width-75)*scale,(y+barHeight/2)*scale); }
+  else { ctx.textAlign='center'; ctx.font=`bold ${11*scale}px "${editorFontFamily}"`; ctx.fillText('20-20-ARCHITEKTI',(width-105)*scale,(y+barHeight/2)*scale); }
   ctx.restore();
 }
 
 function drawScaleNorthCanvas(ctx,width,y,barHeight,scale,denom,angle) {
-  const mmPerM=(1000/Math.max(1,denom))*(72/25.4), shownM=Math.max(1,Math.min(5,Math.floor(150/mmPerM))), len=shownM*mmPerM;
-  const end=width-48,start=end-len,lineY=y+13;
-  ctx.textAlign='center'; ctx.font=`${6*scale}px "${editorFontFamily}"`; ctx.lineWidth=.65*scale;
+  const mmPerM=(1000/Math.max(1,denom))*(72/25.4), shownM=Math.max(1,Math.min(5,Math.floor(230/mmPerM))), len=shownM*mmPerM;
+  const end=width-75,start=end-len,lineY=y+17;
+  ctx.textAlign='center'; ctx.font=`${8*scale}px "${editorFontFamily}"`; ctx.lineWidth=.85*scale;
   ctx.beginPath();ctx.moveTo(start*scale,lineY*scale);ctx.lineTo(end*scale,lineY*scale);ctx.stroke();
-  for(let i=0;i<=shownM;i++){const x=start+i*mmPerM;ctx.beginPath();ctx.moveTo(x*scale,lineY*scale);ctx.lineTo(x*scale,(lineY+(i===0||i===shownM?3:1.8))*scale);ctx.stroke();ctx.fillText(String(i),x*scale,(y+27)*scale);}
-  ctx.textAlign='left';ctx.fillText('m',(end+5)*scale,(y+27)*scale);
-  const nx=width-19,ny=y+barHeight/2,r=9;ctx.save();ctx.translate(nx*scale,ny*scale);ctx.rotate(angle*Math.PI/180);ctx.beginPath();ctx.arc(0,0,r*scale,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(0,-(r-1.5)*scale);ctx.lineTo(-2.2*scale,2.2*scale);ctx.lineTo(0,0);ctx.lineTo(2.2*scale,2.2*scale);ctx.stroke();ctx.restore();
+  for(let i=0;i<=shownM;i++){const x=start+i*mmPerM;ctx.beginPath();ctx.moveTo(x*scale,lineY*scale);ctx.lineTo(x*scale,(lineY+(i===0||i===shownM?4:2.5))*scale);ctx.stroke();ctx.fillText(String(i),x*scale,(y+37)*scale);}
+  ctx.textAlign='left';ctx.fillText('m',(end+7)*scale,(y+37)*scale);
+  const nx=width-28,ny=y+barHeight/2,r=14;ctx.save();ctx.translate(nx*scale,ny*scale);ctx.rotate(angle*Math.PI/180);ctx.beginPath();ctx.arc(0,0,r*scale,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(0,-(r-2)*scale);ctx.lineTo(-3.5*scale,3.5*scale);ctx.lineTo(0,0);ctx.lineTo(3.5*scale,3.5*scale);ctx.stroke();ctx.restore();
 }
 
 // ============================================================
@@ -2420,7 +2420,7 @@ async function renderCurrentPagePreview() {
   
   if (isMoodboard) {
     renderMoodboardOverlay(currentPreviewPage, pageData.cells || []);
-  } else if (!isCover) {
+  } else {
     const pageItems = allPagesTexts[currentPreviewPage] || [];
     if (Array.isArray(pageItems)) {
       pageItems.forEach(b => {
@@ -3094,27 +3094,27 @@ async function runPanel(fromModal = false){
         page.drawText(projectTitle,{x:sx-15-finalFont.widthOfTextAtSize(projectTitle,11),y:centerY-4,size:11,font:finalFont,color:textColor});
         return;
       }
-      const cfg=getInfoBarPageConfig(pageNumber), h=42.52;
+      const cfg=getInfoBarPageConfig(pageNumber), h=56.69;
       page.drawRectangle({x:0,y:0,width:pageW,height:h,color:rgb(247/255,241/255,151/255)});
-      const num=String(pageNumber), numW=finalFont.widthOfTextAtSize(num,15);
-      page.drawText(num,{x:31-numW,y:15,size:15,font:finalFont,color:textColor});
-      page.drawLine({start:{x:34,y:4},end:{x:34,y:h-4},thickness:.65,color:textColor});
-      if(cfg.text) page.drawText(cfg.text,{x:39,y:24,size:8,font:finalFont,color:textColor});
-      page.drawText(formatArchitectDate(projectDate),{x:39,y:9,size:6,font:finalFont,color:textColor});
+      const num=String(pageNumber), numW=finalFont.widthOfTextAtSize(num,20);
+      page.drawText(num,{x:41-numW,y:20,size:20,font:finalFont,color:textColor});
+      page.drawLine({start:{x:45,y:5},end:{x:45,y:h-5},thickness:.85,color:textColor});
+      if(cfg.text) page.drawText(cfg.text,{x:52,y:33,size:12,font:finalFont,color:textColor});
+      page.drawText(formatArchitectDate(projectDate),{x:52,y:12,size:9,font:finalFont,color:textColor});
       if(cfg.rightMode!=='scale'){
-        const office='20-20-ARCHITEKTI', size=7.5, tw=finalFont.widthOfTextAtSize(office,size);
-        page.drawText(office,{x:pageW-75-tw/2,y:17.5,size,font:finalFont,color:textColor}); return;
+        const office='20-20-ARCHITEKTI', size=11, tw=finalFont.widthOfTextAtSize(office,size);
+        page.drawText(office,{x:pageW-105-tw/2,y:22.5,size,font:finalFont,color:textColor}); return;
       }
-      const denom=Math.max(1,Number(cfg.scale)||100), unit=(1000/denom)*(72/25.4), shown=Math.max(1,Math.min(5,Math.floor(150/unit)));
-      const end=pageW-48,start=end-shown*unit,lineY=29.52;
-      page.drawLine({start:{x:start,y:lineY},end:{x:end,y:lineY},thickness:.65,color:textColor});
-      for(let i=0;i<=shown;i++){const x=start+i*unit;page.drawLine({start:{x,y:lineY},end:{x,y:lineY-(i===0||i===shown?3:1.8)},thickness:.65,color:textColor});const s=String(i),w=finalFont.widthOfTextAtSize(s,6);page.drawText(s,{x:x-w/2,y:13,size:6,font:finalFont,color:textColor});}
-      page.drawText('m',{x:end+5,y:13,size:6,font:finalFont,color:textColor});
-      const nx=pageW-19,ny=h/2,r=9,a=(Number(document.getElementById('northAngle').value)||0)*Math.PI/180;
-      page.drawCircle({x:nx,y:ny,size:r,borderColor:textColor,borderWidth:.65});
+      const denom=Math.max(1,Number(cfg.scale)||100), unit=(1000/denom)*(72/25.4), shown=Math.max(1,Math.min(5,Math.floor(230/unit)));
+      const end=pageW-75,start=end-shown*unit,lineY=39.69;
+      page.drawLine({start:{x:start,y:lineY},end:{x:end,y:lineY},thickness:.85,color:textColor});
+      for(let i=0;i<=shown;i++){const x=start+i*unit;page.drawLine({start:{x,y:lineY},end:{x,y:lineY-(i===0||i===shown?4:2.5)},thickness:.85,color:textColor});const s=String(i),w=finalFont.widthOfTextAtSize(s,8);page.drawText(s,{x:x-w/2,y:15,size:8,font:finalFont,color:textColor});}
+      page.drawText('m',{x:end+7,y:15,size:8,font:finalFont,color:textColor});
+      const nx=pageW-28,ny=h/2,r=14,a=(Number(document.getElementById('northAngle').value)||0)*Math.PI/180;
+      page.drawCircle({x:nx,y:ny,size:r,borderColor:textColor,borderWidth:.85});
       const rot=(x,y)=>({x:nx+x*Math.cos(a)-y*Math.sin(a),y:ny+x*Math.sin(a)+y*Math.cos(a)});
-      const p1=rot(0,r-1.5),p2=rot(-2.2,-2.2),p3=rot(0,0),p4=rot(2.2,-2.2);
-      page.drawLine({start:p1,end:p2,thickness:.65,color:textColor});page.drawLine({start:p2,end:p3,thickness:.65,color:textColor});page.drawLine({start:p3,end:p4,thickness:.65,color:textColor});
+      const p1=rot(0,r-2),p2=rot(-3.5,-3.5),p3=rot(0,0),p4=rot(3.5,-3.5);
+      page.drawLine({start:p1,end:p2,thickness:.85,color:textColor});page.drawLine({start:p2,end:p3,thickness:.85,color:textColor});page.drawLine({start:p3,end:p4,thickness:.85,color:textColor});
     }
 
     for(let previewP = 1; previewP <= totalPreviewPages; previewP++){
@@ -3156,7 +3156,7 @@ async function runPanel(fromModal = false){
         drawFinalInfoBar(targetPage, standardA3W, previewP);
       } else if(isMoodboard) {
         targetPage = finalPdf.addPage([standardA3W, standardA3H]);
-        targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(232/255, 232/255, 232/255)});
+        targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(1,1,1)});
         const cells = pageData.cells || [];
         for (let cell of cells) {
           if (!cell.imageData) continue;
