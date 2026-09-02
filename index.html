@@ -703,6 +703,9 @@ async function importProjectFromZip(files) {
     defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
     currentPreviewPage = state.currentPreviewPage || 1;
     
+    // Přepočítat mapování po importu
+    if (pdfJsDoc) ensurePagePdfIndexMap();
+    
     currentProjectName = state.form?.panelTitle || 'importovany-projekt';
     document.getElementById('current-project-label').textContent = currentProjectName;
     document.getElementById('st-panel').textContent = `Projekt „${currentProjectName}“ načten ze ZIP`;
@@ -1179,7 +1182,6 @@ async function loadProject(name) {
     let pageCount = pdfJsDoc.numPages;
     if (document.getElementById('createCover').checked) pageCount++;
     pageCount += customBlankPages.size;
-    // Spočítat moodboard stránky
     for (let p in allPagesTexts) {
       if (allPagesTexts[p] && allPagesTexts[p].type === 'moodboard') pageCount++;
     }
@@ -1642,6 +1644,7 @@ function createMoodboard(layoutType) {
   totalPreviewPages++;
   currentPreviewPage = insertAt;
   
+  ensurePagePdfIndexMap(); // přepočítat mapování
   renderCurrentPagePreview();
   renderThumbnails();
   scheduleAutosave();
@@ -1651,7 +1654,6 @@ function createMoodboard(layoutType) {
 // ============================================================
 
 async function drawMoodboard(ctx, pageW, pageH, scale, cells) {
-  // bílé pozadí (bod 1)
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, pageW * scale, pageH * scale);
   
@@ -1869,7 +1871,6 @@ async function openPreviewModal() {
   currentPreviewPage = (pendingResumePage && pendingResumePage <= totalPreviewPages) ? pendingResumePage : 1;
   pendingResumePage = null;
   
-  // Úvodní strana – používáme přesně stejnou logiku jako v druhém souboru (bod 3)
   if (document.getElementById('createCover').checked && !defaultCoverLayoutInitialized) {
     const pInfo = await getPageSize({isCover: true});
     const title = document.getElementById('panelTitle').value.trim();
@@ -1906,76 +1907,26 @@ function closePreviewModal() {
   saveProjectState().catch(() => {});
 }
 
+// Přepracovaná funkce pro zajištění správného mapování PDF stránek
 function ensurePagePdfIndexMap() {
   if (!pdfJsDoc) return;
   const createCover = document.getElementById('createCover').checked;
   
-  // Zjistíme, které stránky už mají mapování
-  const existingPages = new Set(Object.keys(pagePdfIndexMap).map(Number));
-  
-  // Najdeme maximální použitý pdfIndex
-  let maxPdfIndex = -1;
-  for (let idx of Object.values(pagePdfIndexMap)) {
-    if (idx > maxPdfIndex) maxPdfIndex = idx;
-  }
-  let nextPdfIndex = maxPdfIndex + 1;
-  
-  // Pro každou stránku, která není cover/blank/moodboard, zajistíme mapování
+  // Seřadíme stránky podle jejich pořadí a přiřadíme indexy postupně
+  let pdfIndex = 0;
+  const newMap = {};
   for (let p = 1; p <= totalPreviewPages; p++) {
     if (customBlankPages.has(p)) continue;
     if (createCover && p === 1) continue;
     const pageData = allPagesTexts[p];
     if (pageData && pageData.type === 'moodboard') continue;
-    
-    if (!pagePdfIndexMap.hasOwnProperty(p)) {
-      if (nextPdfIndex < pdfJsDoc.numPages) {
-        pagePdfIndexMap[p] = nextPdfIndex++;
-      }
+    // Toto je PDF stránka
+    if (pdfIndex < pdfJsDoc.numPages) {
+      newMap[p] = pdfIndex;
+      pdfIndex++;
     }
   }
-  
-  // Pokud je v mapě méně položek, než je stránek PDF, přidáme chybějící na konec
-  const mappedCount = Object.keys(pagePdfIndexMap).length;
-  if (mappedCount < pdfJsDoc.numPages) {
-    // Najdeme poslední stránku, která není cover/blank/moodboard
-    let lastPage = totalPreviewPages;
-    for (let p = totalPreviewPages; p >= 1; p--) {
-      if (customBlankPages.has(p)) continue;
-      if (createCover && p === 1) continue;
-      const pd = allPagesTexts[p];
-      if (pd && pd.type === 'moodboard') continue;
-      lastPage = p;
-      break;
-    }
-    // Přidáme chybějící PDF stránky za poslední existující PDF stránku
-    for (let i = mappedCount; i < pdfJsDoc.numPages; i++) {
-      let newPage = lastPage + 1;
-      // Posuneme všechny stránky od newPage výše o 1
-      let newTexts = {};
-      for (let [pStr, texts] of Object.entries(allPagesTexts)) {
-        let pNum = parseInt(pStr);
-        if (pNum >= newPage) newTexts[pNum + 1] = texts;
-        else newTexts[pNum] = texts;
-      }
-      allPagesTexts = newTexts;
-      let newBlank = new Set();
-      for (let bp of customBlankPages) {
-        if (bp >= newPage) newBlank.add(bp + 1);
-        else newBlank.add(bp);
-      }
-      customBlankPages = newBlank;
-      let newPdfMap = {};
-      for (let [pStr, idx] of Object.entries(pagePdfIndexMap)) {
-        let pNum = parseInt(pStr);
-        if (pNum >= newPage) newPdfMap[pNum + 1] = idx;
-        else newPdfMap[pNum] = idx;
-      }
-      pagePdfIndexMap = newPdfMap;
-      pagePdfIndexMap[newPage] = i;
-      totalPreviewPages++;
-      lastPage = newPage;
-    }
-  }
+  pagePdfIndexMap = newMap;
 }
 
 function getPreviewPageInfo(pageNum) {
@@ -2046,6 +1997,8 @@ function applyPageRecords(records) {
   customBlankPages = newBlank;
   pagePdfIndexMap = newPdfMap;
   totalPreviewPages = records.length;
+  // Po aplikaci přepočítat mapování
+  ensurePagePdfIndexMap();
 }
 
 function movePage(from, to) {
@@ -2064,6 +2017,8 @@ function movePage(from, to) {
   if (currentPreviewPage === from) currentPreviewPage = to;
   else if (from < currentPreviewPage && to >= currentPreviewPage) currentPreviewPage--;
   else if (from > currentPreviewPage && to <= currentPreviewPage) currentPreviewPage++;
+  
+  ensurePagePdfIndexMap();
 }
 
 async function deletePreviewPage(pos) {
@@ -2080,6 +2035,7 @@ async function deletePreviewPage(pos) {
   if (currentPreviewPage > totalPreviewPages) currentPreviewPage = totalPreviewPages;
   else if (currentPreviewPage > pos) currentPreviewPage--;
 
+  ensurePagePdfIndexMap();
   await renderCurrentPagePreview();
   await renderThumbnails();
 }
@@ -2134,6 +2090,7 @@ async function addBlankPage(){
   currentPreviewPage = insertAt;
   
   totalPreviewPages++;
+  ensurePagePdfIndexMap();
   await renderCurrentPagePreview();
   await renderThumbnails();
 }
@@ -2230,7 +2187,7 @@ async function drawInfoBar(ctx, width, height, scale) {
 }
 
 // ============================================================
-// HLAVNÍ FUNKCE PRO VYKRESLENÍ STRÁNKY – KOMPLETNĚ PŘEPRACOVÁNA
+// HLAVNÍ FUNKCE PRO VYKRESLENÍ STRÁNKY
 // ============================================================
 async function renderCurrentPagePreview() {
   const info = getPreviewPageInfo();
@@ -2344,7 +2301,6 @@ function drawLineOnCanvas(ctx, b, pageSize, scale) {
   ctx.stroke();
   ctx.restore();
 }
-// ============================================================
 
 function addTextBox(){
   pushTextHistory();
