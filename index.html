@@ -2200,6 +2200,7 @@ const ARCH_BAR_HEIGHT_PT = (12 / 25.4) * 72; // přesně 1,2 cm
 const ARCH_PAGE_TEXT_PT = 8;
 const ARCH_DATE_TEXT_PT = 8;
 const ARCH_OFFICE_TEXT_PT = 15;
+const ARCH_TEXT_LIFT_PT = 3; // optický posun všech textů o 3 pt nahoru
 
 function handleInfoBarVariantChange(redraw = true) {
   const architect = document.getElementById('infoBarVariant').value === 'architect';
@@ -2331,7 +2332,7 @@ function drawArchitectInfoBarCanvas(ctx, width, height, scale, pageNumber) {
   ctx.fillStyle = ctx.strokeStyle = '#18181b'; ctx.lineWidth = .45*scale;
   const fillVisualCenter = (text, x, centerY) => {
     const metrics = ctx.measureText(text), ascent = metrics.actualBoundingBoxAscent || 0, descent = metrics.actualBoundingBoxDescent || 0;
-    ctx.fillText(text, x, centerY + (ascent - descent) / 2);
+    ctx.fillText(text, x, centerY + (ascent - descent) / 2 - ARCH_TEXT_LIFT_PT*scale);
   };
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'right'; ctx.font = `${28*scale}px "${editorFontFamily}"`;
   fillVisualCenter(String(pageNumber), 49*scale, (y+barHeight/2)*scale);
@@ -3091,9 +3092,9 @@ async function runPanel(fromModal = false){
     const pdfCenteredBaseline = (font, size, centerY) => {
       const raw = font && font.embedder && font.embedder.font;
       if (raw && raw.unitsPerEm && Number.isFinite(raw.ascent) && Number.isFinite(raw.descent)) {
-        return centerY - ((raw.ascent + raw.descent) / (2 * raw.unitsPerEm)) * size;
+        return centerY - ((raw.ascent + raw.descent) / (2 * raw.unitsPerEm)) * size + ARCH_TEXT_LIFT_PT;
       }
-      return centerY - size * 0.35;
+      return centerY - size * 0.35 + ARCH_TEXT_LIFT_PT;
     };
     let finalLogo = null;
     if(logoImage){
@@ -3133,7 +3134,7 @@ async function runPanel(fromModal = false){
       const nx=pageW-25,ny=h/2,r=11;
       page.drawCircle({x:nx,y:ny,size:r,borderColor:textColor,borderWidth:.85});
       page.drawSvgPath('M 0 -9 L -3.8 3.5 L 3.8 3.5 Z', {
-        x:nx, y:ny, color:textColor, rotate:PDFLib.degrees(Number(document.getElementById('northAngle').value || 0))
+        x:nx, y:ny, color:textColor, rotate:PDFLib.degrees(-Number(document.getElementById('northAngle').value || 0))
       });
     }
 
