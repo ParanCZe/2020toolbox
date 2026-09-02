@@ -60,6 +60,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .north-dial-point{position:absolute;width:17px;height:17px;background:#18181b;border:3px solid #fff;border-radius:50%;left:50%;top:4px;transform:translate(-50%,-50%);box-shadow:0 0 0 2px #18181b;pointer-events:none}
 .style-picker{display:flex;gap:7px;flex-wrap:wrap;align-items:center}.style-choice{width:88px;height:52px;padding:4px;background:#fff;border:2px solid var(--border);border-radius:7px;cursor:pointer;color:#18181b}.style-choice:hover{border-color:#a1a1aa}.style-choice.active{border-color:#18181b;background:#f7f197}.style-choice svg{width:100%;height:100%;display:block}
 .style-picker.compact .style-choice{width:62px;height:40px}#scale-style-controls{display:inline-flex;gap:7px;align-items:center;flex-wrap:wrap}
+#style-variant-row{width:100%;display:flex;align-items:center;gap:22px;flex-wrap:nowrap;overflow-x:auto;padding-top:3px}#style-variant-row #scale-style-controls{order:1;flex-wrap:nowrap;flex-shrink:0}#page-north-style-controls{order:2;display:inline-flex;align-items:center;gap:7px;flex-shrink:0}#page-north-style-controls .style-picker{flex-wrap:nowrap}
 
 /* BOČNÍ PANEL S MINIATURAMI */
 #thumbs-sidebar { width:120px; flex-shrink:0; display:flex; flex-direction:column; gap:8px; max-height:80vh; overflow-y:auto; padding-right:4px; }
@@ -497,7 +498,8 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <label>Popis <input type="text" id="infoBarPageText" placeholder="např. půdorys" oninput="updateCurrentInfoBarPage()"></label>
           <label>Pravá část <select id="infoBarRightMode" onchange="updateCurrentInfoBarPage()"><option value="office">20-20-ARCHITEKTI</option><option value="scale">Měřítko + severka</option></select></label>
           <label id="info-bar-scale-label">Měřítko 1 : <input type="number" id="infoBarScale" value="100" min="1" step="1" oninput="updateCurrentInfoBarPage()"></label>
-          <span><b>Severka (celý projekt):</b><span class="style-picker compact" id="northStylePickerPage">
+          <div id="style-variant-row">
+          <span id="page-north-style-controls"><b>Severka (celý projekt):</b><span class="style-picker compact" id="northStylePickerPage">
             <button type="button" class="style-choice active" data-style="circle" onclick="setNorthStyle('circle')" title="Kružnice a plná šipka"><svg viewBox="0 0 80 44"><circle cx="40" cy="22" r="17" fill="none" stroke="currentColor"/><path d="M40 6 L34 28 L46 28 Z" fill="currentColor"/></svg></button>
             <button type="button" class="style-choice" data-style="arrow" onclick="setNorthStyle('arrow')" title="Samostatná šipka"><svg viewBox="0 0 80 44"><path d="M40 3 L29 35 L40 29 L51 35 Z" fill="currentColor"/></svg></button>
             <button type="button" class="style-choice" data-style="north" onclick="setNorthStyle('north')" title="Kružnice, šipka a N"><svg viewBox="0 0 80 44"><circle cx="40" cy="24" r="16" fill="none" stroke="currentColor"/><path d="M40 9 L35 27 L45 27 Z" fill="currentColor"/><text x="40" y="7" text-anchor="middle" font-size="8" font-weight="bold">N</text></svg></button>
@@ -508,6 +510,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
             <button type="button" class="style-choice" data-style="blocks" onclick="setScaleStyle('blocks')" title="Černobílé bloky"><svg viewBox="0 0 80 44"><rect x="7" y="12" width="16" height="10" fill="currentColor"/><rect x="23" y="12" width="16" height="10" fill="none" stroke="currentColor"/><rect x="39" y="12" width="16" height="10" fill="currentColor"/><rect x="55" y="12" width="16" height="10" fill="none" stroke="currentColor"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
             <button type="button" class="style-choice" data-style="double" onclick="setScaleStyle('double')" title="Dvojitá stupnice"><svg viewBox="0 0 80 44"><path d="M7 12H73M7 20H73M7 10v13m22-13v13m22-13v13m22-13v13" stroke="currentColor" fill="none"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
           </span></span>
+          </div>
         </div>
         <div id="page-indicator" style="font-size:13px; font-weight:bold; color:var(--muted);">Stránka 1 z 1</div>
 
