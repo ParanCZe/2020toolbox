@@ -598,6 +598,7 @@ function selectBox(div) {
 let loadedFileBytes = null;
 let currentPreviewPage = 1;
 let totalPreviewPages = 1;
+let pageStructureInitialized = false;
 let pdfJsDoc = null;
 let fontBytesCache = null;
 let logoBytesCache = null;
@@ -703,6 +704,7 @@ function getProjectState() {
     infoBarPages: infoBarPages,
     textIdCounter: textIdCounter,
     totalPreviewPages: totalPreviewPages,
+    pageStructureInitialized: pageStructureInitialized,
     defaultCoverLayoutInitialized: defaultCoverLayoutInitialized,
     currentPreviewPage: currentPreviewPage
   };
@@ -766,6 +768,7 @@ async function importProjectFromZip(files) {
     infoBarPages = state.infoBarPages || {};
     textIdCounter = state.textIdCounter || 1;
     totalPreviewPages = state.totalPreviewPages || 1;
+    pageStructureInitialized = state.pageStructureInitialized !== false;
     defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
     currentPreviewPage = state.currentPreviewPage || 1;
     
@@ -1105,6 +1108,7 @@ async function saveProjectState() {
     infoBarPages: infoBarPages,
     textIdCounter: textIdCounter,
     totalPreviewPages: totalPreviewPages,
+    pageStructureInitialized: pageStructureInitialized,
     defaultCoverLayoutInitialized: defaultCoverLayoutInitialized,
     currentPreviewPage: currentPreviewPage
   };
@@ -1209,6 +1213,7 @@ async function loadProject(name) {
   textUndoStack = [];
   defaultCoverLayoutInitialized = false;
   totalPreviewPages = 1;
+  pageStructureInitialized = false;
   currentPreviewPage = 1;
   pendingResumePage = null;
   filesData.panel = [];
@@ -1224,6 +1229,8 @@ async function loadProject(name) {
     infoBarPages = state.infoBarPages || {};
     textIdCounter = state.textIdCounter || 1;
     defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
+    totalPreviewPages = state.totalPreviewPages || 1;
+    pageStructureInitialized = state.pageStructureInitialized !== false && !!state.totalPreviewPages;
     pendingResumePage = state.currentPreviewPage || 1;
     
     for (let p in allPagesTexts) {
@@ -1267,6 +1274,7 @@ async function loadProject(name) {
       if (allPagesTexts[p] && allPagesTexts[p].type === 'moodboard') pageCount++;
     }
     totalPreviewPages = pageCount;
+    pageStructureInitialized = true;
     
     ensurePagePdfIndexMap();
     document.getElementById('btn-preview').disabled = false;
@@ -1298,6 +1306,7 @@ async function loadOrReplacePdfInProject(file) {
 
   if (oldNumPages === 0) {
     totalPreviewPages = newDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0) + customBlankPages.size;
+    pageStructureInitialized = true;
     pagePdfIndexMap = {};
     ensurePagePdfIndexMap();
   } else {
@@ -2006,8 +2015,11 @@ async function openPreviewModal() {
   if (!pdfJsDoc) return;
   initEditorGlobalHandlers();
   await loadEditorAssets();
-  const moodboardCount = Object.values(allPagesTexts).filter(page => page && page.type === 'moodboard').length;
-  totalPreviewPages = pdfJsDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0) + customBlankPages.size + moodboardCount;
+  if (!pageStructureInitialized) {
+    const moodboardCount = Object.values(allPagesTexts).filter(page => page && page.type === 'moodboard').length;
+    totalPreviewPages = pdfJsDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0) + customBlankPages.size + moodboardCount;
+    pageStructureInitialized = true;
+  }
   ensurePagePdfIndexMap();
   currentPreviewPage = (pendingResumePage && pendingResumePage <= totalPreviewPages) ? pendingResumePage : 1;
   pendingResumePage = null;
@@ -2173,6 +2185,7 @@ function movePage(from, to) {
   else if (from > currentPreviewPage && to <= currentPreviewPage) currentPreviewPage++;
   
   ensurePagePdfIndexMap();
+  scheduleAutosave();
 }
 
 async function deletePreviewPage(pos) {
@@ -2190,6 +2203,7 @@ async function deletePreviewPage(pos) {
   else if (currentPreviewPage > pos) currentPreviewPage--;
 
   ensurePagePdfIndexMap();
+  scheduleAutosave();
   await renderCurrentPagePreview();
   await renderThumbnails();
 }
