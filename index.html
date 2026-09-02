@@ -2329,13 +2329,20 @@ function drawArchitectInfoBarCanvas(ctx, width, height, scale, pageNumber) {
   ctx.save();
   ctx.fillStyle = '#f7f197'; ctx.fillRect(0, y*scale, width*scale, barHeight*scale);
   ctx.fillStyle = ctx.strokeStyle = '#18181b'; ctx.lineWidth = .45*scale;
-  ctx.textBaseline = 'middle'; ctx.textAlign = 'right'; ctx.font = `${28*scale}px "${editorFontFamily}"`;
-  ctx.fillText(String(pageNumber), 49*scale, (y+barHeight/2)*scale);
+  const fillVisualCenter = (text, x, centerY) => {
+    const metrics = ctx.measureText(text), ascent = metrics.actualBoundingBoxAscent || 0, descent = metrics.actualBoundingBoxDescent || 0;
+    ctx.fillText(text, x, centerY + (ascent - descent) / 2);
+  };
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'right'; ctx.font = `${28*scale}px "${editorFontFamily}"`;
+  fillVisualCenter(String(pageNumber), 49*scale, (y+barHeight/2)*scale);
   const sepX=54; ctx.beginPath(); ctx.moveTo(sepX*scale,(y+5)*scale); ctx.lineTo(sepX*scale,(y+barHeight-5)*scale); ctx.stroke();
-  ctx.textAlign='left'; ctx.font=`bold ${ARCH_PAGE_TEXT_PT*scale}px "${editorFontFamily}"`; ctx.fillText(cfg.text||'',62*scale,(y+10.5)*scale);
-  ctx.font=`${ARCH_DATE_TEXT_PT*scale}px "${editorFontFamily}"`; ctx.fillText(formatArchitectDate(document.getElementById('panelDate').value),62*scale,(y+23.5)*scale);
+  ctx.textAlign='left';
+  ctx.font=`bold ${ARCH_PAGE_TEXT_PT*scale}px "${editorFontFamily}"`;
+  if ((cfg.text || '').trim()) fillVisualCenter(cfg.text,62*scale,(y+10)*scale);
+  ctx.font=`${ARCH_DATE_TEXT_PT*scale}px "${editorFontFamily}"`;
+  fillVisualCenter(formatArchitectDate(document.getElementById('panelDate').value),62*scale,(y+24)*scale);
   if(cfg.rightMode==='scale') drawScaleNorthCanvas(ctx,width,y,barHeight,scale,cfg.scale,Number(document.getElementById('northAngle').value)||0);
-  else { ctx.textAlign='center'; ctx.font=`bold ${ARCH_OFFICE_TEXT_PT*scale}px "${editorFontFamily}"`; ctx.fillText('20-20-ARCHITEKTI',(width-130)*scale,(y+barHeight/2)*scale); }
+  else { ctx.textAlign='center'; ctx.font=`bold ${ARCH_OFFICE_TEXT_PT*scale}px "${editorFontFamily}"`; fillVisualCenter('20-20-ARCHITEKTI',(width-130)*scale,(y+barHeight/2)*scale); }
   ctx.restore();
 }
 
@@ -3081,6 +3088,13 @@ async function runPanel(fromModal = false){
     const finalPdf = await PDFDocument.create();
     finalPdf.registerFontkit(fontkit);
     const finalFont = await finalPdf.embedFont(fontData);
+    const pdfCenteredBaseline = (font, size, centerY) => {
+      const raw = font && font.embedder && font.embedder.font;
+      if (raw && raw.unitsPerEm && Number.isFinite(raw.ascent) && Number.isFinite(raw.descent)) {
+        return centerY - ((raw.ascent + raw.descent) / (2 * raw.unitsPerEm)) * size;
+      }
+      return centerY - size * 0.35;
+    };
     let finalLogo = null;
     if(logoImage){
       const logoBytes = logoBytesCache || await fetch('2020.png').then(r => r.arrayBuffer());
@@ -3103,13 +3117,13 @@ async function runPanel(fromModal = false){
       const cfg=getInfoBarPageConfig(pageNumber), h=ARCH_BAR_HEIGHT_PT;
       page.drawRectangle({x:0,y:0,width:pageW,height:h,color:rgb(247/255,241/255,151/255)});
       const num=String(pageNumber), numW=finalFont.widthOfTextAtSize(num,28);
-      page.drawText(num,{x:49-numW,y:7,size:28,font:finalFont,color:textColor});
+      page.drawText(num,{x:49-numW,y:pdfCenteredBaseline(finalFont,28,h/2),size:28,font:finalFont,color:textColor});
       page.drawLine({start:{x:54,y:5},end:{x:54,y:h-5},thickness:.85,color:textColor});
-      if(cfg.text) page.drawText(cfg.text,{x:62,y:23,size:ARCH_PAGE_TEXT_PT,font:finalFont,color:textColor});
-      page.drawText(formatArchitectDate(projectDate),{x:62,y:10,size:ARCH_DATE_TEXT_PT,font:finalFont,color:textColor});
+      if((cfg.text || '').trim()) page.drawText(cfg.text,{x:62,y:pdfCenteredBaseline(finalFont,ARCH_PAGE_TEXT_PT,24),size:ARCH_PAGE_TEXT_PT,font:finalFont,color:textColor});
+      page.drawText(formatArchitectDate(projectDate),{x:62,y:pdfCenteredBaseline(finalFont,ARCH_DATE_TEXT_PT,10),size:ARCH_DATE_TEXT_PT,font:finalFont,color:textColor});
       if(cfg.rightMode!=='scale'){
         const office='20-20-ARCHITEKTI', size=ARCH_OFFICE_TEXT_PT, tw=finalFont.widthOfTextAtSize(office,size);
-        page.drawText(office,{x:pageW-130-tw/2,y:13,size,font:finalFont,color:textColor}); return;
+        page.drawText(office,{x:pageW-130-tw/2,y:pdfCenteredBaseline(finalFont,size,h/2),size,font:finalFont,color:textColor}); return;
       }
       const denom=Math.max(1,Number(cfg.scale)||100), unit=(1000/denom)*(72/25.4), shown=Math.max(1,Math.min(5,Math.floor(230/unit)));
       const end=pageW-75,start=end-shown*unit,lineY=25.02;
@@ -3119,7 +3133,7 @@ async function runPanel(fromModal = false){
       const nx=pageW-25,ny=h/2,r=11;
       page.drawCircle({x:nx,y:ny,size:r,borderColor:textColor,borderWidth:.85});
       page.drawSvgPath('M 0 -9 L -3.8 3.5 L 3.8 3.5 Z', {
-        x:nx, y:ny, color:textColor, rotate:PDFLib.degrees(-Number(document.getElementById('northAngle').value || 0))
+        x:nx, y:ny, color:textColor, rotate:PDFLib.degrees(Number(document.getElementById('northAngle').value || 0))
       });
     }
 
