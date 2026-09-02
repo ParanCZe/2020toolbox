@@ -1616,34 +1616,40 @@ function createMoodboard(layoutType) {
   }
   
   // ---- STEJNÝ PRINCIP JAKO addBlankPage ----
+  // Stránka 1 je vyhrazená pro úvodní stranu (pokud je zapnutá) – moodboard se tam nikdy nevloží,
+  // aby se nepřepsaly jména a oddělující čára z úvodní strany.
+  const createCover = document.getElementById('createCover').checked;
+  const insertAt = (createCover && currentPreviewPage < 2) ? 2 : currentPreviewPage;
+
   let newTexts = {};
   let newBlankPages = new Set();
   let newPdfMap = {};
   
   for (let [pStr, texts] of Object.entries(allPagesTexts)) {
     let pNum = parseInt(pStr);
-    if (pNum >= currentPreviewPage) {
+    if (pNum >= insertAt) {
       newTexts[pNum + 1] = texts;
     } else {
       newTexts[pNum] = texts;
     }
   }
   for (let pNum of customBlankPages) {
-    if (pNum >= currentPreviewPage) newBlankPages.add(pNum + 1);
+    if (pNum >= insertAt) newBlankPages.add(pNum + 1);
     else newBlankPages.add(pNum);
   }
   for (let [pStr, idx] of Object.entries(pagePdfIndexMap)) {
     let pNum = parseInt(pStr);
-    if (pNum >= currentPreviewPage) newPdfMap[pNum + 1] = idx;
+    if (pNum >= insertAt) newPdfMap[pNum + 1] = idx;
     else newPdfMap[pNum] = idx;
   }
   
-  newTexts[currentPreviewPage] = { type: 'moodboard', cells };
+  newTexts[insertAt] = { type: 'moodboard', cells };
   
   allPagesTexts = newTexts;
   customBlankPages = newBlankPages;
   pagePdfIndexMap = newPdfMap;
   totalPreviewPages++;
+  currentPreviewPage = insertAt;
   
   renderCurrentPagePreview();
   renderThumbnails();
@@ -1935,13 +1941,15 @@ function getPreviewPageInfo(pageNum) {
   if (isBlank) {
     return { isCover: false, isBlank: true, pdfIndex: -1 };
   }
-  const isCoverPage = createCover && pageNum === 1;
-  if (isCoverPage) {
-    return { isCover: true, isBlank: false, pdfIndex: -1 };
-  }
+  // Kontrola moodboardu MUSÍ být před kontrolou úvodní strany – jinak by se moodboard
+  // omylem vykreslil jako úvodní strana, pokud by se (např. u starších projektů) ocitl na pozici 1.
   const pageData = allPagesTexts[pageNum];
   if (pageData && pageData.type === 'moodboard') {
     return { isCover: false, isBlank: false, pdfIndex: -1, isMoodboard: true };
+  }
+  const isCoverPage = createCover && pageNum === 1;
+  if (isCoverPage) {
+    return { isCover: true, isBlank: false, pdfIndex: -1 };
   }
   const pdfIndex = pagePdfIndexMap[pageNum];
   return {
@@ -2052,32 +2060,38 @@ async function getPageSize(info) {
 async function addBlankPage(){
   pushTextHistory();
   
+  // Stránka 1 je vyhrazená pro úvodní stranu (pokud je zapnutá) – prázdná stránka se tam nikdy
+  // nevloží, aby se nepřepsal obsah úvodní strany.
+  const createCover = document.getElementById('createCover').checked;
+  const insertAt = (createCover && currentPreviewPage < 2) ? 2 : currentPreviewPage;
+  
   let newAllTexts = {};
   let newBlankPages = new Set();
   let newPdfMap = {};
   
   for(let [pStr, texts] of Object.entries(allPagesTexts)){
     let pNum = parseInt(pStr);
-    if(pNum >= currentPreviewPage) {
+    if(pNum >= insertAt) {
       newAllTexts[pNum + 1] = texts;
     } else {
       newAllTexts[pNum] = texts;
     }
   }
   for(let pNum of customBlankPages){
-    if(pNum >= currentPreviewPage) newBlankPages.add(pNum + 1);
+    if(pNum >= insertAt) newBlankPages.add(pNum + 1);
     else newBlankPages.add(pNum);
   }
   for(let [pStr, idx] of Object.entries(pagePdfIndexMap)){
     let pNum = parseInt(pStr);
-    if(pNum >= currentPreviewPage) newPdfMap[pNum + 1] = idx;
+    if(pNum >= insertAt) newPdfMap[pNum + 1] = idx;
     else newPdfMap[pNum] = idx;
   }
   
   allPagesTexts = newAllTexts;
   customBlankPages = newBlankPages;
   pagePdfIndexMap = newPdfMap;
-  customBlankPages.add(currentPreviewPage);
+  customBlankPages.add(insertAt);
+  currentPreviewPage = insertAt;
   
   totalPreviewPages++;
   await renderCurrentPagePreview();
