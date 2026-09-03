@@ -276,8 +276,8 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.12b</div>
-  <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">POMOCNÍK PŘI PREZENTACÍCH A PRÁCI S DOKUMENTACÍ</div>
+  <div class="app-version">V3.12c</div>
+  <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
 <div class="wrap"><div class="card">
@@ -2304,6 +2304,18 @@ function copyCompareToFullscreen(){
   setCompareFullscreenMode(docsData.compareFullMode||'diff',false);
 }
 function svgNs(){return 'http://www.w3.org/2000/svg';}
+let compareSvgModulePromise=null;
+async function getCompareSVGGraphics(){
+  // Klasický pdf.min.js build nemusí SVGGraphics vystavit do window.pdfjsLib.
+  // ESM build stejné verze jej exportuje přímo, proto jej používáme jako spolehlivý vektorový renderer.
+  if(pdfjsLib && typeof pdfjsLib.SVGGraphics==='function')return pdfjsLib.SVGGraphics;
+  if(!compareSvgModulePromise){
+    compareSvgModulePromise=import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.mjs').catch(e=>{compareSvgModulePromise=null;throw e;});
+  }
+  const mod=await compareSvgModulePromise;
+  if(!mod || typeof mod.SVGGraphics!=='function')throw new Error('Vektorový SVG renderer PDF.js není dostupný');
+  return mod.SVGGraphics;
+}
 function namespaceSvgIds(svg,prefix){
   if(!svg)return svg;
   const idMap=new Map();
@@ -2376,7 +2388,7 @@ function renderVectorDiff(cleanChange,w,h,scale,align){
 }
 async function renderPdfComparison(){
   const A=docsData.compareDocA,B=docsData.compareDocB;if(!A||!B)return;
-  const st=document.getElementById('st-compare');st.textContent='Porovnávám a skládám vektorové překrytí…';
+  const st=document.getElementById('st-compare');st.textContent='Porovnávám a načítám vektorový renderer…';
   try{
     const pa=Number(document.getElementById('comparePageA').value)||1,pb=Number(document.getElementById('comparePageB').value)||1;
     const vectorPromise=Promise.allSettled([renderCompareVectorPage(A,pa,'compareVectorA'),renderCompareVectorPage(B,pb,'compareVectorB')]);
@@ -2423,15 +2435,13 @@ async function renderCompareVectorPage(doc,pageNum,targetId){
   try{
     const page=await doc.getPage(pageNum),viewport=page.getViewport({scale:1});
     host.dataset.baseWidth=String(viewport.width);host.dataset.baseHeight=String(viewport.height);
-    if(pdfjsLib.SVGGraphics){
-      const opList=await page.getOperatorList();
-      const gfx=new pdfjsLib.SVGGraphics(page.commonObjs,page.objs);gfx.embedFonts=true;
-      const svg=await gfx.getSVG(opList,viewport);
-      if(!svg.getAttribute('viewBox'))svg.setAttribute('viewBox',`0 0 ${viewport.width} ${viewport.height}`);
-      svg.removeAttribute('width');svg.removeAttribute('height');svg.style.width='100%';svg.style.height='auto';
-      host.innerHTML='';host.appendChild(svg);host.dataset.vector='1';return true;
-    }
-    throw new Error('SVG renderer PDF.js není dostupný');
+    const SVGGraphics=await getCompareSVGGraphics();
+    const opList=await page.getOperatorList();
+    const gfx=new SVGGraphics(page.commonObjs,page.objs);gfx.embedFonts=true;
+    const svg=await gfx.getSVG(opList,viewport);
+    if(!svg.getAttribute('viewBox'))svg.setAttribute('viewBox',`0 0 ${viewport.width} ${viewport.height}`);
+    svg.removeAttribute('width');svg.removeAttribute('height');svg.style.width='100%';svg.style.height='auto';
+    host.innerHTML='';host.appendChild(svg);host.dataset.vector='1';return true;
   }catch(e){
     console.warn('Vektorový náhled selhal, používám kvalitní raster:',e);
     try{
@@ -2442,27 +2452,42 @@ async function renderCompareVectorPage(doc,pageNum,targetId){
   }
 }
 function openCompareFullscreen(mode){
-  const src=compareSourceCanvas(mode),vhost=compareVectorHost(mode),hasVector=!!(vhost?.firstElementChild&&!vhost.firstElementChild.classList?.contains('docs-empty'));
-  if(!hasVector&&(!src||!src.width)){alert('Nejprve nahraj a porovnej obě PDF.');return;}
+  const src=compareSourceCanvas(mode),vhost=compareVectorHost(mode);
+  const vectorReady=!!(vhost?.dataset.vector==='1' && vhost.querySelector(':scope > svg'));
+  const rasterReady=!!(src&&src.width&&src.height);
+  if(!vectorReady&&!rasterReady){alert('Nejprve nahraj a porovnej obě PDF.');return;}
   docsData.compareFullMode=mode;document.getElementById('compare-fullscreen').classList.add('active');setCompareFullscreenMode(mode,false);requestAnimationFrame(fitCompareFullscreen);
 }
 function closeCompareFullscreen(){document.getElementById('compare-fullscreen')?.classList.remove('active');}
+function cloneCompareSvgForFullscreen(sourceSvg,mode){
+  const clone=sourceSvg.cloneNode(true);
+  // Fullscreen SVG žije současně s původním SVG v DOM. Všechny id/clipPath/mask/font odkazy
+  // proto dostanou nový prefix; jinak prohlížeč může odkazy vyhodnotit proti původnímu SVG a zobrazit prázdnou stránku.
+  namespaceSvgIds(clone,`cmpFull_${mode}_${Date.now()}_`);
+  clone.removeAttribute('width');clone.removeAttribute('height');clone.style.width='100%';clone.style.height='auto';clone.style.display='block';
+  return clone;
+}
 function setCompareFullscreenMode(mode,fit=true){
   docsData.compareFullMode=mode;
   const dst=document.getElementById('compareFullCanvas'),vector=document.getElementById('compareFullVector'),title=document.getElementById('compare-full-title');
   if(!dst||!vector)return;
   let active='canvas';
-  const srcHost=compareVectorHost(mode),child=srcHost?.firstElementChild;
-  if(child&&!child.classList?.contains('docs-empty')){
-    vector.innerHTML='';vector.appendChild(child.cloneNode(true));vector.dataset.baseWidth=srcHost.dataset.baseWidth||'1000';vector.dataset.baseHeight=srcHost.dataset.baseHeight||'700';
+  const srcHost=compareVectorHost(mode),sourceSvg=(srcHost?.dataset.vector==='1')?srcHost.querySelector(':scope > svg'):null;
+  if(sourceSvg){
+    vector.innerHTML='';vector.appendChild(cloneCompareSvgForFullscreen(sourceSvg,mode));
+    vector.dataset.baseWidth=srcHost.dataset.baseWidth||sourceSvg.viewBox?.baseVal?.width||'1000';
+    vector.dataset.baseHeight=srcHost.dataset.baseHeight||sourceSvg.viewBox?.baseVal?.height||'700';
     vector.style.display='block';dst.style.display='none';active='vector';
   }
   if(active==='canvas'){
-    const src=compareSourceCanvas(mode);if(!src||!src.width)return;
-    dst.width=src.width;dst.height=src.height;dst.getContext('2d').drawImage(src,0,0);dst.style.display='block';vector.style.display='none';
+    // Canvas nelze kopírovat přes cloneNode(): nový canvas je vždy prázdný.
+    // Proto nouzový raster explicitně překreslíme do fullscreen canvasu.
+    const src=compareSourceCanvas(mode);if(!src||!src.width||!src.height)return;
+    dst.width=src.width;dst.height=src.height;const c=dst.getContext('2d');c.clearRect(0,0,dst.width,dst.height);c.drawImage(src,0,0);
+    dst.style.display='block';vector.style.display='none';
   }
   const stage=document.getElementById('compare-full-stage');if(stage)stage.dataset.activeType=active;
-  if(title)title.textContent=mode==='a'?'STARŠÍ VERZE — VEKTOR':mode==='b'?'NOVĚJŠÍ VERZE — VEKTOR':'ROZDÍL — VEKTOROVÉ PŘEKRYTÍ';
+  if(title)title.textContent=mode==='a'?(active==='vector'?'STARŠÍ VERZE — VEKTOR':'STARŠÍ VERZE — RASTER FALLBACK'):mode==='b'?(active==='vector'?'NOVĚJŠÍ VERZE — VEKTOR':'NOVĚJŠÍ VERZE — RASTER FALLBACK'):(active==='vector'?'ROZDÍL — VEKTOROVÉ PŘEKRYTÍ':'ROZDÍL — RASTER FALLBACK');
   if(fit)requestAnimationFrame(fitCompareFullscreen);else applyCompareFullscreenZoom();
 }
 function applyCompareFullscreenZoom(){
