@@ -26,7 +26,7 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 .tile span{font-size:12px;color:var(--muted)}
 .menu-status{display:inline-block;margin-left:7px;padding:1px 5px;border:1px solid #d4d4d8;border-radius:999px;background:#f4f4f5;color:#71717a;font:500 9px/1.45 system-ui,Segoe UI,sans-serif;letter-spacing:.45px;vertical-align:2px;text-transform:uppercase}
 
-/* BASECAMP ODKAZ V HLAVNÍM MENU — V3.13c */
+/* BASECAMP ODKAZ V HLAVNÍM MENU — V3.13d */
 .menu-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:0}
 .menu-title-copy{min-width:0}
 .basecamp-launcher{position:relative;display:inline-flex;align-items:center;justify-content:center;width:58px;height:58px;flex:0 0 58px;text-decoration:none;border-radius:16px;outline:none;transition:transform .22s cubic-bezier(.2,.8,.2,1),filter .22s ease;will-change:transform}
@@ -43,7 +43,7 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 @media(max-width:600px){.basecamp-launcher{width:52px;height:52px;flex-basis:52px}.basecamp-launcher svg{width:34px;height:34px}.basecamp-launcher .basecamp-tooltip{display:none}}
 
 
-/* 3D KNIHOVNA VÝROBKŮ — V3.13c BETA */
+/* 3D KNIHOVNA VÝROBKŮ — V3.13d BETA */
 .product3d-search{margin:16px 0;border:1px solid var(--border);border-radius:10px;background:#fafafa;padding:14px}
 .product3d-search-grid{display:grid;grid-template-columns:minmax(260px,1.45fr) minmax(230px,1fr) auto;gap:9px;align-items:end}
 .product3d-search-grid label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted);min-width:0}
@@ -360,7 +360,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:800px){.compare-grid{grid-template-columns:1fr}.compare-diff{grid-column:auto}.docs-summary{grid-template-columns:1fr 1fr}}
 
 
-/* 3D TISK — V3.13c BETA */
+/* 3D TISK — V3.13d BETA */
 .print3d-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.85fr);gap:14px;margin-top:14px}
 .print3d-viewer{border:1px solid var(--border);border-radius:10px;background:#e4e4e7;overflow:hidden;min-height:560px;display:flex;flex-direction:column}
 .print3d-viewer-head{padding:9px 11px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
@@ -384,7 +384,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:900px){.print3d-layout{grid-template-columns:1fr}.print3d-viewer{min-height:460px}#print3d-stage,#print3d-canvas{min-height:400px}}
 
 
-/* 3D TISK — V3.13c: kompaktní rozhraní + záložky */
+/* 3D TISK — V3.13d: kompaktní rozhraní + záložky */
 .print3d-layout{align-items:start}
 .print3d-viewer{height:650px;min-height:0;max-height:72vh;position:sticky;top:10px}
 #print3d-stage{min-height:0;height:100%;flex:1}
@@ -416,7 +416,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version" id="app-version">V3.13c</div>
+  <div class="app-version" id="app-version">V3.13d</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ A DOKUMENTACÍ</div>
 </header>
 
@@ -1297,7 +1297,7 @@ function initProjectStorageUI() {
   const button = document.getElementById('projects-storage-btn');
   const autosave = document.getElementById('project-autosave-note');
   if (projectStorageMode === 'browser') {
-    if (version) version.textContent = 'V3.13c · SAFARI';
+    if (version) version.textContent = 'V3.13d · SAFARI';
     if (note) note.innerHTML = 'Vyberte existující projekt, nebo založte nový. V Safari se projekty ukládají <b>lokálně v tomto Macu</b> do úložiště Safari a načítají se přímo ze seznamu projektů.';
     if (warning) {
       warning.style.display = 'block';
@@ -1306,7 +1306,7 @@ function initProjectStorageUI() {
     if (button) button.textContent = '🔄 Obnovit seznam projektů';
     if (autosave) autosave.textContent = '(automatické ukládání v Safari)';
   } else {
-    if (version) version.textContent = 'V3.13c';
+    if (version) version.textContent = 'V3.13d';
     if (note) note.innerHTML = 'Vyberte existující projekt, nebo založte nový. Projekty se ukládají do složky <code>saved_projects</code>.';
     if (warning) warning.style.display = 'none';
     if (button) button.textContent = '🔄 Připojit / obnovit složku saved_projects';
@@ -5758,7 +5758,7 @@ async function runPanel(fromModal = false){
 
 
 // ============================================================
-// 3D TISK — V3.13c BETA
+// 3D TISK — V3.13d BETA
 // ============================================================
 const print3dState={
   initialized:false,deps:null,renderer:null,scene:null,camera:null,controls:null,root:null,file:null,
@@ -6115,7 +6115,7 @@ async function export3DPrintGcode(){
   try{
     const layers=calc3DPrintLayerCount(),nozzle=num3D('print3d-nozzle',.4),width=nozzle*1.125,firstH=num3D('print3d-first-layer',.2),lh=num3D('print3d-layer-height',.15),perims=Math.max(1,Math.round(num3D('print3d-perimeters',3))),top=Math.max(1,Math.round(num3D('print3d-top-solid',5))),bottom=Math.max(1,Math.round(num3D('print3d-bottom-solid',4))),perimSpeed=num3D('print3d-speed-perim',35)*60,infillSpeed=num3D('print3d-speed-infill',50)*60,supportSpeed=Math.min(num3D('print3d-speed-infill',50),40)*60,travelSpeed=num3D('print3d-speed-travel',180)*60,retract=Math.max(0,num3D('print3d-retract',.8)),zhop=Math.max(0,num3D('print3d-zhop',.4)),fan=Math.round(Math.max(0,Math.min(100,num3D('print3d-fan',50)))*2.55),noz1=Math.round(num3D('print3d-nozzle-first',230)),noz=Math.round(num3D('print3d-nozzle-temp',240)),bed1=Math.round(num3D('print3d-bed-first',85)),bed=Math.round(num3D('print3d-bed-temp',90)),filArea=Math.PI*Math.pow(1.75/2,2),brim=Math.max(0,num3D('print3d-brim',0)),bounds=get3DPrintXYBounds();
     if(!bounds)throw new Error('Nelze získat rozměry modelu.');const ox=bx/2-(bounds.minX+bounds.maxX)/2,oy=by/2-(bounds.minY+bounds.maxY)/2;
-    const g=[];g.push('; generated by 20-20-TOOLBOX V3.13c','; printer_model = Original Prusa i3 MK3S',`; source = ${f.name}`,`; layer_height = ${lh}`,`; first_layer_height = ${firstH}`,`; nozzle_diameter = ${nozzle}`,`; filament_type = ${document.getElementById('print3d-material')?.value?.toUpperCase()||'PETG'}`,`; fill_density = ${num3D('print3d-infill',12)}%`, `; support_material = ${(document.getElementById('print3d-supports')?.value||'off')}`, `; support_density = ${num3D('print3d-support-density',15)}%`,'; verify this BETA G-code in PrusaSlicer G-code Viewer before printing','M83 ; relative extrusion','G90 ; absolute coordinates','G21 ; millimeters',`M104 S${noz1} ; nozzle temp`,`M140 S${bed1} ; bed temp`,`M190 S${bed1} ; wait bed`,`M109 S${noz1} ; wait nozzle`,'G28 W ; home without mesh leveling','G80 ; mesh bed leveling',`G1 Z${firstH.toFixed(3)} F7200`,'G92 E0','G1 Y-3.0 F1000','G1 X60.0 E9.0 F1000','G1 X100.0 E12.5 F1000','G92 E0','M107');
+    const g=[];g.push('; generated by 20-20-TOOLBOX V3.13d','; printer_model = Original Prusa i3 MK3S',`; source = ${f.name}`,`; layer_height = ${lh}`,`; first_layer_height = ${firstH}`,`; nozzle_diameter = ${nozzle}`,`; filament_type = ${document.getElementById('print3d-material')?.value?.toUpperCase()||'PETG'}`,`; fill_density = ${num3D('print3d-infill',12)}%`, `; support_material = ${(document.getElementById('print3d-supports')?.value||'off')}`, `; support_density = ${num3D('print3d-support-density',15)}%`,'; verify this BETA G-code in PrusaSlicer G-code Viewer before printing','M83 ; relative extrusion','G90 ; absolute coordinates','G21 ; millimeters',`M104 S${noz1} ; nozzle temp`,`M140 S${bed1} ; bed temp`,`M190 S${bed1} ; wait bed`,`M109 S${noz1} ; wait nozzle`,'G28 W ; home without mesh leveling','G80 ; mesh bed leveling',`G1 Z${firstH.toFixed(3)} F7200`,'G92 E0','G1 Y-3.0 F1000','G1 X60.0 E9.0 F1000','G1 X100.0 E12.5 F1000','G92 E0','M107');
     let cx=100,cy=-3,cz=0,retracted=false,totalE=0;const eFor=(len,h)=>len*width*h/filArea;
     const travel=(x,y,z)=>{const dist=Math.hypot(x-cx,y-cy);if(dist>2&&retract>0&&!retracted){g.push(`G1 E-${retract.toFixed(3)} F2100`);retracted=true}if(zhop>0&&dist>2)g.push(`G1 Z${Math.min(bz,z+zhop).toFixed(3)} F7200`);g.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} F${Math.round(travelSpeed)}`);if(zhop>0&&dist>2)g.push(`G1 Z${z.toFixed(3)} F7200`);if(retracted){g.push(`G1 E${retract.toFixed(3)} F2100`);retracted=false}cx=x;cy=y;cz=z};
     const extrudePolyline=(poly,z,h,speed,closed=true)=>{if(!poly||poly.length<2)return;const p0=poly[0];travel(p0[0]+ox,p0[1]+oy,z);const n=closed?poly.length+1:poly.length;for(let i=1;i<n;i++){const p=poly[i%poly.length],x=p[0]+ox,y=p[1]+oy,len=Math.hypot(x-cx,y-cy);if(len<1e-5)continue;const e=eFor(len,h);g.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} E${e.toFixed(5)} F${Math.round(speed)}`);cx=x;cy=y;totalE+=e}};
@@ -6136,7 +6136,7 @@ async function export3DPrintGcode(){
 async function export3DPrintSTL(){const root=print3dState.root,f=print3dState.file;if(!root||!f)return;try{const {STLExporter}=await get3DPrintDeps();root.updateMatrixWorld(true);const data=new STLExporter().parse(root,{binary:true});let blob;if(data instanceof DataView)blob=new Blob([data.buffer],{type:'model/stl'});else if(data instanceof ArrayBuffer)blob=new Blob([data],{type:'model/stl'});else blob=new Blob([data],{type:'model/stl'});const a=document.createElement('a'),ratio=String(document.getElementById('print3d-scale').value||1).replace(/[^0-9._-]/g,'');a.href=URL.createObjectURL(blob);a.download=f.name.replace(/\.[^.]+$/,'')+`_3DPRINT_1-${ratio}.stl`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);document.getElementById('st-3dprint').textContent='STL model exportován (vedlejší export).'}catch(e){console.error(e);alert('STL se nepodařilo vytvořit: '+e.message)}}
 
 
-// 3D KNIHOVNA VÝROBKŮ — V3.13c BETA — MULTI-SOURCE
+// 3D KNIHOVNA VÝROBKŮ — V3.13d BETA — MULTI-SOURCE
 const PRODUCT3D_SOURCE_ORDER=['bimobject','warehouse','sketchfab','archiproducts','3dfindit','syncronia','caddetails'];
 const PRODUCT3D_SOURCE_META={
   bimobject:{label:'BIMobject',domain:'bimobject.com',kind:'BIM výrobci'},
@@ -6199,7 +6199,35 @@ function product3DContainsPhrase(value,needle){const hay=product3DNormalizeWords
 function product3DMatchesText(value,q){const want=product3DNormalizeWords(q).filter(x=>x.length>2);if(!want.length)return true;const hay=new Set(product3DNormalizeWords(value));return want.some(x=>hay.has(x))}
 function product3DCleanText(v){return String(v||'').replace(/!\[[^\]]*\]\([^)]*\)/g,' ').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/[#*_`>|]/g,' ').replace(/\s+/g,' ').trim()}
 function product3DCleanUrl(v){try{const u=new URL(String(v||'').replace(/&amp;/g,'&'));u.hash='';['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].forEach(k=>u.searchParams.delete(k));return u.toString()}catch{return String(v||'')}}
-function product3DImageAllowed(url){return /^https?:\/\//i.test(url||'')&&!/\.svg(?:\?|$)/i.test(url)&&!/logo|icon|avatar|sprite/i.test(url)}
+function product3DImageAllowed(url,alt=''){
+  const u=String(url||''),a=String(alt||'');
+  if(!/^https?:\/\//i.test(u)||/\.svg(?:\?|$)/i.test(u))return false;
+  const bad=/logo|icon|avatar|sprite|profile|portrait|userpic|user-photo|account|author-photo|gravatar|placeholder|default[-_ ]?(?:user|avatar|profile)/i;
+  if(bad.test(u)||bad.test(a))return false;
+  return true;
+}
+function product3DWordOverlap(a,b){
+  const aa=new Set(product3DNormalizeWords(a).filter(x=>x.length>2)),bb=product3DNormalizeWords(b).filter(x=>x.length>2);let n=0;
+  for(const w of bb)if(aa.has(w))n++;return n;
+}
+function product3DImageScore(im,link,p,direct=false){
+  const alt=im?.alt||'',url=im?.url||'',dist=Math.abs((im?.pos||0)-(link?.pos||0));
+  if(!product3DImageAllowed(url,alt))return -999;
+  const badText=/profile|avatar|author|user|member|account|logo|portrait|photo of/i;
+  if(badText.test(alt))return -999;
+  let score=direct?120:0;
+  const titleOverlap=product3DWordOverlap(alt,link?.title||'');
+  const queryOverlap=product3DWordOverlap(alt,p?.q||'');
+  const brandOverlap=product3DWordOverlap(alt,p?.brand||'');
+  const urlOverlap=product3DWordOverlap(url,(p?.q||'')+' '+(p?.brand||''));
+  score+=titleOverlap*18+queryOverlap*15+brandOverlap*18+urlOverlap*4;
+  if(alt&&product3DContainsPhrase(alt,link?.title||''))score+=35;
+  if(p?.q&&product3DContainsPhrase(alt,p.q))score+=18;
+  if(p?.brand&&product3DContainsPhrase(alt,p.brand))score+=18;
+  if(!alt)score-=24;
+  score-=Math.min(35,dist/70);
+  return score;
+}
 function product3DHostMatches(url,domain){try{const h=new URL(url).hostname.replace(/^www\./,'').toLowerCase(),d=String(domain||'').replace(/^www\./,'').toLowerCase();return h===d||h.endsWith('.'+d)}catch{return false}}
 function product3DIsCandidate(source,url,title){
   const meta=PRODUCT3D_SOURCE_META[source];if(!meta||!product3DHostMatches(url,meta.domain))return false;
@@ -6215,9 +6243,42 @@ function product3DIsCandidate(source,url,title){
   return true;
 }
 function product3DReaderParse(text,source,p,max=8){
-  const images=[];let m;const imgRe=/!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g;while((m=imgRe.exec(text)))if(product3DImageAllowed(m[2]))images.push({pos:m.index,alt:product3DCleanText(m[1]),url:product3DCleanUrl(m[2])});
-  const links=[],linkRe=/\[([^\]\n]{2,220})\]\((https?:\/\/[^)\s]+)\)/g;while((m=linkRe.exec(text))){if(m.index>0&&text[m.index-1]==='!')continue;const title=product3DCleanText(m[1]),url=product3DCleanUrl(m[2]);if(!product3DIsCandidate(source,url,title))continue;const context=product3DCleanText(text.slice(Math.max(0,m.index-260),Math.min(text.length,m.index+620)));const strict=document.getElementById('product3d-strict-brand')?.checked;if(strict&&p.brand&&!product3DContainsPhrase(title+' '+context,p.brand))continue;if(p.q&&!product3DMatchesText(title+' '+context,p.q))continue;links.push({pos:m.index,title,url,context})}
-  const seen=new Set(),out=[];for(const l of links){if(seen.has(l.url))continue;seen.add(l.url);let thumb='';let best=Infinity;for(const im of images){const d=Math.abs(im.pos-l.pos);if(d<best&&d<2600){best=d;thumb=im.url}}const meta=l.context&&l.context.toLowerCase()!==l.title.toLowerCase()?l.context.slice(0,190):PRODUCT3D_SOURCE_META[source]?.kind||'';out.push({source,title:l.title,url:l.url,thumb,meta,downloadable:true,brandMatch:!!p.brand&&product3DContainsPhrase(l.title+' '+l.context,p.brand)});if(out.length>=max)break}return out;
+  const images=[],directThumb=new Map();let m;
+  // Nejspolehlivější případ: obrázek je přímo klikací odkaz na detail modelu.
+  const linkedImgRe=/\[!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)\]\((https?:\/\/[^)\s]+)\)/g;
+  while((m=linkedImgRe.exec(text))){const alt=product3DCleanText(m[1]),img=product3DCleanUrl(m[2]),target=product3DCleanUrl(m[3]);if(product3DImageAllowed(img,alt))directThumb.set(target,{pos:m.index,alt,url:img})}
+  const imgRe=/!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g;
+  while((m=imgRe.exec(text))){const alt=product3DCleanText(m[1]),url=product3DCleanUrl(m[2]);if(product3DImageAllowed(url,alt))images.push({pos:m.index,alt,url})}
+  const links=[],linkRe=/\[([^\]\n]{2,220})\]\((https?:\/\/[^)\s]+)\)/g;
+  while((m=linkRe.exec(text))){
+    if(m.index>0&&text[m.index-1]==='!')continue;
+    const title=product3DCleanText(m[1]),url=product3DCleanUrl(m[2]);if(!product3DIsCandidate(source,url,title))continue;
+    const context=product3DCleanText(text.slice(Math.max(0,m.index-260),Math.min(text.length,m.index+620)));
+    const strict=document.getElementById('product3d-strict-brand')?.checked;
+    if(strict&&p.brand&&!product3DContainsPhrase(title+' '+context,p.brand))continue;
+    if(p.q&&!product3DMatchesText(title+' '+context,p.q))continue;
+    links.push({pos:m.index,title,url,context});
+  }
+  const seen=new Set(),out=[];
+  for(let li=0;li<links.length;li++){
+    const l=links[li];if(seen.has(l.url))continue;seen.add(l.url);
+    let thumb='',bestScore=-999;
+    const direct=directThumb.get(l.url);
+    if(direct){const sc=product3DImageScore(direct,l,p,true);if(sc>bestScore){bestScore=sc;thumb=direct.url}}
+    // Obrázek musí být významově spojený s názvem/výrobkem. Pouhá blízkost už nestačí —
+    // tím se odfiltrují profilové fotky autorů, avatary a loga z výsledkové stránky.
+    const prev=li?links[li-1].pos:-Infinity,next=li<links.length-1?links[li+1].pos:Infinity;
+    const left=isFinite(prev)?(prev+l.pos)/2:l.pos-1800,right=isFinite(next)?(l.pos+next)/2:l.pos+1800;
+    for(const im of images){
+      if(im.pos<left||im.pos>right)continue;
+      const sc=product3DImageScore(im,l,p,false);if(sc>bestScore){bestScore=sc;thumb=im.url}
+    }
+    if(bestScore<10)thumb='';
+    const meta=l.context&&l.context.toLowerCase()!==l.title.toLowerCase()?l.context.slice(0,190):PRODUCT3D_SOURCE_META[source]?.kind||'';
+    out.push({source,title:l.title,url:l.url,thumb,meta,downloadable:true,brandMatch:!!p.brand&&product3DContainsPhrase(l.title+' '+l.context,p.brand)});
+    if(out.length>=max)break;
+  }
+  return out;
 }
 async function product3DFetchReader(target,signal){
   const key=target,cached=product3DState.readerCache.get(key);if(cached&&Date.now()-cached.time<10*60*1000)return cached.text;
