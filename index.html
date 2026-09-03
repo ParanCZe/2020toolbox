@@ -284,7 +284,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.12k</div>
+  <div class="app-version">V3.12m</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
@@ -377,30 +377,26 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
       <div id="preflight-print-panel" class="preflight-print-panel">
         <div class="print-panel-head">
-          <h2>TISKOVÁ FRONTA / PLOTTER</h2>
-          <span id="print-helper-state" class="muted" style="margin:0">Kontroluji lokální tiskový modul…</span>
+          <h2>PŘÍPRAVA TISKOVÉHO PDF / ROLE</h2>
+          <span class="muted" style="margin:0">Bez hledání tiskáren — výběr jen podle skutečného rozměru role</span>
         </div>
         <div class="print-panel-body">
           <div class="print-toolbar">
             <label><b>Část</b> <select id="printSection" onchange="refreshPrintQueue()"></select></label>
-            <label><b>Role</b> <select id="printRollWidth" onchange="handlePrintRollChange();refreshPrintQueue()"><option value="914" selected>914 mm (36″)</option><option value="610">610 mm (24″)</option><option value="594">594 mm</option><option value="420">420 mm</option><option value="297">297 mm</option><option value="custom">Vlastní…</option></select></label>
-            <label id="printCustomRollWrap" style="display:none"><b>Vlastní šířka</b> <input id="printCustomRoll" type="number" value="914" min="100" max="2000" step="1" style="width:90px" oninput="refreshPrintQueue()"> mm</label>
-            <label title="Rezerva od nominální šířky role kvůli netisknutelným okrajům plotteru"><b>Rezerva</b> <input id="printRollReserve" type="number" value="10" min="0" max="100" step="1" style="width:70px" oninput="refreshPrintQueue()"> mm</label>
-            <label><b>Plotter</b> <select id="printPrinter"><option value="">— načíst tiskárny —</option></select></label>
-            <button type="button" class="back-btn" style="margin:0" onclick="loadLocalPrinters(true)">↻ Načíst tiskárny</button>
-            <label><input id="printIncludePrinted" type="checkbox" onchange="refreshPrintQueue()"> zobrazit už odeslané</label>
+            <label><b>Role</b> <select id="printRollWidth" onchange="handlePrintRollChange();refreshPrintQueue()"><option value="914">914 mm (36″)</option><option value="841" selected>841 mm</option><option value="610">610 mm (24″)</option><option value="594">594 mm</option><option value="420">420 mm</option><option value="297">297 mm</option><option value="custom">Vlastní…</option></select></label>
+            <label id="printCustomRollWrap" style="display:none"><b>Vlastní šířka</b> <input id="printCustomRoll" type="number" value="841" min="100" max="2000" step="1" style="width:90px" oninput="refreshPrintQueue()"> mm</label>
+            <label><input id="printIncludePrinted" type="checkbox" onchange="refreshPrintQueue()"> zobrazit už připravené</label>
           </div>
           <div id="printQueueStatus" class="print-status">Vyber část dokumentace a roli.</div>
           <div class="row" style="margin:10px 0">
-            <button type="button" class="back-btn" style="margin:0" onclick="selectAllPrintable(true)">✓ Vybrat všechny kompatibilní</button>
+            <button type="button" class="back-btn" style="margin:0" onclick="selectAllPrintable(true)">✓ Vybrat všechny odpovídající roli</button>
             <button type="button" class="back-btn" style="margin:0" onclick="selectAllPrintable(false)">Zrušit výběr</button>
             <button type="button" class="action" onclick="openSelectedPrintPdf()">Připravit / otevřít tiskové PDF</button>
-            <button type="button" class="action" id="btn-direct-print" style="background:#166534" onclick="directPrintSelected()">🖨 Poslat přímo na plotter</button>
             <button type="button" class="back-btn" style="margin:0" onclick="clearPrintHistoryForSection()">↶ Zrušit fajfky této části</button>
           </div>
-          <div class="docs-table-wrap"><table class="print-queue-table"><thead><tr><th></th><th>Tisk</th><th>Č. výkresu</th><th>Název</th><th>List</th><th>Rozměr</th><th>Orientace na roli</th><th>Délka role</th><th>Stav</th></tr></thead><tbody id="printQueueBody"></tbody></table></div>
-          <details class="print-history"><summary>Historie odeslaných tisků</summary><div id="printHistoryList" class="print-history-list"></div></details>
-          <div class="docs-note">Tiskové PDF zachovává původní PDF stránky vektorově a pouze je podle potřeby otočí o 90°. Role se používá pro kontrolu, zda se list vejde, a pro úspornou orientaci. Přímý tisk vyžaduje spuštění přiloženého lokálního Windows serveru; bez něj lze vždy připravit a otevřít tiskové PDF ručně.</div>
+          <div class="docs-table-wrap"><table class="print-queue-table"><thead><tr><th></th><th>Shoda role</th><th>Č. výkresu</th><th>Název</th><th>List</th><th>Rozměr</th><th>Orientace na roli</th><th>Délka role</th><th>Stav</th></tr></thead><tbody id="printQueueBody"></tbody></table></div>
+          <details class="print-history"><summary>Historie připravených tiskových PDF</summary><div id="printHistoryList" class="print-history-list"></div></details>
+          <div class="docs-note">Výběr role je přesný filtr, ne kontrola „vejde se“. Role 841 mm označí pouze listy, které mají jednu skutečnou stranu přibližně 841 mm (technická tolerance ±2 mm kvůli převodu PDF bodů na mm). Menší formáty se automaticky nevyberou. Tiskové PDF zachovává původní PDF stránky vektorově a podle potřeby je otočí o 90°, aby odpovídající strana šla přes šířku role.</div>
         </div>
       </div>
 
@@ -863,7 +859,7 @@ if (isSafari && !isChrome && !isEdge) {
 
 window.preventDrop = e => { e.preventDefault(); };
 let filesData = { pdfa: [], panel: [] };
-let docsData = { preflight: [], drawinglist: [], renamer: [], preflightResults: [], preflightGlobalIssues: [], preflightFolderMode: false, preflightFolderRoot: '', drawingRows: [], drawingFolderMode: false, drawingFolderRoot: '', compareA: null, compareB: null, compareDocA: null, compareDocB: null, compareRenderTimer: null, compareFullMode: 'diff', compareDiffPdfUrl: null, compareDiffPdfBytes: null, printHelperAvailable: false, printPrinters: [], printPreparedUrl: null, printPreparedBytes: null };
+let docsData = { preflight: [], drawinglist: [], renamer: [], preflightResults: [], preflightGlobalIssues: [], preflightFolderMode: false, preflightFolderRoot: '', drawingRows: [], drawingFolderMode: false, drawingFolderRoot: '', compareA: null, compareB: null, compareDocA: null, compareDocB: null, compareRenderTimer: null, compareFullMode: 'diff', compareDiffPdfUrl: null, compareDiffPdfBytes: null, printPreparedUrl: null, printPreparedBytes: null };
 let allPagesTexts = {}; 
 let customBlankPages = new Set();
 let blankPageColors = {};
@@ -2167,7 +2163,7 @@ function downloadPreflightCsv(){
 // ============================================================
 // TISKOVÁ FRONTA / PLOTTER – Pre-flight
 // ============================================================
-const PRINT_HISTORY_KEY='2020-toolbox-print-history-v1';
+const PRINT_HISTORY_KEY='2020-toolbox-print-history-v2-exact-role';
 function loadPrintHistory(){try{const x=JSON.parse(localStorage.getItem(PRINT_HISTORY_KEY)||'{}');return x&&typeof x==='object'?x:{}}catch(e){return{}}}
 function savePrintHistory(h){try{localStorage.setItem(PRINT_HISTORY_KEY,JSON.stringify(h))}catch(e){}}
 function preflightPrintKey(r){return [r.relativePath||r.name||'',r.sheetPage||1,r.drawingNumber||'',r.file?.size||r.size||0,r.file?.lastModified||0].join('|')}
@@ -2185,13 +2181,13 @@ function printRowDimensions(r){
   return {w,h};
 }
 function printPlacementForRow(r,rollWidth=getPrintRollWidth()){
-  const {w,h}=printRowDimensions(r),reserve=Math.max(0,Number(document.getElementById('printRollReserve')?.value)||0),usable=Math.max(1,rollWidth-reserve);
-  if(!w||!h)return {fits:false,w,h,usable,reason:'neznámý rozměr'};
-  const max=Math.max(w,h),min=Math.min(w,h);let across,length,rotate=false;
-  if(max<=usable+0.5){across=max;length=min;rotate=Math.abs(w-max)>0.5;}
-  else if(min<=usable+0.5){across=min;length=max;rotate=Math.abs(w-min)>0.5;}
-  else return {fits:false,w,h,usable,reason:`min. šířka ${Math.ceil(min)} mm`};
-  return {fits:true,w,h,usable,across,length,rotate,rotation:rotate?90:0};
+  const {w,h}=printRowDimensions(r),tol=2;
+  if(!w||!h)return {fits:false,w,h,reason:'neznámý rozměr'};
+  const wMatch=Math.abs(w-rollWidth)<=tol,hMatch=Math.abs(h-rollWidth)<=tol;
+  if(!wMatch&&!hMatch)return {fits:false,w,h,reason:`nemá stranu ${Math.round(rollWidth)} mm`};
+  // Přes roli musí jít právě rozměr odpovídající zvolené roli. Menší listy se nepřidávají.
+  if(wMatch){return {fits:true,w,h,across:w,length:h,rotate:false,rotation:0,matchedDimension:w};}
+  return {fits:true,w,h,across:h,length:w,rotate:true,rotation:90,matchedDimension:h};
 }
 function fmtMm(v){return Number(v||0).toLocaleString('cs-CZ',{maximumFractionDigits:0})+' mm'}
 function refreshPrintPlanner(){
@@ -2200,7 +2196,7 @@ function refreshPrintPlanner(){
   const sectionSel=document.getElementById('printSection'),old=sectionSel?.value||'';
   const sections=[...new Set(r.map(printSectionForRow))].sort((a,b)=>a.localeCompare(b,'cs',{numeric:true,sensitivity:'base'}));
   if(sectionSel){sectionSel.innerHTML=sections.map(x=>`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');sectionSel.value=sections.includes(old)?old:(sections[0]||'');}
-  handlePrintRollChange();refreshPrintQueue();loadLocalPrinters(false);renderPrintHistory();
+  handlePrintRollChange();refreshPrintQueue();renderPrintHistory();
 }
 function currentPrintRows(){const sec=document.getElementById('printSection')?.value||'';return (docsData.preflightResults||[]).filter(r=>printSectionForRow(r)===sec)}
 function refreshPrintQueue(){
@@ -2210,10 +2206,10 @@ function refreshPrintQueue(){
   rows.forEach((r,i)=>{
     const key=preflightPrintKey(r),sent=history[key],pl=printPlacementForRow(r,roll);if(sent&&!showPrinted){hiddenPrinted++;return}if(pl.fits){fit++;totalLen+=pl.length;}
     const checked=pl.fits&&!sent?'checked':'',disabled=!pl.fits||sent?'disabled':'',dim=printRowDimensions(r),orient=pl.fits?(pl.rotate?'otočit 90°':'beze změny'):'—';
-    html+=`<tr class="${sent?'printed ':''}${!pl.fits?'no-fit':''}"><td><input class="print-check" type="checkbox" data-print-index="${(docsData.preflightResults||[]).indexOf(r)}" ${checked} ${disabled}></td><td>${pl.fits?'<span class="print-badge ok">VEJDE SE</span>':`<span class="print-badge no">NEVEJDE SE</span>`}</td><td>${escapeHtml(r.drawingNumber||'–')}</td><td>${escapeHtml(r.drawingTitle||r.name||'–')}</td><td>${escapeHtml(r.sheetLabel||'1')}</td><td>${dim.w&&dim.h?`${fmtMm(dim.w)} × ${fmtMm(dim.h)}`:escapeHtml((r.formats||[]).join(', ')||'–')}</td><td>${escapeHtml(orient)}${pl.fits?`<br><small>${fmtMm(pl.across)} přes roli</small>`:''}</td><td>${pl.fits?fmtMm(pl.length):escapeHtml(pl.reason||'–')}</td><td>${sent?`<span class="print-badge sent">✓ ODESLÁNO</span><br><small>${escapeHtml(sent.when||'')}</small>`:'čeká'}</td></tr>`;
+    html+=`<tr class="${sent?'printed ':''}${!pl.fits?'no-fit':''}"><td><input class="print-check" type="checkbox" data-print-index="${(docsData.preflightResults||[]).indexOf(r)}" ${checked} ${disabled}></td><td>${pl.fits?'<span class="print-badge ok">ODPOVÍDÁ ROLI</span>':`<span class="print-badge no">JINÝ ROZMĚR</span>`}</td><td>${escapeHtml(r.drawingNumber||'–')}</td><td>${escapeHtml(r.drawingTitle||r.name||'–')}</td><td>${escapeHtml(r.sheetLabel||'1')}</td><td>${dim.w&&dim.h?`${fmtMm(dim.w)} × ${fmtMm(dim.h)}`:escapeHtml((r.formats||[]).join(', ')||'–')}</td><td>${escapeHtml(orient)}${pl.fits?`<br><small>${fmtMm(pl.across)} přes roli</small>`:''}</td><td>${pl.fits?fmtMm(pl.length):escapeHtml(pl.reason||'–')}</td><td>${sent?`<span class="print-badge sent">✓ PŘIPRAVENO</span><br><small>${escapeHtml(sent.when||'')}</small>`:'nepřipraveno'}</td></tr>`;
   });
   body.innerHTML=html||'<tr><td colspan="9" class="docs-empty">V této části nejsou žádné další listy k tisku.</td></tr>';
-  const count=rows.length-hiddenPrinted;status.className='print-status '+(fit?'ok':'warn');status.innerHTML=`<b>${escapeHtml(document.getElementById('printSection')?.value||'')}</b> · role ${fmtMm(roll)} · ${fit}/${count} zobrazených listů se vejde · odhad délky kompatibilních listů ${Number(totalLen/1000).toLocaleString('cs-CZ',{maximumFractionDigits:2})} m${hiddenPrinted?` · ${hiddenPrinted} již odeslaných skryto`:''}.`;status.dataset.baseText=status.innerHTML;
+  const count=rows.length-hiddenPrinted;status.className='print-status '+(fit?'ok':'warn');status.innerHTML=`<b>${escapeHtml(document.getElementById('printSection')?.value||'')}</b> · role ${fmtMm(roll)} · ${fit}/${count} zobrazených listů odpovídá přesně zvolené roli · odhad délky vybraného formátu ${Number(totalLen/1000).toLocaleString('cs-CZ',{maximumFractionDigits:2})} m${hiddenPrinted?` · ${hiddenPrinted} již odeslaných skryto`:''}.`;status.dataset.baseText=status.innerHTML;
 }
 function selectedPrintRows(){const all=docsData.preflightResults||[];return [...document.querySelectorAll('[data-print-index]:checked')].map(x=>all[Number(x.dataset.printIndex)]).filter(Boolean)}
 function selectAllPrintable(on){document.querySelectorAll('[data-print-index]').forEach(x=>{if(!x.disabled)x.checked=!!on});updateSelectedPrintEstimate()}
@@ -2233,22 +2229,12 @@ async function buildSelectedPrintPdf(rows){
 function revokePreparedPrintUrl(){if(docsData.printPreparedUrl){try{URL.revokeObjectURL(docsData.printPreparedUrl)}catch(e){}docsData.printPreparedUrl=null}}
 async function openSelectedPrintPdf(){
   const rows=selectedPrintRows();if(!rows.length){alert('Vyber alespoň jeden výkres.');return}
-  try{const bytes=await buildSelectedPrintPdf(rows);revokePreparedPrintUrl();const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));docsData.printPreparedUrl=url;window.open(url,'_blank');markRowsPrinted(rows,{printer:'Ruční tisk z prohlížeče',roll:getPrintRollWidth(),mode:'browser'});}
+  try{const bytes=await buildSelectedPrintPdf(rows);revokePreparedPrintUrl();const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));docsData.printPreparedUrl=url;window.open(url,'_blank');markRowsPrinted(rows,{printer:'Tiskové PDF',roll:getPrintRollWidth(),mode:'pdf'});}
   catch(e){alert('Příprava tisku selhala: '+e.message)}
 }
 function markRowsPrinted(rows,meta={}){const h=loadPrintHistory(),when=new Date().toLocaleString('cs-CZ');for(const r of rows)h[preflightPrintKey(r)]={when,section:printSectionForRow(r),drawingNumber:r.drawingNumber||'',title:r.drawingTitle||'',printer:meta.printer||'',roll:meta.roll||getPrintRollWidth(),mode:meta.mode||''};savePrintHistory(h);refreshPrintQueue();renderPrintHistory()}
-function renderPrintHistory(){const box=document.getElementById('printHistoryList');if(!box)return;const vals=Object.values(loadPrintHistory()).sort((a,b)=>(b.when||'').localeCompare(a.when||'')).slice(0,100);box.innerHTML=vals.length?vals.map(x=>`<div>✓ ${escapeHtml(x.when||'')} · ${escapeHtml(x.section||'')} · ${escapeHtml(x.drawingNumber||x.title||'výkres')} · ${escapeHtml(x.printer||'tisk')} · role ${escapeHtml(String(x.roll||''))} mm</div>`).join(''):'Zatím nebyl zaznamenán žádný tisk.'}
-function clearPrintHistoryForSection(){const sec=document.getElementById('printSection')?.value||'';if(!sec)return;if(!confirm(`Zrušit označení „odesláno“ pro část ${sec}?`))return;const h=loadPrintHistory();for(const [k,v] of Object.entries(h))if(v.section===sec)delete h[k];savePrintHistory(h);refreshPrintQueue();renderPrintHistory()}
-async function checkPrintHelper(){
-  const label=document.getElementById('print-helper-state'),btn=document.getElementById('btn-direct-print');try{const r=await fetch('/api/health',{cache:'no-store'});if(!r.ok)throw new Error();const j=await r.json();docsData.printHelperAvailable=!!j.ok;if(label){label.textContent='✓ Lokální přímý tisk je připraven';label.style.color='#166534'}if(btn)btn.disabled=false;return true}catch(e){docsData.printHelperAvailable=false;if(label){label.textContent='Lokální tiskový modul není spuštěný – ruční tisk funguje';label.style.color='#92400e'}if(btn)btn.disabled=true;return false}}
-async function loadLocalPrinters(force=false){
-  if(!force&&docsData.printPrinters?.length)return;const ok=await checkPrintHelper();if(!ok)return;try{const r=await fetch('/api/printers',{cache:'no-store'}),j=await r.json(),sel=document.getElementById('printPrinter');docsData.printPrinters=Array.isArray(j.printers)?j.printers:[];if(sel){const old=sel.value;sel.innerHTML=docsData.printPrinters.map(x=>`<option value="${escapeHtml(x.name)}">${escapeHtml(x.name)}${x.default?' — výchozí':''}</option>`).join('')||'<option value="">Žádné tiskárny</option>';if([...sel.options].some(o=>o.value===old))sel.value=old;}}catch(e){}}
-async function directPrintSelected(){
-  const rows=selectedPrintRows(),printer=document.getElementById('printPrinter')?.value||'';if(!rows.length){alert('Vyber alespoň jeden výkres.');return}if(!printer){alert('Nejprve vyber plotter / tiskárnu.');return}if(!await checkPrintHelper()){alert('Lokální tiskový modul není spuštěný. Použij START_TOOLBOX_V3.12f.bat nebo otevři připravené PDF ručně.');return}
-  const btn=document.getElementById('btn-direct-print'),old=btn.textContent;btn.disabled=true;btn.textContent='Odesílám na plotter…';
-  try{const bytes=await buildSelectedPrintPdf(rows),section=document.getElementById('printSection')?.value||'TISK',job=`20-20 ${section} ${new Date().toLocaleTimeString('cs-CZ')}`;const r=await fetch('/api/print?printer='+encodeURIComponent(printer)+'&job='+encodeURIComponent(job),{method:'POST',headers:{'Content-Type':'application/pdf'},body:bytes});const j=await r.json().catch(()=>({}));if(!r.ok||!j.ok)throw new Error(j.error||`HTTP ${r.status}`);markRowsPrinted(rows,{printer,roll:getPrintRollWidth(),mode:'direct'});alert(`Tisková úloha byla předána systému Windows.\n${rows.length} listů · ${printer}`)}catch(e){alert('Přímý tisk selhal: '+e.message+'\n\nTiskové PDF můžeš stále otevřít ručně.')}finally{btn.disabled=!docsData.printHelperAvailable;btn.textContent=old}}
-
-
+function renderPrintHistory(){const box=document.getElementById('printHistoryList');if(!box)return;const vals=Object.values(loadPrintHistory()).sort((a,b)=>(b.when||'').localeCompare(a.when||'')).slice(0,100);box.innerHTML=vals.length?vals.map(x=>`<div>✓ ${escapeHtml(x.when||'')} · ${escapeHtml(x.section||'')} · ${escapeHtml(x.drawingNumber||x.title||'výkres')} · ${escapeHtml(x.printer||'tisk')} · role ${escapeHtml(String(x.roll||''))} mm</div>`).join(''):'Zatím nebylo připraveno žádné tiskové PDF.'}
+function clearPrintHistoryForSection(){const sec=document.getElementById('printSection')?.value||'';if(!sec)return;if(!confirm(`Zrušit označení „připraveno“ pro část ${sec}?`))return;const h=loadPrintHistory();for(const [k,v] of Object.entries(h))if(v.section===sec)delete h[k];savePrintHistory(h);refreshPrintQueue();renderPrintHistory()}
 function titleBlockItems(textContent,viewport,zone){
   const W=viewport.width,H=viewport.height;
   return (textContent.items||[]).map(it=>{
