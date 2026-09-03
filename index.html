@@ -87,8 +87,6 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 #new-project-modal h3 { margin:0 0 12px; font-family:'Antarctican Mono', monospace; font-weight:normal; font-size:16px; }
 #new-project-modal input[type="text"] { width:100%; padding:8px 10px; margin-bottom:14px; }
 
-#zip-import-area { display:none; margin:10px 0; padding:12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; }
-#zip-import-area label { font-weight:bold; }
 
 /* Moodboard layout selector modal */
 #moodboard-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1200; align-items:center; justify-content:center; padding:20px; }
@@ -284,15 +282,15 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.12m</div>
-  <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
+  <div class="app-version" id="app-version">V3.12o</div>
+  <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ A DOKUMENTACÍ</div>
 </header>
 
 <div class="wrap"><div class="card">
   
   <div id="menu-view">
     <h1>Co chcete dělat?</h1>
-    <div class="muted">Rychlé přípravy prezentací z exportovaných PDF. Vše běží bezpečně offline.</div>
+    <div class="muted">Rychlé přípravy prezentací a dokumentací z PDF. Zpracování dokumentů probíhá lokálně.</div>
     <div class="grid">
       <div class="tile" onclick="openTool('pdfa')"><b>Konverze do PDF/A</b><span>Standardy 1b, 2b, 3b + hromadný ZIP</span></div>
       <div class="tile" onclick="openPanelProjects()"><b>Prezentační nástroj</b><span>Vytvářejte prezentace v pár kliknutích</span></div>
@@ -493,28 +491,14 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
   <div id="tool-panel-projects" class="tool-view">
     <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
     <h1>Prezentační nástroj — projekty</h1>
-    <div class="muted">Vyberte existující projekt, nebo založte nový. Projekty se ukládají do složky <code>saved_projects</code> vedle této aplikace.</div>
+    <div class="muted" id="projects-storage-note">Vyberte existující projekt, nebo založte nový.</div>
     
-    <div id="browser-warning" class="browser-warning">
-      ⚠️ <strong>Pozor:</strong> Váš prohlížeč (Safari) nepodporuje ukládání do složky. <br>
-      Použijte prosím <strong>Chrome</strong> nebo <strong>Edge</strong> pro plnou funkčnost, nebo použijte alternativní režim níže.
-    </div>
+    <div id="browser-warning" class="browser-warning"></div>
 
     <div class="row" style="margin-top:0;">
       <button class="action" onclick="handleNewProjectClick()">+ Nový projekt</button>
-      <button class="action" style="background:#52525b;" onclick="refreshProjectsList(true)">🔄 Připojit / obnovit složku saved_projects</button>
+      <button id="projects-storage-btn" class="action" style="background:#52525b;" onclick="refreshProjectsList(true)">🔄 Obnovit projekty</button>
       <span id="st-projects" class="muted" style="margin:0;"></span>
-    </div>
-
-    <!-- Alternativní režim pro Safari – import/export ZIP -->
-    <div id="zip-import-area">
-      <label>📦 Alternativní režim (funguje ve všech prohlížečích):</label>
-      <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;">
-        <button class="action" onclick="exportProjectAsZip()" style="background:#16a34a;">📥 Stáhnout projekt jako ZIP</button>
-        <button class="action" onclick="document.getElementById('zip-import-input').click()" style="background:#2563eb;">📤 Nahrát projekt ze ZIP</button>
-        <input id="zip-import-input" type="file" accept=".zip" style="display:none" onchange="importProjectFromZip(this.files)">
-      </div>
-      <div style="font-size:12px; color:var(--muted); margin-top:4px;">Projekty se uloží jako ZIP soubor, který můžete kdykoliv znovu nahrát.</div>
     </div>
 
     <div id="projects-grid" class="grid" style="margin-top:18px;"></div>
@@ -523,7 +507,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
   <div id="tool-panel" class="tool-view">
     <button class="back-btn" onclick="backToProjectsList()">← Zpět na projekty</button>
     <h1>Prezentační nástroj – vytvořte prezentace v pár kliknutích</h1>
-    <div class="muted">Projekt: <b id="current-project-label">–</b> <span style="font-size:11px;">(ukládá se automaticky do saved_projects)</span></div>
+    <div class="muted">Projekt: <b id="current-project-label">–</b> <span id="project-autosave-note" style="font-size:11px;">(ukládá se automaticky)</span></div>
     <div class="muted">Vytvořte si profesionální prezentaci doplněním úvodní stránky a žlutého pruhu s logem pro formát A3 na šířku.</div>
     <div class="settings" style="flex-direction:column; align-items:stretch; gap:10px;">
       <div style="font-weight:bold; border-bottom:1px solid var(--border); padding-bottom:4px;">Údaje pro prezentaci (výchozí hodnoty pro úvodní stranu):</div>
@@ -846,16 +830,39 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 </div>
 
 <script>
-// Detekce Safari
+// Režim ukládání projektů podle možností prohlížeče.
+// Chrome/Edge používá File System Access API a zapisuje do běžné složky.
+// Safari používá lokální databázi prohlížeče (IndexedDB) se stejným workflow bez ZIPů.
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 const isChrome = /chrome/i.test(navigator.userAgent) && /google inc/i.test(navigator.vendor);
 const isEdge = /edg/i.test(navigator.userAgent);
+const hasNativeProjectFolders = ('showDirectoryPicker' in window) && !isSafari;
+const projectStorageMode = hasNativeProjectFolders ? 'filesystem' : 'browser';
 
-// Zobrazení varování pro Safari
-if (isSafari && !isChrome && !isEdge) {
-  document.getElementById('browser-warning').style.display = 'block';
-  document.getElementById('zip-import-area').style.display = 'block';
+function initProjectStorageUI() {
+  const version = document.getElementById('app-version');
+  const note = document.getElementById('projects-storage-note');
+  const warning = document.getElementById('browser-warning');
+  const button = document.getElementById('projects-storage-btn');
+  const autosave = document.getElementById('project-autosave-note');
+  if (projectStorageMode === 'browser') {
+    if (version) version.textContent = 'V3.12o · SAFARI';
+    if (note) note.innerHTML = 'Vyberte existující projekt, nebo založte nový. V Safari se projekty ukládají <b>lokálně v tomto Macu</b> do úložiště Safari a načítají se přímo ze seznamu projektů.';
+    if (warning) {
+      warning.style.display = 'block';
+      warning.innerHTML = '🍎 <strong>Safari režim:</strong> automatické ukládání je aktivní. Není potřeba Chrome ani nahrávání projektu ze ZIPu. Data projektu zůstávají v lokálním úložišti Safari.';
+    }
+    if (button) button.textContent = '🔄 Obnovit seznam projektů';
+    if (autosave) autosave.textContent = '(automatické ukládání v Safari)';
+  } else {
+    if (version) version.textContent = 'V3.12o';
+    if (note) note.innerHTML = 'Vyberte existující projekt, nebo založte nový. Projekty se ukládají do složky <code>saved_projects</code>.';
+    if (warning) warning.style.display = 'none';
+    if (button) button.textContent = '🔄 Připojit / obnovit složku saved_projects';
+    if (autosave) autosave.textContent = '(ukládá se automaticky do saved_projects)';
+  }
 }
+initProjectStorageUI();
 
 window.preventDrop = e => { e.preventDefault(); };
 let filesData = { pdfa: [], panel: [] };
@@ -950,6 +957,39 @@ function idbSet(key, val) {
   });
 }
 
+function idbDelete(key) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(PROJ_DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(PROJ_STORE_NAME);
+    req.onsuccess = () => {
+      const tx = req.result.transaction(PROJ_STORE_NAME, 'readwrite');
+      tx.objectStore(PROJ_STORE_NAME).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getBrowserProjectIndex() {
+  const value = await idbGet('browserProjectsIndex').catch(() => null);
+  return Array.isArray(value) ? value : [];
+}
+
+async function setBrowserProjectIndex(names) {
+  const unique = [...new Set((names || []).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'cs'));
+  await idbSet('browserProjectsIndex', unique);
+}
+
+async function ensurePersistentBrowserStorage() {
+  if (projectStorageMode !== 'browser') return;
+  try {
+    if (navigator.storage && navigator.storage.persist) await navigator.storage.persist();
+  } catch (e) {
+    console.warn('Safari persistent storage request failed', e);
+  }
+}
+
 async function ensurePermission(handle, mode) {
   const opts = { mode: mode || 'readwrite' };
   try {
@@ -964,44 +1004,33 @@ function sanitizeProjectName(name) {
 }
 
 async function getSavedProjectsDirHandle(forcePicker) {
-  if (isSafari && !isChrome && !isEdge) {
-    document.getElementById('browser-warning').style.display = 'block';
-    document.getElementById('zip-import-area').style.display = 'block';
+  if (projectStorageMode === 'browser') {
+    await ensurePersistentBrowserStorage();
     return null;
   }
-  
-  if (!('showDirectoryPicker' in window)) {
-    alert('Tento prohlížeč nepodporuje ukládání projektů do složky (funguje v Chrome nebo Edge, spuštěné přes http://). Zkuste prosím jiný prohlížeč nebo použijte alternativní ZIP režim.');
-    document.getElementById('zip-import-area').style.display = 'block';
-    return null;
-  }
+  if (!('showDirectoryPicker' in window)) return null;
   if (savedProjectsDirHandle && !forcePicker) {
     if (await ensurePermission(savedProjectsDirHandle)) return savedProjectsDirHandle;
   }
   try {
     let handle = forcePicker ? null : await idbGet('savedProjectsDir');
-    if (handle) {
-      if (await ensurePermission(handle)) {
-        savedProjectsDirHandle = handle;
-        return handle;
-      }
+    if (handle && await ensurePermission(handle)) {
+      savedProjectsDirHandle = handle;
+      return handle;
     }
     const picked = await window.showDirectoryPicker({ id: 'toolbox-saved-projects', mode: 'readwrite' });
     let dir = picked;
-    if (picked.name !== 'saved_projects') {
-      dir = await picked.getDirectoryHandle('saved_projects', { create: true });
-    }
+    if (picked.name !== 'saved_projects') dir = await picked.getDirectoryHandle('saved_projects', { create: true });
     savedProjectsDirHandle = dir;
     await idbSet('savedProjectsDir', dir);
     return dir;
   } catch (e) {
     console.warn('Výběr složky zrušen nebo selhal', e);
-    document.getElementById('zip-import-area').style.display = 'block';
     return null;
   }
 }
 
-// ---- ZIP EXPORT/IMPORT pro Safari ----
+// ---- Stav projektu ----
 function getProjectState() {
   return {
     version: 2,
@@ -1024,242 +1053,13 @@ function getProjectState() {
   };
 }
 
-async function exportProjectAsZip() {
-  if (!currentProjectName) {
-    alert('Nejprve otevřete nebo vytvořte projekt.');
-    return;
-  }
-  
-  try {
-    const state = getProjectState();
-    const stateJson = JSON.stringify(state);
-    const stateBlob = new Blob([stateJson], { type: 'application/json' });
-    
-    const zipData = await createSimpleZip([
-      { name: 'project.json', data: stateJson },
-      { name: 'source.pdf', data: loadedFileBytes || new ArrayBuffer(0) }
-    ]);
-    
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(zipData);
-    link.download = sanitizeProjectName(currentProjectName) + '.zip';
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-  } catch(e) {
-    alert('Chyba při exportu: ' + e.message);
-  }
-}
+// Projektový ZIP import/export byl odstraněn ve V3.12o.
+// Safari i Chromium používají přímé projektové ukládání.
 
-async function importProjectFromZip(files) {
-  if (!files || files.length === 0) return;
-  const file = files[0];
-  try {
-    const zipBytes = await file.arrayBuffer();
-    const entries = await parseZip(zipBytes);
-    const projectJsonEntry = entries.find(e => e.name === 'project.json');
-    const pdfEntry = entries.find(e => e.name === 'source.pdf');
-    
-    if (!projectJsonEntry) {
-      alert('Soubor project.json nebyl v ZIP nalezen.');
-      return;
-    }
-    
-    const state = JSON.parse(new TextDecoder().decode(projectJsonEntry.data));
-    
-    if (pdfEntry && pdfEntry.data.byteLength > 0) {
-      const pdfFile = new File([pdfEntry.data], state.sourceFileName || 'source.pdf', { type: 'application/pdf' });
-      filesData.panel = [pdfFile];
-      loadedFileBytes = pdfEntry.data;
-      pdfJsDoc = await pdfjsLib.getDocument({ data: pdfEntry.data.slice(0) }).promise;
-      document.getElementById('btn-preview').disabled = false;
-      document.getElementById('btn-panel').disabled = false;
-    }
-    
-    applyFormState(state.form);
-    allPagesTexts = state.allPagesTexts || {};
-    customBlankPages = new Set(state.customBlankPages || []);
-    blankPageColors = state.blankPageColors || {};
-    blankPageInfoBars = state.blankPageInfoBars || {};
-    coverImageSettings = Object.assign({dataUrl:null,imageRef:null,name:'',opacity:.32,fade:.20,x:.28,y:.05,width:.68}, state.coverImageSettings || {});
-    syncCoverImageControls();
-    pagePdfIndexMap = state.pagePdfIndexMap || {};
-    infoBarPages = state.infoBarPages || {};
-    textIdCounter = state.textIdCounter || 1;
-    totalPreviewPages = state.totalPreviewPages || 1;
-    pageStructureInitialized = state.pageStructureInitialized !== false;
-    defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
-    currentPreviewPage = state.currentPreviewPage || 1;
-    
-    // Novější projekty nesou přesný seznam stran; starší použijí
-    // původní uložené mapování.
-    if (pdfJsDoc && Array.isArray(state.pageRecords) && state.pageRecords.length) {
-      applyPageRecords(state.pageRecords);
-      totalPreviewPages = state.pageRecords.length;
-      pageStructureInitialized = true;
-    } else if (pdfJsDoc) {
-      ensurePagePdfIndexMap();
-    }
-    
-    currentProjectName = state.form?.panelTitle || 'importovany-projekt';
-    document.getElementById('current-project-label').textContent = currentProjectName;
-    document.getElementById('st-panel').textContent = `Projekt „${currentProjectName}“ načten ze ZIP`;
-    document.getElementById('list-panel').innerHTML = pdfEntry ? `<div class="item">📄 ${state.sourceFileName || 'source.pdf'}</div>` : '';
-    
-    document.getElementById('menu-view').style.display = 'none';
-    document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
-    document.getElementById('tool-panel').classList.add('active');
-    
-    alert('Projekt úspěšně načten ze ZIP!');
-  } catch(e) {
-    alert('Chyba při importu ZIP: ' + e.message);
-  }
-}
 
-async function parseZip(data) {
-  const entries = [];
-  const dv = new DataView(data);
-  let offset = 0;
-  
-  while (offset < data.byteLength - 22) {
-    const sig = dv.getUint32(offset, true);
-    if (sig === 0x04034b50) {
-      const nameLen = dv.getUint16(offset + 26, true);
-      const extraLen = dv.getUint16(offset + 28, true);
-      const compSize = dv.getUint32(offset + 18, true);
-      const nameBytes = new Uint8Array(data, offset + 30, nameLen);
-      const name = new TextDecoder().decode(nameBytes);
-      const dataStart = offset + 30 + nameLen + extraLen;
-      
-      let fileData;
-      if (compSize > 0) {
-        const method = dv.getUint16(offset + 8, true);
-        if (method === 0) {
-          fileData = new Uint8Array(data, dataStart, compSize);
-        } else {
-          fileData = new Uint8Array(0);
-        }
-      } else {
-        fileData = new Uint8Array(0);
-      }
-      
-      entries.push({ name, data: fileData });
-      offset = dataStart + compSize;
-    } else if (sig === 0x06054b50) {
-      break;
-    } else {
-      offset++;
-    }
-  }
-  return entries;
-}
-
-async function createSimpleZip(files) {
-  const enc = new TextEncoder();
-  let parts = [];
-  let central = [];
-  let offset = 0;
-  
-  for (const f of files) {
-    const nameBytes = enc.encode(f.name);
-    const data = typeof f.data === 'string' ? enc.encode(f.data) : new Uint8Array(f.data);
-    const crc = crc32(data);
-    
-    const localHeader = new Uint8Array(30 + nameBytes.length);
-    let p = 0;
-    localHeader.set([0x50, 0x4b, 0x03, 0x04], p); p += 4;
-    localHeader.set([0x0a, 0x00], p); p += 2;
-    localHeader.set([0x00, 0x00], p); p += 2;
-    localHeader.set([0x00, 0x00], p); p += 2;
-    localHeader.set([0x00, 0x00], p); p += 2;
-    localHeader.set([0x00, 0x00], p); p += 2;
-    p = writeU32(localHeader, p, crc);
-    p = writeU32(localHeader, p, data.length);
-    p = writeU32(localHeader, p, data.length);
-    p = writeU16(localHeader, p, nameBytes.length);
-    p = writeU16(localHeader, p, 0);
-    localHeader.set(nameBytes, p);
-    
-    parts.push(localHeader);
-    parts.push(data);
-    
-    const centralHeader = new Uint8Array(46 + nameBytes.length);
-    p = 0;
-    centralHeader.set([0x50, 0x4b, 0x01, 0x02], p); p += 4;
-    centralHeader.set([0x0a, 0x00], p); p += 2;
-    centralHeader.set([0x0a, 0x00], p); p += 2;
-    centralHeader.set([0x00, 0x00], p); p += 2;
-    centralHeader.set([0x00, 0x00], p); p += 2;
-    centralHeader.set([0x00, 0x00], p); p += 2;
-    centralHeader.set([0x00, 0x00], p); p += 2;
-    p = writeU32(centralHeader, p, crc);
-    p = writeU32(centralHeader, p, data.length);
-    p = writeU32(centralHeader, p, data.length);
-    p = writeU16(centralHeader, p, nameBytes.length);
-    p = writeU16(centralHeader, p, 0);
-    p = writeU16(centralHeader, p, 0);
-    p = writeU16(centralHeader, p, 0);
-    p = writeU16(centralHeader, p, 0);
-    p = writeU32(centralHeader, p, 0);
-    p = writeU32(centralHeader, p, offset);
-    centralHeader.set(nameBytes, p);
-    central.push(centralHeader);
-    
-    offset += localHeader.length + data.length;
-  }
-  
-  const start = offset;
-  for (const c of central) {
-    parts.push(c);
-    offset += c.length;
-  }
-  
-  const end = new Uint8Array(22);
-  let p = 0;
-  end.set([0x50, 0x4b, 0x05, 0x06], p); p += 4;
-  end.set([0x00, 0x00], p); p += 2;
-  end.set([0x00, 0x00], p); p += 2;
-  p = writeU16(end, p, files.length);
-  p = writeU16(end, p, files.length);
-  p = writeU32(end, p, offset - start);
-  p = writeU32(end, p, start);
-  end.set([0x00, 0x00], p);
-  parts.push(end);
-  
-  return new Blob(parts, { type: 'application/zip' });
-}
-
-function crc32(data) {
-  let c = 0xffffffff;
-  const table = new Uint32Array(256);
-  for (let i = 0; i < 256; i++) {
-    let crc = i;
-    for (let j = 0; j < 8; j++) {
-      crc = (crc & 1) ? (0xedb88320 ^ (crc >>> 1)) : (crc >>> 1);
-    }
-    table[i] = crc;
-  }
-  for (let i = 0; i < data.length; i++) {
-    c = table[(c ^ data[i]) & 0xff] ^ (c >>> 8);
-  }
-  return c ^ 0xffffffff;
-}
-
-function writeU16(arr, pos, val) {
-  arr[pos] = val & 0xff;
-  arr[pos+1] = (val >>> 8) & 0xff;
-  return pos + 2;
-}
-function writeU32(arr, pos, val) {
-  arr[pos] = val & 0xff;
-  arr[pos+1] = (val >>> 8) & 0xff;
-  arr[pos+2] = (val >>> 16) & 0xff;
-  arr[pos+3] = (val >>> 24) & 0xff;
-  return pos + 4;
-}
-
-// ---- Konec ZIP funkcí ----
 
 async function listProjects() {
+  if (projectStorageMode === 'browser') return await getBrowserProjectIndex();
   const dir = await getSavedProjectsDirHandle(false);
   if (!dir) return [];
   const names = [];
@@ -1270,14 +1070,25 @@ async function listProjects() {
 }
 
 async function createProject(name) {
-  const dir = await getSavedProjectsDirHandle(false);
-  if (!dir) throw new Error('Složka saved_projects není připojena.');
   const safeName = sanitizeProjectName(name);
   if (!safeName) throw new Error('Zadejte název projektu.');
+  if (projectStorageMode === 'browser') {
+    await ensurePersistentBrowserStorage();
+    const names = await getBrowserProjectIndex();
+    if (!names.includes(safeName)) { names.push(safeName); await setBrowserProjectIndex(names); }
+    await idbSet('projectMeta:' + safeName, { name:safeName, createdAt:Date.now(), updatedAt:Date.now() });
+    return { kind:'browser-local-project', name:safeName };
+  }
+  const dir = await getSavedProjectsDirHandle(false);
+  if (!dir) throw new Error('Složka saved_projects není připojena.');
   return await dir.getDirectoryHandle(safeName, { create: true });
 }
 
 async function openProjectFolder(name) {
+  if (projectStorageMode === 'browser') {
+    const names = await getBrowserProjectIndex();
+    return names.includes(name) ? { kind:'browser-local-project', name } : null;
+  }
   const dir = await getSavedProjectsDirHandle(false);
   if (!dir) return null;
   return await dir.getDirectoryHandle(name, { create: false });
@@ -1287,6 +1098,16 @@ async function openProjectFolder(name) {
 // Funkce pro ukládání a načítání obrázků do/z projektu
 // ------------------------------------------------------------------
 async function saveImageToProject(filename, dataUrl) {
+  if (!currentProjectName) return null;
+  if (projectStorageMode === 'browser') {
+    try {
+      await idbSet(`projectImage:${currentProjectName}:${filename}`, dataUrl);
+      return filename;
+    } catch (e) {
+      console.warn('Uložení obrázku do Safari projektu selhalo:', e);
+      return null;
+    }
+  }
   if (!currentProjectDirHandle) return null;
   try {
     const response = await fetch(dataUrl);
@@ -1303,7 +1124,11 @@ async function saveImageToProject(filename, dataUrl) {
 }
 
 async function loadImageFromProject(filename) {
-  if (!currentProjectDirHandle || !filename) return null;
+  if (!currentProjectName || !filename) return null;
+  if (projectStorageMode === 'browser') {
+    return await idbGet(`projectImage:${currentProjectName}:${filename}`).catch(() => null);
+  }
+  if (!currentProjectDirHandle) return null;
   try {
     const fileHandle = await currentProjectDirHandle.getFileHandle(filename);
     const file = await fileHandle.getFile();
@@ -1543,10 +1368,13 @@ function applyFormState(s) {
 }
 
 async function saveProjectState() {
-  // Přesný stav se nejdřív uloží i do IndexedDB. Editor tak není závislý
-  // na rychlosti nebo momentálním zámku souboru project.json.
   const state = getProjectState();
-  if (currentProjectName) await idbSet('projectState:' + currentProjectName, state);
+  if (!currentProjectName) return;
+  await idbSet('projectState:' + currentProjectName, state);
+  if (projectStorageMode === 'browser') {
+    await idbSet('projectMeta:' + currentProjectName, { name:currentProjectName, updatedAt:Date.now() });
+    return;
+  }
   if (!currentProjectDirHandle) return;
   const fh = await currentProjectDirHandle.getFileHandle('project.json', { create: true });
   const w = await fh.createWritable();
@@ -1555,6 +1383,16 @@ async function saveProjectState() {
 }
 
 async function savePdfIntoProject(bytes) {
+  if (!currentProjectName) return;
+  if (projectStorageMode === 'browser') {
+    const data = bytes instanceof Uint8Array ? new Uint8Array(bytes) : new Uint8Array(bytes);
+    await idbSet('projectPdf:' + currentProjectName, {
+      name: filesData.panel[0]?.name || 'source.pdf',
+      bytes: data,
+      updatedAt: Date.now()
+    });
+    return;
+  }
   if (!currentProjectDirHandle) return;
   const fh = await currentProjectDirHandle.getFileHandle('source.pdf', { create: true });
   const w = await fh.createWritable();
@@ -1563,7 +1401,7 @@ async function savePdfIntoProject(bytes) {
 }
 
 function scheduleAutosave() {
-  if (!currentProjectDirHandle) return;
+  if (!currentProjectName) return;
   clearTimeout(projectAutosaveTimer);
   projectAutosaveTimer = setTimeout(() => {
     queueProjectSave().catch(e => console.warn('Automatické uložení projektu selhalo', e));
@@ -1571,7 +1409,7 @@ function scheduleAutosave() {
 }
 
 function queueProjectSave() {
-  if (!currentProjectDirHandle) return Promise.resolve();
+  if (!currentProjectName) return Promise.resolve();
   projectSaveQueue = projectSaveQueue.catch(() => {}).then(() => saveProjectState());
   return projectSaveQueue;
 }
@@ -1593,15 +1431,22 @@ async function refreshProjectsList(forcePicker) {
   const grid = document.getElementById('projects-grid');
   status.textContent = 'Načítám…';
   grid.innerHTML = '';
-  const dir = await getSavedProjectsDirHandle(forcePicker);
-  if (!dir) {
-    status.textContent = 'Složka „saved_projects“ není připojena. Klikněte na „Připojit / obnovit složku“ nebo použijte ZIP režim.';
-    return;
+
+  if (projectStorageMode === 'filesystem') {
+    const dir = await getSavedProjectsDirHandle(!!forcePicker);
+    if (!dir) {
+      status.textContent = 'Složka „saved_projects“ není připojena. Klikněte na „Připojit / obnovit složku saved_projects“.';
+      return;
+    }
+  } else {
+    await ensurePersistentBrowserStorage();
   }
+
   const names = await listProjects();
-  status.textContent = names.length ? `${names.length} projekt(ů)` : 'Zatím žádné projekty — založte první.';
+  const suffix = projectStorageMode === 'browser' ? ' · Safari lokálně' : '';
+  status.textContent = names.length ? `${names.length} projekt(ů)${suffix}` : `Zatím žádné projekty${suffix} — založte první.`;
   grid.innerHTML = names.map(n =>
-    `<div class="tile" onclick="loadProject('${n.replace(/'/g, "\\'")}')"><b>${n}</b><span>Otevřít projekt</span></div>`
+    `<div class="tile" onclick="loadProject('${n.replace(/'/g, "\'")}')"><b>${n}</b><span>Otevřít projekt</span></div>`
   ).join('');
 }
 
@@ -1641,23 +1486,30 @@ async function loadProject(name) {
   projectSaveQueue = Promise.resolve();
 
   let state = null;
-  try {
-    const fh = await dir.getFileHandle('project.json');
-    const file = await fh.getFile();
-    state = JSON.parse(await file.text());
-  } catch (e) { state = null; }
-
-  // Novější lokální kopie má přednost před opožděným zápisem do souboru.
-  const cachedState = await idbGet('projectState:' + name).catch(() => null);
-  if (cachedState && (!state || Number(cachedState.updatedAt || 0) > Number(state.updatedAt || 0))) {
-    state = cachedState;
+  if (projectStorageMode === 'filesystem') {
+    try {
+      const fh = await dir.getFileHandle('project.json');
+      const file = await fh.getFile();
+      state = JSON.parse(await file.text());
+    } catch (e) { state = null; }
   }
 
+  const cachedState = await idbGet('projectState:' + name).catch(() => null);
+  if (cachedState && (!state || projectStorageMode === 'browser' || Number(cachedState.updatedAt || 0) > Number(state.updatedAt || 0))) state = cachedState;
+
   let pdfFile = null;
-  try {
-    const pfh = await dir.getFileHandle('source.pdf');
-    pdfFile = await pfh.getFile();
-  } catch (e) { pdfFile = null; }
+  if (projectStorageMode === 'browser') {
+    const storedPdf = await idbGet('projectPdf:' + name).catch(() => null);
+    if (storedPdf?.bytes) {
+      const bytes = storedPdf.bytes instanceof Uint8Array ? storedPdf.bytes : new Uint8Array(storedPdf.bytes);
+      pdfFile = new File([bytes], storedPdf.name || state?.sourceFileName || 'source.pdf', {type:'application/pdf'});
+    }
+  } else {
+    try {
+      const pfh = await dir.getFileHandle('source.pdf');
+      pdfFile = await pfh.getFile();
+    } catch (e) { pdfFile = null; }
+  }
 
   allPagesTexts = {};
   customBlankPages = new Set();
@@ -1752,7 +1604,7 @@ async function loadProject(name) {
     }
     document.getElementById('btn-preview').disabled = false;
     document.getElementById('btn-panel').disabled = false;
-    document.getElementById('st-panel').textContent = `Projekt „${name}“ načten`;
+    document.getElementById('st-panel').textContent = `Projekt „${name}“ načten${projectStorageMode==='browser'?' ze Safari úložiště':''}`;
   } else {
     document.getElementById('list-panel').innerHTML = '';
     document.getElementById('btn-preview').disabled = true;
@@ -1806,7 +1658,7 @@ async function loadOrReplacePdfInProject(file) {
   if (currentPreviewPage > totalPreviewPages) currentPreviewPage = totalPreviewPages;
   if (currentPreviewPage < 1) currentPreviewPage = 1;
 
-  if (currentProjectDirHandle) {
+  if (currentProjectName) {
     try {
       await savePdfIntoProject(newBytes.slice(0));
       await persistProjectStructureNow();
@@ -1918,7 +1770,7 @@ function createZip(files) {
 
 
 // ============================================================
-// DOKUMENTAČNÍ NÁSTROJE V3.12f
+// DOKUMENTAČNÍ NÁSTROJE V3.12o
 // ============================================================
 function openDocsSection(name){
   document.querySelectorAll('.docs-section').forEach(el=>el.classList.remove('active'));
@@ -3615,7 +3467,7 @@ async function addImageToCell(pageNum, idx, dataUrl, originalName) {
   const filename = `moodboard_img_${Date.now()}_${idx}.${ext}`;
   
   let savedRef = null;
-  if (currentProjectDirHandle) {
+  if (currentProjectName) {
     savedRef = await saveImageToProject(filename, dataUrl);
   }
   
