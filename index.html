@@ -262,6 +262,14 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .docs-note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:8px}
 .docs-empty{padding:20px;text-align:center;color:var(--muted)}
 .compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.compare-card{border:1px solid var(--border);border-radius:8px;background:#fafafa;padding:10px;min-width:0}.compare-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.compare-card h3{font:normal 13px 'Antarctican Mono',monospace;margin:0}.compare-card canvas{display:block;width:100%;height:auto;background:#fff;border:1px solid var(--border);max-height:72vh;object-fit:contain;image-rendering:auto}.compare-vector{width:100%;max-height:72vh;overflow:auto;background:#fff;border:1px solid var(--border);display:flex;align-items:flex-start;justify-content:center}.compare-vector svg{display:block;width:100%;height:auto;flex:none;background:#fff}.compare-vector .vector-fallback{width:100%;height:auto;display:block}.compare-vector-diff{max-height:78vh;position:relative}.compare-vector-diff svg{shape-rendering:geometricPrecision;text-rendering:geometricPrecision}.compare-working-canvas{display:none!important}.compare-diff{grid-column:1/-1}.compare-open-btn{border:1px solid var(--border);background:#fff;border-radius:5px;padding:4px 7px;font-size:11px;cursor:pointer}.compare-open-btn:hover{background:#f7f197;border-color:#a1a1aa}.compare-control-value{display:inline-block;min-width:44px;font-size:11px;color:var(--muted);text-align:right}.compare-fullscreen{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:2500;padding:6px}.compare-fullscreen.active{display:flex}.compare-fullscreen-box{width:100%;height:100%;background:#f4f4f5;border-radius:10px;display:flex;flex-direction:column;overflow:hidden}.compare-fullscreen-toolbar{background:#f7f197;border-bottom:1px solid #d9d36f;padding:8px 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.compare-fullscreen-toolbar .spacer{flex:1}.compare-fullscreen-stage{flex:1;overflow:auto;padding:14px;background:#d4d4d8;text-align:center}.compare-fullscreen-stage canvas{display:block;margin:0 auto;background:#fff;box-shadow:0 3px 16px rgba(0,0,0,.22);max-width:none;max-height:none}.compare-full-vector{display:none;margin:0 auto;background:#fff;box-shadow:0 3px 16px rgba(0,0,0,.22);width:max-content}.compare-full-vector svg{display:block;width:100%;height:auto}.compare-native-pdf{width:100%;height:72vh;min-height:520px;border:0;background:#d4d4d8;display:block}.compare-full-pdf{display:none;width:100%;height:100%;min-height:0;border:0;background:#d4d4d8}.compare-vector-diff.native-pdf-mode{display:block;overflow:hidden;max-height:none;height:72vh}.compare-vector-diff.native-pdf-mode>iframe{width:100%;height:100%}.compare-fullscreen-stage.pdf-mode{padding:0;text-align:initial}.compare-fullscreen-stage.pdf-mode #compareFullPdf{display:block}.compare-fullscreen-stage.pdf-mode #compareFullVector,.compare-fullscreen-stage.pdf-mode #compareFullCanvas{display:none!important}.docs-group-row td{background:#f7f197!important;border-top:1px solid #e2db7d!important;border-bottom:1px solid #e2db7d!important;font-family:'Antarctican Mono',monospace;font-size:12px;font-weight:600;padding:9px 10px!important}.drawing-folder-box{padding:12px;border:1px solid var(--border);background:#fafafa;border-radius:8px;margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.confidence-low{color:#b91c1c}.confidence-mid{color:#a16207}.confidence-high{color:#15803d}.preflight-readiness{display:none;margin:14px 0;padding:14px 16px;border-radius:9px;border:1px solid var(--border);font-size:13px}.preflight-readiness b{font-family:'Antarctican Mono',monospace;font-weight:normal;font-size:16px}.preflight-readiness.ok{display:block;background:#f0fdf4;border-color:#bbf7d0;color:#166534}.preflight-readiness.warn{display:block;background:#fffbeb;border-color:#fde68a;color:#92400e}.preflight-readiness.error{display:block;background:#fef2f2;border-color:#fecaca;color:#991b1b}.preflight-global-issues{margin-top:8px;font-size:12px;line-height:1.5}
+
+/* TISKOVÁ FRONTA Z PRE-FLIGHTU */
+.preflight-print-panel{display:none;margin-top:20px;border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden}
+.preflight-print-panel.active{display:block}.print-panel-head{padding:14px 16px;background:#f7f197;border-bottom:1px solid #e2db7d;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.print-panel-head h2{margin:0;font:normal 16px 'Antarctican Mono',monospace}.print-panel-body{padding:14px 16px}.print-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:11px;background:#fafafa;border:1px solid var(--border);border-radius:8px}.print-toolbar label{display:flex;align-items:center;gap:6px}.print-toolbar select,.print-toolbar input{max-width:210px}
+.print-status{margin:10px 0;padding:10px 12px;border-radius:7px;border:1px solid var(--border);font-size:12px;background:#fafafa}.print-status.ok{background:#f0fdf4;border-color:#bbf7d0;color:#166534}.print-status.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.print-status.err{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.print-queue-table{width:100%;border-collapse:collapse;font-size:12px;min-width:980px}.print-queue-table th,.print-queue-table td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}.print-queue-table th{background:#fafafa;position:sticky;top:0;z-index:1}.print-queue-table tr.printed td{background:#f0fdf4}.print-queue-table tr.no-fit td{opacity:.55}.print-check{width:18px;height:18px}.print-badge{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:2px 7px;font-size:10px;white-space:nowrap}.print-badge.ok{background:#f0fdf4;border-color:#bbf7d0;color:#166534}.print-badge.no{background:#fef2f2;border-color:#fecaca;color:#991b1b}.print-badge.sent{background:#ecfdf5;border-color:#86efac;color:#166534}.print-history{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}.print-history summary{cursor:pointer;font-weight:600}.print-history-list{margin-top:8px;display:grid;gap:5px;font-size:11px;color:var(--muted)}
+@media(max-width:800px){.print-toolbar{align-items:flex-start;flex-direction:column}.print-toolbar label{width:100%;justify-content:space-between}.print-toolbar select,.print-toolbar input{max-width:55%}}
 @media(max-width:800px){.compare-grid{grid-template-columns:1fr}.compare-diff{grid-column:auto}.docs-summary{grid-template-columns:1fr 1fr}}
 
 </style>
@@ -276,7 +284,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.12i</div>
+  <div class="app-version">V3.12k</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
@@ -366,6 +374,36 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
       <div id="preflight-readiness" class="preflight-readiness"></div>
       <div id="preflight-summary" class="docs-summary" style="display:none"></div>
       <div id="preflight-results"></div>
+
+      <div id="preflight-print-panel" class="preflight-print-panel">
+        <div class="print-panel-head">
+          <h2>TISKOVÁ FRONTA / PLOTTER</h2>
+          <span id="print-helper-state" class="muted" style="margin:0">Kontroluji lokální tiskový modul…</span>
+        </div>
+        <div class="print-panel-body">
+          <div class="print-toolbar">
+            <label><b>Část</b> <select id="printSection" onchange="refreshPrintQueue()"></select></label>
+            <label><b>Role</b> <select id="printRollWidth" onchange="handlePrintRollChange();refreshPrintQueue()"><option value="914" selected>914 mm (36″)</option><option value="610">610 mm (24″)</option><option value="594">594 mm</option><option value="420">420 mm</option><option value="297">297 mm</option><option value="custom">Vlastní…</option></select></label>
+            <label id="printCustomRollWrap" style="display:none"><b>Vlastní šířka</b> <input id="printCustomRoll" type="number" value="914" min="100" max="2000" step="1" style="width:90px" oninput="refreshPrintQueue()"> mm</label>
+            <label title="Rezerva od nominální šířky role kvůli netisknutelným okrajům plotteru"><b>Rezerva</b> <input id="printRollReserve" type="number" value="10" min="0" max="100" step="1" style="width:70px" oninput="refreshPrintQueue()"> mm</label>
+            <label><b>Plotter</b> <select id="printPrinter"><option value="">— načíst tiskárny —</option></select></label>
+            <button type="button" class="back-btn" style="margin:0" onclick="loadLocalPrinters(true)">↻ Načíst tiskárny</button>
+            <label><input id="printIncludePrinted" type="checkbox" onchange="refreshPrintQueue()"> zobrazit už odeslané</label>
+          </div>
+          <div id="printQueueStatus" class="print-status">Vyber část dokumentace a roli.</div>
+          <div class="row" style="margin:10px 0">
+            <button type="button" class="back-btn" style="margin:0" onclick="selectAllPrintable(true)">✓ Vybrat všechny kompatibilní</button>
+            <button type="button" class="back-btn" style="margin:0" onclick="selectAllPrintable(false)">Zrušit výběr</button>
+            <button type="button" class="action" onclick="openSelectedPrintPdf()">Připravit / otevřít tiskové PDF</button>
+            <button type="button" class="action" id="btn-direct-print" style="background:#166534" onclick="directPrintSelected()">🖨 Poslat přímo na plotter</button>
+            <button type="button" class="back-btn" style="margin:0" onclick="clearPrintHistoryForSection()">↶ Zrušit fajfky této části</button>
+          </div>
+          <div class="docs-table-wrap"><table class="print-queue-table"><thead><tr><th></th><th>Tisk</th><th>Č. výkresu</th><th>Název</th><th>List</th><th>Rozměr</th><th>Orientace na roli</th><th>Délka role</th><th>Stav</th></tr></thead><tbody id="printQueueBody"></tbody></table></div>
+          <details class="print-history"><summary>Historie odeslaných tisků</summary><div id="printHistoryList" class="print-history-list"></div></details>
+          <div class="docs-note">Tiskové PDF zachovává původní PDF stránky vektorově a pouze je podle potřeby otočí o 90°. Role se používá pro kontrolu, zda se list vejde, a pro úspornou orientaci. Přímý tisk vyžaduje spuštění přiloženého lokálního Windows serveru; bez něj lze vždy připravit a otevřít tiskové PDF ručně.</div>
+        </div>
+      </div>
+
       <div class="docs-note">PDF/A se zde zjišťuje z deklarace v metadatech/XMP. Jde o rychlou předkontrolu, ne plnohodnotnou validační náhradu specializovaného PDF/A validátoru.</div>
     </div>
 
@@ -825,7 +863,7 @@ if (isSafari && !isChrome && !isEdge) {
 
 window.preventDrop = e => { e.preventDefault(); };
 let filesData = { pdfa: [], panel: [] };
-let docsData = { preflight: [], drawinglist: [], renamer: [], preflightResults: [], preflightGlobalIssues: [], preflightFolderMode: false, preflightFolderRoot: '', drawingRows: [], drawingFolderMode: false, drawingFolderRoot: '', compareA: null, compareB: null, compareDocA: null, compareDocB: null, compareRenderTimer: null, compareFullMode: 'diff', compareDiffPdfUrl: null, compareDiffPdfBytes: null };
+let docsData = { preflight: [], drawinglist: [], renamer: [], preflightResults: [], preflightGlobalIssues: [], preflightFolderMode: false, preflightFolderRoot: '', drawingRows: [], drawingFolderMode: false, drawingFolderRoot: '', compareA: null, compareB: null, compareDocA: null, compareDocB: null, compareRenderTimer: null, compareFullMode: 'diff', compareDiffPdfUrl: null, compareDiffPdfBytes: null, printHelperAvailable: false, printPrinters: [], printPreparedUrl: null, printPreparedBytes: null };
 let allPagesTexts = {}; 
 let customBlankPages = new Set();
 let blankPageColors = {};
@@ -2069,7 +2107,7 @@ async function runPreflight(){
           const hasText=tc.items.some(x=>String(x.str||'').trim()),meaningfulOps=op.fnArray.length>10;if(!hasText&&!meaningfulOps) base.blankPages.push(pg);
           meta=parseDrawingPageMeta(tc,vp,f);
         }catch(e){}
-        pageRows.push({...meta,page:pg,pageCount:pdf.numPages,format:fmt,pageOrientation:vp.width>=vp.height?'na šířku':'na výšku'});
+        pageRows.push({...meta,page:pg,pageCount:pdf.numPages,format:fmt,pageOrientation:vp.width>=vp.height?'na šířku':'na výšku',pageWidthMm:vp.width*25.4/72,pageHeightMm:vp.height*25.4/72});
       }
       base.orientation=landscape&&portrait?'smíšená':landscape?'na šířku':'na výšku';
       if(f.size>maxBytes)preflightAddIssue(base,`velikost ${formatBytes(f.size)} překračuje limit ${formatBytes(maxBytes)}`,'error');
@@ -2098,7 +2136,7 @@ async function runPreflight(){
         const m=selectedPages[j];
         const row={...base,issues:[...base.issues],severity:base.severity,countSize:j===0?f.size:0,hash:j===0?base.hash:'',sheetPage:m.page,sheetLabel:pdf.numPages>1?`${m.page}/${pdf.numPages}`:'1',formats:[m.format],orientation:m.pageOrientation,
           drawingNumber:m.number||'',drawingTitle:m.title||'',drawingScale:m.scale||'',documentationStage:m.documentationStage||'',revision:m.revision||'',date:m.date||'',drawingConfidence:m.confidence||0,drawingNumberConfidence:m.numberConfidence||0,drawingTitleConfidence:m.titleConfidence||0,drawingScaleConfidence:m.scaleConfidence||0,stageConfidence:m.stageConfidence||0,titleBlockTemplate:m.template||'nenalezena',declaredFormat:m.declaredFormat||'',documentFallback:!!m.documentFallback,
-          filenameNumber:pdf.numPages===1?base.filenameNumber:''};
+          filenameNumber:pdf.numPages===1?base.filenameNumber:'',pageWidthMm:m.pageWidthMm||0,pageHeightMm:m.pageHeightMm||0};
         if(m.documentFallback&&!base.blankPages.includes(m.page))preflightAddIssue(row,'u vícestránkového dokumentu nebyla spolehlivě rozpoznána rozpiska – zobrazuje se pouze první strana','warn');
         out.push(row);
       }
@@ -2118,11 +2156,98 @@ function renderPreflightResults(){
   ready.className='preflight-readiness '+level;ready.innerHTML=level==='ok'?'<b>✓ PŘIPRAVENO K ODEVZDÁNÍ</b><div>Pre-flight nenašel žádný z nastavených problémů.</div>':level==='error'?`<b>✕ PŘED ODEVZDÁNÍM OPRAVIT PROBLÉMY</b><div>${err} výkresů/listů obsahuje chybu, ${warn} upozornění.</div>${globals.length?`<div class="preflight-global-issues">${globals.map(x=>'• '+escapeHtml(x)).join('<br>')}</div>`:''}`:`<b>⚠ DOPORUČENA KONTROLA PŘED ODEVZDÁNÍM</b><div>${warn} výkresů/listů má upozornění.</div>${globals.length?`<div class="preflight-global-issues">${globals.map(x=>'• '+escapeHtml(x)).join('<br>')}</div>`:''}`;
   const sum=document.getElementById('preflight-summary'); sum.style.display='grid'; sum.innerHTML=`<div class="docs-summary-card"><span>PDF SOUBORŮ</span><b>${fileCount}</b></div><div class="docs-summary-card"><span>VÝKRESŮ / LISTŮ</span><b>${sheetCount}</b></div><div class="docs-summary-card"><span>V POŘÁDKU</span><b>${ok}</b></div><div class="docs-summary-card"><span>UPOZORNĚNÍ</span><b>${warn}</b></div><div class="docs-summary-card"><span>CHYBY</span><b>${err}</b></div><div class="docs-summary-card"><span>CELKEM</span><b style="font-size:17px">${formatBytes(totalSize)}</b></div>`;
   document.getElementById('preflight-results').innerHTML=`<div class="docs-table-wrap"><table class="docs-table"><thead><tr><th>Stav</th><th>Část</th><th>Soubor</th><th>List</th><th>Č. výkresu</th><th>Název výkresu</th><th>Měřítko</th><th>Stupeň dokumentace</th><th>Revize</th><th>Datum</th><th>Formát</th><th>Orientace</th><th>Velikost</th><th>PDF/A</th><th>Výsledek</th></tr></thead><tbody>${r.map(x=>`<tr><td class="status-${x.severity}">${x.severity==='ok'?'✓ OK':x.severity==='warn'?'⚠ POZOR':'✕ CHYBA'}</td><td>${escapeHtml(x.group||'–')}</td><td title="${escapeHtml((x.relativePath||x.name)+' | Rozpiska: '+(x.titleBlockTemplate||'–'))}">${escapeHtml(x.name)}</td><td>${escapeHtml(x.sheetLabel||'–')}</td><td title="Jistota čísla: ${x.drawingNumberConfidence||0}/3">${escapeHtml(x.drawingNumber||'–')}</td><td>${escapeHtml(x.drawingTitle||'–')}</td><td>${escapeHtml(x.drawingScale||'–')}</td><td>${escapeHtml(x.documentationStage||'–')}</td><td>${escapeHtml(x.revision||'–')}</td><td>${escapeHtml(x.date||'–')}</td><td>${escapeHtml(x.formats.join(', ')||'–')}</td><td>${escapeHtml(x.orientation||'–')}</td><td>${formatBytes(x.size)}</td><td>${x.pdfa?`PDF/A-${escapeHtml(x.pdfa)}`:'–'}</td><td>${x.issues.length?escapeHtml(x.issues.join('; ')):'Bez zjištěných problémů'}</td></tr>`).join('')}</tbody></table></div>`;
+  refreshPrintPlanner();
 }
 function downloadPreflightCsv(){
   const rows=[['Stav','Část / složka','Soubor','Relativní cesta','List / strana','Číslo výkresu','Název výkresu','Měřítko','Stupeň dokumentace','Revize','Datum','Formát','Orientace','Velikost B','PDF/A','Šablona rozpisky','Výsledek'],...docsData.preflightResults.map(x=>[x.severity,x.group,x.name,x.relativePath,x.sheetLabel,x.drawingNumber,x.drawingTitle,x.drawingScale,x.documentationStage,x.revision,x.date,x.formats.join(', '),x.orientation,x.size,x.pdfa,x.titleBlockTemplate,x.issues.join('; ')])];
   downloadBlob(new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}),'preflight_report.csv');
 }
+
+
+// ============================================================
+// TISKOVÁ FRONTA / PLOTTER – Pre-flight
+// ============================================================
+const PRINT_HISTORY_KEY='2020-toolbox-print-history-v1';
+function loadPrintHistory(){try{const x=JSON.parse(localStorage.getItem(PRINT_HISTORY_KEY)||'{}');return x&&typeof x==='object'?x:{}}catch(e){return{}}}
+function savePrintHistory(h){try{localStorage.setItem(PRINT_HISTORY_KEY,JSON.stringify(h))}catch(e){}}
+function preflightPrintKey(r){return [r.relativePath||r.name||'',r.sheetPage||1,r.drawingNumber||'',r.file?.size||r.size||0,r.file?.lastModified||0].join('|')}
+function printSectionForRow(r){
+  const p=drawingSequenceParts(r.drawingNumber||'');
+  const generic=!r.group||/samostatně nahrané pdf/i.test(r.group);
+  if(generic&&p?.prefix)return p.prefix;
+  return r.group||p?.prefix||'Samostatně nahrané PDF';
+}
+function getPrintRollWidth(){const sel=document.getElementById('printRollWidth');if(!sel)return 914;if(sel.value==='custom')return Math.max(100,Number(document.getElementById('printCustomRoll')?.value)||914);return Number(sel.value)||914}
+function handlePrintRollChange(){const custom=document.getElementById('printRollWidth')?.value==='custom',wrap=document.getElementById('printCustomRollWrap');if(wrap)wrap.style.display=custom?'flex':'none'}
+function printRowDimensions(r){
+  let w=Number(r.pageWidthMm)||0,h=Number(r.pageHeightMm)||0;
+  if(!w||!h){const t=(r.formats||[]).join(' '),m=t.match(/(\d+(?:[.,]\d+)?)\s*[×x]\s*(\d+(?:[.,]\d+)?)/i);if(m){w=Number(m[1].replace(',','.'));h=Number(m[2].replace(',','.'));}}
+  return {w,h};
+}
+function printPlacementForRow(r,rollWidth=getPrintRollWidth()){
+  const {w,h}=printRowDimensions(r),reserve=Math.max(0,Number(document.getElementById('printRollReserve')?.value)||0),usable=Math.max(1,rollWidth-reserve);
+  if(!w||!h)return {fits:false,w,h,usable,reason:'neznámý rozměr'};
+  const max=Math.max(w,h),min=Math.min(w,h);let across,length,rotate=false;
+  if(max<=usable+0.5){across=max;length=min;rotate=Math.abs(w-max)>0.5;}
+  else if(min<=usable+0.5){across=min;length=max;rotate=Math.abs(w-min)>0.5;}
+  else return {fits:false,w,h,usable,reason:`min. šířka ${Math.ceil(min)} mm`};
+  return {fits:true,w,h,usable,across,length,rotate,rotation:rotate?90:0};
+}
+function fmtMm(v){return Number(v||0).toLocaleString('cs-CZ',{maximumFractionDigits:0})+' mm'}
+function refreshPrintPlanner(){
+  const panel=document.getElementById('preflight-print-panel'),r=docsData.preflightResults||[];if(!panel)return;
+  if(!r.length){panel.classList.remove('active');return}panel.classList.add('active');
+  const sectionSel=document.getElementById('printSection'),old=sectionSel?.value||'';
+  const sections=[...new Set(r.map(printSectionForRow))].sort((a,b)=>a.localeCompare(b,'cs',{numeric:true,sensitivity:'base'}));
+  if(sectionSel){sectionSel.innerHTML=sections.map(x=>`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');sectionSel.value=sections.includes(old)?old:(sections[0]||'');}
+  handlePrintRollChange();refreshPrintQueue();loadLocalPrinters(false);renderPrintHistory();
+}
+function currentPrintRows(){const sec=document.getElementById('printSection')?.value||'';return (docsData.preflightResults||[]).filter(r=>printSectionForRow(r)===sec)}
+function refreshPrintQueue(){
+  const body=document.getElementById('printQueueBody'),status=document.getElementById('printQueueStatus');if(!body||!status)return;
+  const rows=currentPrintRows(),roll=getPrintRollWidth(),history=loadPrintHistory(),showPrinted=!!document.getElementById('printIncludePrinted')?.checked;
+  let html='',fit=0,hiddenPrinted=0,totalLen=0;
+  rows.forEach((r,i)=>{
+    const key=preflightPrintKey(r),sent=history[key],pl=printPlacementForRow(r,roll);if(sent&&!showPrinted){hiddenPrinted++;return}if(pl.fits){fit++;totalLen+=pl.length;}
+    const checked=pl.fits&&!sent?'checked':'',disabled=!pl.fits||sent?'disabled':'',dim=printRowDimensions(r),orient=pl.fits?(pl.rotate?'otočit 90°':'beze změny'):'—';
+    html+=`<tr class="${sent?'printed ':''}${!pl.fits?'no-fit':''}"><td><input class="print-check" type="checkbox" data-print-index="${(docsData.preflightResults||[]).indexOf(r)}" ${checked} ${disabled}></td><td>${pl.fits?'<span class="print-badge ok">VEJDE SE</span>':`<span class="print-badge no">NEVEJDE SE</span>`}</td><td>${escapeHtml(r.drawingNumber||'–')}</td><td>${escapeHtml(r.drawingTitle||r.name||'–')}</td><td>${escapeHtml(r.sheetLabel||'1')}</td><td>${dim.w&&dim.h?`${fmtMm(dim.w)} × ${fmtMm(dim.h)}`:escapeHtml((r.formats||[]).join(', ')||'–')}</td><td>${escapeHtml(orient)}${pl.fits?`<br><small>${fmtMm(pl.across)} přes roli</small>`:''}</td><td>${pl.fits?fmtMm(pl.length):escapeHtml(pl.reason||'–')}</td><td>${sent?`<span class="print-badge sent">✓ ODESLÁNO</span><br><small>${escapeHtml(sent.when||'')}</small>`:'čeká'}</td></tr>`;
+  });
+  body.innerHTML=html||'<tr><td colspan="9" class="docs-empty">V této části nejsou žádné další listy k tisku.</td></tr>';
+  const count=rows.length-hiddenPrinted;status.className='print-status '+(fit?'ok':'warn');status.innerHTML=`<b>${escapeHtml(document.getElementById('printSection')?.value||'')}</b> · role ${fmtMm(roll)} · ${fit}/${count} zobrazených listů se vejde · odhad délky kompatibilních listů ${Number(totalLen/1000).toLocaleString('cs-CZ',{maximumFractionDigits:2})} m${hiddenPrinted?` · ${hiddenPrinted} již odeslaných skryto`:''}.`;status.dataset.baseText=status.innerHTML;
+}
+function selectedPrintRows(){const all=docsData.preflightResults||[];return [...document.querySelectorAll('[data-print-index]:checked')].map(x=>all[Number(x.dataset.printIndex)]).filter(Boolean)}
+function selectAllPrintable(on){document.querySelectorAll('[data-print-index]').forEach(x=>{if(!x.disabled)x.checked=!!on});updateSelectedPrintEstimate()}
+function updateSelectedPrintEstimate(){const status=document.getElementById('printQueueStatus'),rows=selectedPrintRows();if(!status)return;const base=status.dataset.baseText||status.innerHTML;if(!rows.length){status.innerHTML=base+' <b>Nic není vybráno.</b>';return}const len=rows.reduce((a,r)=>a+(printPlacementForRow(r).length||0),0);status.innerHTML=base+` <b>Vybráno ${rows.length}</b> · cca ${(len/1000).toLocaleString('cs-CZ',{maximumFractionDigits:2})} m role.`}
+document.addEventListener('change',e=>{if(e.target?.matches?.('[data-print-index]'))updateSelectedPrintEstimate()});
+async function buildSelectedPrintPdf(rows){
+  if(!rows?.length)throw new Error('Není vybrán žádný výkres.');if(!window.PDFLib?.PDFDocument)throw new Error('PDF-lib není dostupný.');
+  const {PDFDocument,degrees}=PDFLib,out=await PDFDocument.create(),cache=new Map();
+  const sorted=rows.slice().sort((a,b)=>(a.drawingNumber||a.name||'').localeCompare(b.drawingNumber||b.name||'','cs',{numeric:true,sensitivity:'base'}));
+  for(const r of sorted){
+    const f=r.file;if(!f)continue;let src=cache.get(f);if(!src){src=await PDFDocument.load(await f.arrayBuffer(),{ignoreEncryption:true});cache.set(f,src)}
+    const idx=Math.max(0,Math.min(src.getPageCount()-1,(Number(r.sheetPage)||1)-1)),[cp]=await out.copyPages(src,[idx]);out.addPage(cp);
+    const pl=printPlacementForRow(r);if(pl.rotate){const a=cp.getRotation()?.angle||0;cp.setRotation(degrees((a+90)%360));}
+  }
+  const bytes=await out.save({useObjectStreams:true});docsData.printPreparedBytes=new Uint8Array(bytes);return docsData.printPreparedBytes;
+}
+function revokePreparedPrintUrl(){if(docsData.printPreparedUrl){try{URL.revokeObjectURL(docsData.printPreparedUrl)}catch(e){}docsData.printPreparedUrl=null}}
+async function openSelectedPrintPdf(){
+  const rows=selectedPrintRows();if(!rows.length){alert('Vyber alespoň jeden výkres.');return}
+  try{const bytes=await buildSelectedPrintPdf(rows);revokePreparedPrintUrl();const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));docsData.printPreparedUrl=url;window.open(url,'_blank');markRowsPrinted(rows,{printer:'Ruční tisk z prohlížeče',roll:getPrintRollWidth(),mode:'browser'});}
+  catch(e){alert('Příprava tisku selhala: '+e.message)}
+}
+function markRowsPrinted(rows,meta={}){const h=loadPrintHistory(),when=new Date().toLocaleString('cs-CZ');for(const r of rows)h[preflightPrintKey(r)]={when,section:printSectionForRow(r),drawingNumber:r.drawingNumber||'',title:r.drawingTitle||'',printer:meta.printer||'',roll:meta.roll||getPrintRollWidth(),mode:meta.mode||''};savePrintHistory(h);refreshPrintQueue();renderPrintHistory()}
+function renderPrintHistory(){const box=document.getElementById('printHistoryList');if(!box)return;const vals=Object.values(loadPrintHistory()).sort((a,b)=>(b.when||'').localeCompare(a.when||'')).slice(0,100);box.innerHTML=vals.length?vals.map(x=>`<div>✓ ${escapeHtml(x.when||'')} · ${escapeHtml(x.section||'')} · ${escapeHtml(x.drawingNumber||x.title||'výkres')} · ${escapeHtml(x.printer||'tisk')} · role ${escapeHtml(String(x.roll||''))} mm</div>`).join(''):'Zatím nebyl zaznamenán žádný tisk.'}
+function clearPrintHistoryForSection(){const sec=document.getElementById('printSection')?.value||'';if(!sec)return;if(!confirm(`Zrušit označení „odesláno“ pro část ${sec}?`))return;const h=loadPrintHistory();for(const [k,v] of Object.entries(h))if(v.section===sec)delete h[k];savePrintHistory(h);refreshPrintQueue();renderPrintHistory()}
+async function checkPrintHelper(){
+  const label=document.getElementById('print-helper-state'),btn=document.getElementById('btn-direct-print');try{const r=await fetch('/api/health',{cache:'no-store'});if(!r.ok)throw new Error();const j=await r.json();docsData.printHelperAvailable=!!j.ok;if(label){label.textContent='✓ Lokální přímý tisk je připraven';label.style.color='#166534'}if(btn)btn.disabled=false;return true}catch(e){docsData.printHelperAvailable=false;if(label){label.textContent='Lokální tiskový modul není spuštěný – ruční tisk funguje';label.style.color='#92400e'}if(btn)btn.disabled=true;return false}}
+async function loadLocalPrinters(force=false){
+  if(!force&&docsData.printPrinters?.length)return;const ok=await checkPrintHelper();if(!ok)return;try{const r=await fetch('/api/printers',{cache:'no-store'}),j=await r.json(),sel=document.getElementById('printPrinter');docsData.printPrinters=Array.isArray(j.printers)?j.printers:[];if(sel){const old=sel.value;sel.innerHTML=docsData.printPrinters.map(x=>`<option value="${escapeHtml(x.name)}">${escapeHtml(x.name)}${x.default?' — výchozí':''}</option>`).join('')||'<option value="">Žádné tiskárny</option>';if([...sel.options].some(o=>o.value===old))sel.value=old;}}catch(e){}}
+async function directPrintSelected(){
+  const rows=selectedPrintRows(),printer=document.getElementById('printPrinter')?.value||'';if(!rows.length){alert('Vyber alespoň jeden výkres.');return}if(!printer){alert('Nejprve vyber plotter / tiskárnu.');return}if(!await checkPrintHelper()){alert('Lokální tiskový modul není spuštěný. Použij START_TOOLBOX_V3.12f.bat nebo otevři připravené PDF ručně.');return}
+  const btn=document.getElementById('btn-direct-print'),old=btn.textContent;btn.disabled=true;btn.textContent='Odesílám na plotter…';
+  try{const bytes=await buildSelectedPrintPdf(rows),section=document.getElementById('printSection')?.value||'TISK',job=`20-20 ${section} ${new Date().toLocaleTimeString('cs-CZ')}`;const r=await fetch('/api/print?printer='+encodeURIComponent(printer)+'&job='+encodeURIComponent(job),{method:'POST',headers:{'Content-Type':'application/pdf'},body:bytes});const j=await r.json().catch(()=>({}));if(!r.ok||!j.ok)throw new Error(j.error||`HTTP ${r.status}`);markRowsPrinted(rows,{printer,roll:getPrintRollWidth(),mode:'direct'});alert(`Tisková úloha byla předána systému Windows.\n${rows.length} listů · ${printer}`)}catch(e){alert('Přímý tisk selhal: '+e.message+'\n\nTiskové PDF můžeš stále otevřít ručně.')}finally{btn.disabled=!docsData.printHelperAvailable;btn.textContent=old}}
+
 
 function titleBlockItems(textContent,viewport,zone){
   const W=viewport.width,H=viewport.height;
