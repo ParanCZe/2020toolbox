@@ -2280,7 +2280,29 @@ function stripKnownTailPrefix(title){
   t=t.replace(/^(?:\d+\s+)?(?:SO\d+\s+)?(?:[A-Z]\d+(?:-[A-Z]\d+)+\s+)/i,'');
   return t.replace(/^[_\-–—\s]+|[_\-–—\s]+$/g,'').trim();
 }
-function parseClassicBilingualTitleBlock(lines,raw,file){
+function titleBlockFindItem(items,re){
+  const matches=[];
+  for(const it of items||[]){re.lastIndex=0;if(re.test(it.text||''))matches.push(it);}
+  // The learned title blocks live at the right edge; prefer the right-most matching label.
+  return matches.sort((a,b)=>b.x-a.x)[0]||null;
+}
+function titleBlockItemsInCell(items,x0,x1,yTop,yBottom){
+  const hi=Math.max(yTop,yBottom),lo=Math.min(yTop,yBottom);
+  return (items||[]).filter(it=>it.x>=x0&&it.x<x1&&it.y<hi-0.8&&it.y>lo+0.8);
+}
+function titleBlockCellText(items){
+  if(!items?.length)return '';
+  const lines=groupTextLines(items);
+  return normalizeSpaces(lines.map(l=>l.text).join(' '));
+}
+function cleanZelenecTitle(text){
+  let t=normalizeSpaces(text||'');
+  // Values in the title cell only. Never accept field labels, project metadata or common note fragments.
+  t=t.replace(/^(?:název|nazev)\s*(?:výkresu|vykresu).*?(?:drawing\s*title)?\s*/i,'').trim();
+  t=t.replace(/\s+/g,' ').replace(/^[_\-–—\s]+|[_\-–—\s]+$/g,'').trim();
+  return t;
+}
+function parseClassicBilingualTitleBlock(lines,raw,file,items,viewport){
   const ascii=removeDiacritics(raw).toUpperCase();
   const detected=(ascii.includes('DRAWING TITLE')&&ascii.includes('DRAWING NO')&&ascii.includes('PROJECT STAGE')) ||
     (ascii.includes('NAZEV VYKRESU')&&ascii.includes('C. VYKRESU')&&ascii.includes('STUPEN / PROJECT STAGE'));
@@ -2288,51 +2310,68 @@ function parseClassicBilingualTitleBlock(lines,raw,file){
   let number='',title='',scale='',documentationStage='',revision='',date='',declaredFormat='';
   let numberConfidence=0,titleConfidence=0,scaleConfidence=0,stageConfidence=0;
 
-  // TITLE: read only the actual cell between "Drawing title" and "Drawn by".
-  const titleLines=linesBetweenLabels(lines,/(?:název|nazev)\s*(?:výkresu|vykresu).*drawing\s*title|drawing\s*title/i,/(?:kreslil|drawn\s*by)/i);
-  title=bestTitleFromLines(titleLines);
-  if(title){titleConfidence=3;}
+  // ZELENEČ TEMPLATE: use exact cells, not whole-page text lines.
+  // This prevents drawing notes at the same Y coordinate from being merged into the title block.
+  const allItems=items||lines.flatMap(l=>l.items||[]),W=viewport?.width||Math.max(1,...allItems.map(x=>x.x+1));
+  const titleLab=titleBlockFindItem(allItems,/(?:název|nazev)\s*(?:výkresu|vykresu).*drawing\s*title/i);
+  const drawnLab=titleBlockFindItem(allItems,/(?:kreslil).*drawn\s*by/i);
+  const scaleLab=titleBlockFindItem(allItems,/(?:měřítko|meritko).*scale/i);
+  const dateR00Lab=titleBlockFindItem(allItems,/datum\s*R00.*date\s*of\s*R00/i);
+  const revLab=titleBlockFindItem(allItems,/(?:revize).*revision/i);
+  const revDateLab=titleBlockFindItem(allItems,/datum\s*revize.*date\s*of\s*rev/i);
+  const stageLab=titleBlockFindItem(allItems,/(?:stupeň|stupen).*project\s*stage/i);
+  const formatLab=titleBlockFindItem(allItems,/(?:formát|format).*paper\s*size/i);
+  const noLab=titleBlockFindItem(allItems,/(?:č\.?\s*výkresu|cislo\s*vykresu).*drawing\s*no/i);
+  const codeLab=titleBlockFindItem(allItems,/(?:kód|kod)\s*(?:výkresu|vykresu).*drawing\s*code/i);
 
-  // SCALE: only the cell between the scale/date row and the revision row.
-  const scaleLines=linesBetweenLabels(lines,/(?:měřítko|meritko).*scale/i,/(?:revize|revision)/i);
-  for(const l of scaleLines){const v=cleanScale(l.text);if(v){scale=v;scaleConfidence=3;break;}}
-
-  // REVISION + REVISION DATE: only the row between Revision and Project stage.
-  const revLines=linesBetweenLabels(lines,/(?:revize|revision)/i,/(?:stupeň|stupen).*project\s*stage/i);
-  for(const l of revLines){
-    const t=l.text||'';
-    if(!revision){const v=titleBlockRevision(t);if(v&&!/^(?:19|20)\d{2}$/.test(v))revision=v;}
-    if(!date){const v=titleBlockMonthDate(t);if(v)date=v;}
+  if(titleLab&&drawnLab){
+    const cell=titleBlockItemsInCell(allItems,titleLab.x-2,W,titleLab.y,drawnLab.y);
+    const v=cleanZelenecTitle(titleBlockCellText(cell));
+    if(v&&v.length>=3&&!isLabelOrNoise(v)){title=v;titleConfidence=3;}
   }
 
-  // BOTTOM ROW: stage / paper size / drawing number share one row. Never inspect the drawing body.
-  const bottomIx=lastLineIndex(lines,/(?:stupeň|stupen).*project\s*stage.*(?:formát|format).*paper\s*size.*(?:výkresu|vykresu).*drawing\s*no/i);
-  if(bottomIx>=0){
-    const codeIx=nextLineIndex(lines,/(?:kód|kod)\s*(?:výkresu|vykresu).*drawing\s*code/i,bottomIx+1);
-    const vals=lines.slice(bottomIx+1,codeIx>bottomIx?codeIx:Math.min(lines.length,bottomIx+4));
-    for(const l of vals){
-      const t=l.text||'';
-      if(!documentationStage){const v=documentationStageFromText(t);if(v){documentationStage=v;stageConfidence=3;}}
-      if(!declaredFormat){const v=titleBlockPaperSize(t);if(v)declaredFormat=v;}
-      if(!number){const v=candidateDrawingNumber(t,true);if(v){number=v;numberConfidence=3;}}
-    }
+  if(scaleLab&&revLab){
+    const x1=dateR00Lab?.x||W;
+    const txt=titleBlockCellText(titleBlockItemsInCell(allItems,scaleLab.x-2,x1-1,scaleLab.y,revLab.y));
+    const v=cleanScale(txt);if(v){scale=v;scaleConfidence=3;}
   }
 
-  // Text-stream fallback for this exact title-block family. It is restricted to the final title-block tail.
+  if(revLab&&stageLab){
+    const x1=revDateLab?.x||formatLab?.x||W;
+    const txt=titleBlockCellText(titleBlockItemsInCell(allItems,revLab.x-2,x1-1,revLab.y,stageLab.y));
+    const v=titleBlockRevision(txt);if(v&&!/^(?:19|20)\d{2}$/.test(v))revision=v;
+  }
+  if(revDateLab&&stageLab){
+    const txt=titleBlockCellText(titleBlockItemsInCell(allItems,revDateLab.x-2,W,revDateLab.y,stageLab.y));
+    const v=titleBlockMonthDate(txt);if(v)date=v;
+  }
+
+  // Bottom row is split into three fixed columns by its own labels.
+  if(stageLab&&formatLab&&noLab){
+    const yBottom=codeLab?.y ?? Math.max(0,stageLab.y-40);
+    const stageTxt=titleBlockCellText(titleBlockItemsInCell(allItems,stageLab.x-2,formatLab.x-1,stageLab.y,yBottom));
+    const formatTxt=titleBlockCellText(titleBlockItemsInCell(allItems,formatLab.x-2,noLab.x-1,formatLab.y,yBottom));
+    const numberTxt=titleBlockCellText(titleBlockItemsInCell(allItems,noLab.x-2,W,noLab.y,yBottom));
+    const st=documentationStageFromText(stageTxt);if(st){documentationStage=st;stageConfidence=3;}
+    const pf=titleBlockPaperSize(formatTxt);if(pf)declaredFormat=pf;
+    const no=candidateDrawingNumber(numberTxt,true);if(no){number=no;numberConfidence=3;}
+  }
+
+  // Restricted textual fallback only for a missing field. It may never replace a spatially read Zeleneč value.
   const classicTail=/(.{3,140}?)\s+(1\s*:\s*\d{1,6})\s+(R?\d{1,3}|[A-Z]\d?)\s+(D[ÚU]?R(?:\+?DSP)?|D[ÚU]?SP|DSPS|DSP|DPS|DVZ|STS|TD|STUDIE)\s+((?:A[0-5])|(?:\d{2,4}\s*[x×]\s*\d{2,4}))\s+((?:[A-Z]{1,5}[._\/-])?\d{1,4}(?:[._\/-]\d{1,4}){1,6}[A-Z]?)(?=\s|$)/gi;
   const matches=[...raw.matchAll(classicTail)];
   if(matches.length){
     const m=matches[matches.length-1];
     if(!title){const v=stripKnownTailPrefix(m[1]);if(v&&!isLabelOrNoise(v)){title=v;titleConfidence=2;}}
-    if(!scale){scale=m[2].replace(/\s+/g,'');scaleConfidence=3;}
+    if(!scale){scale=m[2].replace(/\s+/g,'');scaleConfidence=2;}
     if(!revision)revision=m[3];
-    if(!documentationStage){documentationStage=normalizeDocumentationStage(m[4]);stageConfidence=3;}
+    if(!documentationStage){documentationStage=normalizeDocumentationStage(m[4]);stageConfidence=2;}
     if(!declaredFormat)declaredFormat=m[5].replace(/\s+/g,'').replace('×','x');
-    if(!number){number=m[6];numberConfidence=3;}
+    if(!number){number=m[6];numberConfidence=2;}
   }
 
   const strong=[numberConfidence,titleConfidence,scaleConfidence,stageConfidence].filter(x=>x>=2).length;
-  return {number,title,scale,documentationStage,revision,date,declaredFormat,template:'20-20 bilingvní rozpiska – buňky',confidence:strong>=3?3:strong>=2?2:1,numberConfidence,titleConfidence,scaleConfidence,stageConfidence,raw,file};
+  return {number,title,scale,documentationStage,revision,date,declaredFormat,template:'Zeleneč',confidence:strong>=3?3:strong>=2?2:1,numberConfidence,titleConfidence,scaleConfidence,stageConfidence,raw,file};
 }
 function parseTwentyTwentyTitleBlock(lines,raw,file){
   const ascii=removeDiacritics(raw).toUpperCase();
@@ -2374,7 +2413,7 @@ function parseTwentyTwentyTitleBlock(lines,raw,file){
   }
 
   const strong=[numberConfidence,titleConfidence,scaleConfidence,stageConfidence].filter(x=>x>=2).length;
-  return {number,title,scale,documentationStage,revision,date,declaredFormat,template:'20-20 nová rozpiska – buňky',confidence:strong>=3?3:strong>=2?2:1,numberConfidence,titleConfidence,scaleConfidence,stageConfidence,raw,file};
+  return {number,title,scale,documentationStage,revision,date,declaredFormat,template:'2020',confidence:strong>=3?3:strong>=2?2:1,numberConfidence,titleConfidence,scaleConfidence,stageConfidence,raw,file};
 }
 function parseDrawingMeta(lines,items,file){
   const allText=lines.map(l=>l.text);
@@ -2418,7 +2457,7 @@ function parseDrawingPageMeta(textContent,viewport,file){
   const raw=normalizeSpaces((textContent.items||[]).map(x=>x.str||'').join(' '));
   const fullItems=titleBlockItems(textContent,viewport,'full'),fullLines=groupTextLines(fullItems);
   const visualRaw=normalizeSpaces(fullLines.map(l=>l.text).join(' '));
-  const known=parseClassicBilingualTitleBlock(fullLines,raw,file)||parseClassicBilingualTitleBlock(fullLines,visualRaw,file)||parseTwentyTwentyTitleBlock(fullLines,raw,file)||parseTwentyTwentyTitleBlock(fullLines,visualRaw,file);
+  const known=parseClassicBilingualTitleBlock(fullLines,raw,file,fullItems,viewport)||parseClassicBilingualTitleBlock(fullLines,visualRaw,file,fullItems,viewport)||parseTwentyTwentyTitleBlock(fullLines,raw,file)||parseTwentyTwentyTitleBlock(fullLines,visualRaw,file);
   // If a learned title-block family is recognized, never overwrite it with random text from the drawing body.
   if(known)return known;
 
