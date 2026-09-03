@@ -26,7 +26,7 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 .tile span{font-size:12px;color:var(--muted)}
 .menu-status{display:inline-block;margin-left:7px;padding:1px 5px;border:1px solid #d4d4d8;border-radius:999px;background:#f4f4f5;color:#71717a;font:500 9px/1.45 system-ui,Segoe UI,sans-serif;letter-spacing:.45px;vertical-align:2px;text-transform:uppercase}
 
-/* BASECAMP ODKAZ V HLAVNÍM MENU — V3.13a */
+/* BASECAMP ODKAZ V HLAVNÍM MENU — V3.13b */
 .menu-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:0}
 .menu-title-copy{min-width:0}
 .basecamp-launcher{position:relative;display:inline-flex;align-items:center;justify-content:center;width:58px;height:58px;flex:0 0 58px;text-decoration:none;border-radius:16px;outline:none;transition:transform .22s cubic-bezier(.2,.8,.2,1),filter .22s ease;will-change:transform}
@@ -43,7 +43,7 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 @media(max-width:600px){.basecamp-launcher{width:52px;height:52px;flex-basis:52px}.basecamp-launcher svg{width:34px;height:34px}.basecamp-launcher .basecamp-tooltip{display:none}}
 
 
-/* 3D KNIHOVNA VÝROBKŮ — V3.13a BETA */
+/* 3D KNIHOVNA VÝROBKŮ — V3.13b BETA */
 .product3d-search{margin:16px 0;border:1px solid var(--border);border-radius:10px;background:#fafafa;padding:14px}
 .product3d-search-grid{display:grid;grid-template-columns:minmax(260px,1.45fr) minmax(230px,1fr) auto;gap:9px;align-items:end}
 .product3d-search-grid label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted);min-width:0}
@@ -52,11 +52,16 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 .product3d-search-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .product3d-check{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text)}
 .product3d-online-note{margin-left:auto;font-size:10px;color:var(--muted)}
-.product3d-source-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0 18px}
-.product3d-source{border:1px solid var(--border);background:#fff;border-radius:8px;padding:9px 10px;text-align:left;cursor:pointer;transition:.15s;min-width:0}
+.product3d-source-section{margin:12px 0 18px}
+.product3d-source-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap}.product3d-source-head b{font:normal 12px 'Antarctican Mono',monospace}.product3d-source-head span{font-size:9px;color:var(--muted)}
+.product3d-source-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:8px}
+.product3d-source{border:1px solid var(--border);background:#fff;border-radius:8px;padding:10px;text-align:left;cursor:pointer;transition:.15s;min-width:0;display:flex;flex-direction:column;gap:3px;min-height:74px}
 .product3d-source:hover{border-color:#a1a1aa;background:#fefce8;transform:translateY(-1px)}
 .product3d-source b{display:block;font-size:11px;font-weight:600;color:var(--text)}
-.product3d-source span{display:block;font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.product3d-source span{display:block;font-size:9px;color:var(--muted);line-height:1.35}
+.product3d-source em{display:inline-flex;align-self:flex-start;margin-top:auto;padding:2px 5px;border-radius:999px;border:1px solid #d4d4d8;background:#f4f4f5;color:#71717a;font-style:normal;font-size:8px;text-transform:uppercase;letter-spacing:.25px}
+.product3d-source.live em{background:#f0fdf4;border-color:#bbf7d0;color:#166534}.product3d-source.ready{border-color:#d4cc5d;background:#fffef3}
+.product3d-live-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:16px 0 8px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap}.product3d-live-head b{font:normal 12px 'Antarctican Mono',monospace}.product3d-live-head span{font-size:9px;color:var(--muted)}
 .product3d-status{min-height:18px;margin:4px 0 10px;font-size:11px;color:var(--muted)}
 .product3d-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:12px}
 .product3d-card{border:1px solid var(--border);background:#fff;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
@@ -80,8 +85,8 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 .product3d-preview-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#f7f197;border-bottom:1px solid #e2db7d}
 .product3d-preview-head b{font-family:'Antarctican Mono',monospace;font-weight:normal;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .product3d-preview-frame{border:0;width:100%;flex:1;min-height:0;background:#18181b}
-@media(max-width:850px){.product3d-search-grid{grid-template-columns:1fr 1fr}.product3d-source-strip{grid-template-columns:1fr 1fr}.product3d-online-note{width:100%;margin-left:0}}
-@media(max-width:560px){.product3d-search-grid{grid-template-columns:1fr}.product3d-source-strip{grid-template-columns:1fr 1fr}.product3d-results{grid-template-columns:1fr}.product3d-preview-box{width:96vw;height:78vh}}
+@media(max-width:850px){.product3d-search-grid{grid-template-columns:1fr 1fr}.product3d-source-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.product3d-online-note{width:100%;margin-left:0}}
+@media(max-width:560px){.product3d-search-grid{grid-template-columns:1fr}.product3d-source-strip{grid-template-columns:1fr}.product3d-results{grid-template-columns:1fr}.product3d-preview-box{width:96vw;height:78vh}}
 
 .tool-view{display:none;margin-top:10px}
 .tool-view.active{display:block}
@@ -346,7 +351,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:800px){.compare-grid{grid-template-columns:1fr}.compare-diff{grid-column:auto}.docs-summary{grid-template-columns:1fr 1fr}}
 
 
-/* 3D TISK — V3.13a BETA */
+/* 3D TISK — V3.13b BETA */
 .print3d-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.85fr);gap:14px;margin-top:14px}
 .print3d-viewer{border:1px solid var(--border);border-radius:10px;background:#e4e4e7;overflow:hidden;min-height:560px;display:flex;flex-direction:column}
 .print3d-viewer-head{padding:9px 11px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
@@ -370,7 +375,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:900px){.print3d-layout{grid-template-columns:1fr}.print3d-viewer{min-height:460px}#print3d-stage,#print3d-canvas{min-height:400px}}
 
 
-/* 3D TISK — V3.13a: kompaktní rozhraní + záložky */
+/* 3D TISK — V3.13b: kompaktní rozhraní + záložky */
 .print3d-layout{align-items:start}
 .print3d-viewer{height:650px;min-height:0;max-height:72vh;position:sticky;top:10px}
 #print3d-stage{min-height:0;height:100%;flex:1}
@@ -402,7 +407,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version" id="app-version">V3.13a</div>
+  <div class="app-version" id="app-version">V3.13b</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ A DOKUMENTACÍ</div>
 </header>
 
@@ -824,7 +829,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
   <div id="tool-3dmodels" class="tool-view">
     <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
     <h1>3D knihovna výrobků <small class="menu-status">BETA</small></h1>
-    <div class="muted">Vyhledávání skutečných výrobků, nábytku, svítidel, sanity a dekorací. Živé výsledky s 3D náhledem načítá Toolbox ze Sketchfabu; profesionální BIM/CAD databáze jsou dostupné jedním kliknutím. Vyhledávání je online, ale žádné vaše lokální soubory se nikam neposílají.</div>
+    <div class="muted">Vyhledávání skutečných výrobků, nábytku, svítidel, sanity a dekorací napříč více 3D/BIM databázemi. Toolbox připraví stejný dotaz pro všechny zdroje; Sketchfab umí navíc načíst výsledky a 3D náhled přímo do aplikace. Vyhledávání je online, ale žádné vaše lokální soubory se nikam neposílají.</div>
 
     <div class="product3d-search">
       <div class="product3d-search-grid">
@@ -886,7 +891,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <input id="product3d-brand-custom" class="product3d-custom" type="text" placeholder="Napiš vlastní značku / výrobce…" autocomplete="off">
           <span class="product3d-select-note">Seznam je záměrně široký; vlastní výrobce můžeš zadat kdykoliv.</span>
         </label>
-        <button class="action" onclick="search3DProducts()">Hledat 3D modely</button>
+        <button class="action" onclick="search3DProducts()">Hledat ve všech zdrojích</button>
       </div>
       <div class="product3d-search-actions">
         <label class="product3d-check"><input id="product3d-downloadable" type="checkbox" checked> pouze modely označené ke stažení</label>
@@ -895,18 +900,25 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
       </div>
     </div>
 
-    <div class="product3d-source-strip">
-      <button class="product3d-source" onclick="open3DProductSource('archiproducts')"><b>BIM.Archiproducts</b><span>reálné výrobky · BIM / CAD / 3D</span></button>
-      <button class="product3d-source" onclick="open3DProductSource('bimobject')"><b>BIMobject</b><span>výrobci · BIM objekty</span></button>
-      <button class="product3d-source" onclick="open3DProductSource('warehouse')"><b>3D Warehouse</b><span>SketchUp modely a kolekce</span></button>
-      <button class="product3d-source" onclick="open3DProductSource('sketchfab')"><b>Sketchfab</b><span>živé 3D modely a náhledy</span></button>
+    <div class="product3d-source-section">
+      <div class="product3d-source-head"><b>PROHLEDÁVANÉ ZDROJE</b><span>Po hledání se všechny odkazy nastaví na stejný výrobek + výrobce.</span></div>
+      <div id="product3d-source-strip" class="product3d-source-strip">
+        <button class="product3d-source" data-source="archiproducts" onclick="open3DProductSource('archiproducts')"><b>BIM.Archiproducts</b><span>reálné výrobky · BIM / CAD / 3D</span><em>BIM/CAD</em></button>
+        <button class="product3d-source" data-source="bimobject" onclick="open3DProductSource('bimobject')"><b>BIMobject</b><span>výrobci · BIM objekty · přímé hledání</span><em>BIM</em></button>
+        <button class="product3d-source" data-source="warehouse" onclick="open3DProductSource('warehouse')"><b>3D Warehouse</b><span>SketchUp modely · přímé hledání</span><em>SKP</em></button>
+        <button class="product3d-source live" data-source="sketchfab" onclick="open3DProductSource('sketchfab')"><b>Sketchfab</b><span>živé výsledky + 3D náhled v Toolboxu</span><em>LIVE API</em></button>
+        <button class="product3d-source" data-source="3dfindit" onclick="open3DProductSource('3dfindit')"><b>3Dfindit</b><span>výrobcem ověřené CAD/BIM katalogy</span><em>CAD/BIM</em></button>
+        <button class="product3d-source" data-source="syncronia" onclick="open3DProductSource('syncronia')"><b>Syncronia</b><span>designové značky · 3D / BIM / CAD</span><em>DESIGN</em></button>
+        <button class="product3d-source" data-source="caddetails" onclick="open3DProductSource('caddetails')"><b>CADdetails</b><span>výrobci · CAD / BIM / SketchUp</span><em>CAD/BIM</em></button>
+      </div>
     </div>
 
-    <div id="product3d-status" class="product3d-status">Vyber výrobek a výrobce, nebo u obou použij „Vlastní…“. Značka se kontroluje jako celé slovo / název — například TON se už nesplete s „Gastone“ nebo „two-tone“.</div>
+    <div id="product3d-status" class="product3d-status">Vyber výrobek a výrobce. Hledání připraví dotaz pro všechny zdroje; živé karty níže jsou označené konkrétním zdrojem.</div>
+    <div class="product3d-live-head"><b>ŽIVÉ VÝSLEDKY · SKETCHFAB</b><span>Ostatní databáze otevřeš výše se stejným dotazem — jejich veřejné API není dostupné přímo v prohlížeči.</span></div>
     <div id="product3d-results" class="product3d-results">
       <div class="product3d-empty"><b>3D vyhledávač je připraven.</b><br>Například: <i>Vitra + lounge chair</i>, <i>Artemide + pendant light</i>, <i>Muuto + sofa</i> nebo <i>Duravit + washbasin</i>.</div>
     </div>
-    <div class="product3d-disclaimer"><b>Důležité:</b> Toolbox neoznačuje komunitní 3D model automaticky za oficiální výrobní data. U Sketchfabu vždy zobrazuje autora a licenci; přesnou shodu rozměrů ověřte na stránce výrobce. Pro projekční podklady mají přednost BIM.Archiproducts / BIMobject nebo oficiální web výrobce.</div>
+    <div class="product3d-disclaimer"><b>Důležité:</b> Toolbox neoznačuje komunitní 3D model automaticky za oficiální výrobní data. U Sketchfabu vždy zobrazuje autora a licenci; přesnou shodu rozměrů ověřte na stránce výrobce. Pro projekční podklady mají přednost BIM.Archiproducts, BIMobject, 3Dfindit, Syncronia nebo oficiální web výrobce.</div>
   </div>
 
   <div id="product3d-preview-modal" role="dialog" aria-modal="true" aria-label="3D náhled modelu" onclick="if(event.target===this)close3DProductPreview()">
@@ -1275,7 +1287,7 @@ function initProjectStorageUI() {
   const button = document.getElementById('projects-storage-btn');
   const autosave = document.getElementById('project-autosave-note');
   if (projectStorageMode === 'browser') {
-    if (version) version.textContent = 'V3.13a · SAFARI';
+    if (version) version.textContent = 'V3.13b · SAFARI';
     if (note) note.innerHTML = 'Vyberte existující projekt, nebo založte nový. V Safari se projekty ukládají <b>lokálně v tomto Macu</b> do úložiště Safari a načítají se přímo ze seznamu projektů.';
     if (warning) {
       warning.style.display = 'block';
@@ -1284,7 +1296,7 @@ function initProjectStorageUI() {
     if (button) button.textContent = '🔄 Obnovit seznam projektů';
     if (autosave) autosave.textContent = '(automatické ukládání v Safari)';
   } else {
-    if (version) version.textContent = 'V3.13a';
+    if (version) version.textContent = 'V3.13b';
     if (note) note.innerHTML = 'Vyberte existující projekt, nebo založte nový. Projekty se ukládají do složky <code>saved_projects</code>.';
     if (warning) warning.style.display = 'none';
     if (button) button.textContent = '🔄 Připojit / obnovit složku saved_projects';
@@ -5736,7 +5748,7 @@ async function runPanel(fromModal = false){
 
 
 // ============================================================
-// 3D TISK — V3.13a BETA
+// 3D TISK — V3.13b BETA
 // ============================================================
 const print3dState={
   initialized:false,deps:null,renderer:null,scene:null,camera:null,controls:null,root:null,file:null,
@@ -6093,7 +6105,7 @@ async function export3DPrintGcode(){
   try{
     const layers=calc3DPrintLayerCount(),nozzle=num3D('print3d-nozzle',.4),width=nozzle*1.125,firstH=num3D('print3d-first-layer',.2),lh=num3D('print3d-layer-height',.15),perims=Math.max(1,Math.round(num3D('print3d-perimeters',3))),top=Math.max(1,Math.round(num3D('print3d-top-solid',5))),bottom=Math.max(1,Math.round(num3D('print3d-bottom-solid',4))),perimSpeed=num3D('print3d-speed-perim',35)*60,infillSpeed=num3D('print3d-speed-infill',50)*60,supportSpeed=Math.min(num3D('print3d-speed-infill',50),40)*60,travelSpeed=num3D('print3d-speed-travel',180)*60,retract=Math.max(0,num3D('print3d-retract',.8)),zhop=Math.max(0,num3D('print3d-zhop',.4)),fan=Math.round(Math.max(0,Math.min(100,num3D('print3d-fan',50)))*2.55),noz1=Math.round(num3D('print3d-nozzle-first',230)),noz=Math.round(num3D('print3d-nozzle-temp',240)),bed1=Math.round(num3D('print3d-bed-first',85)),bed=Math.round(num3D('print3d-bed-temp',90)),filArea=Math.PI*Math.pow(1.75/2,2),brim=Math.max(0,num3D('print3d-brim',0)),bounds=get3DPrintXYBounds();
     if(!bounds)throw new Error('Nelze získat rozměry modelu.');const ox=bx/2-(bounds.minX+bounds.maxX)/2,oy=by/2-(bounds.minY+bounds.maxY)/2;
-    const g=[];g.push('; generated by 20-20-TOOLBOX V3.13a','; printer_model = Original Prusa i3 MK3S',`; source = ${f.name}`,`; layer_height = ${lh}`,`; first_layer_height = ${firstH}`,`; nozzle_diameter = ${nozzle}`,`; filament_type = ${document.getElementById('print3d-material')?.value?.toUpperCase()||'PETG'}`,`; fill_density = ${num3D('print3d-infill',12)}%`, `; support_material = ${(document.getElementById('print3d-supports')?.value||'off')}`, `; support_density = ${num3D('print3d-support-density',15)}%`,'; verify this BETA G-code in PrusaSlicer G-code Viewer before printing','M83 ; relative extrusion','G90 ; absolute coordinates','G21 ; millimeters',`M104 S${noz1} ; nozzle temp`,`M140 S${bed1} ; bed temp`,`M190 S${bed1} ; wait bed`,`M109 S${noz1} ; wait nozzle`,'G28 W ; home without mesh leveling','G80 ; mesh bed leveling',`G1 Z${firstH.toFixed(3)} F7200`,'G92 E0','G1 Y-3.0 F1000','G1 X60.0 E9.0 F1000','G1 X100.0 E12.5 F1000','G92 E0','M107');
+    const g=[];g.push('; generated by 20-20-TOOLBOX V3.13b','; printer_model = Original Prusa i3 MK3S',`; source = ${f.name}`,`; layer_height = ${lh}`,`; first_layer_height = ${firstH}`,`; nozzle_diameter = ${nozzle}`,`; filament_type = ${document.getElementById('print3d-material')?.value?.toUpperCase()||'PETG'}`,`; fill_density = ${num3D('print3d-infill',12)}%`, `; support_material = ${(document.getElementById('print3d-supports')?.value||'off')}`, `; support_density = ${num3D('print3d-support-density',15)}%`,'; verify this BETA G-code in PrusaSlicer G-code Viewer before printing','M83 ; relative extrusion','G90 ; absolute coordinates','G21 ; millimeters',`M104 S${noz1} ; nozzle temp`,`M140 S${bed1} ; bed temp`,`M190 S${bed1} ; wait bed`,`M109 S${noz1} ; wait nozzle`,'G28 W ; home without mesh leveling','G80 ; mesh bed leveling',`G1 Z${firstH.toFixed(3)} F7200`,'G92 E0','G1 Y-3.0 F1000','G1 X60.0 E9.0 F1000','G1 X100.0 E12.5 F1000','G92 E0','M107');
     let cx=100,cy=-3,cz=0,retracted=false,totalE=0;const eFor=(len,h)=>len*width*h/filArea;
     const travel=(x,y,z)=>{const dist=Math.hypot(x-cx,y-cy);if(dist>2&&retract>0&&!retracted){g.push(`G1 E-${retract.toFixed(3)} F2100`);retracted=true}if(zhop>0&&dist>2)g.push(`G1 Z${Math.min(bz,z+zhop).toFixed(3)} F7200`);g.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} F${Math.round(travelSpeed)}`);if(zhop>0&&dist>2)g.push(`G1 Z${z.toFixed(3)} F7200`);if(retracted){g.push(`G1 E${retract.toFixed(3)} F2100`);retracted=false}cx=x;cy=y;cz=z};
     const extrudePolyline=(poly,z,h,speed,closed=true)=>{if(!poly||poly.length<2)return;const p0=poly[0];travel(p0[0]+ox,p0[1]+oy,z);const n=closed?poly.length+1:poly.length;for(let i=1;i<n;i++){const p=poly[i%poly.length],x=p[0]+ox,y=p[1]+oy,len=Math.hypot(x-cx,y-cy);if(len<1e-5)continue;const e=eFor(len,h);g.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} E${e.toFixed(5)} F${Math.round(speed)}`);cx=x;cy=y;totalE+=e}};
@@ -6114,13 +6126,13 @@ async function export3DPrintGcode(){
 async function export3DPrintSTL(){const root=print3dState.root,f=print3dState.file;if(!root||!f)return;try{const {STLExporter}=await get3DPrintDeps();root.updateMatrixWorld(true);const data=new STLExporter().parse(root,{binary:true});let blob;if(data instanceof DataView)blob=new Blob([data.buffer],{type:'model/stl'});else if(data instanceof ArrayBuffer)blob=new Blob([data],{type:'model/stl'});else blob=new Blob([data],{type:'model/stl'});const a=document.createElement('a'),ratio=String(document.getElementById('print3d-scale').value||1).replace(/[^0-9._-]/g,'');a.href=URL.createObjectURL(blob);a.download=f.name.replace(/\.[^.]+$/,'')+`_3DPRINT_1-${ratio}.stl`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);document.getElementById('st-3dprint').textContent='STL model exportován (vedlejší export).'}catch(e){console.error(e);alert('STL se nepodařilo vytvořit: '+e.message)}}
 
 
-// 3D KNIHOVNA VÝROBKŮ — V3.13a BETA
+// 3D KNIHOVNA VÝROBKŮ — V3.13b BETA
 const product3DState={initialized:false,abort:null,lastResults:[]};
 function init3DProductFinder(){
   if(product3DState.initialized)return;product3DState.initialized=true;
   ['product3d-query-custom','product3d-brand-custom'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();search3DProducts()}})});
   ['product3d-type-select','product3d-brand-select'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();search3DProducts()}})});
-  sync3DProductCustomFields();
+  sync3DProductCustomFields();refresh3DProductSourceLinks();
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('product3d-preview-modal')?.classList.contains('active'))close3DProductPreview()});
 }
 function sync3DProductCustomFields(){
@@ -6135,6 +6147,29 @@ function product3DSearchParts(){
   const q=(typeSel==='__custom__'?(document.getElementById('product3d-query-custom')?.value||''):typeSel).trim();
   const brand=(brandSel==='__custom__'?(document.getElementById('product3d-brand-custom')?.value||''):brandSel).trim();
   return {q,brand,full:[brand,q].filter(Boolean).join(' ').replace(/\s+/g,' ').trim()};
+}
+function product3DSourceUrl(source,p=product3DSearchParts()){
+  const query=(p.full||[p.brand,p.q].filter(Boolean).join(' ').trim()||'furniture').trim();
+  if(source==='sketchfab')return 'https://sketchfab.com/search?type=models&q='+encodeURIComponent(query);
+  if(source==='bimobject')return 'https://www.bimobject.com/en/search?fullText='+encodeURIComponent(query);
+  if(source==='warehouse')return 'https://3dwarehouse.sketchup.com/search/models?direction=desc&order=relevance&q='+encodeURIComponent(query);
+  const domains={
+    archiproducts:'bim.archiproducts.com',
+    '3dfindit':'3dfindit.com',
+    syncronia:'syncronia.com',
+    caddetails:'caddetails.com'
+  };
+  const domain=domains[source];if(!domain)return '';
+  // These sites do not expose an anonymous browser search API usable by this static GitHub Pages app.
+  // Use a site-restricted web query so the click lands on results from that database instead of pretending they are Sketchfab cards.
+  return 'https://www.google.com/search?q='+encodeURIComponent(`site:${domain} ${query} (3D OR BIM OR CAD)`);
+}
+function refresh3DProductSourceLinks(p=product3DSearchParts()){
+  document.querySelectorAll('#product3d-source-strip .product3d-source').forEach(btn=>{
+    const source=btn.dataset.source,url=product3DSourceUrl(source,p);
+    btn.dataset.searchUrl=url;btn.classList.toggle('ready',!!p.full);
+    const note=btn.querySelector('span');if(note&&p.full)btn.title=`Hledat „${p.full}“ v ${btn.querySelector('b')?.textContent||source}`;
+  });
 }
 function product3DEscape(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function product3DThumb(model){const arr=model?.thumbnails?.images||[];if(!arr.length)return '';return arr.slice().sort((a,b)=>(b.width||0)-(a.width||0))[0]?.url||arr[0]?.url||''}
@@ -6160,16 +6195,16 @@ function render3DProductResults(models,brand=''){
 }
 async function search3DProducts(){
   init3DProductFinder();const p=product3DSearchParts(),status=document.getElementById('product3d-status'),box=document.getElementById('product3d-results');if(!p.q&&!p.brand){if(status)status.textContent='Vyber výrobek nebo výrobce, případně použij „Vlastní…“.';const ts=document.getElementById('product3d-type-select');if(ts?.value==='__custom__')document.getElementById('product3d-query-custom')?.focus();else document.getElementById('product3d-type-select')?.focus();return}
-  if(product3DState.abort)product3DState.abort.abort();const ctrl=new AbortController();product3DState.abort=ctrl;if(status)status.textContent='Hledám živé 3D modely…';if(box)box.innerHTML='<div class="product3d-empty">Načítám výsledky…</div>';
+  if(product3DState.abort)product3DState.abort.abort();const ctrl=new AbortController();product3DState.abort=ctrl;refresh3DProductSourceLinks(p);if(status)status.textContent=`Dotaz „${p.full}“ je připraven pro 7 zdrojů. Načítám živé karty ze Sketchfabu…`;if(box)box.innerHTML='<div class="product3d-empty">Načítám živé výsledky ze Sketchfabu…</div>';
   try{
     const u=new URL('https://api.sketchfab.com/v3/search');u.searchParams.set('type','models');u.searchParams.set('q',p.full);u.searchParams.set('count','24');if(document.getElementById('product3d-downloadable')?.checked)u.searchParams.set('downloadable','true');
     const r=await fetch(u.toString(),{method:'GET',mode:'cors',headers:{Accept:'application/json'},signal:ctrl.signal});if(!r.ok)throw new Error(`Sketchfab API ${r.status}`);const data=await r.json();let models=Array.isArray(data?.results)?data.results:(Array.isArray(data?.results?.models)?data.results.models:[]);models=models.filter(m=>m&&m.uid&&!m.isAgeRestricted);
-    const strict=document.getElementById('product3d-strict-brand')?.checked;const beforeBrandFilter=models.length;if(strict&&p.brand)models=models.filter(m=>product3DMatchesBrand(m,p.brand));render3DProductResults(models,p.brand);if(status){if(strict&&p.brand&&!models.length&&beforeBrandFilter){status.textContent=`Sketchfab našel výsledky pro „${p.full}“, ale žádný nemá ověřitelnou přesnou shodu výrobce „${p.brand}“. Falešné shody jsem skryl.`}else status.textContent=`Nalezeno ${models.length} živých výsledků pro „${p.full}“. ${p.brand&&strict?'Výrobce ověřen po celých slovech.':''}`;}
-  }catch(e){if(e?.name==='AbortError')return;console.warn('3D product search failed',e);if(status)status.textContent='Živé vyhledávání se nepodařilo načíst. Použij tlačítka BIM/CAD databází níže nebo otevři Sketchfab vyhledávání.';if(box)box.innerHTML='<div class="product3d-empty"><b>Živé API není právě dostupné.</b><br>Vyhledávací dotaz ti ale Toolbox pošle do vybraných profesionálních databází pomocí tlačítek nahoře.</div>'}
+    const strict=document.getElementById('product3d-strict-brand')?.checked;const beforeBrandFilter=models.length;if(strict&&p.brand)models=models.filter(m=>product3DMatchesBrand(m,p.brand));render3DProductResults(models,p.brand);if(status){if(strict&&p.brand&&!models.length&&beforeBrandFilter){status.textContent=`7 zdrojů připraveno. Sketchfab našel výsledky pro „${p.full}“, ale žádný nemá přesnou shodu výrobce „${p.brand}“, proto jsem je skryl.`}else status.textContent=`7 zdrojů připraveno · Sketchfab: ${models.length} živých výsledků pro „${p.full}“. ${p.brand&&strict?'Výrobce ověřen po celých slovech.':''}`;}
+  }catch(e){if(e?.name==='AbortError')return;console.warn('3D product search failed',e);if(status)status.textContent='Dotazy pro ostatní databáze jsou připravené. Jen živé Sketchfab API se právě nepodařilo načíst.';if(box)box.innerHTML='<div class="product3d-empty"><b>Sketchfab živé karty nejsou právě dostupné.</b><br>Zdrojová tlačítka nahoře jsou ale nastavená na stejný výrobek a výrobce a fungují dál.</div>'}
 }
 function open3DProductPreview(index){const m=product3DState.lastResults[index];if(!m?.uid)return;const modal=document.getElementById('product3d-preview-modal'),frame=document.getElementById('product3d-preview-frame'),title=document.getElementById('product3d-preview-title');if(title)title.textContent=m.name||'3D náhled';if(frame)frame.src=`https://sketchfab.com/models/${encodeURIComponent(m.uid)}/embed?autostart=1&ui_infos=1&ui_controls=1&ui_stop=0`;modal?.classList.add('active')}
 function close3DProductPreview(){const modal=document.getElementById('product3d-preview-modal'),frame=document.getElementById('product3d-preview-frame');modal?.classList.remove('active');if(frame)frame.src=''}
-function open3DProductSource(source){const p=product3DSearchParts(),query=[p.brand,p.q].filter(Boolean).join(' ').trim()||'furniture';let url='';if(source==='sketchfab')url='https://sketchfab.com/search?type=models&q='+encodeURIComponent(query);else{const domains={archiproducts:'bim.archiproducts.com',bimobject:'bimobject.com',warehouse:'3dwarehouse.sketchup.com'},domain=domains[source];if(!domain)return;url='https://www.google.com/search?q='+encodeURIComponent(`site:${domain} ${query} 3D BIM CAD`)}window.open(url,'_blank','noopener,noreferrer')}
+function open3DProductSource(source){const btn=document.querySelector(`#product3d-source-strip .product3d-source[data-source="${source}"]`),url=btn?.dataset.searchUrl||product3DSourceUrl(source);if(!url)return;window.open(url,'_blank','noopener,noreferrer')}
 
 </script>
 </body>
