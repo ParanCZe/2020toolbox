@@ -44,6 +44,19 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .browser-warning{background:#fef2f2;border:1px solid #fecaca;padding:12px 16px;border-radius:8px;margin:10px 0;color:#b91c1c;font-size:14px;display:none;}
 .browser-warning strong{color:#dc2626;}
 
+
+/* SPRÁVA ÚLOŽIŠTĚ A NAČTENÝCH DAT */
+.storage-overview{margin:14px 0;padding:14px;border:1px solid var(--border);border-radius:9px;background:#fafafa}
+.storage-overview-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:9px}
+.storage-overview-head b{font-family:'Antarctican Mono',monospace;font-weight:normal;font-size:13px}
+.storage-meter{height:9px;border-radius:999px;background:#e4e4e7;overflow:hidden;margin:7px 0}.storage-meter>div{height:100%;background:#18181b;width:0;transition:width .2s}
+.storage-meta{font-size:11px;color:var(--muted);line-height:1.5}
+.project-card{border:1px solid var(--border);border-radius:9px;background:#fff;padding:15px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.project-card-title{font-family:'Antarctican Mono',monospace;font-size:15px;overflow-wrap:anywhere}.project-card-meta{font-size:11px;color:var(--muted);line-height:1.55;min-height:34px}.project-card-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:auto}.danger-btn{border:1px solid #fecaca;background:#fff;color:#b91c1c;border-radius:6px;padding:7px 10px;cursor:pointer;font-size:12px}.danger-btn:hover{background:#fef2f2;border-color:#ef4444}
+.loaded-files-panel{margin:10px 0;border:1px solid var(--border);border-radius:8px;background:#fafafa;overflow:hidden}.loaded-files-panel:empty{display:none}.loaded-files-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted)}
+.loaded-file-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:9px;align-items:center;padding:7px 10px;border-bottom:1px solid #ededf0;font-size:12px}.loaded-file-row:last-child{border-bottom:0}.loaded-file-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.loaded-file-size{color:var(--muted);font-size:11px;white-space:nowrap}.mini-remove{border:1px solid #fecaca;background:#fff;color:#b91c1c;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:11px}.mini-remove:hover{background:#fef2f2}
+.session-data-overview{margin-top:18px;border-top:1px solid var(--border);padding-top:14px}.session-data-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin-top:10px}.session-data-card{border:1px solid var(--border);border-radius:8px;background:#fafafa;padding:10px}.session-data-card b{display:block;font-family:'Antarctican Mono',monospace;font-weight:normal;font-size:12px;margin-bottom:5px}.session-data-files{font-size:11px;color:var(--muted);line-height:1.45;max-height:76px;overflow:auto;overflow-wrap:anywhere}
+
 /* MODÁLNÍ OKNO PRO NÁHLED */
 #preview-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; align-items:center; justify-content:center; padding:10px; }
 #preview-content { background:#fff; border-radius:12px; width:calc(100vw - 20px); max-width:none; height:calc(100vh - 20px); max-height:none; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.2); }
@@ -282,7 +295,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version" id="app-version">V3.12o</div>
+  <div class="app-version" id="app-version">V3.12p</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ A DOKUMENTACÍ</div>
 </header>
 
@@ -295,6 +308,10 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
       <div class="tile" onclick="openTool('pdfa')"><b>Konverze do PDF/A</b><span>Standardy 1b, 2b, 3b + hromadný ZIP</span></div>
       <div class="tile" onclick="openPanelProjects()"><b>Prezentační nástroj</b><span>Vytvářejte prezentace v pár kliknutích</span></div>
       <div class="tile" onclick="openTool('docs'); openDocsSection('preflight')"><b>Dokumentační nástroje</b><span>Pre-flight, seznam výkresů, přejmenování a porovnání PDF</span></div>
+    </div>
+    <div class="session-data-overview">
+      <div class="storage-overview-head"><b>NAČTENÁ DATA V TÉTO RELACI</b><span class="muted" style="margin:0;font-size:11px">Přehled toho, co je právě načtené v jednotlivých částech aplikace.</span></div>
+      <div id="session-data-overview" class="session-data-grid"></div>
     </div>
   </div>
 
@@ -364,6 +381,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
         <b>Sem přetáhni PDF dokumentaci</b><br><span style="color:var(--muted);font-size:12px">můžeš vybrat desítky PDF najednou</span>
         <input id="f-preflight" type="file" accept=".pdf" multiple hidden onchange="handleDocFiles(this.files,'preflight')">
       </div>
+      <div id="loaded-preflight" class="loaded-files-panel"></div>
       <div class="row">
         <button class="action" id="btn-preflight" disabled onclick="runPreflight()">Spustit kontrolu</button>
         <button class="back-btn" id="btn-preflight-csv" style="margin:0" disabled onclick="downloadPreflightCsv()">Export CSV</button>
@@ -416,6 +434,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
         <b>Nebo sem přetáhni / vyber jednotlivá PDF</b><br><span style="color:var(--muted);font-size:12px">číslo, název, měřítko a stupeň dokumentace se aplikace pokusí přečíst z rozpisky; jednotlivá PDF zůstávají podporovaná</span>
         <input id="f-drawinglist" type="file" accept=".pdf" multiple hidden onchange="handleDocFiles(this.files,'drawinglist')">
       </div>
+      <div id="loaded-drawinglist" class="loaded-files-panel"></div>
       <div class="row">
         <button class="action" id="btn-drawinglist" disabled onclick="buildDrawingList()">Přečíst rozpisky</button>
         <button class="back-btn" style="margin:0" onclick="addDrawingListRow()">+ Ruční řádek</button>
@@ -440,6 +459,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
         <b>Sem přetáhni soubory k přejmenování</b><br><span style="color:var(--muted);font-size:12px">pokud už máš vytvořený seznam výkresů, aplikace ho automaticky použije</span>
         <input id="f-renamer" type="file" multiple hidden onchange="handleDocFiles(this.files,'renamer')">
       </div>
+      <div id="loaded-renamer" class="loaded-files-panel"></div>
       <div class="row">
         <button class="action" id="btn-renamer" disabled onclick="downloadRenamedZip()">Stáhnout přejmenované jako ZIP</button>
         <button class="back-btn" style="margin:0" onclick="useDrawingListForRenamer()">Použít soubory ze seznamu výkresů</button>
@@ -462,6 +482,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
         <label><input id="compareAutoAlign" type="checkbox" checked onchange="scheduleCompareRender()"> automaticky dorovnat layout</label>
         <label>Filtr drobných bodů <select id="compareNoiseFilter" onchange="scheduleCompareRender()"><option value="1">Vypnuto</option><option value="4" selected>Normální</option><option value="8">Silný</option></select></label>
       </div>
+      <div id="loaded-compare" class="loaded-files-panel"></div>
       <div class="row"><button type="button" class="action" onclick="openCompareFullscreen('diff')">⛶ Zvětšit porovnání</button><span id="st-compare" class="muted" style="margin:0">Nahraj obě PDF.</span></div>
       <div class="compare-grid">
         <div class="compare-card"><div class="compare-card-head"><h3>STARŠÍ VERZE — VEKTOROVÝ NÁHLED</h3><button class="compare-open-btn" onclick="openCompareFullscreen('a')">⛶ Zvětšit</button></div><div id="compareVectorA" class="compare-vector"><div class="docs-empty">Nahraj PDF…</div></div><canvas id="compareCanvasA" class="compare-working-canvas"></canvas></div>
@@ -500,6 +521,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
       <button id="projects-storage-btn" class="action" style="background:#52525b;" onclick="refreshProjectsList(true)">🔄 Obnovit projekty</button>
       <span id="st-projects" class="muted" style="margin:0;"></span>
     </div>
+    <div id="project-storage-usage" class="storage-overview"><div class="storage-meta">Načítám informace o úložišti…</div></div>
 
     <div id="projects-grid" class="grid" style="margin-top:18px;"></div>
   </div>
@@ -971,6 +993,39 @@ function idbDelete(key) {
   });
 }
 
+function idbEntriesWithPrefix(prefix) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(PROJ_DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(PROJ_STORE_NAME);
+    req.onsuccess = () => {
+      const tx = req.result.transaction(PROJ_STORE_NAME, 'readonly');
+      const store = tx.objectStore(PROJ_STORE_NAME), out = [];
+      const cur = store.openCursor();
+      cur.onsuccess = () => {
+        const c = cur.result;
+        if (!c) { resolve(out); return; }
+        if (String(c.key).startsWith(prefix)) out.push({key:String(c.key), value:c.value});
+        c.continue();
+      };
+      cur.onerror = () => reject(cur.error);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbDeletePrefix(prefix) {
+  const entries = await idbEntriesWithPrefix(prefix).catch(() => []);
+  for (const e of entries) await idbDelete(e.key).catch(() => {});
+}
+function approximateStoredBytes(value) {
+  if (value == null) return 0;
+  if (value instanceof Uint8Array) return value.byteLength;
+  if (value instanceof ArrayBuffer) return value.byteLength;
+  if (ArrayBuffer.isView(value)) return value.byteLength || 0;
+  if (typeof value === 'string') return new Blob([value]).size;
+  if (value && value.bytes) return approximateStoredBytes(value.bytes) + new Blob([String(value.name||'')]).size;
+  try { return new Blob([JSON.stringify(value)]).size; } catch(e) { return 0; }
+}
+
 async function getBrowserProjectIndex() {
   const value = await idbGet('browserProjectsIndex').catch(() => null);
   return Array.isArray(value) ? value : [];
@@ -1057,6 +1112,70 @@ function getProjectState() {
 // Safari i Chromium používají přímé projektové ukládání.
 
 
+
+
+async function scanProjectDirectory(dirHandle, base='') {
+  const files=[];
+  for await (const [name, handle] of dirHandle.entries()) {
+    const path=base?base+'/'+name:name;
+    if(handle.kind==='file'){
+      try{const f=await handle.getFile();files.push({name:path,size:f.size,lastModified:f.lastModified});}catch(e){}
+    }else if(handle.kind==='directory'){
+      try{files.push(...await scanProjectDirectory(handle,path));}catch(e){}
+    }
+  }
+  return files;
+}
+async function getProjectInfo(name){
+  if(projectStorageMode==='browser'){
+    const meta=await idbGet('projectMeta:'+name).catch(()=>null);
+    const state=await idbGet('projectState:'+name).catch(()=>null);
+    const pdf=await idbGet('projectPdf:'+name).catch(()=>null);
+    const images=await idbEntriesWithPrefix('projectImage:'+name+':').catch(()=>[]);
+    const parts=[];let size=0;
+    if(pdf?.bytes){const n=approximateStoredBytes(pdf);size+=n;parts.push({name:pdf.name||'source.pdf',size:n,type:'PDF'});}
+    if(state){const n=approximateStoredBytes(state);size+=n;parts.push({name:'nastavení projektu',size:n,type:'DATA'});}
+    for(const img of images){const n=approximateStoredBytes(img.value);size+=n;parts.push({name:img.key.split(':').slice(2).join(':')||'obrázek',size:n,type:'OBRÁZEK'});}
+    return {name,size,files:parts,updatedAt:meta?.updatedAt||state?.updatedAt||0};
+  }
+  try{
+    const root=await getSavedProjectsDirHandle(false);if(!root)return{name,size:0,files:[]};
+    const dir=await root.getDirectoryHandle(name,{create:false});const files=await scanProjectDirectory(dir);
+    return {name,size:files.reduce((a,x)=>a+x.size,0),files,updatedAt:Math.max(0,...files.map(x=>x.lastModified||0))};
+  }catch(e){return{name,size:0,files:[]};}
+}
+async function deleteProject(name,event){
+  if(event){event.preventDefault();event.stopPropagation();}
+  if(!confirm(`Opravdu odstranit projekt „${name}“ včetně jeho uloženého PDF, nastavení a obrázků?`))return;
+  try{
+    if(projectStorageMode==='browser'){
+      await idbDelete('projectState:'+name).catch(()=>{});await idbDelete('projectMeta:'+name).catch(()=>{});await idbDelete('projectPdf:'+name).catch(()=>{});await idbDeletePrefix('projectImage:'+name+':');
+      const names=(await getBrowserProjectIndex()).filter(x=>x!==name);await setBrowserProjectIndex(names);
+    }else{
+      const root=await getSavedProjectsDirHandle(false);if(!root)throw new Error('Složka saved_projects není připojena.');
+      await root.removeEntry(name,{recursive:true});
+      await idbDelete('projectState:'+name).catch(()=>{});await idbDeletePrefix('projectImage:'+name+':');
+    }
+    if(currentProjectName===name){currentProjectName=null;currentProjectDirHandle=null;filesData.panel=[];loadedFileBytes=null;pdfJsDoc=null;}
+    await refreshProjectsList(false);
+  }catch(e){alert('Projekt se nepodařilo odstranit: '+e.message);}
+}
+function projectContentsSummary(info){
+  const files=info?.files||[];if(!files.length)return 'Bez uložených souborů';
+  return `<div style="max-height:150px;overflow:auto">${files.map(f=>`${escapeHtml(f.name)} (${formatBytes(f.size)})`).join('<br>')}</div>`;
+}
+async function updateProjectStorageUsage(infos){
+  const box=document.getElementById('project-storage-usage');if(!box)return;
+  const projectBytes=(infos||[]).reduce((a,x)=>a+(x.size||0),0);
+  if(projectStorageMode==='browser'){
+    let usage=0,quota=0,persisted=false;
+    try{const e=await navigator.storage?.estimate?.();usage=e?.usage||0;quota=e?.quota||0;persisted=await navigator.storage?.persisted?.()||false;}catch(e){}
+    const pct=quota?Math.min(100,usage/quota*100):0;
+    box.innerHTML=`<div class="storage-overview-head"><b>SAFARI — LOKÁLNÍ ÚLOŽIŠTĚ</b><span>${formatBytes(projectBytes)} v projektech Toolboxu</span></div><div class="storage-meter"><div style="width:${pct.toFixed(2)}%"></div></div><div class="storage-meta">Safari hlásí využití tohoto webu přibližně <b>${formatBytes(usage)}</b>${quota?` z dostupných <b>${formatBytes(quota)}</b>`:''}. ${persisted?'Trvalé úložiště je povolené.':'Trvalé úložiště není prohlížečem potvrzené.'}<br>Projektová data lze mazat jednotlivě tlačítkem u projektu.</div>`;
+  }else{
+    box.innerHTML=`<div class="storage-overview-head"><b>WINDOWS — SLOŽKA SAVED_PROJECTS</b><span>${formatBytes(projectBytes)} celkem</span></div><div class="storage-meta">Zobrazená velikost je součet skutečných souborů uvnitř projektových složek. Každý projekt můžeš odstranit přímo tlačítkem <b>Smazat</b>.</div>`;
+  }
+}
 
 async function listProjects() {
   if (projectStorageMode === 'browser') return await getBrowserProjectIndex();
@@ -1436,6 +1555,7 @@ async function refreshProjectsList(forcePicker) {
     const dir = await getSavedProjectsDirHandle(!!forcePicker);
     if (!dir) {
       status.textContent = 'Složka „saved_projects“ není připojena. Klikněte na „Připojit / obnovit složku saved_projects“.';
+      const usage=document.getElementById('project-storage-usage');if(usage)usage.innerHTML='<div class="storage-meta">Složka saved_projects není připojena.</div>';
       return;
     }
   } else {
@@ -1443,11 +1563,15 @@ async function refreshProjectsList(forcePicker) {
   }
 
   const names = await listProjects();
+  const infos=[];
+  for(const name of names) infos.push(await getProjectInfo(name));
   const suffix = projectStorageMode === 'browser' ? ' · Safari lokálně' : '';
   status.textContent = names.length ? `${names.length} projekt(ů)${suffix}` : `Zatím žádné projekty${suffix} — založte první.`;
-  grid.innerHTML = names.map(n =>
-    `<div class="tile" onclick="loadProject('${n.replace(/'/g, "\'")}')"><b>${n}</b><span>Otevřít projekt</span></div>`
-  ).join('');
+  grid.innerHTML = infos.map(info => {
+    const n=info.name, safe=encodeURIComponent(n), updated=info.updatedAt?new Date(info.updatedAt).toLocaleString('cs-CZ'):'–';
+    return `<div class="project-card"><div class="project-card-title">${escapeHtml(n)}</div><div class="project-card-meta"><b>${formatBytes(info.size||0)}</b> · ${info.files.length} uložených položek · naposledy ${escapeHtml(updated)}<details style="margin-top:5px"><summary>Co projekt obsahuje</summary><div style="margin-top:5px">${projectContentsSummary(info)}</div></details></div><div class="project-card-actions"><button class="action" style="padding:7px 11px" onclick="loadProject(decodeURIComponent('${safe}'))">Otevřít</button><button class="danger-btn" onclick="deleteProject(decodeURIComponent('${safe}'),event)">🗑 Smazat</button></div></div>`;
+  }).join('');
+  await updateProjectStorageUsage(infos);
 }
 
 function handleNewProjectClick() {
@@ -1578,8 +1702,7 @@ async function loadProject(name) {
     const displayName = (state && state.sourceFileName) || pdfFile.name;
     const namedFile = new File([await pdfFile.arrayBuffer()], displayName, { type: 'application/pdf' });
     filesData.panel = [namedFile];
-    document.getElementById('list-panel').innerHTML =
-      `<div class="item">📄 ${namedFile.name} (${(namedFile.size / 1024).toFixed(1)} KB)</div>`;
+    renderPanelLoadedFile();
     loadedFileBytes = await namedFile.arrayBuffer();
     pdfJsDoc = await pdfjsLib.getDocument({ data: loadedFileBytes.slice(0) }).promise;
     
@@ -1607,6 +1730,7 @@ async function loadProject(name) {
     document.getElementById('st-panel').textContent = `Projekt „${name}“ načten${projectStorageMode==='browser'?' ze Safari úložiště':''}`;
   } else {
     document.getElementById('list-panel').innerHTML = '';
+    renderPanelLoadedFile();
     document.getElementById('btn-preview').disabled = true;
     document.getElementById('btn-panel').disabled = true;
     document.getElementById('st-panel').textContent = `Projekt „${name}“ — zatím bez nahraného PDF`;
@@ -1617,6 +1741,7 @@ async function loadProject(name) {
   document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
   document.getElementById('tool-panel').classList.add('active');
   setupDropZone('panel');
+  renderSessionDataOverview();
 }
 
 async function loadOrReplacePdfInProject(file) {
@@ -1665,6 +1790,81 @@ async function loadOrReplacePdfInProject(file) {
     } catch (e) { console.warn('Uložení PDF do projektu selhalo', e); }
   }
   document.getElementById('st-panel').textContent = `PDF „${file.name}“ nahráno`;
+  renderPanelLoadedFile();renderSessionDataOverview();
+}
+
+
+function fileListSize(files){return (files||[]).reduce((a,f)=>a+(Number(f?.size)||0),0)}
+function renderFileRows(files,removeFn,label='Načtené soubory'){
+  const arr=Array.from(files||[]);if(!arr.length)return'';
+  return `<div class="loaded-files-head"><span><b>${label}</b> · ${arr.length} · ${formatBytes(fileListSize(arr))}</span></div>`+arr.map((f,i)=>`<div class="loaded-file-row"><span class="loaded-file-name" title="${escapeHtml(drawingRelativePath(f)||f.name)}">${escapeHtml(drawingRelativePath(f)||f.name)}</span><span class="loaded-file-size">${formatBytes(f.size)}</span><button class="mini-remove" onclick="event.stopPropagation();${removeFn}(${i})">Odstranit</button></div>`).join('');
+}
+function invalidatePreflightAfterFilesChanged(){
+  docsData.preflightResults=[];docsData.preflightGlobalIssues=[];
+  const a=document.getElementById('preflight-results');if(a)a.innerHTML='';
+  const b=document.getElementById('preflight-summary');if(b)b.style.display='none';
+  const c=document.getElementById('preflight-readiness');if(c){c.className='preflight-readiness';c.innerHTML='';}
+  const p=document.getElementById('preflight-print-panel');if(p)p.classList.remove('active');
+  const csv=document.getElementById('btn-preflight-csv');if(csv)csv.disabled=true;
+}
+// Explicit renderer avoids stringified bind calls in inline HTML.
+function renderDocLoadedFiles(type){
+  const el=document.getElementById('loaded-'+type);if(!el)return;const arr=docsData[type]||[];
+  if(!arr.length){el.innerHTML='';return;}
+  el.innerHTML=`<div class="loaded-files-head"><span><b>Načteno v ${type==='preflight'?'Pre-flightu':type==='drawinglist'?'Seznamu výkresů':'Přejmenování'}</b> · ${arr.length} · ${formatBytes(fileListSize(arr))}</span><button class="mini-remove" onclick="clearDocLoadedFiles('${type}')">Odstranit vše</button></div>`+arr.map((f,i)=>`<div class="loaded-file-row"><span class="loaded-file-name" title="${escapeHtml(drawingRelativePath(f)||f.name)}">${escapeHtml(drawingRelativePath(f)||f.name)}</span><span class="loaded-file-size">${formatBytes(f.size)}</span><button class="mini-remove" onclick="removeDocLoadedFile('${type}',${i})">Odstranit</button></div>`).join('');
+}
+function removeDocLoadedFile(type,index){
+  if(!docsData[type])return;docsData[type].splice(index,1);
+  if(type==='preflight')invalidatePreflightAfterFilesChanged();
+  if(type==='drawinglist'){docsData.drawingRows=[];const r=document.getElementById('drawinglist-results');if(r)r.innerHTML='';document.getElementById('btn-drawing-csv').disabled=true;document.getElementById('btn-drawing-print').disabled=true;}
+  if(type==='renamer')refreshRenameSuggestions();
+  updateDocLoadedState(type);renderSessionDataOverview();
+}
+function clearDocLoadedFiles(type){if(!docsData[type]?.length)return;if(!confirm('Odstranit všechny soubory z této části aplikace?'))return;docsData[type]=[];if(type==='preflight')invalidatePreflightAfterFilesChanged();if(type==='drawinglist'){docsData.drawingRows=[];const r=document.getElementById('drawinglist-results');if(r)r.innerHTML='';}if(type==='renamer')refreshRenameSuggestions();updateDocLoadedState(type);renderSessionDataOverview();}
+function updateDocLoadedState(type){
+  const count=docsData[type]?.length||0;const st=document.getElementById('st-'+type);if(st)st.textContent=count?`${count} souborů připraveno`:'Žádné soubory';
+  const btn=document.getElementById(type==='drawinglist'?'btn-drawinglist':type==='preflight'?'btn-preflight':'btn-renamer');if(btn)btn.disabled=!count;
+  if(type==='preflight'){const fs=document.getElementById('preflight-folder-status');if(fs&&docsData.preflightFolderMode){const groups=new Set((docsData.preflight||[]).map(drawingGroupForFile));fs.textContent=count?`${docsData.preflightFolderRoot||'Složka'}: ${count} PDF v ${groups.size} části/složkách`:'Ve vybrané složce už nejsou žádná načtená PDF.';}}
+  if(type==='drawinglist'){const fs=document.getElementById('drawing-folder-status');if(fs&&docsData.drawingFolderMode){const groups=new Set((docsData.drawinglist||[]).map(drawingGroupForFile));fs.textContent=count?`${docsData.drawingFolderRoot||'Složka'}: ${count} PDF v ${groups.size} části/složkách`:'Ve vybrané složce už nejsou žádná načtená PDF.';}}
+  renderDocLoadedFiles(type);
+}
+function renderPdfaLoadedFiles(){
+  const el=document.getElementById('list-pdfa');if(!el)return;const arr=filesData.pdfa||[];
+  if(!arr.length){el.innerHTML='';return;}
+  el.innerHTML=`<div class="loaded-files-head"><span><b>Načteno v PDF/A</b> · ${arr.length} · ${formatBytes(fileListSize(arr))}</span><button class="mini-remove" onclick="clearPdfaLoadedFiles()">Odstranit vše</button></div>`+arr.map((f,i)=>`<div class="item loaded-file-row" id="i${i}"><span class="loaded-file-name">⏳ ${escapeHtml(f.name)} — čeká</span><span class="loaded-file-size">${formatBytes(f.size)}</span><button class="mini-remove" onclick="event.stopPropagation();removePdfaLoadedFile(${i})">Odstranit</button></div>`).join('');
+}
+function removePdfaLoadedFile(index){filesData.pdfa.splice(index,1);renderPdfaLoadedFiles();document.getElementById('btn-pdfa').disabled=!filesData.pdfa.length;document.getElementById('st-pdfa').textContent=filesData.pdfa.length?`${filesData.pdfa.length} souborů připraveno`:'Žádné soubory';renderSessionDataOverview();}
+function clearPdfaLoadedFiles(){if(filesData.pdfa.length&&!confirm('Odstranit všechny PDF z dávky PDF/A?'))return;filesData.pdfa=[];renderPdfaLoadedFiles();document.getElementById('btn-pdfa').disabled=true;document.getElementById('st-pdfa').textContent='Žádné soubory';renderSessionDataOverview();}
+async function removePanelSource(){
+  if(!filesData.panel.length)return;if(!confirm('Odstranit zdrojové PDF z tohoto projektu? Uložené nastavení projektu zůstane zachované.'))return;
+  try{
+    if(currentProjectName){if(projectStorageMode==='browser')await idbDelete('projectPdf:'+currentProjectName).catch(()=>{});else if(currentProjectDirHandle){try{await currentProjectDirHandle.removeEntry('source.pdf')}catch(e){}}}
+    filesData.panel=[];loadedFileBytes=null;pdfJsDoc=null;pageStructureInitialized=false;totalPreviewPages=1;pagePdfIndexMap={};
+    document.getElementById('list-panel').innerHTML='';document.getElementById('btn-preview').disabled=true;document.getElementById('btn-panel').disabled=true;document.getElementById('st-panel').textContent='Zdrojové PDF odstraněno';
+    if(currentProjectName)await persistProjectStructureNow();renderSessionDataOverview();
+  }catch(e){alert('PDF se nepodařilo odstranit: '+e.message);}
+}
+function renderPanelLoadedFile(){const el=document.getElementById('list-panel');if(!el)return;const f=filesData.panel?.[0];if(!f){el.innerHTML='';return;}el.innerHTML=`<div class="loaded-files-panel"><div class="loaded-files-head"><span><b>Zdrojové PDF projektu</b></span></div><div class="loaded-file-row"><span class="loaded-file-name">📄 ${escapeHtml(f.name)}</span><span class="loaded-file-size">${formatBytes(f.size)}</span><button class="mini-remove" onclick="removePanelSource()">Odstranit</button></div></div>`;}
+function renderCompareLoadedFiles(){
+  const el=document.getElementById('loaded-compare');if(!el)return;const arr=[['A',docsData.compareA,'Starší verze'],['B',docsData.compareB,'Novější verze']].filter(x=>x[1]);
+  if(!arr.length){el.innerHTML='';return;}el.innerHTML=`<div class="loaded-files-head"><span><b>Načteno v porovnání</b> · ${arr.length}</span></div>`+arr.map(([side,f,label])=>`<div class="loaded-file-row"><span class="loaded-file-name"><b>${label}:</b> ${escapeHtml(f.name)}</span><span class="loaded-file-size">${formatBytes(f.size)}</span><button class="mini-remove" onclick="removeCompareSide('${side}')">Odstranit</button></div>`).join('');
+}
+async function removeCompareSide(side){
+  const doc=side==='A'?docsData.compareDocA:docsData.compareDocB;try{await doc?.destroy?.()}catch(e){}
+  if(side==='A'){docsData.compareA=null;docsData.compareDocA=null;document.getElementById('compareFileA').value='';document.getElementById('compareVectorA').innerHTML='<div class="docs-empty">Nahraj PDF…</div>';}else{docsData.compareB=null;docsData.compareDocB=null;document.getElementById('compareFileB').value='';document.getElementById('compareVectorB').innerHTML='<div class="docs-empty">Nahraj PDF…</div>';}
+  revokePreparedPrintUrl?.();refreshComparePageSelectors();renderCompareLoadedFiles();renderSessionDataOverview();document.getElementById('st-compare').textContent='Nahraj obě PDF.';const d=document.getElementById('compareVectorDiff');if(d)d.innerHTML='<div class="docs-empty">Nahraj obě PDF…</div>';
+}
+function sessionDataSections(){return [
+  {title:'PDF/A',files:filesData.pdfa||[],clear:'clearPdfaLoadedFiles()'},
+  {title:'Prezentační projekt',files:filesData.panel||[],clear:'removePanelSource()'},
+  {title:'Pre-flight',files:docsData.preflight||[],clear:"clearDocLoadedFiles('preflight')"},
+  {title:'Seznam výkresů',files:docsData.drawinglist||[],clear:"clearDocLoadedFiles('drawinglist')"},
+  {title:'Přejmenování',files:docsData.renamer||[],clear:"clearDocLoadedFiles('renamer')"},
+  {title:'Porovnání PDF',files:[docsData.compareA,docsData.compareB].filter(Boolean),clear:"removeCompareSide('A');removeCompareSide('B')"}
+];}
+function renderSessionDataOverview(){
+  const el=document.getElementById('session-data-overview');if(!el)return;const sections=sessionDataSections();
+  el.innerHTML=sections.map(x=>{const count=x.files.length,size=fileListSize(x.files),names=x.files.slice(0,5).map(f=>escapeHtml(drawingRelativePath(f)||f.name)).join('<br>')+(x.files.length>5?`<br>+ ${x.files.length-5} dalších`:``);return `<div class="session-data-card"><b>${x.title}</b><div>${count?`${count} souborů · ${formatBytes(size)}`:'Nic není načtené'}</div><div class="session-data-files">${names||'–'}</div>${count?`<button class="mini-remove" style="margin-top:7px" onclick="${x.clear}">Odstranit z této části</button>`:''}</div>`}).join('');
 }
 
 function openTool(name) {
@@ -1676,6 +1876,7 @@ function openTool(name) {
 function closeTool() {
   document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
   document.getElementById('menu-view').style.display = 'block';
+  renderSessionDataOverview();
 }
 
 function handleProjectTypeChange(val) {
@@ -1727,14 +1928,12 @@ function handleFiles(files, type) {
   }
   
   if(type === 'pdfa') {
-    document.getElementById('list-pdfa').innerHTML = filesData[type].map((f, i) => 
-      `<div class="item" id="i${i}">⏳ ${f.name} — čeká</div>`
-    ).join('');
+    renderPdfaLoadedFiles();
     document.getElementById('btn-pdfa').disabled = !filesData[type].length;
     document.getElementById('st-pdfa').textContent = filesData[type].length ? `${filesData[type].length} souborů připraveno` : 'Žádné soubory';
   } else {
-    document.getElementById('list-' + type).innerHTML = filesData[type].map(f => `<div class="item">📄 ${f.name} (${(f.size/1024).toFixed(1)} KB)</div>`).join('');
     if(type === 'panel') {
+      renderPanelLoadedFile();
       const hasFiles = filesData[type].length > 0;
       document.getElementById('btn-preview').disabled = !hasFiles;
       document.getElementById('btn-panel').disabled = !hasFiles;
@@ -1742,6 +1941,7 @@ function handleFiles(files, type) {
     }
     document.getElementById('st-' + type).textContent = `${filesData[type].length} souborů připraveno`;
   }
+  renderSessionDataOverview();
 }
 
 function removeDiacritics(str) {
@@ -1817,6 +2017,8 @@ function handleDocFiles(files,type){
   const status=document.getElementById('st-'+type); if(status) status.textContent=count?`${count} souborů připraveno`:'Žádné soubory';
   const btn=document.getElementById(type==='drawinglist'?'btn-drawinglist':type==='preflight'?'btn-preflight':'btn-renamer'); if(btn) btn.disabled=!count;
   if(type==='renamer') refreshRenameSuggestions();
+  renderDocLoadedFiles(type);
+  renderSessionDataOverview();
 }
 
 function handlePreflightFolder(files){
@@ -1828,6 +2030,7 @@ function handlePreflightFolder(files){
   if(fs)fs.textContent=pdfs.length?`${docsData.preflightFolderRoot||'Složka'}: ${pdfs.length} PDF v ${groups.size} části/složkách`:'Ve vybrané složce nebyla nalezena žádná PDF.';
   const st=document.getElementById('st-preflight');if(st)st.textContent=pdfs.length?`${pdfs.length} PDF ze složky připraveno`:'Žádná PDF ve složce';
   const btn=document.getElementById('btn-preflight');if(btn)btn.disabled=!pdfs.length;
+  renderDocLoadedFiles('preflight');renderSessionDataOverview();
 }
 function handleDrawingFolder(files){
   const pdfs=Array.from(files||[]).filter(f=>/\.pdf$/i.test(f.name));
@@ -1841,6 +2044,7 @@ function handleDrawingFolder(files){
   if(fs)fs.textContent=pdfs.length?`${docsData.drawingFolderRoot||'Složka'}: ${pdfs.length} PDF v ${groups.size} části/složkách`:'Ve vybrané složce nebyla nalezena žádná PDF.';
   const st=document.getElementById('st-drawinglist');if(st)st.textContent=pdfs.length?`${pdfs.length} PDF ze složky připraveno`:'Žádná PDF ve složce';
   const btn=document.getElementById('btn-drawinglist');if(btn)btn.disabled=!pdfs.length;
+  renderDocLoadedFiles('drawinglist');renderSessionDataOverview();
 }
 function initDocsDropZones(){
   [['drop-preflight','f-preflight','preflight'],['drop-drawinglist','f-drawinglist','drawinglist'],['drop-renamer','f-renamer','renamer']].forEach(([dropId,inputId,type])=>{
@@ -1850,7 +2054,7 @@ function initDocsDropZones(){
     dz.addEventListener('drop',e=>{if(e.dataTransfer?.files) handleDocFiles(e.dataTransfer.files,type)});
   });
 }
-setTimeout(initDocsDropZones,0);
+setTimeout(()=>{initDocsDropZones();renderDocLoadedFiles('preflight');renderDocLoadedFiles('drawinglist');renderDocLoadedFiles('renamer');renderCompareLoadedFiles();renderSessionDataOverview();},0);
 
 function pageFormatName(wPt,hPt){
   const mm=[wPt*25.4/72,hPt*25.4/72];
@@ -2577,6 +2781,7 @@ async function loadComparePdf(file,side){
   try{
     const bytes=new Uint8Array(await file.arrayBuffer()),doc=await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
     if(side==='A'){docsData.compareA=file;docsData.compareDocA=doc}else{docsData.compareB=file;docsData.compareDocB=doc}
+    renderCompareLoadedFiles();renderSessionDataOverview();
     refreshComparePageSelectors();
     if(docsData.compareDocA&&docsData.compareDocB)await renderPdfComparison();else st.textContent='Nahraj ještě druhé PDF.';
   }catch(e){st.textContent='PDF nelze načíst: '+e.message;}
