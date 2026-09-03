@@ -254,7 +254,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.10</div>
+  <div class="app-version">V3.11</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
@@ -449,6 +449,9 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <button type="button" class="style-choice" data-style="blocks" onclick="setProjectScaleStyle('blocks')" title="Černobílé bloky"><svg viewBox="0 0 80 44"><rect x="7" y="12" width="16" height="10" fill="currentColor"/><rect x="23" y="12" width="16" height="10" fill="none" stroke="currentColor"/><rect x="39" y="12" width="16" height="10" fill="currentColor"/><rect x="55" y="12" width="16" height="10" fill="none" stroke="currentColor"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
           <button type="button" class="style-choice" data-style="double" onclick="setProjectScaleStyle('double')" title="Dvojitá stupnice"><svg viewBox="0 0 80 44"><path d="M7 12H73M7 20H73M7 10v13m22-13v13m22-13v13m22-13v13" stroke="currentColor" fill="none"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
           <button type="button" class="style-choice" data-style="sparse" onclick="setProjectScaleStyle('sparse')" title="Řídká stupnice 0–1–2–5"><svg viewBox="0 0 80 44"><path d="M7 14H73M7 14v4m13-4v4m14-4v4m39-4v4" stroke="currentColor" fill="none"/><text x="7" y="32" font-size="8">0</text><text x="18" y="32" font-size="8">1</text><text x="32" y="32" font-size="8">2</text><text x="66" y="32" font-size="8">5 m</text></svg></button>
+          <button type="button" class="style-choice" data-style="blocksSparse" onclick="setProjectScaleStyle('blocksSparse')" title="Řídké blokové měřítko"><svg viewBox="0 0 80 44"><rect x="7" y="11" width="13" height="8" fill="currentColor"/><rect x="20" y="11" width="13" height="8" fill="none" stroke="currentColor"/><rect x="33" y="11" width="13" height="8" fill="currentColor"/><rect x="46" y="11" width="27" height="8" fill="none" stroke="currentColor"/><text x="7" y="32" font-size="8">0</text><text x="19" y="32" font-size="8">1</text><text x="32" y="32" font-size="8">2</text><text x="66" y="32" font-size="8">5 m</text></svg></button>
+          <button type="button" class="style-choice" data-style="doubleSparse" onclick="setProjectScaleStyle('doubleSparse')" title="Řídké dvojité měřítko"><svg viewBox="0 0 80 44"><path d="M7 11H73M7 18H73M7 10v10m13-10v10m13-10v10m40-10v10" stroke="currentColor" fill="none"/><text x="7" y="32" font-size="8">0</text><text x="19" y="32" font-size="8">1</text><text x="32" y="32" font-size="8">2</text><text x="66" y="32" font-size="8">5 m</text></svg></button>
+          <button type="button" class="style-choice" data-style="railSparse" onclick="setProjectScaleStyle('railSparse')" title="Souvislá čára a metrové úseky"><svg viewBox="0 0 80 44"><path d="M7 18H73M7 11H19M21 11H32M34 11H45M47 11H73" stroke="currentColor" fill="none"/><text x="7" y="32" font-size="8">0</text><text x="19" y="32" font-size="8">1</text><text x="32" y="32" font-size="8">2</text><text x="66" y="32" font-size="8">5 m</text></svg></button>
         </div>
         <small style="color:var(--muted)">Nastaví variantu měřítka pro stránky projektu.</small>
       </div>
@@ -606,6 +609,9 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
             <button type="button" class="style-choice" data-style="blocks" onclick="setScaleStyle('blocks')" title="Černobílé bloky"><svg viewBox="0 0 80 44"><rect x="7" y="12" width="16" height="10" fill="currentColor"/><rect x="23" y="12" width="16" height="10" fill="none" stroke="currentColor"/><rect x="39" y="12" width="16" height="10" fill="currentColor"/><rect x="55" y="12" width="16" height="10" fill="none" stroke="currentColor"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
             <button type="button" class="style-choice" data-style="double" onclick="setScaleStyle('double')" title="Dvojitá stupnice"><svg viewBox="0 0 80 44"><path d="M7 12H73M7 20H73M7 10v13m22-13v13m22-13v13m22-13v13" stroke="currentColor" fill="none"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
             <button type="button" class="style-choice" data-style="sparse" onclick="setScaleStyle('sparse')" title="Řídká stupnice 0–1–2–5"><svg viewBox="0 0 80 44"><path d="M7 14H73M7 14v4m13-4v4m14-4v4m39-4v4" stroke="currentColor" fill="none"/><text x="7" y="32" font-size="8">0</text><text x="18" y="32" font-size="8">1</text><text x="32" y="32" font-size="8">2</text><text x="66" y="32" font-size="8">5 m</text></svg></button>
+            <button type="button" class="style-choice" data-style="blocksSparse" onclick="setScaleStyle('blocksSparse')" title="Řídké blokové měřítko"><svg viewBox="0 0 80 44"><rect x="7" y="11" width="13" height="8" fill="currentColor"/><rect x="20" y="11" width="13" height="8" fill="none" stroke="currentColor"/><rect x="33" y="11" width="13" height="8" fill="currentColor"/><rect x="46" y="11" width="27" height="8" fill="none" stroke="currentColor"/><text x="7" y="32" font-size="8">0</text><text x="19" y="32" font-size="8">1</text><text x="32" y="32" font-size="8">2</text><text x="66" y="32" font-size="8">5 m</text></svg></button>
+            <button type="button" class="style-choice" data-style="doubleSparse" onclick="setScaleStyle('doubleSparse')" title="Řídké dvojité měřítko"><svg viewBox="0 0 80 44"><path d="M7 11H73M7 18H73M7 10v10m13-10v10m13-10v10m40-10v10" stroke="currentColor" fill="none"/><text x="7" y="32" font-size="8">0</text><text x="19" y="32" font-size="8">1</text><text x="32" y="32" font-size="8">2</text><text x="66" y="32" font-size="8">5 m</text></svg></button>
+            <button type="button" class="style-choice" data-style="railSparse" onclick="setScaleStyle('railSparse')" title="Souvislá čára a metrové úseky"><svg viewBox="0 0 80 44"><path d="M7 18H73M7 11H19M21 11H32M34 11H45M47 11H73" stroke="currentColor" fill="none"/><text x="7" y="32" font-size="8">0</text><text x="19" y="32" font-size="8">1</text><text x="32" y="32" font-size="8">2</text><text x="66" y="32" font-size="8">5 m</text></svg></button>
           </span></span>
           </div>
         </div>
@@ -2813,13 +2819,23 @@ function drawScaleNorthCanvas(ctx,width,y,barHeight,scale,denom,angle,scaleStyle
   const mmPerM=(1000/Math.max(1,denom))*(72/25.4), shownM=Math.max(1,Math.min(5,Math.floor(230/mmPerM))), len=shownM*mmPerM;
   const end=width-75,start=end-len,lineY=y+9;
   ctx.textAlign='center'; ctx.font=`${8*scale}px "${editorFontFamily}"`; ctx.lineWidth=.85*scale;
+  const sparseMarks=[...new Set([0,1,2,shownM].filter(v=>v>=0&&v<=shownM))];
   if(scaleStyle==='blocks') {
     for(let i=0;i<shownM;i++){ctx.fillStyle=i%2===0?'#18181b':'#f7f197';ctx.fillRect((start+i*mmPerM)*scale,lineY*scale,mmPerM*scale,6*scale);ctx.strokeRect((start+i*mmPerM)*scale,lineY*scale,mmPerM*scale,6*scale);}
     ctx.fillStyle='#18181b';ctx.fillText('0',start*scale,(y+26)*scale);ctx.fillText(String(shownM),end*scale,(y+26)*scale);
+  } else if(scaleStyle==='blocksSparse') {
+    for(let i=0;i<shownM;i++){ctx.fillStyle=i%2===0?'#18181b':'#f7f197';ctx.fillRect((start+i*mmPerM)*scale,lineY*scale,mmPerM*scale,6*scale);ctx.strokeRect((start+i*mmPerM)*scale,lineY*scale,mmPerM*scale,6*scale);}
+    ctx.fillStyle='#18181b';for(const i of sparseMarks)ctx.fillText(String(i),(start+i*mmPerM)*scale,(y+27)*scale);
   } else if(scaleStyle==='sparse') {
     ctx.beginPath();ctx.moveTo(start*scale,lineY*scale);ctx.lineTo(end*scale,lineY*scale);ctx.stroke();
-    const marks=[...new Set([0,1,2,shownM].filter(v=>v>=0&&v<=shownM))];
-    for(const i of marks){const x=start+i*mmPerM;ctx.beginPath();ctx.moveTo(x*scale,lineY*scale);ctx.lineTo(x*scale,(lineY+3)*scale);ctx.stroke();ctx.fillText(String(i),x*scale,(y+27)*scale);}
+    for(const i of sparseMarks){const x=start+i*mmPerM;ctx.beginPath();ctx.moveTo(x*scale,lineY*scale);ctx.lineTo(x*scale,(lineY+3)*scale);ctx.stroke();ctx.fillText(String(i),x*scale,(y+27)*scale);}
+  } else if(scaleStyle==='doubleSparse') {
+    ctx.beginPath();ctx.moveTo(start*scale,lineY*scale);ctx.lineTo(end*scale,lineY*scale);ctx.moveTo(start*scale,(lineY+6)*scale);ctx.lineTo(end*scale,(lineY+6)*scale);ctx.stroke();
+    for(const i of sparseMarks){const x=start+i*mmPerM;ctx.beginPath();ctx.moveTo(x*scale,lineY*scale);ctx.lineTo(x*scale,(lineY+8)*scale);ctx.stroke();ctx.fillText(String(i),x*scale,(y+27)*scale);}
+  } else if(scaleStyle==='railSparse') {
+    ctx.beginPath();ctx.moveTo(start*scale,(lineY+6)*scale);ctx.lineTo(end*scale,(lineY+6)*scale);ctx.stroke();
+    for(let i=0;i<shownM;i++){const gap=.7;ctx.beginPath();ctx.moveTo((start+i*mmPerM+gap)*scale,lineY*scale);ctx.lineTo((start+(i+1)*mmPerM-gap)*scale,lineY*scale);ctx.stroke();}
+    for(const i of sparseMarks)ctx.fillText(String(i),(start+i*mmPerM)*scale,(y+27)*scale);
   } else {
     ctx.beginPath();ctx.moveTo(start*scale,lineY*scale);ctx.lineTo(end*scale,lineY*scale);if(scaleStyle==='double'){ctx.moveTo(start*scale,(lineY+6)*scale);ctx.lineTo(end*scale,(lineY+6)*scale);}ctx.stroke();
     for(let i=0;i<=shownM;i++){const x=start+i*mmPerM;ctx.beginPath();ctx.moveTo(x*scale,lineY*scale);ctx.lineTo(x*scale,(lineY+(scaleStyle==='double'?8:(i===0||i===shownM?3:2)))*scale);ctx.stroke();ctx.fillText(String(i),x*scale,(y+27)*scale);}
@@ -3694,14 +3710,24 @@ async function runPanel(fromModal = false){
       const denom=Math.max(1,Number(cfg.scale)||100), unit=(1000/denom)*(72/25.4), shown=Math.max(1,Math.min(5,Math.floor(230/unit)));
       const end=pageW-75,start=end-shown*unit,lineY=25.02;
       const scaleStyle=cfg.scaleStyle||'ticks';
+      const sparseMarks=[...new Set([0,1,2,shown].filter(v=>v>=0&&v<=shown))];
       if(scaleStyle==='blocks'){
         for(let i=0;i<shown;i++) page.drawRectangle({x:start+i*unit,y:lineY-6,width:unit,height:6,color:i%2===0?textColor:rgb(247/255,241/255,151/255),borderColor:textColor,borderWidth:.6});
         page.drawText('0',{x:start-2,y:7,size:8,font:finalFont,color:textColor});
         const sw=finalFont.widthOfTextAtSize(String(shown),8);page.drawText(String(shown),{x:end-sw/2,y:7,size:8,font:finalFont,color:textColor});
+      }else if(scaleStyle==='blocksSparse'){
+        for(let i=0;i<shown;i++) page.drawRectangle({x:start+i*unit,y:lineY-6,width:unit,height:6,color:i%2===0?textColor:rgb(247/255,241/255,151/255),borderColor:textColor,borderWidth:.6});
+        for(const i of sparseMarks){const s=String(i),x=start+i*unit,w=finalFont.widthOfTextAtSize(s,8);page.drawText(s,{x:x-w/2,y:7,size:8,font:finalFont,color:textColor});}
       }else if(scaleStyle==='sparse'){
         page.drawLine({start:{x:start,y:lineY},end:{x:end,y:lineY},thickness:.85,color:textColor});
-        const marks=[...new Set([0,1,2,shown].filter(v=>v>=0&&v<=shown))];
-        for(const i of marks){const x=start+i*unit;page.drawLine({start:{x,y:lineY},end:{x,y:lineY-3},thickness:.85,color:textColor});const s=String(i),w=finalFont.widthOfTextAtSize(s,8);page.drawText(s,{x:x-w/2,y:7,size:8,font:finalFont,color:textColor});}
+        for(const i of sparseMarks){const x=start+i*unit;page.drawLine({start:{x,y:lineY},end:{x,y:lineY-3},thickness:.85,color:textColor});const s=String(i),w=finalFont.widthOfTextAtSize(s,8);page.drawText(s,{x:x-w/2,y:7,size:8,font:finalFont,color:textColor});}
+      }else if(scaleStyle==='doubleSparse'){
+        page.drawLine({start:{x:start,y:lineY},end:{x:end,y:lineY},thickness:.85,color:textColor});page.drawLine({start:{x:start,y:lineY-6},end:{x:end,y:lineY-6},thickness:.85,color:textColor});
+        for(const i of sparseMarks){const x=start+i*unit;page.drawLine({start:{x,y:lineY},end:{x,y:lineY-8},thickness:.85,color:textColor});const s=String(i),w=finalFont.widthOfTextAtSize(s,8);page.drawText(s,{x:x-w/2,y:7,size:8,font:finalFont,color:textColor});}
+      }else if(scaleStyle==='railSparse'){
+        page.drawLine({start:{x:start,y:lineY-6},end:{x:end,y:lineY-6},thickness:.85,color:textColor});
+        for(let i=0;i<shown;i++){const gap=.7;page.drawLine({start:{x:start+i*unit+gap,y:lineY},end:{x:start+(i+1)*unit-gap,y:lineY},thickness:.85,color:textColor});}
+        for(const i of sparseMarks){const s=String(i),x=start+i*unit,w=finalFont.widthOfTextAtSize(s,8);page.drawText(s,{x:x-w/2,y:7,size:8,font:finalFont,color:textColor});}
       }else{
         page.drawLine({start:{x:start,y:lineY},end:{x:end,y:lineY},thickness:.85,color:textColor});
         if(scaleStyle==='double') page.drawLine({start:{x:start,y:lineY-6},end:{x:end,y:lineY-6},thickness:.85,color:textColor});
