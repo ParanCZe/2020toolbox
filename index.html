@@ -289,7 +289,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:800px){.compare-grid{grid-template-columns:1fr}.compare-diff{grid-column:auto}.docs-summary{grid-template-columns:1fr 1fr}}
 
 
-/* 3D TISK — V3.12t BETA */
+/* 3D TISK — V3.12u BETA */
 .print3d-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.85fr);gap:14px;margin-top:14px}
 .print3d-viewer{border:1px solid var(--border);border-radius:10px;background:#e4e4e7;overflow:hidden;min-height:560px;display:flex;flex-direction:column}
 .print3d-viewer-head{padding:9px 11px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
@@ -312,6 +312,24 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .print3d-layer-legend{display:flex;gap:10px;align-items:center;font-size:10px;color:var(--muted);margin-left:4px}.print3d-layer-legend span{display:inline-flex;align-items:center;gap:4px}.print3d-layer-legend i{display:inline-block;width:16px;height:4px;border-radius:2px}.print3d-layer-legend .perim{background:#18181b}.print3d-layer-legend .infill{background:#b38b00}.print3d-layer-legend .active{background:#f7f197;border:1px solid #8a7d00;height:6px}
 @media(max-width:900px){.print3d-layout{grid-template-columns:1fr}.print3d-viewer{min-height:460px}#print3d-stage,#print3d-canvas{min-height:400px}}
 
+
+/* 3D TISK — V3.12u: kompaktní rozhraní + záložky */
+.print3d-layout{align-items:start}
+.print3d-viewer{height:650px;min-height:0;max-height:72vh;position:sticky;top:10px}
+#print3d-stage{min-height:0;height:100%;flex:1}
+#print3d-canvas{min-height:0;height:100%}
+.print3d-side{display:block;min-width:0}
+.print3d-tabs{display:flex;gap:5px;flex-wrap:wrap;padding:6px;background:#fafafa;border:1px solid var(--border);border-radius:9px;margin-bottom:8px;position:sticky;top:0;z-index:4}
+.print3d-tab{border:1px solid var(--border);background:#fff;border-radius:6px;padding:6px 9px;font-size:11px;cursor:pointer;color:var(--text)}
+.print3d-tab:hover{background:#f7f197;border-color:#d4cc5d}.print3d-tab.active{background:#18181b;color:#fff;border-color:#18181b}
+.print3d-tabpage{display:none;max-height:calc(min(72vh,650px) - 50px);overflow:auto;padding-right:2px}.print3d-tabpage.active{display:block}
+.print3d-tabpage .print3d-box:first-child{margin-top:0}.print3d-tabpage .print3d-box{margin-bottom:8px}
+.print3d-layer-big{padding:12px;border:1px solid var(--border);border-radius:9px;background:#fafafa}.print3d-layer-big input[type="range"]{width:100%;margin:8px 0}
+.print3d-layer-topline{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.print3d-export-warning{font-size:10px;line-height:1.5;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:8px;margin:8px 0}
+.print3d-gcode-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.print3d-gcode-actions .action,.print3d-gcode-actions .back-btn{width:100%;margin:0}
+@media(max-width:900px){.print3d-viewer{height:520px;max-height:none;position:relative;top:auto}.print3d-tabpage{max-height:none;overflow:visible}.print3d-tabs{position:relative}}
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://unpkg.com/@pdf-lib/fontkit/dist/fontkit.umd.min.js"></script>
@@ -324,7 +342,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version" id="app-version">V3.12t</div>
+  <div class="app-version" id="app-version">V3.12u</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ A DOKUMENTACÍ</div>
 </header>
 
@@ -337,7 +355,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
       <div class="tile" onclick="openTool('pdfa')"><b>Konverze do PDF/A</b><span>Standardy 1b, 2b, 3b + hromadný ZIP</span></div>
       <div class="tile" onclick="openPanelProjects()"><b>Prezentační nástroj</b><span>Vytvářejte prezentace v pár kliknutích</span></div>
       <div class="tile" onclick="openTool('docs'); openDocsSection('preflight')"><b>Dokumentační nástroje <small class="menu-status">BETA</small></b><span>Pre-flight, seznam výkresů, přejmenování a porovnání PDF</span></div>
-      <div class="tile" onclick="openTool('3dprint')"><b>3D tisk <small class="menu-status">BETA</small></b><span>Prusa MK3S, vrstvy, odhad tisku a příprava STL</span></div>
+      <div class="tile" onclick="openTool('3dprint')"><b>3D tisk <small class="menu-status">BETA</small></b><span>Prusa MK3S, slicerové vrstvy, odhad a export G-code</span></div>
     </div>
     <div class="session-data-overview">
       <div class="storage-overview-head"><b>NAČTENÁ DATA V TÉTO RELACI</b><span class="muted" style="margin:0;font-size:11px">Přehled toho, co je právě načtené v jednotlivých částech aplikace.</span></div>
@@ -543,7 +561,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
   <div id="tool-3dprint" class="tool-view">
     <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
     <h1>3D tisk <small class="menu-status">BETA</small></h1>
-    <div class="muted">Příprava modelu pro <b>Original Prusa i3 MK3S</b> s výchozí 0,4mm tryskou. Toolbox umí kontrolu modelu, měřítko, doporučené tiskové parametry, orientační slicerový náhled vrstev a odhad času/filamentu. Produkční STL zůstává vektorově/geometricky beze změny; finální G-code doporučujeme stále ověřit v PrusaSliceru.</div>
+    <div class="muted">Lokální příprava modelu pro <b>Original Prusa i3 MK3S</b>. Toolbox model řeže na vrstvy, vytváří tiskové dráhy, ukazuje jejich náhled a umí exportovat <b>G-code</b>. Výsledný G-code před prvním tiskem vždy zkontroluj v PrusaSlicer G-code Vieweru.</div>
 
     <div id="drop-3dprint" class="drop" onclick="document.getElementById('f-3dprint').click()">
       <b>Sem přetáhni 3D model</b><br><span style="color:var(--muted);font-size:12px">STL / OBJ / GLB · jeden model najednou</span>
@@ -561,127 +579,150 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <button class="back-btn" style="margin:0" onclick="rotate3DPrint('z')">Z +90°</button>
           <button class="back-btn" style="margin:0" onclick="reset3DPrintRotation()">↶ Natočení</button>
           <label style="font-size:11px"><input id="print3d-wire" type="checkbox" onchange="set3DPrintWireframe(this.checked)"> drátový model</label>
-          <div class="print3d-layer-panel">
-            <button id="print3d-layer-view-btn" class="back-btn" style="margin:0" onclick="toggle3DPrintLayerView()">▤ Vrstvy</button>
-            <input id="print3d-layer-slider" type="range" min="1" max="1" value="1" disabled oninput="render3DPrintLayer()">
-            <span id="print3d-layer-info" class="print3d-layer-info">Vrstva –</span>
-            <span class="print3d-layer-legend"><span><i class="perim"></i>obrys</span><span><i class="infill"></i>výplň</span></span>
-            <button id="print3d-nozzle-btn" class="back-btn" style="margin:0" disabled onclick="animate3DPrintNozzle()">▶ Dráha trysky</button>
-          </div>
+          <button id="print3d-layer-view-btn" class="back-btn" style="margin:0;margin-left:auto" onclick="toggle3DPrintLayerView();open3DPrintTab('layers')">▤ Vrstvy</button>
         </div>
         <div id="print3d-stage"><canvas id="print3d-canvas"></canvas></div>
       </div>
 
       <div class="print3d-side">
-        <div class="print3d-box">
-          <h3>TISKÁRNA</h3>
-          <div class="print3d-profile-grid">
-            <label>Profil tiskárny<select id="print3d-printer" onchange="apply3DPrinterProfile()"><option value="mk3s" selected>Original Prusa i3 MK3S</option></select></label>
-            <label>Tryska<select id="print3d-nozzle" onchange="validate3DPrintSettings();schedule3DPrintEstimate()"><option value="0.25">0,25 mm</option><option value="0.4" selected>0,40 mm</option><option value="0.6">0,60 mm</option><option value="0.8">0,80 mm</option></select></label>
+        <div class="print3d-tabs">
+          <button class="print3d-tab active" data-p3tab="info" onclick="open3DPrintTab('info')">Informace</button>
+          <button class="print3d-tab" data-p3tab="model" onclick="open3DPrintTab('model')">Model</button>
+          <button class="print3d-tab" data-p3tab="print" onclick="open3DPrintTab('print')">Tisk</button>
+          <button class="print3d-tab" data-p3tab="layers" onclick="open3DPrintTab('layers')">Vrstvy</button>
+          <button class="print3d-tab" data-p3tab="export" onclick="open3DPrintTab('export')">Export</button>
+        </div>
+
+        <div class="print3d-tabpage active" data-p3page="info">
+          <div class="print3d-box">
+            <h3>KONTROLA MODELU</h3>
+            <div class="print3d-stats">
+              <div class="print3d-stat"><span>Zdrojový rozměr</span><b id="print3d-source-dims">–</b></div>
+              <div class="print3d-stat"><span>Rozměr pro tisk</span><b id="print3d-output-dims">–</b></div>
+              <div class="print3d-stat"><span>Trojúhelníky</span><b id="print3d-triangles">–</b></div>
+              <div class="print3d-stat"><span>Objekty / mesh</span><b id="print3d-meshes">–</b></div>
+              <div class="print3d-stat"><span>Otevřené hrany</span><b id="print3d-boundary">–</b></div>
+              <div class="print3d-stat"><span>Degenerované plochy</span><b id="print3d-degenerate">–</b></div>
+              <div class="print3d-stat"><span>Objem po zmenšení</span><b id="print3d-volume">–</b></div>
+              <div class="print3d-stat"><span>Velikost souboru</span><b id="print3d-filesize">–</b></div>
+            </div>
+            <div id="print3d-health" class="print3d-health" style="margin-top:8px">Nahraj model pro kontrolu.</div>
           </div>
-          <div class="print3d-setting-summary">
-            <div>Podložka<b>250 × 210 × 210 mm</b></div><div>Filament<b>1,75 mm</b></div>
+          <div class="print3d-box">
+            <h3>ODHAD TISKU</h3>
+            <div class="print3d-stats">
+              <div class="print3d-stat"><span>Počet vrstev</span><b id="print3d-layer-count">–</b></div>
+              <div class="print3d-stat"><span>Odhad času</span><b id="print3d-print-time">–</b></div>
+              <div class="print3d-stat"><span>Filament</span><b id="print3d-filament">–</b></div>
+              <div class="print3d-stat"><span>Hmotnost</span><b id="print3d-mass">–</b></div>
+            </div>
+            <div id="print3d-estimate-note" class="print3d-estimate-note">Odhad se počítá ze stejných řezů, které používá náhled vrstev.</div>
           </div>
         </div>
 
-        <div class="print3d-box">
-          <h3>MĚŘÍTKO MODELU</h3>
-          <div class="print3d-fields">
-            <label>Jednotky zdroje<select id="print3d-units" onchange="update3DPrintTransform()"><option value="1" selected>mm</option><option value="10">cm</option><option value="1000">m</option></select></label>
-            <label>Měřítko 1 : <input id="print3d-scale" type="number" min="0.001" step="1" value="100" oninput="update3DPrintTransform()"></label>
+        <div class="print3d-tabpage" data-p3page="model">
+          <div class="print3d-box">
+            <h3>MĚŘÍTKO MODELU</h3>
+            <div class="print3d-fields">
+              <label>Jednotky zdroje<select id="print3d-units" onchange="update3DPrintTransform()"><option value="1" selected>mm</option><option value="10">cm</option><option value="1000">m</option></select></label>
+              <label>Měřítko 1 : <input id="print3d-scale" type="number" min="0.001" step="1" value="1" oninput="update3DPrintTransform()"></label>
+            </div>
+            <div class="print3d-presets"><button onclick="set3DPrintScale(1)">1:1</button><button onclick="set3DPrintScale(50)">1:50</button><button onclick="set3DPrintScale(100)">1:100</button><button onclick="set3DPrintScale(200)">1:200</button><button onclick="set3DPrintScale(500)">1:500</button></div>
           </div>
-          <div class="print3d-presets"><button onclick="set3DPrintScale(1)">1:1</button><button onclick="set3DPrintScale(50)">1:50</button><button onclick="set3DPrintScale(100)">1:100</button><button onclick="set3DPrintScale(200)">1:200</button><button onclick="set3DPrintScale(500)">1:500</button></div>
-        </div>
-
-        <div class="print3d-box">
-          <h3>FILAMENT</h3>
-          <div class="print3d-profile-grid">
-            <label>Materiál filamentu<select id="print3d-material" onchange="apply3DPrintMaterialPreset(true);update3DPrintFilamentInfo()"><option value="petg" selected>PETG</option><option value="pla">PLA</option><option value="asa">ASA</option><option value="flex">FLEX / TPU</option></select></label>
-            <label>Průměr filamentu<input value="1,75 mm" disabled></label>
+          <div class="print3d-box">
+            <h3>TISKOVÁ PLOCHA</h3>
+            <div class="print3d-fields">
+              <label>Šířka X [mm]<input id="print3d-bedx" type="number" min="1" value="250" oninput="update3DPrintStats()"></label>
+              <label>Hloubka Y [mm]<input id="print3d-bedy" type="number" min="1" value="210" oninput="update3DPrintStats()"></label>
+              <label>Výška Z [mm]<input id="print3d-bedz" type="number" min="1" value="210" oninput="update3DPrintStats()"></label>
+              <label>&nbsp;<button class="back-btn" style="margin:0;width:100%" onclick="suggest3DPrintScale()">Navrhnout měřítko</button></label>
+            </div>
           </div>
-          <div id="print3d-filament-info" class="print3d-recommended" style="display:block;max-height:none"></div>
-          <div class="print3d-beta-note">Materiál ovlivňuje doporučené teploty trysky a podložky, chlazení i rychlosti. Hodnoty jsou bezpečný výchozí profil pro MK3S; konkrétní cívka může mít na štítku mírně jiné doporučení.</div>
-        </div>
-
-        <div class="print3d-box">
-          <h3>TISKOVÝ PROFIL</h3>
-          <div class="print3d-profile-grid">
-            <label>Kvalita<select id="print3d-quality" onchange="apply3DPrintQualityPreset(false)"><option value="detail" selected>0,15 DETAIL</option><option value="quality">0,20 QUALITY</option><option value="speed">0,30 SPEED</option><option value="custom">Vlastní</option></select></label>
-            <label>Účel<select id="print3d-purpose" onchange="schedule3DPrintEstimate()"><option value="architecture" selected>Architektonická maketa</option><option value="normal">Běžný díl</option><option value="strong">Pevný díl</option></select></label>
-            <label>Výška vrstvy [mm]<input id="print3d-layer-height" type="number" min="0.05" max="0.8" step="0.01" value="0.15" oninput="manual3DPrintSettingChanged();update3DPrintLayerControls()"></label>
-            <label>První vrstva [mm]<input id="print3d-first-layer" type="number" min="0.05" max="0.8" step="0.01" value="0.20" oninput="manual3DPrintSettingChanged();update3DPrintLayerControls()"></label>
-            <label>Perimetry<input id="print3d-perimeters" type="number" min="1" max="8" step="1" value="3" oninput="manual3DPrintSettingChanged()"></label>
-            <label>Výplň [%]<input id="print3d-infill" type="number" min="0" max="100" step="1" value="12" oninput="manual3DPrintSettingChanged();render3DPrintLayer()"></label>
-            <label>Vzor výplně<select id="print3d-infill-pattern" onchange="manual3DPrintSettingChanged();render3DPrintLayer()"><option value="gyroid" selected>Gyroid</option><option value="grid">Grid</option><option value="rectilinear">Rectilinear</option></select></label>
-            <label>Podpěry<select id="print3d-supports" onchange="manual3DPrintSettingChanged()"><option value="off">Vypnuto</option><option value="buildplate" selected>Jen z podložky</option><option value="everywhere">Všude</option></select></label>
-            <label>Brim<select id="print3d-brim" onchange="manual3DPrintSettingChanged()"><option value="0">Ne</option><option value="5">5 mm</option><option value="8">8 mm</option></select></label>
-          </div>
-          <button class="action" style="width:100%;margin-top:10px" onclick="apply3DPrintRecommendedSettings()">✦ Nastavit doporučené nastavení pro tisk</button>
-          <div id="print3d-recommended" class="print3d-recommended"></div>
-        </div>
-
-        <div class="print3d-box">
-          <h3>TEPLOTY / CHLAZENÍ / RYCHLOST</h3>
-          <div class="print3d-profile-grid">
-            <label>Tryska 1. vrstva [°C]<input id="print3d-nozzle-first" type="number" value="230" oninput="manual3DPrintSettingChanged()"></label>
-            <label>Tryska ostatní [°C]<input id="print3d-nozzle-temp" type="number" value="240" oninput="manual3DPrintSettingChanged()"></label>
-            <label>Podložka 1. vrstva [°C]<input id="print3d-bed-first" type="number" value="85" oninput="manual3DPrintSettingChanged()"></label>
-            <label>Podložka ostatní [°C]<input id="print3d-bed-temp" type="number" value="90" oninput="manual3DPrintSettingChanged()"></label>
-            <label>Ventilátor po 3. vrstvě [%]<input id="print3d-fan" type="number" min="0" max="100" value="50" oninput="manual3DPrintSettingChanged()"></label>
-            <label>Perimetry [mm/s]<input id="print3d-speed-perim" type="number" min="5" max="200" value="35" oninput="manual3DPrintSettingChanged()"></label>
-            <label>Výplň [mm/s]<input id="print3d-speed-infill" type="number" min="5" max="200" value="50" oninput="manual3DPrintSettingChanged()"></label>
-            <label>Travel [mm/s]<input id="print3d-speed-travel" type="number" min="20" max="250" value="180" oninput="manual3DPrintSettingChanged()"></label>
+          <div class="print3d-box">
+            <h3>PŘÍPRAVA MODELU</h3>
+            <div class="print3d-actions">
+              <button class="back-btn" style="margin:0" onclick="place3DPrintOnBed()">Položit na podložku</button>
+              <button class="back-btn" style="margin:0" onclick="recompute3DPrintNormals()">Přepočítat normály</button>
+              <button class="back-btn" style="margin:0" onclick="remove3DPrintDegenerates()">Odstranit degenerované plochy</button>
+            </div>
           </div>
         </div>
 
-        <div class="print3d-box">
-          <h3>ODHAD TISKU</h3>
-          <div class="print3d-stats">
-            <div class="print3d-stat"><span>Počet vrstev</span><b id="print3d-layer-count">–</b></div>
-            <div class="print3d-stat"><span>Odhad času</span><b id="print3d-print-time">–</b></div>
-            <div class="print3d-stat"><span>Filament</span><b id="print3d-filament">–</b></div>
-            <div class="print3d-stat"><span>Hmotnost</span><b id="print3d-mass">–</b></div>
+        <div class="print3d-tabpage" data-p3page="print">
+          <div class="print3d-box">
+            <h3>TISKÁRNA / FILAMENT</h3>
+            <div class="print3d-profile-grid">
+              <label>Profil tiskárny<select id="print3d-printer" onchange="apply3DPrinterProfile()"><option value="mk3s" selected>Original Prusa i3 MK3S</option></select></label>
+              <label>Tryska<select id="print3d-nozzle" onchange="validate3DPrintSettings();schedule3DPrintEstimate();render3DPrintLayer()"><option value="0.25">0,25 mm</option><option value="0.4" selected>0,40 mm</option><option value="0.6">0,60 mm</option><option value="0.8">0,80 mm</option></select></label>
+              <label>Materiál filamentu<select id="print3d-material" onchange="apply3DPrintMaterialPreset(true);update3DPrintFilamentInfo()"><option value="petg" selected>PETG</option><option value="pla">PLA</option><option value="asa">ASA</option><option value="flex">FLEX / TPU</option></select></label>
+              <label>Průměr filamentu<input value="1,75 mm" disabled></label>
+            </div>
+            <div id="print3d-filament-info" class="print3d-recommended" style="display:block;max-height:none"></div>
           </div>
-          <div id="print3d-estimate-note" class="print3d-estimate-note">Odhad se počítá z průřezů modelu, perimetrů, výplně a rychlostí. Je orientační; skutečný PrusaSlicer započítává akcelerace, retrakce, podpěry a další detaily přesněji.</div>
+          <div class="print3d-box">
+            <h3>TISKOVÝ PROFIL</h3>
+            <div class="print3d-profile-grid">
+              <label>Kvalita<select id="print3d-quality" onchange="apply3DPrintQualityPreset(false)"><option value="detail" selected>0,15 DETAIL</option><option value="quality">0,20 QUALITY</option><option value="speed">0,30 SPEED</option><option value="custom">Vlastní</option></select></label>
+              <label>Účel<select id="print3d-purpose" onchange="schedule3DPrintEstimate()"><option value="architecture" selected>Architektonická maketa</option><option value="normal">Běžný díl</option><option value="strong">Pevný díl</option></select></label>
+              <label>Výška vrstvy [mm]<input id="print3d-layer-height" type="number" min="0.05" max="0.8" step="0.01" value="0.15" oninput="manual3DPrintSettingChanged();update3DPrintLayerControls()"></label>
+              <label>První vrstva [mm]<input id="print3d-first-layer" type="number" min="0.05" max="0.8" step="0.01" value="0.20" oninput="manual3DPrintSettingChanged();update3DPrintLayerControls()"></label>
+              <label>Perimetry<input id="print3d-perimeters" type="number" min="1" max="8" step="1" value="3" oninput="manual3DPrintSettingChanged()"></label>
+              <label>Výplň [%]<input id="print3d-infill" type="number" min="0" max="100" step="1" value="12" oninput="manual3DPrintSettingChanged();render3DPrintLayer()"></label>
+              <label>Vzor výplně<select id="print3d-infill-pattern" onchange="manual3DPrintSettingChanged();render3DPrintLayer()"><option value="gyroid" selected>Gyroid</option><option value="grid">Grid</option><option value="rectilinear">Rectilinear</option></select></label>
+              <label>Podpěry<select id="print3d-supports" onchange="manual3DPrintSettingChanged()"><option value="off">Vypnuto</option><option value="buildplate" selected>Jen z podložky</option><option value="everywhere">Všude</option></select></label>
+              <label>Brim<select id="print3d-brim" onchange="manual3DPrintSettingChanged()"><option value="0">Ne</option><option value="5">5 mm</option><option value="8">8 mm</option></select></label>
+            </div>
+            <details style="margin-top:9px"><summary style="cursor:pointer;font-size:11px">Pokročilé</summary><div class="print3d-profile-grid" style="margin-top:8px">
+              <label>Horní plné vrstvy<input id="print3d-top-solid" type="number" min="1" max="12" value="5" oninput="manual3DPrintSettingChanged()"></label>
+              <label>Spodní plné vrstvy<input id="print3d-bottom-solid" type="number" min="1" max="12" value="4" oninput="manual3DPrintSettingChanged()"></label>
+              <label>Retrakce [mm]<input id="print3d-retract" type="number" min="0" max="5" step="0.1" value="0.8" oninput="manual3DPrintSettingChanged()"></label>
+              <label>Z-hop [mm]<input id="print3d-zhop" type="number" min="0" max="2" step="0.1" value="0.4" oninput="manual3DPrintSettingChanged()"></label>
+            </div></details>
+          </div>
+          <div class="print3d-box">
+            <h3>TEPLOTY / CHLAZENÍ / RYCHLOST</h3>
+            <div class="print3d-profile-grid">
+              <label>Tryska 1. vrstva [°C]<input id="print3d-nozzle-first" type="number" value="230" oninput="manual3DPrintSettingChanged()"></label>
+              <label>Tryska ostatní [°C]<input id="print3d-nozzle-temp" type="number" value="240" oninput="manual3DPrintSettingChanged()"></label>
+              <label>Podložka 1. vrstva [°C]<input id="print3d-bed-first" type="number" value="85" oninput="manual3DPrintSettingChanged()"></label>
+              <label>Podložka ostatní [°C]<input id="print3d-bed-temp" type="number" value="90" oninput="manual3DPrintSettingChanged()"></label>
+              <label>Ventilátor po 3. vrstvě [%]<input id="print3d-fan" type="number" min="0" max="100" value="50" oninput="manual3DPrintSettingChanged()"></label>
+              <label>Perimetry [mm/s]<input id="print3d-speed-perim" type="number" min="5" max="200" value="35" oninput="manual3DPrintSettingChanged()"></label>
+              <label>Výplň [mm/s]<input id="print3d-speed-infill" type="number" min="5" max="200" value="50" oninput="manual3DPrintSettingChanged()"></label>
+              <label>Travel [mm/s]<input id="print3d-speed-travel" type="number" min="20" max="250" value="180" oninput="manual3DPrintSettingChanged()"></label>
+            </div>
+          </div>
         </div>
 
-        <div class="print3d-box">
-          <h3>TISKOVÁ PLOCHA</h3>
-          <div class="print3d-fields">
-            <label>Šířka X [mm]<input id="print3d-bedx" type="number" min="1" value="250" oninput="update3DPrintStats()"></label>
-            <label>Hloubka Y [mm]<input id="print3d-bedy" type="number" min="1" value="210" oninput="update3DPrintStats()"></label>
-            <label>Výška Z [mm]<input id="print3d-bedz" type="number" min="1" value="210" oninput="update3DPrintStats()"></label>
-            <label>&nbsp;<button class="back-btn" style="margin:0;width:100%" onclick="suggest3DPrintScale()">Navrhnout měřítko</button></label>
+        <div class="print3d-tabpage" data-p3page="layers">
+          <div class="print3d-layer-big">
+            <div class="print3d-layer-topline"><b style="font-family:'Antarctican Mono',monospace;font-weight:normal">NÁHLED VRSTEV</b><span id="print3d-layer-info" class="print3d-layer-info">Vrstva –</span></div>
+            <input id="print3d-layer-slider" type="range" min="1" max="1" value="1" step="1" disabled oninput="render3DPrintLayer()" onchange="render3DPrintLayer()">
+            <div class="print3d-layer-legend"><span><i class="perim"></i>obrys</span><span><i class="infill"></i>výplň</span></div>
+            <div class="print3d-actions" style="margin-top:10px">
+              <button id="print3d-nozzle-btn" class="back-btn" style="margin:0" disabled onclick="animate3DPrintNozzle()">▶ Přehrát dráhu</button>
+              <button class="back-btn" style="margin:0" onclick="fit3DPrintLayerView()">Pohled shora</button>
+              <button class="back-btn" style="margin:0" onclick="toggle3DPrintLayerView()">Zapnout / vypnout vrstvy</button>
+            </div>
+            <div class="print3d-beta-note">Posuvník mění skutečný řez modelem. Náhled používá stejné kontury a výplňové dráhy jako G-code export.</div>
           </div>
         </div>
 
-        <div class="print3d-box">
-          <h3>KONTROLA MODELU</h3>
-          <div class="print3d-stats">
-            <div class="print3d-stat"><span>Zdrojový rozměr</span><b id="print3d-source-dims">–</b></div>
-            <div class="print3d-stat"><span>Rozměr pro tisk</span><b id="print3d-output-dims">–</b></div>
-            <div class="print3d-stat"><span>Trojúhelníky</span><b id="print3d-triangles">–</b></div>
-            <div class="print3d-stat"><span>Objekty / mesh</span><b id="print3d-meshes">–</b></div>
-            <div class="print3d-stat"><span>Otevřené hrany</span><b id="print3d-boundary">–</b></div>
-            <div class="print3d-stat"><span>Degenerované plochy</span><b id="print3d-degenerate">–</b></div>
-            <div class="print3d-stat"><span>Objem po zmenšení</span><b id="print3d-volume">–</b></div>
-            <div class="print3d-stat"><span>Velikost souboru</span><b id="print3d-filesize">–</b></div>
+        <div class="print3d-tabpage" data-p3page="export">
+          <div class="print3d-box">
+            <h3>DOPORUČENÉ NASTAVENÍ</h3>
+            <button class="action" style="width:100%" onclick="apply3DPrintRecommendedSettings()">✦ Nastavit doporučené nastavení pro tisk</button>
+            <div id="print3d-recommended" class="print3d-recommended"></div>
           </div>
-          <div id="print3d-health" class="print3d-health" style="margin-top:8px">Nahraj model pro kontrolu.</div>
-          <div class="print3d-beta-note">Kontrola uzavřenosti je geometrická kontrola hran meshe. U velmi těžkých modelů se detailní topologická kontrola záměrně přeskočí, aby se prohlížeč nezasekl.</div>
-        </div>
-
-        <div class="print3d-box">
-          <h3>PŘÍPRAVA</h3>
-          <div class="print3d-actions">
-            <button class="back-btn" style="margin:0" onclick="place3DPrintOnBed()">Položit na podložku</button>
-            <button class="back-btn" style="margin:0" onclick="recompute3DPrintNormals()">Přepočítat normály</button>
-            <button class="back-btn" style="margin:0" onclick="remove3DPrintDegenerates()">Odstranit degenerované plochy</button>
+          <div class="print3d-box">
+            <h3>EXPORT PRO PRUSA MK3S</h3>
+            <div class="print3d-export-warning"><b>G-code BETA:</b> generuje perimetry, plné horní/spodní vrstvy, výplň, brim, teploty, chlazení, retrakci a pohyby pro MK3S. Generátor podpěr zatím není produkční; pokud jsou podpěry zapnuté, Toolbox tě před exportem upozorní. Před tiskem otevři G-code v PrusaSlicer G-code Vieweru.</div>
+            <div class="print3d-gcode-actions">
+              <button id="btn-3dprint-export" class="action" disabled onclick="export3DPrintGcode()">Exportovat G-code pro MK3S</button>
+              <button id="btn-3dprint-stl-export" class="back-btn" disabled onclick="export3DPrintSTL()">Exportovat STL model</button>
+            </div>
           </div>
-          <div class="print3d-beta-note">Náhled vrstev je vlastní rychlý slicerový náhled Toolboxu, ne produkční PrusaSlicer. STL můžeš následně otevřít v PrusaSliceru a porovnat výsledný G-code.</div>
         </div>
-
-        <button id="btn-3dprint-export" class="action" disabled onclick="export3DPrintSTL()">Exportovat STL pro tisk</button>
       </div>
     </div>
   </div>
@@ -1054,7 +1095,7 @@ function initProjectStorageUI() {
     if (button) button.textContent = '🔄 Obnovit seznam projektů';
     if (autosave) autosave.textContent = '(automatické ukládání v Safari)';
   } else {
-    if (version) version.textContent = 'V3.12r';
+    if (version) version.textContent = 'V3.12u';
     if (note) note.innerHTML = 'Vyberte existující projekt, nebo založte nový. Projekty se ukládají do složky <code>saved_projects</code>.';
     if (warning) warning.style.display = 'none';
     if (button) button.textContent = '🔄 Připojit / obnovit složku saved_projects';
@@ -5506,7 +5547,7 @@ async function runPanel(fromModal = false){
 
 
 // ============================================================
-// 3D TISK — V3.12t BETA
+// 3D TISK — V3.12u BETA
 // ============================================================
 const print3dState={
   initialized:false,deps:null,renderer:null,scene:null,camera:null,controls:null,root:null,file:null,
@@ -5572,6 +5613,7 @@ function dispose3DObject(obj){
 
 async function load3DPrintFile(file){
   if(!file)return;const ext=(file.name.split('.').pop()||'').toLowerCase();
+  const scaleInput=document.getElementById('print3d-scale'),unitInput=document.getElementById('print3d-units');if(scaleInput)scaleInput.value='1';if(unitInput)unitInput.value=ext==='glb'?'1000':'1';
   if(!['stl','obj','glb'].includes(ext)){alert('Tato BETA verze zatím podporuje STL, OBJ a GLB.');return;}
   await init3DPrintTool();const st=document.getElementById('st-3dprint');if(st)st.textContent='Načítám '+file.name+'…';
   try{
@@ -5590,7 +5632,7 @@ async function load3DPrintFile(file){
     loaded.updateMatrixWorld(true);const rawBox=new THREE.Box3().setFromObject(loaded),rawSize=new THREE.Vector3();rawBox.getSize(rawSize);print3dState.sourceDims={x:rawSize.x,y:rawSize.y,z:rawSize.z};
     print3dState.analysis=await analyze3DPrintModel(loaded);
     wrapper.rotation.set(0,0,0);wrapper.position.set(0,0,0);
-    invalidate3DPrintSliceCache();update3DPrintTransform();render3DPrintLoaded();document.getElementById('btn-3dprint-export').disabled=false;
+    invalidate3DPrintSliceCache();update3DPrintTransform();render3DPrintLoaded();document.getElementById('btn-3dprint-export').disabled=false;document.getElementById('btn-3dprint-stl-export')&&(document.getElementById('btn-3dprint-stl-export').disabled=false);
     update3DPrintLayerControls();schedule3DPrintEstimate();
     if(st)st.textContent='Načteno: '+file.name;renderSessionDataOverview();
   }catch(e){console.error(e);if(st)st.textContent='Chyba při načtení modelu.';alert('Model se nepodařilo načíst: '+e.message)}
@@ -5612,11 +5654,20 @@ async function analyze3DPrintModel(obj){
 
 function render3DPrintLoaded(){const el=document.getElementById('print3d-loaded'),f=print3dState.file;if(!el)return;if(!f){el.innerHTML='';return}el.innerHTML=`<div class="loaded-files-head"><span><b>Načtený 3D model</b></span></div><div class="loaded-file-row"><span class="loaded-file-name">🧊 ${escapeHtml(f.name)}</span><span class="loaded-file-size">${formatBytes(f.size)}</span><button class="mini-remove" onclick="clear3DPrintModel()">Odstranit</button></div>`}
 
+
+function open3DPrintTab(name){
+  document.querySelectorAll('.print3d-tab').forEach(b=>b.classList.toggle('active',b.dataset.p3tab===name));
+  document.querySelectorAll('.print3d-tabpage').forEach(p=>p.classList.toggle('active',p.dataset.p3page===name));
+  if(name==='layers'&&print3dState.root){if(!print3dState.sliceMode){print3dState.sliceMode=true;const b=document.getElementById('print3d-layer-view-btn');if(b)b.classList.add('print3d-view-mode')}render3DPrintLayer();setTimeout(fit3DPrintLayerView,20)}
+  setTimeout(resize3DPrintRenderer,20);
+}
+function fit3DPrintLayerView(){const r=print3dState.root,d=print3dState.deps,c=print3dState.camera,ctl=print3dState.controls;if(!r||!d||!c||!ctl)return;const {THREE}=d,box=new THREE.Box3().setFromObject(r),size=new THREE.Vector3(),center=new THREE.Vector3();box.getSize(size);box.getCenter(center);const span=Math.max(size.x,size.y,10);c.position.set(center.x,center.y,Math.max(size.z+span*1.35,span*1.35));c.up.set(0,1,0);ctl.target.set(center.x,center.y,Math.max(0,layer3DPrintZ(Number(document.getElementById('print3d-layer-slider')?.value||1))));c.near=.01;c.far=Math.max(5000,span*50);c.updateProjectionMatrix();ctl.update()}
+
 function clear3DPrintModel(confirmIt=true){
   if(print3dState.file&&confirmIt&&!confirm('Odstranit načtený 3D model z této relace?'))return;
   stop3DPrintNozzleAnimation();clear3DPrintSliceVisual();
   if(print3dState.root){print3dState.scene?.remove(print3dState.root);dispose3DObject(print3dState.root)}print3dState.root=null;print3dState.file=null;print3dState.sourceDims=null;print3dState.analysis=null;
-  invalidate3DPrintSliceCache();render3DPrintLoaded();document.getElementById('btn-3dprint-export')&&(document.getElementById('btn-3dprint-export').disabled=true);const st=document.getElementById('st-3dprint');if(st)st.textContent='Nahraj model.';reset3DPrintStats();renderSessionDataOverview();
+  invalidate3DPrintSliceCache();render3DPrintLoaded();document.getElementById('btn-3dprint-export')&&(document.getElementById('btn-3dprint-export').disabled=true);document.getElementById('btn-3dprint-stl-export')&&(document.getElementById('btn-3dprint-stl-export').disabled=true);const st=document.getElementById('st-3dprint');if(st)st.textContent='Nahraj model.';reset3DPrintStats();renderSessionDataOverview();
 }
 
 function reset3DPrintStats(){
@@ -5656,7 +5707,7 @@ function update3DPrintBedVisual(){const s=print3dState.scene,d=print3dState.deps
   const pts=[new THREE.Vector3(-bx/2,-by/2,0),new THREE.Vector3(bx/2,-by/2,0),new THREE.Vector3(bx/2,by/2,0),new THREE.Vector3(-bx/2,by/2,0),new THREE.Vector3(-bx/2,-by/2,0)];const g=new THREE.BufferGeometry().setFromPoints(pts),line=new THREE.Line(g,new THREE.LineBasicMaterial({color:0x18181b}));s.add(line);print3dState.bedOutline=line;
 }
 
-function fit3DPrintView(force=true){const r=print3dState.root,d=print3dState.deps,c=print3dState.camera,ctl=print3dState.controls;if(!r||!d||!c||!ctl)return;const {THREE}=d;const box=new THREE.Box3().setFromObject(r);if(box.isEmpty())return;const size=new THREE.Vector3(),center=new THREE.Vector3();box.getSize(size);box.getCenter(center);const max=Math.max(size.x,size.y,size.z,10),dist=max/Math.tan((c.fov*Math.PI/180)/2)*.72;c.position.set(center.x+dist*.85,center.y-dist*.95,center.z+dist*.72);c.near=Math.max(.01,max/10000);c.far=Math.max(10000,max*50);c.updateProjectionMatrix();ctl.target.copy(center);ctl.update()}
+function fit3DPrintView(force=true){const r=print3dState.root,d=print3dState.deps,c=print3dState.camera,ctl=print3dState.controls;if(!r||!d||!c||!ctl)return;const {THREE}=d;const box=new THREE.Box3().setFromObject(r);if(box.isEmpty())return;const size=new THREE.Vector3(),center=new THREE.Vector3();box.getSize(size);box.getCenter(center);const max=Math.max(size.x,size.y,size.z,10),dist=max/Math.tan((c.fov*Math.PI/180)/2)*.72;c.up.set(0,0,1);c.position.set(center.x+dist*.85,center.y-dist*.95,center.z+dist*.72);c.near=Math.max(.01,max/10000);c.far=Math.max(10000,max*50);c.updateProjectionMatrix();ctl.target.copy(center);ctl.update()}
 
 function suggest3DPrintScale(){if(!print3dState.root)return;const out=current3DPrintDims(),current=Math.max(.001,Number(document.getElementById('print3d-scale').value||1)),bx=Number(document.getElementById('print3d-bedx').value||256),by=Number(document.getElementById('print3d-bedy').value||256),bz=Number(document.getElementById('print3d-bedz').value||256);const physical={x:out.x*current,y:out.y*current,z:out.z*current},needed=Math.max(physical.x/bx,physical.y/by,physical.z/bz,1);const common=[1,2,5,10,20,25,50,75,100,150,200,250,300,400,500,750,1000,1500,2000];let pick=common.find(x=>x>=needed)||Math.ceil(needed/100)*100;document.getElementById('print3d-scale').value=pick;update3DPrintTransform();document.getElementById('st-3dprint').textContent=`Navrženo měřítko 1:${pick} pro aktuální orientaci.`}
 
@@ -5735,17 +5786,33 @@ function get3DPrintTriangleCache(){
 }
 function get3DPrintOverhangInfo(){const c=get3DPrintTriangleCache();if(!c||!c.area)return null;return {area:c.overhang,ratio:c.overhang/c.area}}
 function intersectTriAtZ(d,i,z){
-  const pts=[[d[i],d[i+1],d[i+2]],[d[i+3],d[i+4],d[i+5]],[d[i+6],d[i+7],d[i+8]]],hits=[];for(let e=0;e<3;e++){const p=pts[e],q=pts[(e+1)%3],pBelow=p[2]<=z,qBelow=q[2]<=z;if(pBelow===qBelow)continue;const den=q[2]-p[2];if(Math.abs(den)<1e-12)continue;const t=(z-p[2])/den;if(t<-1e-7||t>1+1e-7)continue;hits.push([p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t])}
-  if(hits.length<2)return null;const p=hits[0],q=hits[1];if(Math.hypot(p[0]-q[0],p[1]-q[1])<1e-5)return null;return [p[0],p[1],q[0],q[1]];
+  const pts=[[d[i],d[i+1],d[i+2]],[d[i+3],d[i+4],d[i+5]],[d[i+6],d[i+7],d[i+8]]],eps=1e-7,hits=[];
+  for(let e=0;e<3;e++){const p=pts[e],q=pts[(e+1)%3],dp=p[2]-z,dq=q[2]-z;if(Math.abs(dp)<eps&&Math.abs(dq)<eps)continue;if((dp<0&&dq<0)||(dp>0&&dq>0))continue;if(Math.abs(q[2]-p[2])<eps)continue;const t=(z-p[2])/(q[2]-p[2]);if(t<-eps||t>1+eps)continue;const x=p[0]+(q[0]-p[0])*t,y=p[1]+(q[1]-p[1])*t;if(!hits.some(h=>Math.hypot(h[0]-x,h[1]-y)<1e-6))hits.push([x,y])}
+  if(hits.length!==2)return null;const p=hits[0],q=hits[1];if(Math.hypot(p[0]-q[0],p[1]-q[1])<1e-5)return null;return [p[0],p[1],q[0],q[1]];
 }
-function slice3DPrintContours(z){
-  const key=`${z.toFixed(4)}`;if(print3dState.sliceCache.has(key))return print3dState.sliceCache.get(key);const c=get3DPrintTriangleCache();if(!c)return [];const d=c.data,out=[];for(let i=0;i<d.length;i+=9){const z0=d[i+2],z1=d[i+5],z2=d[i+8],mn=Math.min(z0,z1,z2),mx=Math.max(z0,z1,z2);if(z<mn||z>mx)continue;const seg=intersectTriAtZ(d,i,z);if(seg)out.push(seg)}if(print3dState.sliceCache.size>36)print3dState.sliceCache.clear();print3dState.sliceCache.set(key,out);return out;
+function p3Key(x,y,tol){return `${Math.round(x/tol)},${Math.round(y/tol)}`}
+function polygonArea3DPrint(poly){let a=0;for(let i=0,j=poly.length-1;i<poly.length;j=i++)a+=poly[j][0]*poly[i][1]-poly[i][0]*poly[j][1];return a/2}
+function pointInPoly3DPrint(p,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if(((a[1]>p[1])!==(b[1]>p[1]))&&(p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1]+1e-30)+a[0]))inside=!inside}return inside}
+function stitch3DPrintLoops(raw,tol=.02){
+  const parity=new Map();for(const s of raw){const a=p3Key(s[0],s[1],tol),b=p3Key(s[2],s[3],tol);if(a===b)continue;const k=a<b?a+'|'+b:b+'|'+a,old=parity.get(k);if(old)old.count++;else parity.set(k,{count:1,s})}
+  const segs=[...parity.values()].filter(v=>v.count%2===1).map(v=>v.s),adj=new Map(),unused=new Set(segs.map((_,i)=>i));
+  const add=(k,i)=>{if(!adj.has(k))adj.set(k,[]);adj.get(k).push(i)};segs.forEach((s,i)=>{add(p3Key(s[0],s[1],tol),i);add(p3Key(s[2],s[3],tol),i)});
+  const loops=[];while(unused.size){const first=unused.values().next().value;unused.delete(first);const s=segs[first],pts=[[s[0],s[1]],[s[2],s[3]]],startKey=p3Key(s[0],s[1],tol);let curKey=p3Key(s[2],s[3],tol),guard=0,closed=false;
+    while(guard++<segs.length+4){if(curKey===startKey&&pts.length>=4){closed=true;break}const cand=(adj.get(curKey)||[]).find(i=>unused.has(i));if(cand==null)break;unused.delete(cand);const q=segs[cand],ka=p3Key(q[0],q[1],tol),kb=p3Key(q[2],q[3],tol);const next=ka===curKey?[q[2],q[3]]:[q[0],q[1]];pts.push(next);curKey=p3Key(next[0],next[1],tol)}
+    if(closed){pts.pop();if(pts.length>=3&&Math.abs(polygonArea3DPrint(pts))>.01)loops.push(pts)}
+  }
+  return loops.sort((a,b)=>Math.abs(polygonArea3DPrint(b))-Math.abs(polygonArea3DPrint(a)));
 }
+function loopsToSegments3DPrint(loops){const out=[];for(const p of loops)for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];out.push([a[0],a[1],b[0],b[1]])}return out}
+function slice3DPrintLoops(z){
+  const key=`L${z.toFixed(4)}`;if(print3dState.sliceCache.has(key))return print3dState.sliceCache.get(key);const c=get3DPrintTriangleCache();if(!c)return [];const d=c.data,raw=[];for(let i=0;i<d.length;i+=9){const z0=d[i+2],z1=d[i+5],z2=d[i+8],mn=Math.min(z0,z1,z2),mx=Math.max(z0,z1,z2);if(z<mn-1e-7||z>mx+1e-7)continue;const seg=intersectTriAtZ(d,i,z);if(seg)raw.push(seg)}const dims=current3DPrintDims(),tol=Math.max(.005,Math.min(.08,Math.max(dims?.x||1,dims?.y||1)*.00015)),loops=stitch3DPrintLoops(raw,tol);if(print3dState.sliceCache.size>48)print3dState.sliceCache.clear();print3dState.sliceCache.set(key,loops);return loops;
+}
+function slice3DPrintContours(z){return loopsToSegments3DPrint(slice3DPrintLoops(z))}
 function segLength3D(s){return Math.hypot(s[2]-s[0],s[3]-s[1])}
 function clip3DPrintScanlines(contours,angle,spacing){
   if(!contours.length||!Number.isFinite(spacing)||spacing<=0)return [];const ca=Math.cos(angle),sa=Math.sin(angle);let minV=Infinity,maxV=-Infinity;const transformed=[];
   for(const s of contours){const p=[[s[0],s[1]],[s[2],s[3]]],t=[];for(const q of p){const u=q[0]*ca+q[1]*sa,v=-q[0]*sa+q[1]*ca;t.push([u,v]);minV=Math.min(minV,v);maxV=Math.max(maxV,v)}transformed.push(t)}
-  const out=[],maxLines=1200;let lines=Math.ceil((maxV-minV)/spacing);if(lines>maxLines)spacing=(maxV-minV)/maxLines;
+  const out=[],maxLines=1600;let lines=Math.ceil((maxV-minV)/spacing);if(lines>maxLines)spacing=(maxV-minV)/maxLines;
   for(let v=minV+spacing*.5;v<maxV;v+=spacing){const us=[];for(const t of transformed){const a=t[0],b=t[1];if((a[1]<=v&&b[1]>v)||(b[1]<=v&&a[1]>v)){const k=(v-a[1])/(b[1]-a[1]);us.push(a[0]+(b[0]-a[0])*k)}}us.sort((a,b)=>a-b);for(let i=0;i+1<us.length;i+=2){const u1=us[i],u2=us[i+1];if(u2-u1<.05)continue;out.push([u1*ca-v*sa,u1*sa+v*ca,u2*ca-v*sa,u2*sa+v*ca])}}
   return out;
 }
@@ -5758,7 +5825,7 @@ function calc3DPrintLayerCount(){const out=current3DPrintDims();if(!out)return 0
 function layer3DPrintZ(idx){const first=Math.max(.01,num3D('print3d-first-layer',.2)),lh=Math.max(.01,num3D('print3d-layer-height',.15));return idx<=1?Math.min(first/2,(current3DPrintDims()?.z||first)/2):first+(idx-1.5)*lh}
 function update3DPrintLayerControls(){const n=calc3DPrintLayerCount(),sl=document.getElementById('print3d-layer-slider'),lc=document.getElementById('print3d-layer-count');if(lc)lc.textContent=n?n.toLocaleString('cs-CZ'):'–';if(sl){const old=Number(sl.value||1);sl.max=Math.max(1,n);sl.value=Math.min(Math.max(1,old),Math.max(1,n));sl.disabled=!print3dState.root||!n}const nb=document.getElementById('print3d-nozzle-btn');if(nb)nb.disabled=!print3dState.root||!n}
 function clear3DPrintSliceVisual(){const s=print3dState.scene;if(print3dState.sliceGroup&&s){s.remove(print3dState.sliceGroup);dispose3DObject(print3dState.sliceGroup)}print3dState.sliceGroup=null;if(print3dState.nozzleDot&&s){s.remove(print3dState.nozzleDot);dispose3DObject(print3dState.nozzleDot)}print3dState.nozzleDot=null;if(print3dState.nozzleTrail&&s){s.remove(print3dState.nozzleTrail);dispose3DObject(print3dState.nozzleTrail)}print3dState.nozzleTrail=null;print3dState._lastNozzleT=0;set3DPrintModelGhost(false)}
-function set3DPrintModelGhost(on){print3dState.root?.traverse?.(m=>{if(!m.isMesh)return;const mats=Array.isArray(m.material)?m.material:[m.material];for(const mat of mats){if(!mat)continue;if(mat.userData._p3Opacity==null){mat.userData._p3Opacity=mat.opacity;mat.userData._p3Transparent=mat.transparent;mat.userData._p3DepthWrite=mat.depthWrite}mat.transparent=on?true:mat.userData._p3Transparent;mat.opacity=on?.035:mat.userData._p3Opacity;mat.depthWrite=on?false:mat.userData._p3DepthWrite;mat.needsUpdate=true}})}
+function set3DPrintModelGhost(on){print3dState.root?.traverse?.(m=>{if(!m.isMesh)return;const mats=Array.isArray(m.material)?m.material:[m.material];for(const mat of mats){if(!mat)continue;if(mat.userData._p3Opacity==null){mat.userData._p3Opacity=mat.opacity;mat.userData._p3Transparent=mat.transparent;mat.userData._p3DepthWrite=mat.depthWrite}mat.transparent=on?true:mat.userData._p3Transparent;mat.opacity=on?.12:mat.userData._p3Opacity;mat.depthWrite=on?false:mat.userData._p3DepthWrite;mat.needsUpdate=true}})}
 function toggle3DPrintLayerView(){print3dState.sliceMode=!print3dState.sliceMode;const b=document.getElementById('print3d-layer-view-btn');if(b)b.classList.toggle('print3d-view-mode',print3dState.sliceMode);if(print3dState.sliceMode)render3DPrintLayer();else{stop3DPrintNozzleAnimation();clear3DPrintSliceVisual();const li=document.getElementById('print3d-layer-info');if(li)li.textContent='Vrstva –'}}
 function create3DLineSegments(segments,z,color,opacity=1){const d=print3dState.deps;if(!d||!segments.length)return null;const {THREE}=d,pos=new Float32Array(segments.length*6);let k=0;for(const s of segments){pos[k++]=s[0];pos[k++]=s[1];pos[k++]=z;pos[k++]=s[2];pos[k++]=s[3];pos[k++]=z}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));const mat=new THREE.LineBasicMaterial({color,transparent:opacity<1,opacity,depthTest:false,depthWrite:false});const line=new THREE.LineSegments(g,mat);line.renderOrder=120;return line}
 function create3DFilamentMesh(segments,z,width,color,opacity=1){
@@ -5768,7 +5835,7 @@ function create3DFilamentMesh(segments,z,width,color,opacity=1){
 }
 function render3DPrintLayer(){
   update3DPrintLayerControls();if(!print3dState.root||!print3dState.sliceMode)return;stop3DPrintNozzleAnimation();clear3DPrintSliceVisual();print3dState.sliceMode=true;set3DPrintModelGhost(true);
-  const {THREE}=print3dState.deps,idx=Math.max(1,Number(document.getElementById('print3d-layer-slider')?.value||1)),z=layer3DPrintZ(idx),cont=slice3DPrintContours(z),infill=generate3DPrintInfill(cont,idx),group=new THREE.Group(),nozzle=Math.max(.1,num3D('print3d-nozzle',.4)),extrusionWidth=nozzle*1.125,zVis=z+Math.max(.02,nozzle*.08);
+  const {THREE}=print3dState.deps,idx=Math.max(1,Number(document.getElementById('print3d-layer-slider')?.value||1)),z=layer3DPrintZ(idx),loops=slice3DPrintLoops(z),cont=loopsToSegments3DPrint(loops),layers=calc3DPrintLayerCount(),solid=idx<=Math.max(1,num3D('print3d-bottom-solid',4))||idx>layers-Math.max(1,num3D('print3d-top-solid',5)),infill=generate3DPrintInfill(cont,idx,solid?100:null),group=new THREE.Group(),nozzle=Math.max(.1,num3D('print3d-nozzle',.4)),extrusionWidth=nozzle*1.125,zVis=z+Math.max(.02,nozzle*.08);
   const a=create3DFilamentMesh(cont,zVis,extrusionWidth*1.05,0x18181b,1),b=create3DFilamentMesh(infill,zVis+.002,extrusionWidth*.92,0xb38b00,.98);
   if(a)group.add(a);if(b)group.add(b);
   // Jemná kontrastní středová čára zůstává čitelná i při velkém zoomu.
@@ -5800,7 +5867,39 @@ async function estimate3DPrint(){
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('print3d-print-time',format3DPrintDuration(sec));set('print3d-filament',filLen>=1000?`${(filLen/1000).toFixed(2)} m`:`${Math.round(filLen)} mm`);set('print3d-mass',`${mass.toFixed(mass<10?1:0)} g`);const note=document.getElementById('print3d-estimate-note');if(note)note.textContent=`Orientační výpočet z ${used} reprezentativních vrstev (${samples} vzorků), šířka extruze ~${width.toFixed(2)} mm. Skutečný čas v PrusaSliceru se může lišit přibližně o 15–30 % podle akcelerací, retrakcí, podpěr a konkrétního modelu.`;
 }
 
-async function export3DPrintSTL(){const root=print3dState.root,f=print3dState.file;if(!root||!f)return;try{const {STLExporter}=await get3DPrintDeps();root.updateMatrixWorld(true);const data=new STLExporter().parse(root,{binary:true});let blob;if(data instanceof DataView)blob=new Blob([data.buffer],{type:'model/stl'});else if(data instanceof ArrayBuffer)blob=new Blob([data],{type:'model/stl'});else blob=new Blob([data],{type:'model/stl'});const a=document.createElement('a'),ratio=String(document.getElementById('print3d-scale').value||1).replace(/[^0-9._-]/g,'');a.href=URL.createObjectURL(blob);a.download=f.name.replace(/\.[^.]+$/,'')+`_3DPRINT_1-${ratio}.stl`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);document.getElementById('st-3dprint').textContent='STL připraveno pro slicer.'}catch(e){console.error(e);alert('STL se nepodařilo vytvořit: '+e.message)}}
+
+function layer3DPrintNozzleZ(idx){const first=Math.max(.01,num3D('print3d-first-layer',.2)),lh=Math.max(.01,num3D('print3d-layer-height',.15));return idx===1?first:first+(idx-1)*lh}
+function loopCentroid3DPrint(poly){let x=0,y=0;for(const p of poly){x+=p[0];y+=p[1]}return [x/poly.length,y/poly.length]}
+function offsetLoop3DPrint(poly,dist,toward=true){const c=loopCentroid3DPrint(poly),out=[];for(const p of poly){let dx=c[0]-p[0],dy=c[1]-p[1],l=Math.hypot(dx,dy)||1;if(!toward){dx=-dx;dy=-dy}out.push([p[0]+dx/l*dist,p[1]+dy/l*dist])}return Math.abs(polygonArea3DPrint(out))>.01?out:poly}
+function loopDepth3DPrint(loop,all){const c=loopCentroid3DPrint(loop);let depth=0;for(const other of all){if(other===loop)continue;if(Math.abs(polygonArea3DPrint(other))<=Math.abs(polygonArea3DPrint(loop)))continue;if(pointInPoly3DPrint(c,other))depth++}return depth}
+function build3DPrintPerimeterLoops(loops,count,width){const out=[];for(const loop of loops){const hole=loopDepth3DPrint(loop,loops)%2===1;for(let p=0;p<count;p++){const d=(p+.5)*width;out.push(offsetLoop3DPrint(loop,d,!hole))}}return out}
+function get3DPrintXYBounds(){const c=get3DPrintTriangleCache();if(!c)return null;let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;const d=c.data;for(let i=0;i<d.length;i+=3){minX=Math.min(minX,d[i]);maxX=Math.max(maxX,d[i]);minY=Math.min(minY,d[i+1]);maxY=Math.max(maxY,d[i+1])}return {minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY}}
+function nearestOrderedSegments3DPrint(segs,start=[0,0]){const left=segs.map(s=>s.slice()),out=[];let cur=start.slice();while(left.length){let bi=0,flip=false,bd=Infinity;for(let i=0;i<left.length;i++){const s=left[i],d1=Math.hypot(s[0]-cur[0],s[1]-cur[1]),d2=Math.hypot(s[2]-cur[0],s[3]-cur[1]);if(d1<bd){bd=d1;bi=i;flip=false}if(d2<bd){bd=d2;bi=i;flip=true}}const s=left.splice(bi,1)[0],q=flip?[s[2],s[3],s[0],s[1]]:s;out.push(q);cur=[q[2],q[3]]}return out}
+async function export3DPrintGcode(){
+  const root=print3dState.root,f=print3dState.file;if(!root||!f)return;const st=document.getElementById('st-3dprint'),out=current3DPrintDims(),bx=num3D('print3d-bedx',250),by=num3D('print3d-bedy',210),bz=num3D('print3d-bedz',210);if(!out||out.x>bx+.01||out.y>by+.01||out.z>bz+.01){alert('Model se nevejde na tiskovou plochu MK3S. Nejdřív uprav měřítko nebo orientaci.');open3DPrintTab('model');return}
+  const supports=document.getElementById('print3d-supports')?.value||'off';if(supports!=='off'&&!confirm('Pozor: generátor podpěr je v této BETA verzi zatím jen doporučovací a podpěrné konstrukce se do G-code nevygenerují.\n\nChceš exportovat G-code BEZ podpěr?'))return;
+  if(print3dState.analysis&&!print3dState.analysis.skipped&&(print3dState.analysis.boundary>0||print3dState.analysis.nonManifold>0)){if(!confirm('Model není podle kontroly zcela uzavřený/manifold. G-code může být chybný.\n\nPřesto pokračovat?'))return}
+  try{
+    const layers=calc3DPrintLayerCount(),nozzle=num3D('print3d-nozzle',.4),width=nozzle*1.125,firstH=num3D('print3d-first-layer',.2),lh=num3D('print3d-layer-height',.15),perims=Math.max(1,Math.round(num3D('print3d-perimeters',3))),top=Math.max(1,Math.round(num3D('print3d-top-solid',5))),bottom=Math.max(1,Math.round(num3D('print3d-bottom-solid',4))),perimSpeed=num3D('print3d-speed-perim',35)*60,infillSpeed=num3D('print3d-speed-infill',50)*60,travelSpeed=num3D('print3d-speed-travel',180)*60,retract=Math.max(0,num3D('print3d-retract',.8)),zhop=Math.max(0,num3D('print3d-zhop',.4)),fan=Math.round(Math.max(0,Math.min(100,num3D('print3d-fan',50)))*2.55),noz1=Math.round(num3D('print3d-nozzle-first',230)),noz=Math.round(num3D('print3d-nozzle-temp',240)),bed1=Math.round(num3D('print3d-bed-first',85)),bed=Math.round(num3D('print3d-bed-temp',90)),filArea=Math.PI*Math.pow(1.75/2,2),brim=Math.max(0,num3D('print3d-brim',0)),bounds=get3DPrintXYBounds();
+    if(!bounds)throw new Error('Nelze získat rozměry modelu.');const ox=bx/2-(bounds.minX+bounds.maxX)/2,oy=by/2-(bounds.minY+bounds.maxY)/2;
+    const g=[];g.push('; generated by 20-20-TOOLBOX V3.12u','; printer_model = Original Prusa i3 MK3S',`; source = ${f.name}`,`; layer_height = ${lh}`,`; first_layer_height = ${firstH}`,`; nozzle_diameter = ${nozzle}`,`; filament_type = ${document.getElementById('print3d-material')?.value?.toUpperCase()||'PETG'}`,`; fill_density = ${num3D('print3d-infill',12)}%`,'; verify this BETA G-code in PrusaSlicer G-code Viewer before printing','M83 ; relative extrusion','G90 ; absolute coordinates','G21 ; millimeters',`M104 S${noz1} ; nozzle temp`,`M140 S${bed1} ; bed temp`,`M190 S${bed1} ; wait bed`,`M109 S${noz1} ; wait nozzle`,'G28 W ; home without mesh leveling','G80 ; mesh bed leveling',`G1 Z${firstH.toFixed(3)} F7200`,'G92 E0','G1 Y-3.0 F1000','G1 X60.0 E9.0 F1000','G1 X100.0 E12.5 F1000','G92 E0','M107');
+    let cx=100,cy=-3,cz=0,retracted=false,totalE=0;const eFor=(len,h)=>len*width*h/filArea;
+    const travel=(x,y,z)=>{const dist=Math.hypot(x-cx,y-cy);if(dist>2&&retract>0&&!retracted){g.push(`G1 E-${retract.toFixed(3)} F2100`);retracted=true}if(zhop>0&&dist>2)g.push(`G1 Z${Math.min(bz,z+zhop).toFixed(3)} F7200`);g.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} F${Math.round(travelSpeed)}`);if(zhop>0&&dist>2)g.push(`G1 Z${z.toFixed(3)} F7200`);if(retracted){g.push(`G1 E${retract.toFixed(3)} F2100`);retracted=false}cx=x;cy=y;cz=z};
+    const extrudePolyline=(poly,z,h,speed,closed=true)=>{if(!poly||poly.length<2)return;const p0=poly[0];travel(p0[0]+ox,p0[1]+oy,z);const n=closed?poly.length+1:poly.length;for(let i=1;i<n;i++){const p=poly[i%poly.length],x=p[0]+ox,y=p[1]+oy,len=Math.hypot(x-cx,y-cy);if(len<1e-5)continue;const e=eFor(len,h);g.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} E${e.toFixed(5)} F${Math.round(speed)}`);cx=x;cy=y;totalE+=e}};
+    const extrudeSegments=(segs,z,h,speed)=>{for(const s of nearestOrderedSegments3DPrint(segs,[cx-ox,cy-oy])){travel(s[0]+ox,s[1]+oy,z);const x=s[2]+ox,y=s[3]+oy,len=Math.hypot(x-cx,y-cy);if(len<1e-5)continue;const e=eFor(len,h);g.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} E${e.toFixed(5)} F${Math.round(speed)}`);cx=x;cy=y;totalE+=e}};
+    for(let idx=1;idx<=layers;idx++){
+      if(st)st.textContent=`Generuji G-code — vrstva ${idx}/${layers}…`;if(idx%8===0)await new Promise(r=>setTimeout(r,0));const sliceZ=layer3DPrintZ(idx),printZ=layer3DPrintNozzleZ(idx),h=idx===1?firstH:lh,loops=slice3DPrintLoops(sliceZ);if(!loops.length)continue;const contours=loopsToSegments3DPrint(loops),solid=idx<=bottom||idx>layers-top,density=solid?100:null,infill=generate3DPrintInfill(contours,idx,density),perimeterLoops=build3DPrintPerimeterLoops(loops,perims,width);
+      g.push(';LAYER_CHANGE',`;LAYER:${idx}`,`;Z:${printZ.toFixed(3)}`,`;HEIGHT:${h.toFixed(3)}`);if(idx===2){g.push(`M104 S${noz}`,`M140 S${bed}`)}if(idx===4)g.push(`M106 S${fan}`);g.push(`G1 Z${printZ.toFixed(3)} F7200`);cz=printZ;
+      if(idx===1&&brim>0){g.push(';TYPE:Skirt/Brim');const outer=loops.filter(lp=>loopDepth3DPrint(lp,loops)%2===0);for(let d=width;d<=brim+.001;d+=width)for(const lp of outer)extrudePolyline(offsetLoop3DPrint(lp,d,false),printZ,h,perimSpeed,true)}
+      g.push(';TYPE:Perimeter');for(const lp of perimeterLoops)extrudePolyline(lp,printZ,h,perimSpeed,true);
+      if(infill.length){g.push(solid?';TYPE:Solid infill':';TYPE:Internal infill');extrudeSegments(infill,printZ,h,infillSpeed)}
+    }
+    const endLift=Math.max(0,Math.min(10,bz-cz));g.push('M107 ; fan off','G92 E0',...(retract>0?[`G1 E-${retract.toFixed(3)} F2100`]:[]),'M104 S0 ; hotend off','M140 S0 ; bed off',...(endLift>.05?['G91',`G1 Z${endLift.toFixed(1)} F720`,'G90']:[]),'G28 X0 ; park X','M84 ; motors off','; end of file');
+    const blob=new Blob([g.join('\n')+'\n'],{type:'text/x-gcode'}),a=document.createElement('a'),ratio=String(document.getElementById('print3d-scale')?.value||1).replace(/[^0-9._-]/g,'');a.href=URL.createObjectURL(blob);a.download=f.name.replace(/\.[^.]+$/,'')+`_MK3S_1-${ratio}.gcode`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);if(st)st.textContent=`G-code hotov: ${layers} vrstev. Před tiskem ho zkontroluj v PrusaSlicer G-code Vieweru.`;
+  }catch(e){console.error(e);alert('G-code se nepodařilo vytvořit: '+e.message);if(st)st.textContent='Chyba při generování G-code.'}
+}
+
+async function export3DPrintSTL(){const root=print3dState.root,f=print3dState.file;if(!root||!f)return;try{const {STLExporter}=await get3DPrintDeps();root.updateMatrixWorld(true);const data=new STLExporter().parse(root,{binary:true});let blob;if(data instanceof DataView)blob=new Blob([data.buffer],{type:'model/stl'});else if(data instanceof ArrayBuffer)blob=new Blob([data],{type:'model/stl'});else blob=new Blob([data],{type:'model/stl'});const a=document.createElement('a'),ratio=String(document.getElementById('print3d-scale').value||1).replace(/[^0-9._-]/g,'');a.href=URL.createObjectURL(blob);a.download=f.name.replace(/\.[^.]+$/,'')+`_3DPRINT_1-${ratio}.stl`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);document.getElementById('st-3dprint').textContent='STL model exportován (vedlejší export).'}catch(e){console.error(e);alert('STL se nepodařilo vytvořit: '+e.message)}}
 
 </script>
 </body>
