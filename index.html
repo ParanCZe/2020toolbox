@@ -276,7 +276,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.12h</div>
+  <div class="app-version">V3.12i</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
@@ -2090,14 +2090,16 @@ async function runPreflight(){
       try{const js=await pdf.getJavaScript();if(js&&js.some(Boolean))preflightAddIssue(base,'PDF obsahuje JavaScript','warn');}catch(e){}
       try{const at=await pdf.getAttachments();if(at&&Object.keys(at).length)preflightAddIssue(base,`PDF obsahuje ${Object.keys(at).length} příloh(u/y)`,'warn');}catch(e){}
 
-      // One PDF may contain several separately issued drawings. Treat every page as a sheet.
-      for(let j=0;j<pageRows.length;j++){
-        const m=pageRows[j];
+      // Vícestránkové PDF může být buď sada samostatných výkresů, nebo jeden dokument.
+      // Do Pre-flightu proto bereme jen stránky se spolehlivě nalezenou rozpiskou.
+      // Když se rozpiska nenajde nikde, zobrazíme dokument pouze jednou (první stránku).
+      const selectedPages=selectDrawingPagesFromDocument(pageRows);
+      for(let j=0;j<selectedPages.length;j++){
+        const m=selectedPages[j];
         const row={...base,issues:[...base.issues],severity:base.severity,countSize:j===0?f.size:0,hash:j===0?base.hash:'',sheetPage:m.page,sheetLabel:pdf.numPages>1?`${m.page}/${pdf.numPages}`:'1',formats:[m.format],orientation:m.pageOrientation,
-          drawingNumber:m.number||'',drawingTitle:m.title||'',drawingScale:m.scale||'',documentationStage:m.documentationStage||'',revision:m.revision||'',date:m.date||'',drawingConfidence:m.confidence||0,drawingNumberConfidence:m.numberConfidence||0,drawingTitleConfidence:m.titleConfidence||0,drawingScaleConfidence:m.scaleConfidence||0,stageConfidence:m.stageConfidence||0,titleBlockTemplate:m.template||'nenalezena',declaredFormat:m.declaredFormat||'',
+          drawingNumber:m.number||'',drawingTitle:m.title||'',drawingScale:m.scale||'',documentationStage:m.documentationStage||'',revision:m.revision||'',date:m.date||'',drawingConfidence:m.confidence||0,drawingNumberConfidence:m.numberConfidence||0,drawingTitleConfidence:m.titleConfidence||0,drawingScaleConfidence:m.scaleConfidence||0,stageConfidence:m.stageConfidence||0,titleBlockTemplate:m.template||'nenalezena',declaredFormat:m.declaredFormat||'',documentFallback:!!m.documentFallback,
           filenameNumber:pdf.numPages===1?base.filenameNumber:''};
-        // Unknown title block is a warning only on pages that have meaningful content.
-        if(!drawingMetaLooksValid(m)&&!base.blankPages.includes(m.page))preflightAddIssue(row,'rozpiska nebyla spolehlivě přečtena – doporučena ruční kontrola','warn');
+        if(m.documentFallback&&!base.blankPages.includes(m.page))preflightAddIssue(row,'u vícestránkového dokumentu nebyla spolehlivě rozpoznána rozpiska – zobrazuje se pouze první strana','warn');
         out.push(row);
       }
     }catch(e){
@@ -2484,16 +2486,26 @@ function parseDrawingPageMeta(textContent,viewport,file){
   return {number:'',title:'',scale:'',documentationStage:'',revision:'',date:'',declaredFormat:'',template:'nenalezena',confidence:0,numberConfidence:0,titleConfidence:0,scaleConfidence:0,stageConfidence:0,raw,file};
 }
 function drawingMetaLooksValid(meta){return !!(meta&&(meta.numberConfidence>=2||meta.titleConfidence>=2||(meta.number&&meta.scale)));}
+// U vícestránkových dokumentů nejsou jednotlivé strany automaticky samostatné výkresy.
+// Pokud jsou rozpisky na více stranách, vrátíme jen tyto rozpoznané výkresové listy.
+// Pokud se žádná rozpiska spolehlivě nenajde, dokument reprezentuje pouze první strana.
+function selectDrawingPagesFromDocument(pageRows){
+  const rows=Array.isArray(pageRows)?pageRows:[];
+  if(!rows.length)return [];
+  const recognized=rows.filter(drawingMetaLooksValid);
+  if(recognized.length)return recognized.map(r=>({...r,documentFallback:false}));
+  return [{...rows[0],documentFallback:true}];
+}
 async function extractDrawingInfos(file){
   const bytes=new Uint8Array(await file.arrayBuffer());
   const pdf=await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
-  const rows=[];
+  const allPages=[];
   for(let p=1;p<=pdf.numPages;p++){
     const page=await pdf.getPage(p),vp=page.getViewport({scale:1}),tc=await page.getTextContent();
     const meta=parseDrawingPageMeta(tc,vp,file);
-    rows.push({...meta,format:pageFormatName(vp.width,vp.height),page:p,pageCount:pdf.numPages,pageOrientation:vp.width>=vp.height?'na šířku':'na výšku'});
+    allPages.push({...meta,format:pageFormatName(vp.width,vp.height),page:p,pageCount:pdf.numPages,pageOrientation:vp.width>=vp.height?'na šířku':'na výšku'});
   }
-  return rows;
+  return selectDrawingPagesFromDocument(allPages);
 }
 async function extractDrawingInfo(file){
   const rows=await extractDrawingInfos(file);
@@ -2515,7 +2527,10 @@ async function buildDrawingList(){
         const row={...pr,group,relativePath,fallback:[]};
         // Filename fallback is safe only when a PDF represents one drawing.
         if(!row.number&&row.pageCount===1){const n=candidateDrawingNumber(filenameBase(f.name),true);if(n){row.number=n;row.fallback.push('číslo z názvu souboru');}}
-        if(!row.title){row.title=row.pageCount===1?prettifyFileTitle(f.name):`Strana ${row.page}`;row.fallback.push(row.pageCount===1?'název z názvu souboru':'název nebyl v rozpisce nalezen');}
+        if(!row.title){
+          if(row.pageCount===1||row.documentFallback){row.title=prettifyFileTitle(f.name);row.fallback.push(row.documentFallback?'vícestránkový dokument – použit název souboru':'název z názvu souboru');}
+          else {row.title=`Strana ${row.page}`;row.fallback.push('název nebyl v rozpisce nalezen');}
+        }
         if(!row.documentationStage){const stg=documentationStageFromText(f.name);if(stg){row.documentationStage=stg;row.fallback.push('stupeň z názvu souboru');}}
         if(row.fallback.length&&row.confidence>1)row.confidence=1;
         rows.push(row);
