@@ -247,7 +247,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.4</div>
+  <div class="app-version">V3.5</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
@@ -460,14 +460,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
             <span id="coverImageStatus" style="font-size:12px;color:var(--muted)">Žádný obrázek</span>
             <input id="coverImageInput" type="file" accept="image/jpeg,image/png,image/webp" hidden onchange="handleCoverImageFile(this.files)">
           </div>
-          <div class="cover-image-settings">
-            <label>Intenzita <input id="coverImageOpacity" type="range" min="5" max="80" value="32" oninput="updateCoverImageSetting('opacity',this.value/100)"></label>
-            <label>Prolnutí okrajů <input id="coverImageFade" type="range" min="2" max="45" value="20" oninput="updateCoverImageSetting('fade',this.value/100)"></label>
-            <label>Pozice vodorovně <input id="coverImageX" type="range" min="0" max="75" value="28" oninput="updateCoverImageSetting('x',this.value/100)"></label>
-            <label>Pozice svisle <input id="coverImageY" type="range" min="0" max="65" value="5" oninput="updateCoverImageSetting('y',this.value/100)"></label>
-            <label>Velikost <input id="coverImageWidth" type="range" min="20" max="100" value="68" oninput="updateCoverImageSetting('width',this.value/100)"></label>
-          </div>
-          <small style="color:var(--muted)">Automaticky: černobíle, světlé plochy průhledné, tmavé linie jako jemný tisk a okraje do ztracena.</small>
+          <small style="color:var(--muted)">Vzhled, velikost a pozici obrázku upravíte přímo na úvodní straně v editoru.</small>
         </div>
       </div>
     </div>
@@ -582,6 +575,17 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
             <button type="button" class="style-choice" data-style="double" onclick="setScaleStyle('double')" title="Dvojitá stupnice"><svg viewBox="0 0 80 44"><path d="M7 12H73M7 20H73M7 10v13m22-13v13m22-13v13m22-13v13" stroke="currentColor" fill="none"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
           </span></span>
           </div>
+        </div>
+        <div id="cover-image-editor-tools" class="info-bar-page-tools" style="display:none">
+          <b>Obrázek úvodní strany:</b>
+          <div class="cover-image-settings" style="margin:0;flex:1;border:0;padding:0">
+            <label>Intenzita <input id="coverImageOpacity" type="range" min="5" max="80" value="32" oninput="updateCoverImageSetting('opacity',this.value/100)"></label>
+            <label>Prolnutí okrajů <input id="coverImageFade" type="range" min="2" max="45" value="20" oninput="updateCoverImageSetting('fade',this.value/100)"></label>
+            <label>Vlevo / vpravo <input id="coverImageX" type="range" min="0" max="75" value="28" oninput="updateCoverImageSetting('x',this.value/100)"></label>
+            <label>Nahoru / dolů <input id="coverImageY" type="range" min="0" max="65" value="5" oninput="updateCoverImageSetting('y',this.value/100)"></label>
+            <label>Velikost <input id="coverImageWidth" type="range" min="20" max="100" value="68" oninput="updateCoverImageSetting('width',this.value/100)"></label>
+          </div>
+          <span id="coverImageEditorHint" class="muted" style="margin:0">Obrázek nejprve nahrajte v menu projektu.</span>
         </div>
         <div id="page-indicator" style="font-size:13px; font-weight:bold; color:var(--muted);">Stránka 1 z 1</div>
 
@@ -1094,10 +1098,15 @@ function syncCoverImageControls() {
   };
   Object.entries(values).forEach(([id, value]) => {
     const el = document.getElementById(id);
-    if (el) el.value = value;
+    if (el) {
+      el.value = value;
+      el.disabled = !s.dataUrl;
+    }
   });
   const status = document.getElementById('coverImageStatus');
   if (status) status.textContent = s.dataUrl ? (s.name || 'Obrázek je vložen') : 'Žádný obrázek';
+  const hint = document.getElementById('coverImageEditorHint');
+  if (hint) hint.textContent = s.dataUrl ? 'Změny se ihned projeví v náhledu i exportu.' : 'Obrázek nejprve nahrajte v menu projektu.';
 }
 
 function refreshCoverImagePreview() {
@@ -2823,6 +2832,9 @@ async function renderCurrentPagePreview() {
   const isMoodboard = pageData && pageData.type === 'moodboard';
   const isCover = info.isCover;
   const isBlank = info.isBlank;
+  const coverTools = document.getElementById('cover-image-editor-tools');
+  if (coverTools) coverTools.style.display = isCover ? 'flex' : 'none';
+  syncCoverImageControls();
   
   if (isCover) {
     await drawCover(ctx, pageSize.width, pageSize.height, renderScale);
