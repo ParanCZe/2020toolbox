@@ -232,7 +232,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.1</div>
+  <div class="app-version">V3.2</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
@@ -721,7 +721,7 @@ async function getSavedProjectsDirHandle(forcePicker) {
 // ---- ZIP EXPORT/IMPORT pro Safari ----
 function getProjectState() {
   return {
-    version: 1,
+    version: 2,
     sourceFileName: filesData.panel[0] ? filesData.panel[0].name : null,
     form: collectFormState(),
     allPagesTexts: allPagesTexts,
@@ -732,7 +732,8 @@ function getProjectState() {
     totalPreviewPages: totalPreviewPages,
     pageStructureInitialized: pageStructureInitialized,
     defaultCoverLayoutInitialized: defaultCoverLayoutInitialized,
-    currentPreviewPage: currentPreviewPage
+    currentPreviewPage: currentPreviewPage,
+    pageRecords: (pageStructureInitialized && totalPreviewPages > 0) ? buildPageRecords() : null
   };
 }
 
@@ -798,8 +799,15 @@ async function importProjectFromZip(files) {
     defaultCoverLayoutInitialized = !!state.defaultCoverLayoutInitialized;
     currentPreviewPage = state.currentPreviewPage || 1;
     
-    // Přepočítat mapování po importu
-    if (pdfJsDoc) ensurePagePdfIndexMap();
+    // Novější projekty nesou přesný seznam stran; starší použijí
+    // původní uložené mapování.
+    if (pdfJsDoc && Array.isArray(state.pageRecords) && state.pageRecords.length) {
+      applyPageRecords(state.pageRecords);
+      totalPreviewPages = state.pageRecords.length;
+      pageStructureInitialized = true;
+    } else if (pdfJsDoc) {
+      ensurePagePdfIndexMap();
+    }
     
     currentProjectName = state.form?.panelTitle || 'importovany-projekt';
     document.getElementById('current-project-label').textContent = currentProjectName;
@@ -1124,8 +1132,10 @@ function applyFormState(s) {
 
 async function saveProjectState() {
   if (!currentProjectDirHandle) return;
+  // project.json ukládá i kanonický seznam stran. Ten zachovává přesné
+  // pořadí a skutečně odstraněné PDF strany i po opětovném otevření.
   const state = {
-    version: 1,
+    version: 2,
     sourceFileName: filesData.panel[0] ? filesData.panel[0].name : null,
     form: collectFormState(),
     allPagesTexts: allPagesTexts,
@@ -1136,7 +1146,8 @@ async function saveProjectState() {
     totalPreviewPages: totalPreviewPages,
     pageStructureInitialized: pageStructureInitialized,
     defaultCoverLayoutInitialized: defaultCoverLayoutInitialized,
-    currentPreviewPage: currentPreviewPage
+    currentPreviewPage: currentPreviewPage,
+    pageRecords: (pageStructureInitialized && totalPreviewPages > 0) ? buildPageRecords() : null
   };
   const fh = await currentProjectDirHandle.getFileHandle('project.json', { create: true });
   const w = await fh.createWritable();
@@ -1292,17 +1303,25 @@ async function loadProject(name) {
     loadedFileBytes = await namedFile.arrayBuffer();
     pdfJsDoc = await pdfjsLib.getDocument({ data: loadedFileBytes.slice(0) }).promise;
     
-    // Přepočítat totalPreviewPages ze skutečného stavu
-    let pageCount = pdfJsDoc.numPages;
-    if (document.getElementById('createCover').checked) pageCount++;
-    pageCount += customBlankPages.size;
-    for (let p in allPagesTexts) {
-      if (allPagesTexts[p] && allPagesTexts[p].type === 'moodboard') pageCount++;
+    // Uložená struktura je autoritativní. Původní kód zde znovu sečetl
+    // všechny stránky zdrojového PDF, čímž vracel odstraněné strany
+    // a ničil ručně nastavené pořadí.
+    if (state && Array.isArray(state.pageRecords) && state.pageRecords.length) {
+      applyPageRecords(state.pageRecords);
+      totalPreviewPages = state.pageRecords.length;
+      pageStructureInitialized = true;
+    } else if (state && state.pageStructureInitialized !== false && Number.isInteger(state.totalPreviewPages) && state.totalPreviewPages > 0) {
+      // Zpětná kompatibilita se staršími projekty: respektovat jejich
+      // uložený počet, mapování a pořadí, místo rekonstrukce ze zdroje.
+      totalPreviewPages = state.totalPreviewPages;
+      pageStructureInitialized = true;
+      ensurePagePdfIndexMap();
+    } else {
+      totalPreviewPages = pdfJsDoc.numPages + (document.getElementById('createCover').checked ? 1 : 0);
+      pageStructureInitialized = true;
+      pagePdfIndexMap = {};
+      ensurePagePdfIndexMap();
     }
-    totalPreviewPages = pageCount;
-    pageStructureInitialized = true;
-    
-    ensurePagePdfIndexMap();
     document.getElementById('btn-preview').disabled = false;
     document.getElementById('btn-panel').disabled = false;
     document.getElementById('st-panel').textContent = `Projekt „${name}“ načten`;
@@ -1682,13 +1701,13 @@ function undoTextEdit(){
 function measureTextBox(text,size,scale){
   const c = document.createElement('canvas');
   const ctx = c.getContext('2d');
-  ctx.font = `${size*(96/72)*scale}px "${editorFontFamily}"`;
+  ctx.font = `${size*scale}px "${editorFontFamily}"`;
   const lines = (text || '').split(/\r?\n/);
   let maxW = 2;
   lines.forEach(l => {
     maxW = Math.max(maxW, ctx.measureText(l || ' ').width);
   });
-  const lineHeight = size * 1.2 * (96 / 72) * scale;
+  const lineHeight = size * 1.2 * scale;
   const height = Math.max(1, lines.length * lineHeight);
   return {width: maxW + 2, height};
 }
@@ -2681,7 +2700,8 @@ async function renderCurrentPagePreview() {
 
 function drawTextOnCanvas(ctx, b, pageSize, scale) {
   ctx.save();
-  ctx.font = `${b.size * (96/72) * scale}px "${editorFontFamily}"`;
+  // b.size je v PDF bodech; scale už převádí body na pixely náhledu.
+  ctx.font = `${b.size * scale}px "${editorFontFamily}"`;
   ctx.fillStyle = '#18181b';
   ctx.textBaseline = 'bottom';
   const lines = b.text.split(/\r?\n/);
@@ -2748,13 +2768,13 @@ function createBoxElement(b){
   div.style.top = ((info.height - b.y - totalBoxHeightPts) * sy) + 'px';
 
   div.style.fontFamily = `"${editorFontFamily}"`;
-  div.style.fontSize = (b.size*(96/72)*sx)+'px';
+  div.style.fontSize = (b.size*sx)+'px';
 
   const textarea = document.createElement('textarea');
   textarea.className = 'tb-main';
   textarea.value = b.text;
   textarea.style.fontFamily = `"${editorFontFamily}"`;
-  textarea.style.fontSize = (b.size*(96/72)*sx)+'px';
+  textarea.style.fontSize = (b.size*sx)+'px';
 
   const refreshBoxMetrics = () => {
     const lines = (textarea.value || '').split(/\r?\n/);
@@ -2799,8 +2819,8 @@ function createBoxElement(b){
   sizeInput.addEventListener('input', () => {
     if (!sizeHistoryPushed) { pushTextHistory(); sizeHistoryPushed = true; }
     b.size = Math.max(6, Math.min(144, parseFloat(sizeInput.value)||16));
-    div.style.fontSize = (b.size*(96/72)*sx)+'px';
-    textarea.style.fontSize = (b.size*(96/72)*sx)+'px';
+    div.style.fontSize = (b.size*sx)+'px';
+    textarea.style.fontSize = (b.size*sx)+'px';
     refreshBoxMetrics();
     scheduleAutosave();
   });
@@ -3322,6 +3342,7 @@ async function runPanel(fromModal = false){
     const finalPdf = await PDFDocument.create();
     finalPdf.registerFontkit(fontkit);
     const finalFont = await finalPdf.embedFont(fontData);
+    const storedTextSize = tb => Math.max(6, Math.min(144, Number(tb && tb.size) || 16));
     const pdfCenteredBaseline = (font, size, centerY) => {
       const raw = font && font.embedder && font.embedder.font;
       if (raw && raw.unitsPerEm && Number.isFinite(raw.ascent) && Number.isFinite(raw.descent)) {
@@ -3418,11 +3439,12 @@ async function runPanel(fromModal = false){
               color: textColor
             });
           } else if(tb.text) {
+            const textSize = storedTextSize(tb);
             const lines = tb.text.split(/\r?\n/);
-            const lineHeight = tb.size * 1.2;
+            const lineHeight = textSize * 1.2;
             lines.forEach((line, idx) => {
               const lineY = tb.y + (lines.length - 1 - idx) * lineHeight;
-              targetPage.drawText(line, {x: tb.x, y: lineY, size: tb.size, font: finalFont, color: textColor});
+              targetPage.drawText(line, {x: tb.x, y: lineY, size: textSize, font: finalFont, color: textColor});
             });
           }
         });
@@ -3530,11 +3552,12 @@ async function runPanel(fromModal = false){
               });
             }
           } else if(tb.text) {
+            const textSize = storedTextSize(tb);
             const lines = tb.text.split(/\r?\n/);
-            const lineHeight = tb.size * 1.2;
+            const lineHeight = textSize * 1.2;
             lines.forEach((line, idx) => {
               const lineY = tb.y + (lines.length - 1 - idx) * lineHeight;
-              targetPage.drawText(line, {x: tb.x, y: lineY, size: tb.size, font: finalFont, color: textColor});
+              targetPage.drawText(line, {x: tb.x, y: lineY, size: textSize, font: finalFont, color: textColor});
             });
           }
         });
