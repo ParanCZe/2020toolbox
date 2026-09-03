@@ -261,7 +261,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .docs-inline{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.docs-inline label{display:flex;gap:6px;align-items:center}
 .docs-note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:8px}
 .docs-empty{padding:20px;text-align:center;color:var(--muted)}
-.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.compare-card{border:1px solid var(--border);border-radius:8px;background:#fafafa;padding:10px;min-width:0}.compare-card h3{font:normal 13px 'Antarctican Mono',monospace;margin:0 0 8px}.compare-card canvas{display:block;width:100%;height:auto;background:#fff;border:1px solid var(--border);max-height:62vh;object-fit:contain}.compare-diff{grid-column:1/-1}.confidence-low{color:#b91c1c}.confidence-mid{color:#a16207}.confidence-high{color:#15803d}
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.compare-card{border:1px solid var(--border);border-radius:8px;background:#fafafa;padding:10px;min-width:0}.compare-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.compare-card h3{font:normal 13px 'Antarctican Mono',monospace;margin:0}.compare-card canvas{display:block;width:100%;height:auto;background:#fff;border:1px solid var(--border);max-height:72vh;object-fit:contain;image-rendering:auto}.compare-diff{grid-column:1/-1}.compare-open-btn{border:1px solid var(--border);background:#fff;border-radius:5px;padding:4px 7px;font-size:11px;cursor:pointer}.compare-open-btn:hover{background:#f7f197;border-color:#a1a1aa}.compare-control-value{display:inline-block;min-width:44px;font-size:11px;color:var(--muted);text-align:right}.compare-fullscreen{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:2500;padding:10px}.compare-fullscreen.active{display:flex}.compare-fullscreen-box{width:100%;height:100%;background:#f4f4f5;border-radius:10px;display:flex;flex-direction:column;overflow:hidden}.compare-fullscreen-toolbar{background:#f7f197;border-bottom:1px solid #d9d36f;padding:8px 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.compare-fullscreen-toolbar .spacer{flex:1}.compare-fullscreen-stage{flex:1;overflow:auto;padding:14px;background:#d4d4d8;text-align:center}.compare-fullscreen-stage canvas{display:block;margin:0 auto;background:#fff;box-shadow:0 3px 16px rgba(0,0,0,.22);max-width:none;max-height:none}.docs-group-row td{background:#f7f197!important;border-top:1px solid #e2db7d!important;border-bottom:1px solid #e2db7d!important;font-family:'Antarctican Mono',monospace;font-size:12px;font-weight:600;padding:9px 10px!important}.drawing-folder-box{padding:12px;border:1px solid var(--border);background:#fafafa;border-radius:8px;margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.confidence-low{color:#b91c1c}.confidence-mid{color:#a16207}.confidence-high{color:#15803d}
 @media(max-width:800px){.compare-grid{grid-template-columns:1fr}.compare-diff{grid-column:auto}.docs-summary{grid-template-columns:1fr 1fr}}
 
 </style>
@@ -368,8 +368,13 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
       <div class="settings docs-inline">
         <label>Oblast rozpisky <select id="drawingTitleBlockZone"><option value="auto" selected>Automaticky – pravý dolní roh</option><option value="bottom">Celý spodní pruh</option><option value="full">Celá stránka</option></select></label>
       </div>
+      <div class="drawing-folder-box">
+        <button type="button" class="action" onclick="document.getElementById('f-drawing-folder').click()">📁 Vybrat celou složku dokumentace</button>
+        <input id="f-drawing-folder" type="file" accept=".pdf,application/pdf" webkitdirectory directory multiple hidden onchange="handleDrawingFolder(this.files)">
+        <span id="drawing-folder-status" class="muted" style="margin:0">Složka zatím není vybraná.</span>
+      </div>
       <div id="drop-drawinglist" class="drop" onclick="document.getElementById('f-drawinglist').click()">
-        <b>Sem přetáhni všechny výkresy PDF</b><br><span style="color:var(--muted);font-size:12px">číslo, název a měřítko se aplikace pokusí přečíst z rozpisky</span>
+        <b>Nebo sem přetáhni / vyber jednotlivá PDF</b><br><span style="color:var(--muted);font-size:12px">číslo, název a měřítko se aplikace pokusí přečíst z rozpisky; jednotlivá PDF zůstávají podporovaná</span>
         <input id="f-drawinglist" type="file" accept=".pdf" multiple hidden onchange="handleDocFiles(this.files,'drawinglist')">
       </div>
       <div class="row">
@@ -410,15 +415,36 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
       <div class="settings docs-inline">
         <label>Starší verze <input id="compareFileA" type="file" accept=".pdf" onchange="loadComparePdf(this.files[0],'A')"></label>
         <label>Novější verze <input id="compareFileB" type="file" accept=".pdf" onchange="loadComparePdf(this.files[0],'B')"></label>
-        <label>Strana A <select id="comparePageA" onchange="renderPdfComparison()"></select></label>
-        <label>Strana B <select id="comparePageB" onchange="renderPdfComparison()"></select></label>
-        <label>Citlivost <input id="compareThreshold" type="range" min="5" max="120" value="30" oninput="renderPdfComparison()"></label>
+        <label>Strana A <select id="comparePageA" onchange="scheduleCompareRender()"></select></label>
+        <label>Strana B <select id="comparePageB" onchange="scheduleCompareRender()"></select></label>
+        <label>Kvalita <select id="compareQuality" onchange="scheduleCompareRender()"><option value="standard">Standard</option><option value="high" selected>Vysoká</option><option value="ultra">Velmi vysoká</option></select></label>
+        <label title="Vyšší hodnota ignoruje menší rozdíly odstínu při rasterizaci PDF">Rozdíl odstínu <input id="compareThreshold" type="range" min="8" max="90" value="32" oninput="updateCompareControlLabels();scheduleCompareRender()"><span id="compareThresholdValue" class="compare-control-value">32</span></label>
+        <label title="Stejná čára posunutá o tuto vzdálenost se nebude počítat jako změna">Tolerance posunu <input id="compareToleranceMm" type="range" min="0" max="3" step="0.1" value="0.8" oninput="updateCompareControlLabels();scheduleCompareRender()"><span id="compareToleranceValue" class="compare-control-value">0,8 mm</span></label>
+        <label><input id="compareAutoAlign" type="checkbox" checked onchange="scheduleCompareRender()"> automaticky dorovnat layout</label>
+        <label>Filtr drobných bodů <select id="compareNoiseFilter" onchange="scheduleCompareRender()"><option value="1">Vypnuto</option><option value="4" selected>Normální</option><option value="8">Silný</option></select></label>
       </div>
-      <div class="row"><span id="st-compare" class="muted" style="margin:0">Nahraj obě PDF.</span></div>
+      <div class="row"><button type="button" class="action" onclick="openCompareFullscreen('diff')">⛶ Zvětšit porovnání</button><span id="st-compare" class="muted" style="margin:0">Nahraj obě PDF.</span></div>
       <div class="compare-grid">
-        <div class="compare-card"><h3>STARŠÍ VERZE</h3><canvas id="compareCanvasA"></canvas></div>
-        <div class="compare-card"><h3>NOVĚJŠÍ VERZE</h3><canvas id="compareCanvasB"></canvas></div>
-        <div class="compare-card compare-diff"><h3>ROZDÍL</h3><canvas id="compareCanvasDiff"></canvas></div>
+        <div class="compare-card"><div class="compare-card-head"><h3>STARŠÍ VERZE</h3><button class="compare-open-btn" onclick="openCompareFullscreen('a')">⛶ Zvětšit</button></div><canvas id="compareCanvasA"></canvas></div>
+        <div class="compare-card"><div class="compare-card-head"><h3>NOVĚJŠÍ VERZE</h3><button class="compare-open-btn" onclick="openCompareFullscreen('b')">⛶ Zvětšit</button></div><canvas id="compareCanvasB"></canvas></div>
+        <div class="compare-card compare-diff"><div class="compare-card-head"><h3>ROZDÍL – drobné posuny v nastavené toleranci jsou ignorované</h3><button class="compare-open-btn" onclick="openCompareFullscreen('diff')">⛶ Zvětšit</button></div><canvas id="compareCanvasDiff"></canvas></div>
+      </div>
+      <div class="docs-note">Automatické dorovnání kompenzuje malý globální posun celé stránky. „Tolerance posunu“ navíc ignoruje stejné čáry a texty, které se posunuly jen o malou vzdálenost. Skutečně přidané nebo odebrané prvky se dál zvýrazní.</div>
+
+      <div id="compare-fullscreen" class="compare-fullscreen" onclick="if(event.target===this)closeCompareFullscreen()">
+        <div class="compare-fullscreen-box">
+          <div class="compare-fullscreen-toolbar">
+            <button class="back-btn" style="margin:0" onclick="setCompareFullscreenMode('a')">Starší</button>
+            <button class="back-btn" style="margin:0" onclick="setCompareFullscreenMode('b')">Novější</button>
+            <button class="action" onclick="setCompareFullscreenMode('diff')">Rozdíl</button>
+            <button class="back-btn" style="margin:0" onclick="fitCompareFullscreen()">Přizpůsobit šířce</button>
+            <label>Zoom <input id="compareFullZoom" type="range" min="20" max="200" value="100" oninput="applyCompareFullscreenZoom()"><span id="compareFullZoomValue" class="compare-control-value">100 %</span></label>
+            <span id="compare-full-title" style="font-family:'Antarctican Mono',monospace;font-size:12px">ROZDÍL</span>
+            <span class="spacer"></span>
+            <button class="back-btn" style="margin:0" onclick="closeCompareFullscreen()">✕ Zavřít</button>
+          </div>
+          <div id="compare-full-stage" class="compare-fullscreen-stage"><canvas id="compareFullCanvas"></canvas></div>
+        </div>
       </div>
     </div>
   </div>
@@ -792,7 +818,7 @@ if (isSafari && !isChrome && !isEdge) {
 
 window.preventDrop = e => { e.preventDefault(); };
 let filesData = { pdfa: [], panel: [] };
-let docsData = { preflight: [], drawinglist: [], renamer: [], preflightResults: [], drawingRows: [], compareA: null, compareB: null, compareDocA: null, compareDocB: null };
+let docsData = { preflight: [], drawinglist: [], renamer: [], preflightResults: [], drawingRows: [], drawingFolderMode: false, drawingFolderRoot: '', compareA: null, compareB: null, compareDocA: null, compareDocB: null, compareRenderTimer: null, compareFullMode: 'diff' };
 let allPagesTexts = {}; 
 let customBlankPages = new Set();
 let blankPageColors = {};
@@ -1873,15 +1899,42 @@ function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.
 function filenameBase(name){return String(name||'').replace(/\.[^.]+$/,'');}
 function normalizeSpaces(s){return String(s||'').replace(/\s+/g,' ').trim();}
 
+function drawingRelativePath(file){return String(file?.webkitRelativePath||file?.name||'').replace(/\\/g,'/');}
+function drawingGroupForFile(file){
+  const rel=drawingRelativePath(file),parts=rel.split('/').filter(Boolean);
+  if(parts.length<=1) return 'Samostatně nahrané PDF';
+  const root=parts[0],dirs=parts.slice(1,-1);
+  return dirs.length?dirs.join(' / '):root;
+}
+function prettifyFileTitle(name){return normalizeSpaces(filenameBase(name).replace(/[_-]+/g,' '));}
+
 function handleDocFiles(files,type){
   const arr=Array.from(files||[]);
   if(type==='preflight'||type==='drawinglist') docsData[type]=arr.filter(f=>/\.pdf$/i.test(f.name)); else docsData[type]=arr;
+  if(type==='drawinglist'){
+    docsData.drawingFolderMode=false;
+    docsData.drawingFolderRoot='';
+    const fs=document.getElementById('drawing-folder-status');if(fs)fs.textContent='Používají se samostatně vybraná PDF.';
+  }
   const count=docsData[type].length;
   const status=document.getElementById('st-'+type); if(status) status.textContent=count?`${count} souborů připraveno`:'Žádné soubory';
   const btn=document.getElementById(type==='drawinglist'?'btn-drawinglist':type==='preflight'?'btn-preflight':'btn-renamer'); if(btn) btn.disabled=!count;
   if(type==='renamer') refreshRenameSuggestions();
 }
 
+function handleDrawingFolder(files){
+  const pdfs=Array.from(files||[]).filter(f=>/\.pdf$/i.test(f.name));
+  pdfs.sort((a,b)=>drawingRelativePath(a).localeCompare(drawingRelativePath(b),'cs',{numeric:true,sensitivity:'base'}));
+  docsData.drawinglist=pdfs;
+  docsData.drawingFolderMode=true;
+  const firstRel=pdfs[0]?drawingRelativePath(pdfs[0]):'';
+  docsData.drawingFolderRoot=firstRel.includes('/')?firstRel.split('/')[0]:'';
+  const groups=new Set(pdfs.map(drawingGroupForFile));
+  const fs=document.getElementById('drawing-folder-status');
+  if(fs)fs.textContent=pdfs.length?`${docsData.drawingFolderRoot||'Složka'}: ${pdfs.length} PDF v ${groups.size} části/složkách`:'Ve vybrané složce nebyla nalezena žádná PDF.';
+  const st=document.getElementById('st-drawinglist');if(st)st.textContent=pdfs.length?`${pdfs.length} PDF ze složky připraveno`:'Žádná PDF ve složce';
+  const btn=document.getElementById('btn-drawinglist');if(btn)btn.disabled=!pdfs.length;
+}
 function initDocsDropZones(){
   [['drop-preflight','f-preflight','preflight'],['drop-drawinglist','f-drawinglist','drawinglist'],['drop-renamer','f-renamer','renamer']].forEach(([dropId,inputId,type])=>{
     const dz=document.getElementById(dropId); if(!dz||dz.dataset.docsInit) return; dz.dataset.docsInit='1';
@@ -2008,27 +2061,70 @@ async function extractDrawingInfo(file){
 }
 
 async function buildDrawingList(){
-  if(!docsData.drawinglist.length) return; const btn=document.getElementById('btn-drawinglist');btn.disabled=true; const st=document.getElementById('st-drawinglist'); const rows=[];
+  if(!docsData.drawinglist.length) return;
+  const btn=document.getElementById('btn-drawinglist');btn.disabled=true;
+  const st=document.getElementById('st-drawinglist');
+  const rows=[];
   for(let i=0;i<docsData.drawinglist.length;i++){
-    const f=docsData.drawinglist[i];st.textContent=`Čtu rozpisku ${i+1}/${docsData.drawinglist.length}: ${f.name}`;
-    try{rows.push(await extractDrawingInfo(f));}catch(e){rows.push({file:f,number:'',title:'',scale:'',format:'–',pages:'–',confidence:0,raw:'Chyba: '+e.message});}
+    const f=docsData.drawinglist[i];
+    const group=drawingGroupForFile(f),relativePath=drawingRelativePath(f);
+    st.textContent=`Čtu ${group} — ${i+1}/${docsData.drawinglist.length}: ${f.name}`;
+    try{
+      const row=await extractDrawingInfo(f);
+      row.group=group;row.relativePath=relativePath;row.fallback=[];
+      if(!row.number){const n=candidateDrawingNumber(filenameBase(f.name));if(n){row.number=n;row.fallback.push('číslo z názvu souboru');}}
+      if(!row.title){row.title=prettifyFileTitle(f.name);row.fallback.push('název z názvu souboru');}
+      if(row.fallback.length&&row.confidence>1)row.confidence=1;
+      rows.push(row);
+    }catch(e){
+      rows.push({file:f,group,relativePath,number:candidateDrawingNumber(filenameBase(f.name)),title:prettifyFileTitle(f.name),scale:'',format:'–',pages:'–',confidence:0,fallback:['metadata z názvu souboru'],raw:'Chyba: '+e.message});
+    }
   }
-  docsData.drawingRows=rows;renderDrawingList();btn.disabled=false;st.textContent=`Hotovo – ${rows.length} výkresů.`;document.getElementById('btn-drawing-csv').disabled=!rows.length;document.getElementById('btn-drawing-print').disabled=!rows.length;
+  docsData.drawingRows=rows;
+  renderDrawingList();
+  btn.disabled=false;
+  const groupCount=new Set(rows.map(x=>x.group)).size;
+  st.textContent=`Hotovo – ${rows.length} dokumentů${docsData.drawingFolderMode?` v ${groupCount} částech dokumentace`:''}.`;
+  document.getElementById('btn-drawing-csv').disabled=!rows.length;
+  document.getElementById('btn-drawing-print').disabled=!rows.length;
 }
-function confidenceText(n){return n>=3?'vysoká':n===2?'střední':n===1?'nízká':'nenalezeno';}
+function confidenceText(n,row){if(row?.fallback?.length)return 'doplněno z názvu';return n>=3?'vysoká':n===2?'střední':n===1?'nízká':'nenalezeno';}
+function drawingGroupsWithIndices(){
+  const groups=new Map();
+  docsData.drawingRows.forEach((x,i)=>{const g=x.group||'Samostatně nahrané PDF';if(!groups.has(g))groups.set(g,[]);groups.get(g).push({row:x,index:i});});
+  return groups;
+}
 function renderDrawingList(){
-  const r=docsData.drawingRows; if(!r.length){document.getElementById('drawinglist-results').innerHTML='<div class="docs-empty">Zatím žádné výkresy.</div>';return;}
-  document.getElementById('drawinglist-results').innerHTML=`<div class="docs-table-wrap"><table class="docs-table"><thead><tr><th>Poř.</th><th>Soubor</th><th>Číslo výkresu</th><th>Název výkresu</th><th>Měřítko</th><th>Formát</th><th>Jistota čtení</th><th></th></tr></thead><tbody>${r.map((x,i)=>`<tr><td>${i+1}</td><td title="${escapeHtml(x.raw||'')}">${escapeHtml(x.file?.name||'ruční řádek')}</td><td><input type="text" value="${escapeHtml(x.number)}" oninput="updateDrawingRow(${i},'number',this.value)"></td><td><input type="text" value="${escapeHtml(x.title)}" oninput="updateDrawingRow(${i},'title',this.value)"></td><td><input class="mini-input" type="text" value="${escapeHtml(x.scale)}" oninput="updateDrawingRow(${i},'scale',this.value)"></td><td>${escapeHtml(x.format||'–')}</td><td class="confidence-${x.confidence>=3?'high':x.confidence===2?'mid':'low'}">${confidenceText(x.confidence)}</td><td><button class="back-btn" style="margin:0;padding:4px 7px" onclick="removeDrawingRow(${i})">✕</button></td></tr>`).join('')}</tbody></table></div>`;
+  const r=docsData.drawingRows,box=document.getElementById('drawinglist-results');
+  if(!r.length){box.innerHTML='<div class="docs-empty">Zatím žádné výkresy.</div>';return;}
+  let poř=0,body='';
+  for(const [group,entries] of drawingGroupsWithIndices()){
+    body+=`<tr class="docs-group-row"><td colspan="8">${escapeHtml(group)} <span style="font-family:system-ui;font-weight:400;color:#71717a">— ${entries.length} dokumentů</span></td></tr>`;
+    for(const {row:x,index:i} of entries){
+      poř++;
+      const sourceTip=[x.raw||'',x.relativePath?`Cesta: ${x.relativePath}`:'',x.fallback?.length?`Automatická náhrada: ${x.fallback.join(', ')}`:''].filter(Boolean).join(' | ');
+      body+=`<tr><td>${poř}</td><td title="${escapeHtml(sourceTip)}">${escapeHtml(x.file?.name||'ruční řádek')}</td><td><input type="text" value="${escapeHtml(x.number)}" oninput="updateDrawingRow(${i},'number',this.value)"></td><td><input type="text" value="${escapeHtml(x.title)}" oninput="updateDrawingRow(${i},'title',this.value)"></td><td><input class="mini-input" type="text" value="${escapeHtml(x.scale)}" oninput="updateDrawingRow(${i},'scale',this.value)"></td><td>${escapeHtml(x.format||'–')}</td><td class="confidence-${x.confidence>=3?'high':x.confidence===2?'mid':'low'}">${confidenceText(x.confidence,x)}</td><td><button class="back-btn" style="margin:0;padding:4px 7px" onclick="removeDrawingRow(${i})">✕</button></td></tr>`;
+    }
+  }
+  box.innerHTML=`<div class="docs-table-wrap"><table class="docs-table"><thead><tr><th>Poř.</th><th>Soubor</th><th>Číslo výkresu</th><th>Název výkresu</th><th>Měřítko</th><th>Formát</th><th>Jistota čtení</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 function updateDrawingRow(i,k,v){if(docsData.drawingRows[i]) docsData.drawingRows[i][k]=v;}
-function addDrawingListRow(){docsData.drawingRows.push({file:null,number:'',title:'',scale:'',format:'',pages:'',confidence:0,raw:''});renderDrawingList();document.getElementById('btn-drawing-csv').disabled=false;document.getElementById('btn-drawing-print').disabled=false;}
+function addDrawingListRow(){docsData.drawingRows.push({file:null,group:'Ručně přidané',relativePath:'',number:'',title:'',scale:'',format:'',pages:'',confidence:0,fallback:[],raw:''});renderDrawingList();document.getElementById('btn-drawing-csv').disabled=false;document.getElementById('btn-drawing-print').disabled=false;}
 function removeDrawingRow(i){docsData.drawingRows.splice(i,1);renderDrawingList();document.getElementById('btn-drawing-csv').disabled=!docsData.drawingRows.length;document.getElementById('btn-drawing-print').disabled=!docsData.drawingRows.length;}
-function downloadDrawingListCsv(){const rows=[['Pořadí','Číslo výkresu','Název výkresu','Měřítko','Formát','Soubor'],...docsData.drawingRows.map((x,i)=>[i+1,x.number,x.title,x.scale,x.format,x.file?.name||''])];downloadBlob(new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}),'seznam_vykresu.csv');}
-function printDrawingList(){
-  const rows=docsData.drawingRows.map((x,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(x.number)}</td><td>${escapeHtml(x.title)}</td><td>${escapeHtml(x.scale)}</td><td>${escapeHtml(x.format)}</td></tr>`).join('');
-  const w=window.open('','_blank'); if(!w){alert('Prohlížeč zablokoval nové okno. Povolte vyskakovací okna pro tisk.');return;} w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Seznam výkresů</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}@media print{body{margin:10mm}}</style></head><body><h1>Seznam výkresů</h1><table><thead><tr><th>Poř.</th><th>Číslo výkresu</th><th>Název výkresu</th><th>Měřítko</th><th>Formát</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
+function downloadDrawingListCsv(){
+  const rows=[['Část / složka','Pořadí','Číslo výkresu','Název výkresu','Měřítko','Formát','Soubor','Relativní cesta']];let poř=0;
+  for(const [group,entries] of drawingGroupsWithIndices())for(const {row:x} of entries)rows.push([group,++poř,x.number,x.title,x.scale,x.format,x.file?.name||'',x.relativePath||'']);
+  downloadBlob(new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}),'seznam_vykresu.csv');
 }
-
+function printDrawingList(){
+  let poř=0,rows='';
+  for(const [group,entries] of drawingGroupsWithIndices()){
+    rows+=`<tr class="section"><td colspan="5">${escapeHtml(group)}</td></tr>`;
+    for(const {row:x} of entries)rows+=`<tr><td>${++poř}</td><td>${escapeHtml(x.number)}</td><td>${escapeHtml(x.title)}</td><td>${escapeHtml(x.scale)}</td><td>${escapeHtml(x.format)}</td></tr>`;
+  }
+  const w=window.open('','_blank');if(!w){alert('Prohlížeč zablokoval nové okno. Povolte vyskakovací okna pro tisk.');return;}
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Seznam výkresů</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}.section td{background:#f3ef99;font-weight:bold;font-size:12px;padding-top:8px;padding-bottom:8px}@media print{body{margin:10mm}}</style></head><body><h1>Seznam výkresů</h1><table><thead><tr><th>Poř.</th><th>Číslo výkresu</th><th>Název výkresu</th><th>Měřítko</th><th>Formát</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
+}
 function useDrawingListForRenamer(){const files=docsData.drawingRows.map(x=>x.file).filter(Boolean); if(!files.length){alert('V seznamu výkresů zatím nejsou načtené soubory.');return;}docsData.renamer=files;document.getElementById('btn-renamer').disabled=false;document.getElementById('st-renamer').textContent=`${files.length} souborů převzato ze seznamu výkresů`;refreshRenameSuggestions();openDocsSection('renamer');}
 function safeRenamePart(v){let s=normalizeSpaces(v);if(document.getElementById('renameNoDiacritics')?.checked)s=removeDiacritics(s);s=s.replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^[_\-.]+|[_\-.]+$/g,'');if(document.getElementById('renameUpper')?.checked)s=s.toUpperCase();return s;}
 function getDrawingRowForFile(file){return docsData.drawingRows.find(r=>r.file&&(r.file===file||r.file.name===file.name&&r.file.size===file.size));}
@@ -2041,16 +2137,143 @@ async function downloadRenamedZip(){
   const files=docsData.renamer||[];if(!files.length)return;const inputs=[...document.querySelectorAll('[data-rename-index]')],seen=new Set(),out=[];for(let i=0;i<files.length;i++){let name=(inputs.find(x=>Number(x.dataset.renameIndex)===i)?.value||proposedRename(files[i],i)).trim();if(!name)name=proposedRename(files[i],i);let base=filenameBase(name),ext=(name.match(/\.[^.]+$/)||[''])[0],candidate=name,n=2;while(seen.has(candidate.toLowerCase()))candidate=`${base}_${n++}${ext}`;seen.add(candidate.toLowerCase());out.push({name:candidate,bytes:new Uint8Array(await files[i].arrayBuffer())});}downloadBlob(createZip(out),'prejmenovane_soubory.zip');document.getElementById('st-renamer').textContent=`Hotovo – ${out.length} souborů v ZIP.`;
 }
 
+function updateCompareControlLabels(){
+  const thr=document.getElementById('compareThreshold'),tol=document.getElementById('compareToleranceMm');
+  const tv=document.getElementById('compareThresholdValue'),mv=document.getElementById('compareToleranceValue');
+  if(tv&&thr)tv.textContent=thr.value;
+  if(mv&&tol)mv.textContent=Number(tol.value).toLocaleString('cs-CZ',{minimumFractionDigits:1,maximumFractionDigits:1})+' mm';
+}
+function scheduleCompareRender(){
+  clearTimeout(docsData.compareRenderTimer);
+  docsData.compareRenderTimer=setTimeout(()=>{if(docsData.compareDocA&&docsData.compareDocB)renderPdfComparison();},180);
+}
 async function loadComparePdf(file,side){
-  if(!file)return;const st=document.getElementById('st-compare');st.textContent=`Načítám ${side==='A'?'starší':'novější'} PDF…`;try{const bytes=new Uint8Array(await file.arrayBuffer()),doc=await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;if(side==='A'){docsData.compareA=file;docsData.compareDocA=doc}else{docsData.compareB=file;docsData.compareDocB=doc}refreshComparePageSelectors();if(docsData.compareDocA&&docsData.compareDocB)await renderPdfComparison();else st.textContent='Nahraj ještě druhé PDF.';}catch(e){st.textContent='PDF nelze načíst: '+e.message;}
+  if(!file)return;const st=document.getElementById('st-compare');st.textContent=`Načítám ${side==='A'?'starší':'novější'} PDF…`;
+  try{
+    const bytes=new Uint8Array(await file.arrayBuffer()),doc=await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
+    if(side==='A'){docsData.compareA=file;docsData.compareDocA=doc}else{docsData.compareB=file;docsData.compareDocB=doc}
+    refreshComparePageSelectors();
+    if(docsData.compareDocA&&docsData.compareDocB)await renderPdfComparison();else st.textContent='Nahraj ještě druhé PDF.';
+  }catch(e){st.textContent='PDF nelze načíst: '+e.message;}
 }
-function refreshComparePageSelectors(){[['comparePageA',docsData.compareDocA],['comparePageB',docsData.compareDocB]].forEach(([id,doc])=>{const sel=document.getElementById(id);if(!sel)return;const old=Number(sel.value)||1;sel.innerHTML=doc?Array.from({length:doc.numPages},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join(''):'';if(doc)sel.value=Math.min(old,doc.numPages);});}
-async function renderComparePage(doc,pageNum,scale){const page=await doc.getPage(pageNum),vp=page.getViewport({scale}),c=document.createElement('canvas');c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);const ctx=c.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);await page.render({canvasContext:ctx,viewport:vp}).promise;return c;}
-function paintCanvas(target,src,w,h){target.width=w;target.height=h;const ctx=target.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(src,0,0);return ctx;}
+function refreshComparePageSelectors(){
+  [['comparePageA',docsData.compareDocA],['comparePageB',docsData.compareDocB]].forEach(([id,doc])=>{
+    const sel=document.getElementById(id);if(!sel)return;const old=Number(sel.value)||1;
+    sel.innerHTML=doc?Array.from({length:doc.numPages},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join(''):'';
+    if(doc)sel.value=Math.min(old,doc.numPages);
+  });
+}
+function compareRenderTarget(){const q=document.getElementById('compareQuality')?.value||'high';return q==='ultra'?3000:q==='standard'?1700:2400;}
+async function renderComparePage(doc,pageNum,scale){
+  const page=await doc.getPage(pageNum),vp=page.getViewport({scale}),c=document.createElement('canvas');
+  c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);
+  const ctx=c.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+  await page.render({canvasContext:ctx,viewport:vp,intent:'display'}).promise;return c;
+}
+function paintCanvas(target,src,w,h,dx=0,dy=0){target.width=w;target.height=h;const ctx=target.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(src,dx,dy);return ctx;}
+function luminanceAt(d,i){return (d[i]*54+d[i+1]*183+d[i+2]*19)>>8;}
+function grayAndInk(imageData,cutoff){
+  const d=imageData.data,n=d.length>>2,gray=new Uint8Array(n),ink=new Uint8Array(n);
+  for(let p=0,i=0;p<n;p++,i+=4){const g=luminanceAt(d,i);gray[p]=g;if(g<cutoff)ink[p]=1;}
+  return {gray,ink};
+}
+function downsampleInk(imageData,w,h,factor,cutoff){
+  const sw=Math.ceil(w/factor),sh=Math.ceil(h/factor),out=new Uint8Array(sw*sh),d=imageData.data;
+  for(let sy=0;sy<sh;sy++){
+    const y0=sy*factor,y1=Math.min(h,y0+factor);
+    for(let sx=0;sx<sw;sx++){
+      const x0=sx*factor,x1=Math.min(w,x0+factor);let found=0;
+      for(let y=y0;y<y1&&!found;y++)for(let x=x0;x<x1;x++){const i=(y*w+x)*4;if(luminanceAt(d,i)<cutoff){found=1;break;}}
+      out[sy*sw+sx]=found;
+    }
+  }
+  return {data:out,w:sw,h:sh,factor};
+}
+function binaryShiftScore(a,b,w,h,dx,dy,step){
+  let mismatch=0,union=0;
+  for(let y=0;y<h;y+=step){const by=y-dy;for(let x=0;x<w;x+=step){const av=a[y*w+x],bx=x-dx,bv=(bx>=0&&bx<w&&by>=0&&by<h)?b[by*w+bx]:0;if(av||bv){union++;if(av!==bv)mismatch++;}}}
+  return union?mismatch/union:1;
+}
+function findAutoAlignment(imageA,imageB,w,h,maxShiftPx,cutoff){
+  const factor=Math.max(3,Math.ceil(Math.max(w,h)/760)),sa=downsampleInk(imageA,w,h,factor,cutoff),sb=downsampleInk(imageB,w,h,factor,cutoff);
+  const maxS=Math.max(1,Math.ceil(maxShiftPx/factor)),step=(sa.w*sa.h>280000)?2:1;
+  const baseline=binaryShiftScore(sa.data,sb.data,sa.w,sa.h,0,0,step);let best={dx:0,dy:0,score:baseline};
+  for(let dy=-maxS;dy<=maxS;dy++)for(let dx=-maxS;dx<=maxS;dx++){
+    if(dx===0&&dy===0)continue;const score=binaryShiftScore(sa.data,sb.data,sa.w,sa.h,dx,dy,step);if(score<best.score)best={dx,dy,score};
+  }
+  const improvement=baseline>0?(baseline-best.score)/baseline:0;
+  if(improvement<.08||best.score>.48)return {dx:0,dy:0,baseline,bestScore:baseline,improvement:0};
+  return {dx:best.dx*factor,dy:best.dy*factor,baseline,bestScore:best.score,improvement};
+}
+function buildIntegral(mask,w,h){
+  const stride=w+1,ii=new Uint32Array(stride*(h+1));
+  for(let y=0;y<h;y++){let row=0,src=y*w,dst=(y+1)*stride,prev=y*stride;for(let x=0;x<w;x++){row+=mask[src+x];ii[dst+x+1]=ii[prev+x+1]+row;}}
+  return ii;
+}
+function rectCount(ii,w,h,x,y,r){
+  const stride=w+1,x0=Math.max(0,x-r),y0=Math.max(0,y-r),x1=Math.min(w-1,x+r),y1=Math.min(h-1,y+r);
+  const A=y0*stride+x0,B=y0*stride+x1+1,C=(y1+1)*stride+x0,D=(y1+1)*stride+x1+1;
+  return ii[D]-ii[B]-ii[C]+ii[A];
+}
+function copyCompareToFullscreen(){
+  const modal=document.getElementById('compare-fullscreen');if(!modal?.classList.contains('active'))return;
+  setCompareFullscreenMode(docsData.compareFullMode||'diff',false);
+}
 async function renderPdfComparison(){
-  const A=docsData.compareDocA,B=docsData.compareDocB;if(!A||!B)return;const st=document.getElementById('st-compare');st.textContent='Porovnávám…';try{const pa=Number(document.getElementById('comparePageA').value)||1,pb=Number(document.getElementById('comparePageB').value)||1;const a0=await A.getPage(pa),b0=await B.getPage(pb),va=a0.getViewport({scale:1}),vb=b0.getViewport({scale:1});const scale=Math.min(1.6,1100/Math.max(va.width,vb.width));const ca=await renderComparePage(A,pa,scale),cb=await renderComparePage(B,pb,scale),w=Math.max(ca.width,cb.width),h=Math.max(ca.height,cb.height);const outA=document.getElementById('compareCanvasA'),outB=document.getElementById('compareCanvasB'),diff=document.getElementById('compareCanvasDiff');const ctxA=paintCanvas(outA,ca,w,h),ctxB=paintCanvas(outB,cb,w,h);diff.width=w;diff.height=h;const dctx=diff.getContext('2d',{willReadFrequently:true}),ia=ctxA.getImageData(0,0,w,h),ib=ctxB.getImageData(0,0,w,h),od=dctx.createImageData(w,h),thr=Number(document.getElementById('compareThreshold').value)||30;let changed=0,total=w*h;for(let i=0;i<ia.data.length;i+=4){const dr=Math.abs(ia.data[i]-ib.data[i]),dg=Math.abs(ia.data[i+1]-ib.data[i+1]),db=Math.abs(ia.data[i+2]-ib.data[i+2]),delta=(dr+dg+db)/3;if(delta>thr){changed++;od.data[i]=220;od.data[i+1]=45;od.data[i+2]=45;od.data[i+3]=255;}else{const base=Math.round((ia.data[i]+ia.data[i+1]+ia.data[i+2])/3);const light=Math.round(245-(255-base)*.18);od.data[i]=light;od.data[i+1]=light;od.data[i+2]=light;od.data[i+3]=255;}}dctx.putImageData(od,0,0);st.textContent=`Rozdíl strany ${pa} vs ${pb}: ${((changed/total)*100).toFixed(2)} % obrazových bodů nad zvolenou citlivostí.`;}catch(e){st.textContent='Porovnání selhalo: '+e.message;console.error(e);}
+  const A=docsData.compareDocA,B=docsData.compareDocB;if(!A||!B)return;
+  const st=document.getElementById('st-compare');st.textContent='Porovnávám ve vysokém rozlišení…';
+  try{
+    const pa=Number(document.getElementById('comparePageA').value)||1,pb=Number(document.getElementById('comparePageB').value)||1;
+    const a0=await A.getPage(pa),b0=await B.getPage(pb),va=a0.getViewport({scale:1}),vb=b0.getViewport({scale:1});
+    const target=compareRenderTarget(),scale=Math.min(3.4,target/Math.max(va.width,vb.width));
+    const ca=await renderComparePage(A,pa,scale),cb=await renderComparePage(B,pb,scale),w=Math.max(ca.width,cb.width),h=Math.max(ca.height,cb.height);
+    const outA=document.getElementById('compareCanvasA'),outB=document.getElementById('compareCanvasB'),diff=document.getElementById('compareCanvasDiff');
+    const ctxA=paintCanvas(outA,ca,w,h),ctxB=paintCanvas(outB,cb,w,h);
+    const iaRaw=ctxA.getImageData(0,0,w,h),ibRaw=ctxB.getImageData(0,0,w,h);
+    const thr=Number(document.getElementById('compareThreshold').value)||32,tolMm=Number(document.getElementById('compareToleranceMm').value)||0;
+    const cutoff=Math.max(218,Math.min(249,252-Math.round(thr*.28)));
+    let align={dx:0,dy:0,improvement:0};
+    if(document.getElementById('compareAutoAlign').checked){const maxShiftPx=Math.max(2,Math.round(4*72/25.4*scale));align=findAutoAlignment(iaRaw,ibRaw,w,h,maxShiftPx,cutoff);}
+    const alignedCanvas=document.createElement('canvas'),alignedCtx=paintCanvas(alignedCanvas,cb,w,h,align.dx,align.dy),ib=alignedCtx.getImageData(0,0,w,h);
+    const Adata=grayAndInk(iaRaw,cutoff),Bdata=grayAndInk(ib,cutoff),intA=buildIntegral(Adata.ink,w,h),intB=buildIntegral(Bdata.ink,w,h);
+    const radius=Math.max(0,Math.round(tolMm*72/25.4*scale)),n=w*h,rawChange=new Uint8Array(n);
+    for(let p=0;p<n;p++){
+      const aInk=Adata.ink[p],bInk=Bdata.ink[p];if(!aInk&&!bInk)continue;const x=p%w,y=(p/w)|0;
+      let changed=(aInk&&!rectCount(intB,w,h,x,y,radius))||(bInk&&!rectCount(intA,w,h,x,y,radius));
+      if(!changed&&aInk&&bInk&&Math.abs(Adata.gray[p]-Bdata.gray[p])>Math.max(55,thr*1.8))changed=true;
+      if(changed)rawChange[p]=1;
+    }
+    const minNoise=Number(document.getElementById('compareNoiseFilter').value)||1,noiseInt=minNoise>1?buildIntegral(rawChange,w,h):null;
+    diff.width=w;diff.height=h;const dctx=diff.getContext('2d',{willReadFrequently:true}),od=dctx.createImageData(w,h),src=iaRaw.data;let changed=0;
+    for(let p=0,i=0;p<n;p++,i+=4){
+      let ch=rawChange[p];if(ch&&noiseInt){const x=p%w,y=(p/w)|0;if(rectCount(noiseInt,w,h,x,y,2)<minNoise)ch=0;}
+      if(ch){changed++;od.data[i]=220;od.data[i+1]=38;od.data[i+2]=38;od.data[i+3]=255;}
+      else{const base=luminanceAt(src,i),light=Math.round(249-(255-base)*.22);od.data[i]=light;od.data[i+1]=light;od.data[i+2]=light;od.data[i+3]=255;}
+    }
+    dctx.putImageData(od,0,0);
+    const dxMm=align.dx/scale*25.4/72,dyMm=align.dy/scale*25.4/72,alignText=(align.dx||align.dy)?` Dorovnání: X ${dxMm>=0?'+':''}${dxMm.toFixed(1)} mm, Y ${dyMm>=0?'+':''}${dyMm.toFixed(1)} mm.`:' Dorovnání nebylo potřeba.';
+    st.textContent=`Strana ${pa} vs ${pb}: ${((changed/n)*100).toFixed(3)} % plochy označeno jako skutečná změna. Tolerance drobného posunu ${tolMm.toLocaleString('cs-CZ')} mm.${alignText} Render ${w}×${h} px.`;
+    copyCompareToFullscreen();
+  }catch(e){st.textContent='Porovnání selhalo: '+e.message;console.error(e);}
 }
-
+function compareSourceCanvas(mode){return document.getElementById(mode==='a'?'compareCanvasA':mode==='b'?'compareCanvasB':'compareCanvasDiff');}
+function openCompareFullscreen(mode){
+  const src=compareSourceCanvas(mode);if(!src||!src.width){alert('Nejprve nahraj a porovnej obě PDF.');return;}
+  docsData.compareFullMode=mode;document.getElementById('compare-fullscreen').classList.add('active');setCompareFullscreenMode(mode,false);requestAnimationFrame(fitCompareFullscreen);
+}
+function closeCompareFullscreen(){document.getElementById('compare-fullscreen')?.classList.remove('active');}
+function setCompareFullscreenMode(mode,fit=true){
+  docsData.compareFullMode=mode;const src=compareSourceCanvas(mode),dst=document.getElementById('compareFullCanvas');if(!src||!src.width||!dst)return;
+  dst.width=src.width;dst.height=src.height;dst.getContext('2d').drawImage(src,0,0);const title=document.getElementById('compare-full-title');if(title)title.textContent=mode==='a'?'STARŠÍ VERZE':mode==='b'?'NOVĚJŠÍ VERZE':'ROZDÍL';if(fit)requestAnimationFrame(fitCompareFullscreen);else applyCompareFullscreenZoom();
+}
+function applyCompareFullscreenZoom(){
+  const canvas=document.getElementById('compareFullCanvas'),z=document.getElementById('compareFullZoom');if(!canvas||!z)return;const pct=Number(z.value)||100;canvas.style.width=Math.max(1,canvas.width*pct/100)+'px';canvas.style.height=Math.max(1,canvas.height*pct/100)+'px';const v=document.getElementById('compareFullZoomValue');if(v)v.textContent=Math.round(pct)+' %';
+}
+function fitCompareFullscreen(){
+  const stage=document.getElementById('compare-full-stage'),canvas=document.getElementById('compareFullCanvas'),z=document.getElementById('compareFullZoom');if(!stage||!canvas||!canvas.width||!z)return;const pct=Math.max(20,Math.min(200,(stage.clientWidth-32)/canvas.width*100));z.value=String(pct);applyCompareFullscreenZoom();
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('compare-fullscreen')?.classList.contains('active'))closeCompareFullscreen();});
+updateCompareControlLabels();
 // ============================================================
 // SKUTEČNÁ KONVERZE DO PDF/A (Ghostscript WebAssembly)
 // ============================================================
