@@ -247,7 +247,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.5</div>
+  <div class="app-version">V3.6</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
@@ -2002,47 +2002,22 @@ function createMoodboard(layoutType) {
   const createCover = document.getElementById('createCover').checked;
   const insertAt = (createCover && currentPreviewPage < 2) ? 2 : currentPreviewPage;
 
-  let newTexts = {};
-  let newBlankPages = new Set();
-  let newPdfMap = {};
-  let newInfoBarPages = {};
-  
-  for (let [pStr, texts] of Object.entries(allPagesTexts)) {
-    let pNum = parseInt(pStr);
-    if (pNum >= insertAt) {
-      newTexts[pNum + 1] = texts;
-    } else {
-      newTexts[pNum] = texts;
-    }
-  }
-  for (let pNum of customBlankPages) {
-    if (pNum >= insertAt) newBlankPages.add(pNum + 1);
-    else newBlankPages.add(pNum);
-  }
-  for (let [pStr, idx] of Object.entries(pagePdfIndexMap)) {
-    let pNum = parseInt(pStr);
-    if (pNum >= insertAt) newPdfMap[pNum + 1] = idx;
-    else newPdfMap[pNum] = idx;
-  }
-  for (let [pStr, cfg] of Object.entries(infoBarPages)) {
-    let pNum = parseInt(pStr);
-    if (pNum >= insertAt) newInfoBarPages[pNum + 1] = cfg;
-    else newInfoBarPages[pNum] = cfg;
-  }
-  
-  newTexts[insertAt] = { type: 'moodboard', cells };
-  
-  allPagesTexts = newTexts;
-  customBlankPages = newBlankPages;
-  pagePdfIndexMap = newPdfMap;
-  infoBarPages = newInfoBarPages;
-  totalPreviewPages++;
+  // Všechny druhy stran se mění přes jeden společný seznam. Tím zůstane
+  // zachováno pořadí PDF, prázdných stran, jejich barev i informačních pruhů.
+  const records = buildPageRecords();
+  records.splice(insertAt - 1, 0, {
+    type: 'moodboard',
+    pdfIndex: null,
+    texts: { type: 'moodboard', cells },
+    infoBar: null,
+    blankColor: null
+  });
+  applyPageRecords(records);
   currentPreviewPage = insertAt;
-  
-  ensurePagePdfIndexMap(); // přepočítat mapování
+
   renderCurrentPagePreview();
   renderThumbnails();
-  scheduleAutosave();
+  void persistProjectStructureNow().catch(e => console.warn('Uložení moodboardu selhalo', e));
 }
 // ============================================================
 // KONEC MOODBOARD FUNKCÍ
@@ -2417,13 +2392,11 @@ function buildPageRecords() {
   const createCover = document.getElementById('createCover').checked;
   const records = [];
   for (let p = 1; p <= totalPreviewPages; p++) {
+    const pageData = allPagesTexts[p];
     let type = 'pdf';
     if (createCover && p === 1) type = 'cover';
     else if (customBlankPages.has(p)) type = 'blank';
-    else {
-      const pageData = allPagesTexts[p];
-      if (pageData && pageData.type === 'moodboard') type = 'moodboard';
-    }
+    else if (pageData && pageData.type === 'moodboard') type = 'moodboard';
     records.push({
       type,
       pdfIndex: (type === 'pdf') ? (pagePdfIndexMap[p] !== undefined ? pagePdfIndexMap[p] : 0) : null,
