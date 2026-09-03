@@ -107,6 +107,10 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 #blank-page-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1250;align-items:center;justify-content:center;padding:20px}
 #blank-page-modal .box{background:#fff;border-radius:12px;padding:22px;width:100%;max-width:430px}
 .blank-color-options{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:15px 0}
+#export-quality-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1400;align-items:center;justify-content:center;padding:20px}
+#export-quality-modal .box{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:520px;box-shadow:0 12px 35px rgba(0,0,0,.25)}
+.quality-grid{display:grid;grid-template-columns:160px 1fr;gap:12px;align-items:center;margin:18px 0}.quality-grid label{font-weight:600}.quality-grid input,.quality-grid select{width:100%}
+.export-size-estimate{padding:12px 14px;border-radius:8px;background:#f7f197;border:1px solid #e2db7d;font-size:14px;display:flex;justify-content:space-between;gap:15px}
 .blank-color-option{border:2px solid var(--border);border-radius:9px;padding:10px;background:#fafafa;cursor:pointer;text-align:left}
 .blank-color-option:hover{border-color:#18181b}
 .blank-color-swatch{display:block;height:95px;border:1px solid #d4d4d8;border-radius:5px;margin-bottom:8px;box-shadow:0 2px 5px rgba(0,0,0,.06)}
@@ -250,7 +254,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.8</div>
+  <div class="app-version">V3.9</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
@@ -543,6 +547,26 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
       <button class="blank-color-option" onclick="addBlankPage('yellow',false)"><span class="blank-color-swatch" style="background:#f7f197"></span><b>Čistá žlutá</b></button>
     </div>
     <div style="display:flex;justify-content:flex-end"><button class="back-btn" onclick="closeBlankPageModal()">Zrušit</button></div>
+  </div>
+</div>
+
+<div id="export-quality-modal">
+  <div class="box">
+    <h3 style="margin:0 0 6px;font-family:'Antarctican Mono',monospace;font-weight:normal">Kvalita exportu PDF</h3>
+    <div class="muted" style="margin:0">Původní PDF, texty a čáry zůstanou vektorové. Nastavení mění pouze vložené rastrové obrázky.</div>
+    <div class="quality-grid">
+      <label for="exportQualityPreset">Předvolba</label>
+      <select id="exportQualityPreset" onchange="applyExportQualityPreset(this.value)">
+        <option value="original">Originální obrázky</option><option value="high">Vysoká kvalita</option><option value="standard" selected>Vyvážená</option><option value="compact">Menší soubor</option><option value="custom">Vlastní nastavení</option>
+      </select>
+      <label for="exportImageDpi">Maximální DPI</label>
+      <input id="exportImageDpi" type="number" min="72" max="600" step="10" value="160" oninput="markExportQualityCustom();updateExportSizeEstimate()">
+      <label for="exportJpegQuality">JPEG kvalita <span id="exportJpegQualityValue">85 %</span></label>
+      <input id="exportJpegQuality" type="range" min="40" max="100" step="1" value="85" oninput="document.getElementById('exportJpegQualityValue').textContent=this.value+' %';markExportQualityCustom();updateExportSizeEstimate()">
+    </div>
+    <div class="export-size-estimate"><span>Odhadovaná velikost výsledného PDF</span><b id="exportSizeEstimate">počítám…</b></div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.45;margin-top:10px">DPI omezuje rozlišení fotografií podle jejich velikosti na stránce. PNG s průhledností zůstává PNG. Přesná velikost závisí i na vnitřní struktuře zdrojového PDF.</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px"><button class="back-btn" style="margin:0" onclick="cancelExportQuality()">Zrušit</button><button class="action" onclick="confirmExportQuality()">Exportovat PDF</button></div>
   </div>
 </div>
 
@@ -2437,8 +2461,12 @@ function applyPageRecords(records) {
       newBlank.add(pos);
       newBlankColors[pos] = rec.blankColor === 'yellow' ? 'yellow' : 'white';
       newBlankInfoBars[pos] = rec.showInfoBar !== false;
+      newTexts[pos] = Array.isArray(rec.texts) ? rec.texts : [];
     }
-    else if (rec.type === 'pdf') newPdfMap[pos] = rec.pdfIndex;
+    else if (rec.type === 'pdf') {
+      newPdfMap[pos] = rec.pdfIndex;
+      newTexts[pos] = Array.isArray(rec.texts) ? rec.texts : [];
+    }
     else if (rec.type === 'moodboard') {
       newTexts[pos] = rec.texts;
     } else {
@@ -3531,9 +3559,44 @@ async function nextPage(){
   if(currentPreviewPage < totalPreviewPages){ currentPreviewPage++; await renderCurrentPagePreview(); highlightActiveThumb(); }
 }
 
+let exportQualityResolver = null;
+function getExportQualitySettings(){
+  const preset=document.getElementById('exportQualityPreset').value;
+  return {preset,original:preset==='original',dpi:Math.max(72,Math.min(600,Number(document.getElementById('exportImageDpi').value)||160)),jpegQuality:Math.max(.4,Math.min(1,(Number(document.getElementById('exportJpegQuality').value)||85)/100))};
+}
+function applyExportQualityPreset(preset){
+  const cfg={original:{dpi:300,q:100},high:{dpi:240,q:94},standard:{dpi:160,q:85},compact:{dpi:100,q:70}}[preset];
+  const dpi=document.getElementById('exportImageDpi'),q=document.getElementById('exportJpegQuality');
+  if(cfg){dpi.value=cfg.dpi;q.value=cfg.q;document.getElementById('exportJpegQualityValue').textContent=cfg.q+' %';}
+  dpi.disabled=preset==='original';q.disabled=preset==='original';updateExportSizeEstimate();
+}
+function markExportQualityCustom(){const s=document.getElementById('exportQualityPreset');if(s.value!=='original')s.value='custom';}
+function approximateDataUrlBytes(dataUrl){const comma=String(dataUrl||'').indexOf(',');return comma<0?0:Math.max(0,Math.floor((dataUrl.length-comma-1)*.75));}
+function formatFileSize(bytes){if(bytes>=1048576)return(bytes/1048576).toFixed(bytes>=10485760?1:2)+' MB';return Math.max(1,Math.round(bytes/1024))+' kB';}
+function updateExportSizeEstimate(){
+  const out=document.getElementById('exportSizeEstimate');if(!out)return;
+  const s=getExportQualitySettings();let bytes=(loadedFileBytes?.byteLength||0)+120000;
+  let imageBytes=0;Object.values(allPagesTexts).forEach(page=>{if(page&&page.type==='moodboard')for(const cell of(page.cells||[]))imageBytes+=approximateDataUrlBytes(cell.imageData);});
+  imageBytes+=approximateDataUrlBytes(coverImageSettings.dataUrl);
+  if(s.original)bytes+=imageBytes;else{const resolution=Math.min(1,Math.pow(s.dpi/240,2));const compression=.18+.72*s.jpegQuality;bytes+=imageBytes*resolution*compression;}
+  out.textContent='cca '+formatFileSize(bytes);
+}
+function requestExportQuality(){document.getElementById('export-quality-modal').style.display='flex';applyExportQualityPreset(document.getElementById('exportQualityPreset').value);return new Promise(resolve=>{exportQualityResolver=resolve;});}
+function cancelExportQuality(){document.getElementById('export-quality-modal').style.display='none';if(exportQualityResolver)exportQualityResolver(null);exportQualityResolver=null;}
+function confirmExportQuality(){const result=getExportQualitySettings();document.getElementById('export-quality-modal').style.display='none';if(exportQualityResolver)exportQualityResolver(result);exportQualityResolver=null;}
+async function prepareRasterForPdf(dataUrl,targetWidthPt,targetHeightPt,settings){
+  const isPng=dataUrl.startsWith('data:image/png'),isJpeg=dataUrl.startsWith('data:image/jpeg')||dataUrl.startsWith('data:image/jpg');
+  if(settings.original&&(isPng||isJpeg))return{bytes:await fetch(dataUrl).then(r=>r.arrayBuffer()),type:isPng?'png':'jpg'};
+  const img=await loadHtmlImage(dataUrl),maxSide=Math.max(targetWidthPt,targetHeightPt)*settings.dpi/72*1.5,ratio=settings.original?1:Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight));
+  const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.naturalWidth*ratio));canvas.height=Math.max(1,Math.round(img.naturalHeight*ratio));canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+  const mime=isPng?'image/png':'image/jpeg',blob=await new Promise(resolve=>canvas.toBlob(resolve,mime,settings.jpegQuality));return{bytes:await blob.arrayBuffer(),type:isPng?'png':'jpg'};
+}
+
 async function runPanel(fromModal = false){
   const {PDFDocument, rgb, pushGraphicsState, popGraphicsState, rectangle, clip, endPath, moveTo, lineTo, closePath, fill, setFillingRgbColor} = PDFLib;
   if(!filesData.panel.length) return;
+  const exportQuality=await requestExportQuality();
+  if(!exportQuality)return;
 
   if (document.getElementById('preview-modal').style.display === 'flex') {
     saveCurrentPageBoxes();
@@ -3583,7 +3646,7 @@ async function runPanel(fromModal = false){
     if (createCover && coverImageSettings.dataUrl) {
       try {
         const coverCanvas = document.createElement('canvas');
-        const coverRasterScale = 2;
+        const coverRasterScale = exportQuality.original ? 2 : Math.max(1, Math.min(4.2, exportQuality.dpi / 72));
         coverCanvas.width = Math.round(standardA3W * coverRasterScale);
         coverCanvas.height = Math.round(standardA3H * coverRasterScale);
         await drawCoverImageEffect(coverCanvas.getContext('2d'), standardA3W, standardA3H, coverRasterScale);
@@ -3707,15 +3770,8 @@ async function runPanel(fromModal = false){
         for (let cell of cells) {
           if (!cell.imageData) continue;
           try {
-            const imgBytes = await fetch(cell.imageData).then(r => r.arrayBuffer());
-            let imageObj;
-            if (cell.imageData.startsWith('data:image/png')) {
-              imageObj = await finalPdf.embedPng(imgBytes);
-            } else if (cell.imageData.startsWith('data:image/jpeg')) {
-              imageObj = await finalPdf.embedJpg(imgBytes);
-            } else {
-              imageObj = await finalPdf.embedPng(imgBytes);
-            }
+            const preparedImage = await prepareRasterForPdf(cell.imageData, cell.w, cell.h, exportQuality);
+            const imageObj = preparedImage.type === 'png' ? await finalPdf.embedPng(preparedImage.bytes) : await finalPdf.embedJpg(preparedImage.bytes);
             if (imageObj) {
               const zoom = cell.zoom || 1;
               const offX = cell.offsetX || 0;
