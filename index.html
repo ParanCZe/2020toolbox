@@ -76,6 +76,10 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .thumb-label { font-size:10px; color:var(--muted); text-align:center; margin-top:3px; }
 .thumb-delete { position:absolute; top:2px; right:2px; width:18px; height:18px; line-height:16px; text-align:center; border-radius:50%; background:#dc2626; color:#fff; font-size:11px; border:1px solid #fff; cursor:pointer; z-index:2; box-shadow:0 1px 3px rgba(0,0,0,.3); }
 .thumb-delete:hover { background:#b91c1c; }
+.thumb-order{display:flex;gap:3px;margin-top:4px}
+.thumb-order button{flex:1;border:1px solid var(--border);background:#fafafa;border-radius:4px;padding:2px 0;font-size:10px;cursor:pointer}
+.thumb-order button:hover:not(:disabled){background:#f7f197;border-color:#a1a1aa}
+.thumb-order button:disabled{opacity:.3;cursor:not-allowed}
 
 /* OBRAZOVKA PROJEKTŮ */
 #new-project-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1100; align-items:center; justify-content:center; padding:20px; }
@@ -100,6 +104,12 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 #moodboard-modal .layout-options button .preview .cell.small { width:12px; }
 #moodboard-modal .layout-options button .label { flex:1; }
 #moodboard-modal .layout-options button small { color:var(--muted); font-size:12px; display:block; }
+#blank-page-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1250;align-items:center;justify-content:center;padding:20px}
+#blank-page-modal .box{background:#fff;border-radius:12px;padding:22px;width:100%;max-width:430px}
+.blank-color-options{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:15px 0}
+.blank-color-option{border:2px solid var(--border);border-radius:9px;padding:10px;background:#fafafa;cursor:pointer;text-align:left}
+.blank-color-option:hover{border-color:#18181b}
+.blank-color-swatch{display:block;height:95px;border:1px solid #d4d4d8;border-radius:5px;margin-bottom:8px;box-shadow:0 2px 5px rgba(0,0,0,.06)}
 
 @media(max-width:700px){
   #preview-body{flex-direction:column; align-items:stretch;}
@@ -232,7 +242,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.2</div>
+  <div class="app-version">V3.3</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
@@ -503,6 +513,17 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
   </div>
 </div>
 
+<div id="blank-page-modal">
+  <div class="box">
+    <h3 style="margin:0;font-family:'Antarctican Mono',monospace;font-weight:normal;">Vyberte barvu prázdné stránky</h3>
+    <div class="blank-color-options">
+      <button class="blank-color-option" onclick="addBlankPage('white')"><span class="blank-color-swatch" style="background:#fff"></span><b>Bílá stránka</b></button>
+      <button class="blank-color-option" onclick="addBlankPage('yellow')"><span class="blank-color-swatch" style="background:#f7f197"></span><b>Žlutá stránka</b></button>
+    </div>
+    <div style="display:flex;justify-content:flex-end"><button class="back-btn" onclick="closeBlankPageModal()">Zrušit</button></div>
+  </div>
+</div>
+
 <div id="preview-modal">
   <div id="preview-content">
     <div id="preview-header">
@@ -514,7 +535,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
         <div class="preview-tools">
           <button class="action" onclick="addTextBox()" style="background:#16a34a;">+ Přidat textové pole</button>
           <button class="action" onclick="addLineBox()" style="background:#0284c7;">+ Přidat čáru</button>
-          <button class="action" onclick="addBlankPage()" style="background:#2563eb;">+ Přidat prázdnou stránku</button>
+          <button class="action" onclick="openBlankPageModal()" style="background:#2563eb;">+ Přidat prázdnou stránku</button>
           <button class="action" onclick="openMoodboardModal()" style="background:#8b5cf6;">+ Přidat moodboard</button>
           <button class="action" id="undo-text-btn" onclick="undoTextEdit()" disabled>↶ Zpět</button>
           <span class="muted" style="margin:0;">(Volný pohyb ve všech směrech, přichytávání k ostatním prvkům)</span>
@@ -584,6 +605,7 @@ window.preventDrop = e => { e.preventDefault(); };
 let filesData = { pdfa: [], panel: [] };
 let allPagesTexts = {}; 
 let customBlankPages = new Set();
+let blankPageColors = {};
 let pagePdfIndexMap = {};
 let infoBarPages = {};
 let textIdCounter = 1;
@@ -628,6 +650,7 @@ let pageStructureInitialized = false;
 let pdfJsDoc = null;
 let fontBytesCache = null;
 let logoBytesCache = null;
+let projectSaveQueue = Promise.resolve();
 
 let defaultCoverLayoutInitialized = false;
 
@@ -726,6 +749,7 @@ function getProjectState() {
     form: collectFormState(),
     allPagesTexts: allPagesTexts,
     customBlankPages: Array.from(customBlankPages),
+    blankPageColors: blankPageColors,
     pagePdfIndexMap: pagePdfIndexMap,
     infoBarPages: infoBarPages,
     textIdCounter: textIdCounter,
@@ -791,6 +815,7 @@ async function importProjectFromZip(files) {
     applyFormState(state.form);
     allPagesTexts = state.allPagesTexts || {};
     customBlankPages = new Set(state.customBlankPages || []);
+    blankPageColors = state.blankPageColors || {};
     pagePdfIndexMap = state.pagePdfIndexMap || {};
     infoBarPages = state.infoBarPages || {};
     textIdCounter = state.textIdCounter || 1;
@@ -1140,6 +1165,7 @@ async function saveProjectState() {
     form: collectFormState(),
     allPagesTexts: allPagesTexts,
     customBlankPages: Array.from(customBlankPages),
+    blankPageColors: blankPageColors,
     pagePdfIndexMap: pagePdfIndexMap,
     infoBarPages: infoBarPages,
     textIdCounter: textIdCounter,
@@ -1167,8 +1193,19 @@ function scheduleAutosave() {
   if (!currentProjectDirHandle) return;
   clearTimeout(projectAutosaveTimer);
   projectAutosaveTimer = setTimeout(() => {
-    saveProjectState().catch(e => console.warn('Automatické uložení projektu selhalo', e));
+    queueProjectSave().catch(e => console.warn('Automatické uložení projektu selhalo', e));
   }, 800);
+}
+
+function queueProjectSave() {
+  if (!currentProjectDirHandle) return Promise.resolve();
+  projectSaveQueue = projectSaveQueue.catch(() => {}).then(() => saveProjectState());
+  return projectSaveQueue;
+}
+
+function persistProjectStructureNow() {
+  clearTimeout(projectAutosaveTimer);
+  return queueProjectSave();
 }
 
 async function openPanelProjects() {
@@ -1217,7 +1254,7 @@ async function confirmNewProject() {
 
 function backToProjectsList() {
   saveCurrentPageBoxes();
-  saveProjectState().catch(() => {});
+  persistProjectStructureNow().catch(() => {});
   document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
   document.getElementById('tool-panel-projects').classList.add('active');
   refreshProjectsList(false);
@@ -1228,6 +1265,7 @@ async function loadProject(name) {
   if (!dir) { alert('Projekt se nepodařilo otevřít.'); return; }
   currentProjectDirHandle = dir;
   currentProjectName = name;
+  projectSaveQueue = Promise.resolve();
 
   let state = null;
   try {
@@ -1244,6 +1282,7 @@ async function loadProject(name) {
 
   allPagesTexts = {};
   customBlankPages = new Set();
+  blankPageColors = {};
   pagePdfIndexMap = {};
   infoBarPages = {};
   textIdCounter = 1;
@@ -1262,6 +1301,7 @@ async function loadProject(name) {
     applyFormState(state.form);
     allPagesTexts = state.allPagesTexts || {};
     customBlankPages = new Set(state.customBlankPages || []);
+    blankPageColors = state.blankPageColors || {};
     pagePdfIndexMap = state.pagePdfIndexMap || {};
     infoBarPages = state.infoBarPages || {};
     textIdCounter = state.textIdCounter || 1;
@@ -1381,7 +1421,7 @@ async function loadOrReplacePdfInProject(file) {
   if (currentProjectDirHandle) {
     try {
       await savePdfIntoProject(newBytes.slice(0));
-      await saveProjectState();
+      await persistProjectStructureNow();
     } catch (e) { console.warn('Uložení PDF do projektu selhalo', e); }
   }
   document.getElementById('st-panel').textContent = `PDF „${file.name}“ nahráno`;
@@ -1671,6 +1711,7 @@ function pushTextHistory(){
   textUndoStack.push({
     pages: JSON.parse(JSON.stringify(allPagesTexts)),
     blankPages: Array.from(customBlankPages),
+    blankColors: JSON.parse(JSON.stringify(blankPageColors)),
     pdfIndexMap: JSON.parse(JSON.stringify(pagePdfIndexMap)),
     currentPage: currentPreviewPage,
     total: totalPreviewPages,
@@ -1686,6 +1727,7 @@ function undoTextEdit(){
   if(!snap) return;
   allPagesTexts = snap.pages || {};
   customBlankPages = new Set(snap.blankPages || []);
+  blankPageColors = snap.blankColors || {};
   pagePdfIndexMap = snap.pdfIndexMap || {};
   currentPreviewPage = snap.currentPage || 1;
   totalPreviewPages = snap.total || 1;
@@ -1707,9 +1749,15 @@ function measureTextBox(text,size,scale){
   lines.forEach(l => {
     maxW = Math.max(maxW, ctx.measureText(l || ' ').width);
   });
-  const lineHeight = size * 1.2 * scale;
-  const height = Math.max(1, lines.length * lineHeight);
-  return {width: maxW + 2, height};
+  // U jednoho řádku není kolem glyfů přidaných 20 % prázdného místa.
+  // U více řádků zůstává čitelná vzdálenost pouze mezi řádky.
+  const heightPts = size + Math.max(0, lines.length - 1) * size * 1.2;
+  return {width: maxW + 0.5, height: Math.max(1, heightPts * scale), heightPts};
+}
+
+function getTextVisualHeightPts(text, size) {
+  const lines = (text || '').split(/\r?\n/).length;
+  return size + Math.max(0, lines - 1) * size * 1.2;
 }
 
 // ============================================================
@@ -2155,7 +2203,7 @@ async function openPreviewModal() {
 function closePreviewModal() {
   saveCurrentPageBoxes();
   document.getElementById('preview-modal').style.display = 'none';
-  saveProjectState().catch(() => {});
+  persistProjectStructureNow().catch(() => {});
 }
 
 // Přepracovaná funkce pro zajištění správného mapování PDF stránek
@@ -2226,7 +2274,8 @@ function buildPageRecords() {
       type,
       pdfIndex: (type === 'pdf') ? (pagePdfIndexMap[p] !== undefined ? pagePdfIndexMap[p] : 0) : null,
       texts: (type === 'moodboard') ? pageData : (allPagesTexts[p] || []),
-      infoBar: infoBarPages[p] ? {...infoBarPages[p]} : null
+      infoBar: infoBarPages[p] ? {...infoBarPages[p]} : null,
+      blankColor: type === 'blank' ? (blankPageColors[p] || 'white') : null
     });
   }
   return records;
@@ -2237,10 +2286,14 @@ function applyPageRecords(records) {
   const newBlank = new Set();
   const newPdfMap = {};
   const newInfoBarPages = {};
+  const newBlankColors = {};
   records.forEach((rec, idx) => {
     const pos = idx + 1;
     if (rec.infoBar) newInfoBarPages[pos] = rec.infoBar;
-    if (rec.type === 'blank') newBlank.add(pos);
+    if (rec.type === 'blank') {
+      newBlank.add(pos);
+      newBlankColors[pos] = rec.blankColor === 'yellow' ? 'yellow' : 'white';
+    }
     else if (rec.type === 'pdf') newPdfMap[pos] = rec.pdfIndex;
     else if (rec.type === 'moodboard') {
       newTexts[pos] = rec.texts;
@@ -2258,12 +2311,13 @@ function applyPageRecords(records) {
   customBlankPages = newBlank;
   pagePdfIndexMap = newPdfMap;
   infoBarPages = newInfoBarPages;
+  blankPageColors = newBlankColors;
   totalPreviewPages = records.length;
   // Po aplikaci přepočítat mapování
   ensurePagePdfIndexMap();
 }
 
-function movePage(from, to) {
+async function movePage(from, to) {
   const createCover = document.getElementById('createCover').checked;
   const lockedPos = createCover ? 1 : 0;
   if (from === to) return;
@@ -2281,7 +2335,7 @@ function movePage(from, to) {
   else if (from > currentPreviewPage && to <= currentPreviewPage) currentPreviewPage++;
   
   ensurePagePdfIndexMap();
-  scheduleAutosave();
+  await persistProjectStructureNow();
 }
 
 async function deletePreviewPage(pos) {
@@ -2299,7 +2353,7 @@ async function deletePreviewPage(pos) {
   else if (currentPreviewPage > pos) currentPreviewPage--;
 
   ensurePagePdfIndexMap();
-  scheduleAutosave();
+  await persistProjectStructureNow();
   await renderCurrentPagePreview();
   await renderThumbnails();
 }
@@ -2319,49 +2373,31 @@ async function getPageSize(info) {
   return {width: w, height: h};
 }
 
-async function addBlankPage(){
+function openBlankPageModal(){
+  document.getElementById('blank-page-modal').style.display = 'flex';
+}
+
+function closeBlankPageModal(){
+  document.getElementById('blank-page-modal').style.display = 'none';
+}
+
+async function addBlankPage(color = 'white'){
+  closeBlankPageModal();
+  saveCurrentPageBoxes();
   pushTextHistory();
-  
   const createCover = document.getElementById('createCover').checked;
   const insertAt = (createCover && currentPreviewPage < 2) ? 2 : currentPreviewPage;
-  
-  let newAllTexts = {};
-  let newBlankPages = new Set();
-  let newPdfMap = {};
-  let newInfoBarPages = {};
-  
-  for(let [pStr, texts] of Object.entries(allPagesTexts)){
-    let pNum = parseInt(pStr);
-    if(pNum >= insertAt) {
-      newAllTexts[pNum + 1] = texts;
-    } else {
-      newAllTexts[pNum] = texts;
-    }
-  }
-  for(let pNum of customBlankPages){
-    if(pNum >= insertAt) newBlankPages.add(pNum + 1);
-    else newBlankPages.add(pNum);
-  }
-  for(let [pStr, idx] of Object.entries(pagePdfIndexMap)){
-    let pNum = parseInt(pStr);
-    if(pNum >= insertAt) newPdfMap[pNum + 1] = idx;
-    else newPdfMap[pNum] = idx;
-  }
-  for(let [pStr, cfg] of Object.entries(infoBarPages)){
-    let pNum = parseInt(pStr);
-    if(pNum >= insertAt) newInfoBarPages[pNum + 1] = cfg;
-    else newInfoBarPages[pNum] = cfg;
-  }
-  
-  allPagesTexts = newAllTexts;
-  customBlankPages = newBlankPages;
-  pagePdfIndexMap = newPdfMap;
-  infoBarPages = newInfoBarPages;
-  customBlankPages.add(insertAt);
+  const records = buildPageRecords();
+  records.splice(insertAt - 1, 0, {
+    type: 'blank',
+    pdfIndex: null,
+    texts: [],
+    infoBar: null,
+    blankColor: color === 'yellow' ? 'yellow' : 'white'
+  });
+  applyPageRecords(records);
   currentPreviewPage = insertAt;
-  
-  totalPreviewPages++;
-  ensurePagePdfIndexMap();
+  await persistProjectStructureNow();
   await renderCurrentPagePreview();
   await renderThumbnails();
 }
@@ -2392,10 +2428,10 @@ async function drawCover(ctx, width, height, scale) {
   }
 }
 
-async function drawBlankPage(ctx, width, height, scale) {
-  ctx.fillStyle = '#ffffff';
+async function drawBlankPage(ctx, width, height, scale, pageNumber = currentPreviewPage) {
+  ctx.fillStyle = blankPageColors[pageNumber] === 'yellow' ? '#f7f197' : '#ffffff';
   ctx.fillRect(0, 0, width * scale, height * scale);
-  await drawInfoBar(ctx, width, height, scale, currentPreviewPage);
+  await drawInfoBar(ctx, width, height, scale, pageNumber);
 }
 
 function getInfoBarPageConfig(pageNumber) {
@@ -2645,7 +2681,7 @@ async function renderCurrentPagePreview() {
     // Text úvodní strany vykresluje v editoru pouze interaktivní vrstva.
     // Miniatury a PDF jej nadále kreslí standardně jednou.
   } else if (isBlank) {
-    await drawBlankPage(ctx, pageSize.width, pageSize.height, renderScale);
+    await drawBlankPage(ctx, pageSize.width, pageSize.height, renderScale, currentPreviewPage);
     const pageItems = allPagesTexts[currentPreviewPage] || [];
     if (Array.isArray(pageItems)) {
       pageItems.forEach(b => {
@@ -2764,7 +2800,7 @@ function createBoxElement(b){
   div.style.left = (b.x*sx)+'px';
   
   const linesCount = (b.text || '').split(/\r?\n/).length;
-  const totalBoxHeightPts = b.size * linesCount * 1.2;
+  const totalBoxHeightPts = getTextVisualHeightPts(b.text, b.size);
   div.style.top = ((info.height - b.y - totalBoxHeightPts) * sy) + 'px';
 
   div.style.fontFamily = `"${editorFontFamily}"`;
@@ -2784,7 +2820,7 @@ function createBoxElement(b){
     div.style.height = m.height+'px';
     textarea.style.width = m.width+'px';
     textarea.style.height = m.height+'px';
-    const currentBoxHeightPts = b.size * lCount * 1.2;
+    const currentBoxHeightPts = getTextVisualHeightPts(textarea.value, b.size);
     div.style.top = ((info.height - b.y - currentBoxHeightPts) * sy) + 'px';
   };
   refreshBoxMetrics();
@@ -2992,7 +3028,7 @@ async function renderThumbnails() {
         });
       }
     } else if (info.isBlank) {
-      await drawBlankPage(cctx, pageSize.width, pageSize.height, scale);
+      await drawBlankPage(cctx, pageSize.width, pageSize.height, scale, p);
     } else if (isMoodboard) {
       await drawMoodboard(cctx, pageSize.width, pageSize.height, scale, pageData.cells || []);
       await drawInfoBar(cctx, pageSize.width, pageSize.height, scale, p);
@@ -3011,6 +3047,31 @@ async function renderThumbnails() {
     label.textContent = p + (info.isCover ? ' • úvod' : info.isBlank ? ' • prázdná' : isMoodboard ? ' • moodboard' : '');
 
     wrap.append(c, label);
+
+    if (!isLocked) {
+      const order = document.createElement('div');
+      order.className = 'thumb-order';
+      const up = document.createElement('button');
+      up.type = 'button'; up.textContent = '↑'; up.title = 'Posunout stránku výš';
+      up.disabled = p <= (createCover ? 2 : 1);
+      up.addEventListener('click', async e => {
+        e.stopPropagation();
+        await movePage(p, p - 1);
+        await renderCurrentPagePreview();
+        await renderThumbnails();
+      });
+      const down = document.createElement('button');
+      down.type = 'button'; down.textContent = '↓'; down.title = 'Posunout stránku níž';
+      down.disabled = p >= totalPreviewPages;
+      down.addEventListener('click', async e => {
+        e.stopPropagation();
+        await movePage(p, p + 1);
+        await renderCurrentPagePreview();
+        await renderThumbnails();
+      });
+      order.append(up, down);
+      wrap.appendChild(order);
+    }
 
     if (!isLocked && totalPreviewPages > 1) {
       const delBtn = document.createElement('div');
@@ -3064,7 +3125,7 @@ async function renderThumbnails() {
       const from = dragSourcePage;
       dragSourcePage = null;
       if (from === targetPage) return;
-      movePage(from, targetPage);
+      await movePage(from, targetPage);
       await renderCurrentPagePreview();
       await renderThumbnails();
     });
@@ -3114,8 +3175,7 @@ function saveCurrentPageBoxes(){
       
       const textarea = el.querySelector('.tb-main');
       b.text = textarea ? textarea.value : b.text;
-      const linesCount = (b.text || '').split(/\r?\n/).length;
-      const currentBoxHeightPts = b.size * linesCount * 1.2;
+      const currentBoxHeightPts = getTextVisualHeightPts(b.text, b.size);
       b.y = Math.max(0, Math.min(info.height, (info.height - (top/sy) - currentBoxHeightPts)));
     }
   });
@@ -3450,7 +3510,11 @@ async function runPanel(fromModal = false){
         });
       } else if(customBlankPages.has(previewP)){
         targetPage = finalPdf.addPage([standardA3W, standardA3H]);
-        targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(1,1,1)});
+        const blankIsYellow = blankPageColors[previewP] === 'yellow';
+        targetPage.drawRectangle({
+          x:0, y:0, width:standardA3W, height:standardA3H,
+          color:blankIsYellow ? rgb(247/255,241/255,151/255) : rgb(1,1,1)
+        });
         
         drawFinalInfoBar(targetPage, standardA3W, previewP);
       } else if(isMoodboard) {
