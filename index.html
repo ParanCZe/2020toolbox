@@ -125,6 +125,9 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 /* PREZENTAČNÍ EDITOR – UPRAVENÉ OVLÁDÁNÍ */
 #canvas-container { position:relative; display:inline-block; box-shadow:0 4px 12px rgba(0,0,0,0.15); background:#fff; max-width:100%; overflow:hidden; }
 #preview-canvas { display:block; max-width:100%; height:auto; background:#fff; }
+.snap-center-guide{display:none;position:absolute;background:#2563eb;opacity:.75;pointer-events:none;z-index:3}
+#snap-center-x{top:0;bottom:0;left:50%;width:1px}
+#snap-center-y{left:0;right:0;top:50%;height:1px}
 #boxes-layer { position:absolute; inset:0; pointer-events:none; }
 .custom-text-box{
   position:absolute; z-index:20; pointer-events:auto; cursor:default;
@@ -247,7 +250,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.6</div>
+  <div class="app-version">V3.8</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
@@ -534,8 +537,10 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
   <div class="box">
     <h3 style="margin:0;font-family:'Antarctican Mono',monospace;font-weight:normal;">Vyberte barvu prázdné stránky</h3>
     <div class="blank-color-options">
-      <button class="blank-color-option" onclick="addBlankPage('white')"><span class="blank-color-swatch" style="background:#fff"></span><b>Bílá stránka</b></button>
-      <button class="blank-color-option" onclick="addBlankPage('yellow')"><span class="blank-color-swatch" style="background:#f7f197"></span><b>Žlutá stránka</b></button>
+      <button class="blank-color-option" onclick="addBlankPage('white',true)"><span class="blank-color-swatch" style="background:linear-gradient(to bottom,#fff 84%,#f7f197 84%)"></span><b>Bílá s pruhem</b></button>
+      <button class="blank-color-option" onclick="addBlankPage('yellow',true)"><span class="blank-color-swatch" style="background:#f7f197"></span><b>Žlutá s pruhem</b></button>
+      <button class="blank-color-option" onclick="addBlankPage('white',false)"><span class="blank-color-swatch" style="background:#fff"></span><b>Čistá bílá</b></button>
+      <button class="blank-color-option" onclick="addBlankPage('yellow',false)"><span class="blank-color-swatch" style="background:#f7f197"></span><b>Čistá žlutá</b></button>
     </div>
     <div style="display:flex;justify-content:flex-end"><button class="back-btn" onclick="closeBlankPageModal()">Zrušit</button></div>
   </div>
@@ -591,6 +596,8 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
         <div id="canvas-container">
           <canvas id="preview-canvas"></canvas>
+          <div id="snap-center-x" class="snap-center-guide"></div>
+          <div id="snap-center-y" class="snap-center-guide"></div>
           <div id="boxes-layer" style="position:absolute; inset:0; pointer-events:none;"></div>
         </div>
       </div>
@@ -634,6 +641,7 @@ let filesData = { pdfa: [], panel: [] };
 let allPagesTexts = {}; 
 let customBlankPages = new Set();
 let blankPageColors = {};
+let blankPageInfoBars = {};
 let coverImageSettings = {dataUrl:null,imageRef:null,name:'',opacity:.32,fade:.20,x:.28,y:.05,width:.68};
 let coverInkCache = null;
 let pagePdfIndexMap = {};
@@ -781,6 +789,7 @@ function getProjectState() {
     allPagesTexts: allPagesTexts,
     customBlankPages: Array.from(customBlankPages),
     blankPageColors: blankPageColors,
+    blankPageInfoBars: blankPageInfoBars,
     coverImageSettings: coverImageSettings,
     pagePdfIndexMap: pagePdfIndexMap,
     infoBarPages: infoBarPages,
@@ -848,6 +857,7 @@ async function importProjectFromZip(files) {
     allPagesTexts = state.allPagesTexts || {};
     customBlankPages = new Set(state.customBlankPages || []);
     blankPageColors = state.blankPageColors || {};
+    blankPageInfoBars = state.blankPageInfoBars || {};
     coverImageSettings = Object.assign({dataUrl:null,imageRef:null,name:'',opacity:.32,fade:.20,x:.28,y:.05,width:.68}, state.coverImageSettings || {});
     syncCoverImageControls();
     pagePdfIndexMap = state.pagePdfIndexMap || {};
@@ -1430,6 +1440,7 @@ async function loadProject(name) {
   allPagesTexts = {};
   customBlankPages = new Set();
   blankPageColors = {};
+  blankPageInfoBars = {};
   coverImageSettings = {dataUrl:null,imageRef:null,name:'',opacity:.32,fade:.20,x:.28,y:.05,width:.68};
   coverInkCache = null;
   pagePdfIndexMap = {};
@@ -1451,6 +1462,7 @@ async function loadProject(name) {
     allPagesTexts = state.allPagesTexts || {};
     customBlankPages = new Set(state.customBlankPages || []);
     blankPageColors = state.blankPageColors || {};
+    blankPageInfoBars = state.blankPageInfoBars || {};
     coverImageSettings = Object.assign({dataUrl:null,imageRef:null,name:'',opacity:.32,fade:.20,x:.28,y:.05,width:.68}, state.coverImageSettings || {});
     if (coverImageSettings.imageRef && !coverImageSettings.dataUrl) {
       coverImageSettings.dataUrl = await loadImageFromProject(coverImageSettings.imageRef);
@@ -1866,6 +1878,7 @@ function pushTextHistory(){
     pages: JSON.parse(JSON.stringify(allPagesTexts)),
     blankPages: Array.from(customBlankPages),
     blankColors: JSON.parse(JSON.stringify(blankPageColors)),
+    blankInfoBars: JSON.parse(JSON.stringify(blankPageInfoBars)),
     pdfIndexMap: JSON.parse(JSON.stringify(pagePdfIndexMap)),
     currentPage: currentPreviewPage,
     total: totalPreviewPages,
@@ -1882,6 +1895,7 @@ function undoTextEdit(){
   allPagesTexts = snap.pages || {};
   customBlankPages = new Set(snap.blankPages || []);
   blankPageColors = snap.blankColors || {};
+  blankPageInfoBars = snap.blankInfoBars || {};
   pagePdfIndexMap = snap.pdfIndexMap || {};
   currentPreviewPage = snap.currentPage || 1;
   totalPreviewPages = snap.total || 1;
@@ -2402,7 +2416,8 @@ function buildPageRecords() {
       pdfIndex: (type === 'pdf') ? (pagePdfIndexMap[p] !== undefined ? pagePdfIndexMap[p] : 0) : null,
       texts: (type === 'moodboard') ? pageData : (allPagesTexts[p] || []),
       infoBar: infoBarPages[p] ? {...infoBarPages[p]} : null,
-      blankColor: type === 'blank' ? (blankPageColors[p] || 'white') : null
+      blankColor: type === 'blank' ? (blankPageColors[p] || 'white') : null,
+      showInfoBar: type === 'blank' ? blankPageInfoBars[p] !== false : null
     });
   }
   return records;
@@ -2414,12 +2429,14 @@ function applyPageRecords(records) {
   const newPdfMap = {};
   const newInfoBarPages = {};
   const newBlankColors = {};
+  const newBlankInfoBars = {};
   records.forEach((rec, idx) => {
     const pos = idx + 1;
     if (rec.infoBar) newInfoBarPages[pos] = rec.infoBar;
     if (rec.type === 'blank') {
       newBlank.add(pos);
       newBlankColors[pos] = rec.blankColor === 'yellow' ? 'yellow' : 'white';
+      newBlankInfoBars[pos] = rec.showInfoBar !== false;
     }
     else if (rec.type === 'pdf') newPdfMap[pos] = rec.pdfIndex;
     else if (rec.type === 'moodboard') {
@@ -2439,6 +2456,7 @@ function applyPageRecords(records) {
   pagePdfIndexMap = newPdfMap;
   infoBarPages = newInfoBarPages;
   blankPageColors = newBlankColors;
+  blankPageInfoBars = newBlankInfoBars;
   totalPreviewPages = records.length;
   // Po aplikaci přepočítat mapování
   ensurePagePdfIndexMap();
@@ -2509,7 +2527,7 @@ function closeBlankPageModal(){
   document.getElementById('blank-page-modal').style.display = 'none';
 }
 
-async function addBlankPage(color = 'white'){
+async function addBlankPage(color = 'white', showInfoBar = true){
   closeBlankPageModal();
   saveCurrentPageBoxes();
   pushTextHistory();
@@ -2521,7 +2539,8 @@ async function addBlankPage(color = 'white'){
     pdfIndex: null,
     texts: [],
     infoBar: null,
-    blankColor: color === 'yellow' ? 'yellow' : 'white'
+    blankColor: color === 'yellow' ? 'yellow' : 'white',
+    showInfoBar: showInfoBar !== false
   });
   applyPageRecords(records);
   currentPreviewPage = insertAt;
@@ -2561,7 +2580,9 @@ async function drawCover(ctx, width, height, scale) {
 async function drawBlankPage(ctx, width, height, scale, pageNumber = currentPreviewPage) {
   ctx.fillStyle = blankPageColors[pageNumber] === 'yellow' ? '#f7f197' : '#ffffff';
   ctx.fillRect(0, 0, width * scale, height * scale);
-  await drawInfoBar(ctx, width, height, scale, pageNumber);
+  if (blankPageInfoBars[pageNumber] !== false) {
+    await drawInfoBar(ctx, width, height, scale, pageNumber);
+  }
 }
 
 function getInfoBarPageConfig(pageNumber) {
@@ -2815,13 +2836,9 @@ async function renderCurrentPagePreview() {
     // Miniatury a PDF jej nadále kreslí standardně jednou.
   } else if (isBlank) {
     await drawBlankPage(ctx, pageSize.width, pageSize.height, renderScale, currentPreviewPage);
-    const pageItems = allPagesTexts[currentPreviewPage] || [];
-    if (Array.isArray(pageItems)) {
-      pageItems.forEach(b => {
-        if (b.type === 'line') drawLineOnCanvas(ctx, b, pageSize, renderScale);
-        else drawTextOnCanvas(ctx, b, pageSize, renderScale);
-      });
-    }
+    // Texty a čáry zde vykresluje pouze interaktivní HTML vrstva níže.
+    // Canvas obsahuje jen pozadí a informační pruh; jinak by editor
+    // zobrazil každý prvek dvakrát. Miniatury a export se kreslí samostatně.
   } else if (isMoodboard) {
     // V editoru obrázky zobrazuje pouze interaktivní HTML vrstva nad canvasem.
     // Zabrání se tak duchu původní polohy při tažení; data obrázku zůstávají celá.
@@ -2842,7 +2859,7 @@ async function renderCurrentPagePreview() {
   
   let label = '';
   if (isCover) label = 'Úvodní strana';
-  else if (isBlank) label = 'Prázdná stránka s pruhem';
+  else if (isBlank) label = blankPageInfoBars[currentPreviewPage] === false ? 'Čistá prázdná stránka' : 'Prázdná stránka s pruhem';
   else if (isMoodboard) label = 'Moodboard';
   else label = 'Stránka';
   document.getElementById('page-indicator').textContent = `${label} (Stránka ${currentPreviewPage} z ${totalPreviewPages})`;
@@ -3177,7 +3194,7 @@ async function renderThumbnails() {
 
     const label = document.createElement('div');
     label.className = 'thumb-label';
-    label.textContent = p + (info.isCover ? ' • úvod' : info.isBlank ? ' • prázdná' : isMoodboard ? ' • moodboard' : '');
+    label.textContent = p + (info.isCover ? ' • úvod' : info.isBlank ? (blankPageInfoBars[p] === false ? ' • čistá' : ' • prázdná') : isMoodboard ? ' • moodboard' : '');
 
     wrap.append(c, label);
 
@@ -3353,15 +3370,15 @@ function makeDraggable(element, b, handle){
     newTop = Math.max(0, Math.min(rect.height - element.offsetHeight, newTop));
 
     const snapThreshold = 8;
+    const myWidth = element.offsetWidth;
+    const myHeight = element.offsetHeight;
     const allBoxes = document.querySelectorAll('.custom-text-box');
     allBoxes.forEach(el => {
       if (el === element) return;
       const otherLeft = parseFloat(el.style.left) || 0;
       const otherRight = otherLeft + el.offsetWidth;
-      const myWidth = element.offsetWidth;
       const otherTop = parseFloat(el.style.top) || 0;
       const otherBottom = otherTop + el.offsetHeight;
-      const myHeight = element.offsetHeight;
 
       if (Math.abs(newLeft - otherLeft) < snapThreshold) newLeft = otherLeft;
       if (Math.abs((newLeft + myWidth) - otherRight) < snapThreshold) newLeft = otherRight - myWidth;
@@ -3373,6 +3390,16 @@ function makeDraggable(element, b, handle){
       if (Math.abs(newTop - otherBottom) < snapThreshold) newTop = otherBottom;
       if (Math.abs((newTop + myHeight) - otherTop) < snapThreshold) newTop = otherTop - myHeight;
     });
+
+    // Přichycení středu textového pole k oběma osám stránky.
+    const snapX = Math.abs((newLeft + myWidth / 2) - rect.width / 2) < snapThreshold;
+    const snapY = Math.abs((newTop + myHeight / 2) - rect.height / 2) < snapThreshold;
+    if (snapX) newLeft = rect.width / 2 - myWidth / 2;
+    if (snapY) newTop = rect.height / 2 - myHeight / 2;
+    const guideX = document.getElementById('snap-center-x');
+    const guideY = document.getElementById('snap-center-y');
+    if (guideX) guideX.style.display = snapX ? 'block' : 'none';
+    if (guideY) guideY.style.display = snapY ? 'block' : 'none';
 
     element.style.left = Math.max(0, Math.min(rect.width - element.offsetWidth, newLeft)) + 'px';
     element.style.top = Math.max(0, Math.min(rect.height - element.offsetHeight, newTop)) + 'px';
@@ -3387,6 +3414,10 @@ function makeDraggable(element, b, handle){
   const up = () => {
     if(!dragging) return;
     dragging = false;
+    const guideX = document.getElementById('snap-center-x');
+    const guideY = document.getElementById('snap-center-y');
+    if (guideX) guideX.style.display = 'none';
+    if (guideY) guideY.style.display = 'none';
     saveCurrentPageBoxes();
     document.removeEventListener('mousemove', move);
     document.removeEventListener('mouseup', up);
@@ -3666,7 +3697,9 @@ async function runPanel(fromModal = false){
           color:blankIsYellow ? rgb(247/255,241/255,151/255) : rgb(1,1,1)
         });
         
-        drawFinalInfoBar(targetPage, standardA3W, previewP);
+        if (blankPageInfoBars[previewP] !== false) {
+          drawFinalInfoBar(targetPage, standardA3W, previewP);
+        }
       } else if(isMoodboard) {
         targetPage = finalPdf.addPage([standardA3W, standardA3H]);
         targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(1,1,1)});
