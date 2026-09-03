@@ -110,6 +110,11 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .blank-color-option{border:2px solid var(--border);border-radius:9px;padding:10px;background:#fafafa;cursor:pointer;text-align:left}
 .blank-color-option:hover{border-color:#18181b}
 .blank-color-swatch{display:block;height:95px;border:1px solid #d4d4d8;border-radius:5px;margin-bottom:8px;box-shadow:0 2px 5px rgba(0,0,0,.06)}
+.cover-image-settings{display:grid;grid-template-columns:repeat(5,minmax(95px,1fr));gap:10px;width:100%;margin-top:8px;padding:10px;background:#fff;border:1px solid var(--border);border-radius:7px}
+.cover-image-settings label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted)}
+.cover-image-settings input[type="range"]{width:100%}
+.cover-image-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+@media(max-width:850px){.cover-image-settings{grid-template-columns:repeat(2,minmax(110px,1fr))}}
 
 @media(max-width:700px){
   #preview-body{flex-direction:column; align-items:stretch;}
@@ -242,7 +247,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.3</div>
+  <div class="app-version">V3.4</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
@@ -446,6 +451,25 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <div style="font-size:12px; color:var(--muted);">Seřazeno dle pořadí kliknutí: <b id="authors-preview-text" style="color:var(--text);">Žádný</b></div>
         </div>
       </div>
+      <div style="display:flex;gap:15px;align-items:flex-start;">
+        <label style="min-width:150px;padding-top:6px;">Obrázek na úvodní straně:</label>
+        <div style="flex:1">
+          <div class="cover-image-actions">
+            <button type="button" class="action" onclick="document.getElementById('coverImageInput').click()" style="background:#52525b">Vybrat / vyměnit obrázek</button>
+            <button type="button" class="back-btn" onclick="removeCoverImage()" style="margin:0">Odstranit</button>
+            <span id="coverImageStatus" style="font-size:12px;color:var(--muted)">Žádný obrázek</span>
+            <input id="coverImageInput" type="file" accept="image/jpeg,image/png,image/webp" hidden onchange="handleCoverImageFile(this.files)">
+          </div>
+          <div class="cover-image-settings">
+            <label>Intenzita <input id="coverImageOpacity" type="range" min="5" max="80" value="32" oninput="updateCoverImageSetting('opacity',this.value/100)"></label>
+            <label>Prolnutí okrajů <input id="coverImageFade" type="range" min="2" max="45" value="20" oninput="updateCoverImageSetting('fade',this.value/100)"></label>
+            <label>Pozice vodorovně <input id="coverImageX" type="range" min="0" max="75" value="28" oninput="updateCoverImageSetting('x',this.value/100)"></label>
+            <label>Pozice svisle <input id="coverImageY" type="range" min="0" max="65" value="5" oninput="updateCoverImageSetting('y',this.value/100)"></label>
+            <label>Velikost <input id="coverImageWidth" type="range" min="20" max="100" value="68" oninput="updateCoverImageSetting('width',this.value/100)"></label>
+          </div>
+          <small style="color:var(--muted)">Automaticky: černobíle, světlé plochy průhledné, tmavé linie jako jemný tisk a okraje do ztracena.</small>
+        </div>
+      </div>
     </div>
     
     <div class="drop" id="drop-panel" onclick="document.getElementById('f-panel').click()">
@@ -606,6 +630,8 @@ let filesData = { pdfa: [], panel: [] };
 let allPagesTexts = {}; 
 let customBlankPages = new Set();
 let blankPageColors = {};
+let coverImageSettings = {dataUrl:null,imageRef:null,name:'',opacity:.32,fade:.20,x:.28,y:.05,width:.68};
+let coverInkCache = null;
 let pagePdfIndexMap = {};
 let infoBarPages = {};
 let textIdCounter = 1;
@@ -745,11 +771,13 @@ async function getSavedProjectsDirHandle(forcePicker) {
 function getProjectState() {
   return {
     version: 2,
+    updatedAt: Date.now(),
     sourceFileName: filesData.panel[0] ? filesData.panel[0].name : null,
     form: collectFormState(),
     allPagesTexts: allPagesTexts,
     customBlankPages: Array.from(customBlankPages),
     blankPageColors: blankPageColors,
+    coverImageSettings: coverImageSettings,
     pagePdfIndexMap: pagePdfIndexMap,
     infoBarPages: infoBarPages,
     textIdCounter: textIdCounter,
@@ -816,6 +844,8 @@ async function importProjectFromZip(files) {
     allPagesTexts = state.allPagesTexts || {};
     customBlankPages = new Set(state.customBlankPages || []);
     blankPageColors = state.blankPageColors || {};
+    coverImageSettings = Object.assign({dataUrl:null,imageRef:null,name:'',opacity:.32,fade:.20,x:.28,y:.05,width:.68}, state.coverImageSettings || {});
+    syncCoverImageControls();
     pagePdfIndexMap = state.pagePdfIndexMap || {};
     infoBarPages = state.infoBarPages || {};
     textIdCounter = state.textIdCounter || 1;
@@ -1052,6 +1082,122 @@ async function loadImageFromProject(filename) {
     return null;
   }
 }
+
+function syncCoverImageControls() {
+  const s = coverImageSettings;
+  const values = {
+    coverImageOpacity: Math.round(s.opacity * 100),
+    coverImageFade: Math.round(s.fade * 100),
+    coverImageX: Math.round(s.x * 100),
+    coverImageY: Math.round(s.y * 100),
+    coverImageWidth: Math.round(s.width * 100)
+  };
+  Object.entries(values).forEach(([id, value]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  });
+  const status = document.getElementById('coverImageStatus');
+  if (status) status.textContent = s.dataUrl ? (s.name || 'Obrázek je vložen') : 'Žádný obrázek';
+}
+
+function refreshCoverImagePreview() {
+  coverInkCache = null;
+  scheduleAutosave();
+  if (document.getElementById('preview-modal')?.style.display === 'flex') {
+    renderCurrentPagePreview();
+    renderThumbnails();
+  }
+}
+
+async function handleCoverImageFile(files) {
+  const file = files && files[0];
+  if (!file) return;
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  const ext = (file.name.split('.').pop() || 'png').replace(/[^a-z0-9]/gi, '').toLowerCase();
+  const imageRef = await saveImageToProject(`cover-image.${ext}`, dataUrl);
+  coverImageSettings = {...coverImageSettings, dataUrl, imageRef, name:file.name};
+  const input = document.getElementById('coverImageInput');
+  if (input) input.value = '';
+  syncCoverImageControls();
+  refreshCoverImagePreview();
+}
+
+function removeCoverImage() {
+  coverImageSettings = {...coverImageSettings, dataUrl:null, imageRef:null, name:''};
+  syncCoverImageControls();
+  refreshCoverImagePreview();
+}
+
+function updateCoverImageSetting(key, value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return;
+  coverImageSettings[key] = n;
+  refreshCoverImagePreview();
+}
+
+function loadHtmlImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function smoothStep(edge0, edge1, x) {
+  const t = Math.max(0, Math.min(1, (x - edge0) / Math.max(.0001, edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+async function getCoverInkCanvas() {
+  const s = coverImageSettings;
+  if (!s.dataUrl) return null;
+  const key = [s.dataUrl.length, s.dataUrl.slice(-80), s.opacity, s.fade].join('|');
+  if (coverInkCache?.key === key) return coverInkCache.canvas;
+  const img = await loadHtmlImage(s.dataUrl);
+  const maxSide = 1800;
+  const ratio = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * ratio));
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * ratio));
+  const c = canvas.getContext('2d', {willReadFrequently:true});
+  c.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const pixels = c.getImageData(0, 0, canvas.width, canvas.height);
+  const d = pixels.data;
+  const fade = Math.max(.005, s.fade);
+  for (let y = 0; y < canvas.height; y++) {
+    const v = canvas.height > 1 ? y / (canvas.height - 1) : .5;
+    for (let x = 0; x < canvas.width; x++) {
+      const i = (y * canvas.width + x) * 4;
+      const u = canvas.width > 1 ? x / (canvas.width - 1) : .5;
+      const luminance = .2126*d[i] + .7152*d[i+1] + .0722*d[i+2];
+      // Světlé části zmizí, tmavé se chovají jako jemný černý tisk.
+      const ink = Math.pow(Math.max(0, 1 - luminance / 255), 1.15);
+      const edge = Math.min(u, 1-u, v, 1-v);
+      const feather = smoothStep(0, fade, edge);
+      d[i] = 24; d[i+1] = 24; d[i+2] = 27;
+      d[i+3] = Math.round(d[i+3] * ink * s.opacity * feather);
+    }
+  }
+  c.putImageData(pixels, 0, 0);
+  coverInkCache = {key, canvas};
+  return canvas;
+}
+
+async function drawCoverImageEffect(ctx, width, height, scale) {
+  const ink = await getCoverInkCanvas();
+  if (!ink) return;
+  const w = width * coverImageSettings.width;
+  const h = w * ink.height / ink.width;
+  const x = width * coverImageSettings.x;
+  const y = height * coverImageSettings.y;
+  ctx.drawImage(ink, x * scale, y * scale, w * scale, h * scale);
+}
 // ------------------------------------------------------------------
 
 const availableAuthors = [
@@ -1156,25 +1302,11 @@ function applyFormState(s) {
 }
 
 async function saveProjectState() {
+  // Přesný stav se nejdřív uloží i do IndexedDB. Editor tak není závislý
+  // na rychlosti nebo momentálním zámku souboru project.json.
+  const state = getProjectState();
+  if (currentProjectName) await idbSet('projectState:' + currentProjectName, state);
   if (!currentProjectDirHandle) return;
-  // project.json ukládá i kanonický seznam stran. Ten zachovává přesné
-  // pořadí a skutečně odstraněné PDF strany i po opětovném otevření.
-  const state = {
-    version: 2,
-    sourceFileName: filesData.panel[0] ? filesData.panel[0].name : null,
-    form: collectFormState(),
-    allPagesTexts: allPagesTexts,
-    customBlankPages: Array.from(customBlankPages),
-    blankPageColors: blankPageColors,
-    pagePdfIndexMap: pagePdfIndexMap,
-    infoBarPages: infoBarPages,
-    textIdCounter: textIdCounter,
-    totalPreviewPages: totalPreviewPages,
-    pageStructureInitialized: pageStructureInitialized,
-    defaultCoverLayoutInitialized: defaultCoverLayoutInitialized,
-    currentPreviewPage: currentPreviewPage,
-    pageRecords: (pageStructureInitialized && totalPreviewPages > 0) ? buildPageRecords() : null
-  };
   const fh = await currentProjectDirHandle.getFileHandle('project.json', { create: true });
   const w = await fh.createWritable();
   await w.write(JSON.stringify(state));
@@ -1274,6 +1406,12 @@ async function loadProject(name) {
     state = JSON.parse(await file.text());
   } catch (e) { state = null; }
 
+  // Novější lokální kopie má přednost před opožděným zápisem do souboru.
+  const cachedState = await idbGet('projectState:' + name).catch(() => null);
+  if (cachedState && (!state || Number(cachedState.updatedAt || 0) > Number(state.updatedAt || 0))) {
+    state = cachedState;
+  }
+
   let pdfFile = null;
   try {
     const pfh = await dir.getFileHandle('source.pdf');
@@ -1283,6 +1421,8 @@ async function loadProject(name) {
   allPagesTexts = {};
   customBlankPages = new Set();
   blankPageColors = {};
+  coverImageSettings = {dataUrl:null,imageRef:null,name:'',opacity:.32,fade:.20,x:.28,y:.05,width:.68};
+  coverInkCache = null;
   pagePdfIndexMap = {};
   infoBarPages = {};
   textIdCounter = 1;
@@ -1302,6 +1442,10 @@ async function loadProject(name) {
     allPagesTexts = state.allPagesTexts || {};
     customBlankPages = new Set(state.customBlankPages || []);
     blankPageColors = state.blankPageColors || {};
+    coverImageSettings = Object.assign({dataUrl:null,imageRef:null,name:'',opacity:.32,fade:.20,x:.28,y:.05,width:.68}, state.coverImageSettings || {});
+    if (coverImageSettings.imageRef && !coverImageSettings.dataUrl) {
+      coverImageSettings.dataUrl = await loadImageFromProject(coverImageSettings.imageRef);
+    }
     pagePdfIndexMap = state.pagePdfIndexMap || {};
     infoBarPages = state.infoBarPages || {};
     textIdCounter = state.textIdCounter || 1;
@@ -1333,6 +1477,7 @@ async function loadProject(name) {
   } else {
     initAuthorsUI();
   }
+  syncCoverImageControls();
 
   if (pdfFile) {
     const displayName = (state && state.sourceFileName) || pdfFile.name;
@@ -2335,7 +2480,8 @@ async function movePage(from, to) {
   else if (from > currentPreviewPage && to <= currentPreviewPage) currentPreviewPage++;
   
   ensurePagePdfIndexMap();
-  await persistProjectStructureNow();
+  // Pohyb se projeví okamžitě; případný pomalejší zápis nesmí zablokovat editor.
+  void persistProjectStructureNow().catch(e => console.warn('Uložení pořadí stran selhalo', e));
 }
 
 async function deletePreviewPage(pos) {
@@ -2353,9 +2499,9 @@ async function deletePreviewPage(pos) {
   else if (currentPreviewPage > pos) currentPreviewPage--;
 
   ensurePagePdfIndexMap();
-  await persistProjectStructureNow();
   await renderCurrentPagePreview();
   await renderThumbnails();
+  void persistProjectStructureNow().catch(e => console.warn('Uložení odstranění strany selhalo', e));
 }
 
 async function getPageSize(info) {
@@ -2397,15 +2543,17 @@ async function addBlankPage(color = 'white'){
   });
   applyPageRecords(records);
   currentPreviewPage = insertAt;
-  await persistProjectStructureNow();
   await renderCurrentPagePreview();
   await renderThumbnails();
+  void persistProjectStructureNow().catch(e => console.warn('Uložení nové strany selhalo', e));
 }
 
 async function drawCover(ctx, width, height, scale) {
   const bg = '#f7f197';
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, width * scale, height * scale);
+
+  await drawCoverImageEffect(ctx, width, height, scale);
 
   if (logoBytesCache) {
     try {
@@ -3415,6 +3563,20 @@ async function runPanel(fromModal = false){
       const logoBytes = logoBytesCache || await fetch('2020.png').then(r => r.arrayBuffer());
       finalLogo = await finalPdf.embedPng(logoBytes);
     }
+    let finalCoverArtwork = null;
+    if (createCover && coverImageSettings.dataUrl) {
+      try {
+        const coverCanvas = document.createElement('canvas');
+        const coverRasterScale = 2;
+        coverCanvas.width = Math.round(standardA3W * coverRasterScale);
+        coverCanvas.height = Math.round(standardA3H * coverRasterScale);
+        await drawCoverImageEffect(coverCanvas.getContext('2d'), standardA3W, standardA3H, coverRasterScale);
+        const coverBlob = await new Promise(resolve => coverCanvas.toBlob(resolve, 'image/png'));
+        if (coverBlob) finalCoverArtwork = await finalPdf.embedPng(await coverBlob.arrayBuffer());
+      } catch (e) {
+        console.warn('Obrázek titulní strany se nepodařilo připravit pro export', e);
+      }
+    }
 
     function drawFinalInfoBar(page, pageW, pageNumber) {
       if (document.getElementById('infoBarVariant').value !== 'architect') {
@@ -3485,6 +3647,9 @@ async function runPanel(fromModal = false){
       if(createCover && previewP === 1){
         targetPage = finalPdf.addPage([standardA3W, standardA3H]);
         targetPage.drawRectangle({x:0, y:0, width:standardA3W, height:standardA3H, color:rgb(247/255, 241/255, 151/255)});
+        if (finalCoverArtwork) {
+          targetPage.drawImage(finalCoverArtwork, {x:0, y:0, width:standardA3W, height:standardA3H});
+        }
         
         if(finalLogo){
           const h = 65, w = finalLogo.width * (h / finalLogo.height);
