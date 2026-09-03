@@ -254,7 +254,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version">V3.9</div>
+  <div class="app-version">V3.10</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ</div>
 </header>
 
@@ -438,6 +438,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <button type="button" class="style-choice" data-style="arrow" onclick="setNorthStyle('arrow')" title="Samostatná šipka"><svg viewBox="0 0 80 44"><path d="M40 3 L29 35 L40 29 L51 35 Z" fill="currentColor"/></svg></button>
           <button type="button" class="style-choice" data-style="north" onclick="setNorthStyle('north')" title="Kružnice, šipka a N"><svg viewBox="0 0 80 44"><circle cx="40" cy="24" r="16" fill="none" stroke="currentColor"/><path d="M40 9 L35 27 L45 27 Z" fill="currentColor"/><text x="40" y="7" text-anchor="middle" font-size="8" font-weight="bold">N</text></svg></button>
           <button type="button" class="style-choice" data-style="diamond" onclick="setNorthStyle('diamond')" title="Kompasový kosočtverec"><svg viewBox="0 0 80 44"><path d="M40 3 L31 24 L40 41 L49 24 Z" fill="none" stroke="currentColor"/><path d="M40 3 L31 24 L40 20 Z" fill="currentColor"/></svg></button>
+          <button type="button" class="style-choice" data-style="needle" onclick="setNorthStyle('needle')" title="Minimalistická kruhová ručička"><svg viewBox="0 0 80 44"><circle cx="40" cy="22" r="16" fill="none" stroke="currentColor"/><path d="M40 22 L29 9" stroke="currentColor" fill="none"/></svg></button>
         </div>
       </div>
       <div id="project-scale-style-row" style="display:flex;gap:15px;align-items:center;">
@@ -447,6 +448,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           <button type="button" class="style-choice active" data-style="ticks" onclick="setProjectScaleStyle('ticks')" title="Čára s dílky"><svg viewBox="0 0 80 44"><path d="M7 15H73M7 15v8m22-8v5m22-5v5m22-5v8" stroke="currentColor" fill="none"/><text x="7" y="35" font-size="8">0</text><text x="27" y="35" font-size="8">1</text><text x="49" y="35" font-size="8">2</text><text x="68" y="35" font-size="8">5m</text></svg></button>
           <button type="button" class="style-choice" data-style="blocks" onclick="setProjectScaleStyle('blocks')" title="Černobílé bloky"><svg viewBox="0 0 80 44"><rect x="7" y="12" width="16" height="10" fill="currentColor"/><rect x="23" y="12" width="16" height="10" fill="none" stroke="currentColor"/><rect x="39" y="12" width="16" height="10" fill="currentColor"/><rect x="55" y="12" width="16" height="10" fill="none" stroke="currentColor"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
           <button type="button" class="style-choice" data-style="double" onclick="setProjectScaleStyle('double')" title="Dvojitá stupnice"><svg viewBox="0 0 80 44"><path d="M7 12H73M7 20H73M7 10v13m22-13v13m22-13v13m22-13v13" stroke="currentColor" fill="none"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
+          <button type="button" class="style-choice" data-style="sparse" onclick="setProjectScaleStyle('sparse')" title="Řídká stupnice 0–1–2–5"><svg viewBox="0 0 80 44"><path d="M7 14H73M7 14v4m13-4v4m14-4v4m39-4v4" stroke="currentColor" fill="none"/><text x="7" y="32" font-size="8">0</text><text x="18" y="32" font-size="8">1</text><text x="32" y="32" font-size="8">2</text><text x="66" y="32" font-size="8">5 m</text></svg></button>
         </div>
         <small style="color:var(--muted)">Nastaví variantu měřítka pro stránky projektu.</small>
       </div>
@@ -597,11 +599,13 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
             <button type="button" class="style-choice" data-style="arrow" onclick="setNorthStyle('arrow')" title="Samostatná šipka"><svg viewBox="0 0 80 44"><path d="M40 3 L29 35 L40 29 L51 35 Z" fill="currentColor"/></svg></button>
             <button type="button" class="style-choice" data-style="north" onclick="setNorthStyle('north')" title="Kružnice, šipka a N"><svg viewBox="0 0 80 44"><circle cx="40" cy="24" r="16" fill="none" stroke="currentColor"/><path d="M40 9 L35 27 L45 27 Z" fill="currentColor"/><text x="40" y="7" text-anchor="middle" font-size="8" font-weight="bold">N</text></svg></button>
             <button type="button" class="style-choice" data-style="diamond" onclick="setNorthStyle('diamond')" title="Kompasový kosočtverec"><svg viewBox="0 0 80 44"><path d="M40 3 L31 24 L40 41 L49 24 Z" fill="none" stroke="currentColor"/><path d="M40 3 L31 24 L40 20 Z" fill="currentColor"/></svg></button>
+            <button type="button" class="style-choice" data-style="needle" onclick="setNorthStyle('needle')" title="Minimalistická kruhová ručička"><svg viewBox="0 0 80 44"><circle cx="40" cy="22" r="16" fill="none" stroke="currentColor"/><path d="M40 22 L29 9" stroke="currentColor" fill="none"/></svg></button>
           </span></span>
           <span id="scale-style-controls"><b>Vzhled měřítka:</b><span class="style-picker" id="scaleStylePicker">
             <button type="button" class="style-choice active" data-style="ticks" onclick="setScaleStyle('ticks')" title="Čára s dílky"><svg viewBox="0 0 80 44"><path d="M7 15H73M7 15v8m22-8v5m22-5v5m22-5v8" stroke="currentColor" fill="none"/><text x="7" y="35" font-size="8">0</text><text x="27" y="35" font-size="8">1</text><text x="49" y="35" font-size="8">2</text><text x="68" y="35" font-size="8">5m</text></svg></button>
             <button type="button" class="style-choice" data-style="blocks" onclick="setScaleStyle('blocks')" title="Černobílé bloky"><svg viewBox="0 0 80 44"><rect x="7" y="12" width="16" height="10" fill="currentColor"/><rect x="23" y="12" width="16" height="10" fill="none" stroke="currentColor"/><rect x="39" y="12" width="16" height="10" fill="currentColor"/><rect x="55" y="12" width="16" height="10" fill="none" stroke="currentColor"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
             <button type="button" class="style-choice" data-style="double" onclick="setScaleStyle('double')" title="Dvojitá stupnice"><svg viewBox="0 0 80 44"><path d="M7 12H73M7 20H73M7 10v13m22-13v13m22-13v13m22-13v13" stroke="currentColor" fill="none"/><text x="7" y="35" font-size="8">0</text><text x="67" y="35" font-size="8">5m</text></svg></button>
+            <button type="button" class="style-choice" data-style="sparse" onclick="setScaleStyle('sparse')" title="Řídká stupnice 0–1–2–5"><svg viewBox="0 0 80 44"><path d="M7 14H73M7 14v4m13-4v4m14-4v4m39-4v4" stroke="currentColor" fill="none"/><text x="7" y="32" font-size="8">0</text><text x="18" y="32" font-size="8">1</text><text x="32" y="32" font-size="8">2</text><text x="66" y="32" font-size="8">5 m</text></svg></button>
           </span></span>
           </div>
         </div>
@@ -2812,6 +2816,10 @@ function drawScaleNorthCanvas(ctx,width,y,barHeight,scale,denom,angle,scaleStyle
   if(scaleStyle==='blocks') {
     for(let i=0;i<shownM;i++){ctx.fillStyle=i%2===0?'#18181b':'#f7f197';ctx.fillRect((start+i*mmPerM)*scale,lineY*scale,mmPerM*scale,6*scale);ctx.strokeRect((start+i*mmPerM)*scale,lineY*scale,mmPerM*scale,6*scale);}
     ctx.fillStyle='#18181b';ctx.fillText('0',start*scale,(y+26)*scale);ctx.fillText(String(shownM),end*scale,(y+26)*scale);
+  } else if(scaleStyle==='sparse') {
+    ctx.beginPath();ctx.moveTo(start*scale,lineY*scale);ctx.lineTo(end*scale,lineY*scale);ctx.stroke();
+    const marks=[...new Set([0,1,2,shownM].filter(v=>v>=0&&v<=shownM))];
+    for(const i of marks){const x=start+i*mmPerM;ctx.beginPath();ctx.moveTo(x*scale,lineY*scale);ctx.lineTo(x*scale,(lineY+3)*scale);ctx.stroke();ctx.fillText(String(i),x*scale,(y+27)*scale);}
   } else {
     ctx.beginPath();ctx.moveTo(start*scale,lineY*scale);ctx.lineTo(end*scale,lineY*scale);if(scaleStyle==='double'){ctx.moveTo(start*scale,(lineY+6)*scale);ctx.lineTo(end*scale,(lineY+6)*scale);}ctx.stroke();
     for(let i=0;i<=shownM;i++){const x=start+i*mmPerM;ctx.beginPath();ctx.moveTo(x*scale,lineY*scale);ctx.lineTo(x*scale,(lineY+(scaleStyle==='double'?8:(i===0||i===shownM?3:2)))*scale);ctx.stroke();ctx.fillText(String(i),x*scale,(y+27)*scale);}
@@ -2819,7 +2827,9 @@ function drawScaleNorthCanvas(ctx,width,y,barHeight,scale,denom,angle,scaleStyle
   ctx.textAlign='left';ctx.fillText('m',(end+7)*scale,(y+27)*scale);
   const nx=width-25,ny=y+barHeight/2,r=11;ctx.save();ctx.translate(nx*scale,ny*scale);ctx.rotate(angle*Math.PI/180);ctx.fillStyle='#18181b';ctx.strokeStyle='#18181b';
   if(northStyle!=='arrow'){ctx.beginPath();ctx.arc(0,0,r*scale,0,Math.PI*2);ctx.stroke();}
-  if(northStyle==='diamond'){
+  if(northStyle==='needle'){
+    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-(r-1)*scale);ctx.stroke();
+  }else if(northStyle==='diamond'){
     ctx.beginPath();ctx.moveTo(0,-r*scale);ctx.lineTo(-5*scale,0);ctx.lineTo(0,r*scale);ctx.lineTo(5*scale,0);ctx.closePath();ctx.stroke();ctx.beginPath();ctx.moveTo(0,-r*scale);ctx.lineTo(-5*scale,0);ctx.lineTo(0,-2*scale);ctx.closePath();ctx.fill();
   }else{
     ctx.beginPath();ctx.moveTo(0,-(r-2)*scale);ctx.lineTo(-3.8*scale,3.5*scale);ctx.lineTo(3.8*scale,3.5*scale);ctx.closePath();ctx.fill();
@@ -3688,6 +3698,10 @@ async function runPanel(fromModal = false){
         for(let i=0;i<shown;i++) page.drawRectangle({x:start+i*unit,y:lineY-6,width:unit,height:6,color:i%2===0?textColor:rgb(247/255,241/255,151/255),borderColor:textColor,borderWidth:.6});
         page.drawText('0',{x:start-2,y:7,size:8,font:finalFont,color:textColor});
         const sw=finalFont.widthOfTextAtSize(String(shown),8);page.drawText(String(shown),{x:end-sw/2,y:7,size:8,font:finalFont,color:textColor});
+      }else if(scaleStyle==='sparse'){
+        page.drawLine({start:{x:start,y:lineY},end:{x:end,y:lineY},thickness:.85,color:textColor});
+        const marks=[...new Set([0,1,2,shown].filter(v=>v>=0&&v<=shown))];
+        for(const i of marks){const x=start+i*unit;page.drawLine({start:{x,y:lineY},end:{x,y:lineY-3},thickness:.85,color:textColor});const s=String(i),w=finalFont.widthOfTextAtSize(s,8);page.drawText(s,{x:x-w/2,y:7,size:8,font:finalFont,color:textColor});}
       }else{
         page.drawLine({start:{x:start,y:lineY},end:{x:end,y:lineY},thickness:.85,color:textColor});
         if(scaleStyle==='double') page.drawLine({start:{x:start,y:lineY-6},end:{x:end,y:lineY-6},thickness:.85,color:textColor});
@@ -3706,7 +3720,9 @@ async function runPanel(fromModal = false){
       const base={x:nx-dx*3.5,y:ny-dy*3.5};
       const left={x:base.x-px*3.8,y:base.y-py*3.8};
       const right={x:base.x+px*3.8,y:base.y+py*3.8};
-      if(northStyle==='diamond'){
+      if(northStyle==='needle'){
+        page.drawLine({start:{x:nx,y:ny},end:tip,thickness:.85,color:textColor});
+      }else if(northStyle==='diamond'){
         const south={x:nx-dx*r,y:ny-dy*r},west={x:nx-px*5,y:ny-py*5},east={x:nx+px*5,y:ny+py*5};
         page.drawLine({start:tip,end:west,thickness:.85,color:textColor});page.drawLine({start:west,end:south,thickness:.85,color:textColor});page.drawLine({start:south,end:east,thickness:.85,color:textColor});page.drawLine({start:east,end:tip,thickness:.85,color:textColor});
         page.pushOperators(pushGraphicsState(),setFillingRgbColor(24/255,24/255,27/255),moveTo(tip.x,tip.y),lineTo(west.x,west.y),lineTo(nx,ny),closePath(),fill(),popGraphicsState());
