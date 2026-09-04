@@ -26,7 +26,7 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 .tile span{font-size:12px;color:var(--muted)}
 .menu-status{display:inline-block;margin-left:7px;padding:1px 5px;border:1px solid #d4d4d8;border-radius:999px;background:#f4f4f5;color:#71717a;font:500 9px/1.45 system-ui,Segoe UI,sans-serif;letter-spacing:.45px;vertical-align:2px;text-transform:uppercase}
 
-/* BASECAMP ODKAZ V HLAVNÍM MENU — V3.13o */
+/* BASECAMP ODKAZ V HLAVNÍM MENU — V3.13p */
 .menu-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:0}
 .menu-title-copy{min-width:0}
 .basecamp-launcher{position:relative;display:inline-flex;align-items:center;justify-content:center;width:58px;height:58px;flex:0 0 58px;text-decoration:none;border-radius:16px;outline:none;transition:transform .22s cubic-bezier(.2,.8,.2,1),filter .22s ease;will-change:transform}
@@ -43,7 +43,7 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 @media(max-width:600px){.basecamp-launcher{width:52px;height:52px;flex-basis:52px}.basecamp-launcher svg{width:34px;height:34px}.basecamp-launcher .basecamp-tooltip{display:none}}
 
 
-/* 3D KNIHOVNA VÝROBKŮ — V3.13o BETA */
+/* 3D KNIHOVNA VÝROBKŮ — V3.13p BETA */
 .product3d-search{margin:16px 0;border:1px solid var(--border);border-radius:10px;background:#fafafa;padding:14px}
 .product3d-search-grid{display:grid;grid-template-columns:minmax(260px,1.45fr) minmax(230px,1fr) auto;gap:9px;align-items:end}
 .product3d-search-grid label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted);min-width:0}
@@ -363,7 +363,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:800px){.compare-grid{grid-template-columns:1fr}.compare-diff{grid-column:auto}.docs-summary{grid-template-columns:1fr 1fr}}
 
 
-/* 3D TISK — V3.13o BETA */
+/* 3D TISK — V3.13p BETA */
 .print3d-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.85fr);gap:14px;margin-top:14px}
 .print3d-viewer{border:1px solid var(--border);border-radius:10px;background:#e4e4e7;overflow:hidden;min-height:560px;display:flex;flex-direction:column}
 .print3d-viewer-head{padding:9px 11px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
@@ -387,7 +387,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:900px){.print3d-layout{grid-template-columns:1fr}.print3d-viewer{min-height:460px}#print3d-stage,#print3d-canvas{min-height:400px}}
 
 
-/* 3D TISK — V3.13o: kompaktní rozhraní + záložky */
+/* 3D TISK — V3.13p: kompaktní rozhraní + záložky */
 .print3d-layout{align-items:start}
 .print3d-viewer{height:650px;min-height:0;max-height:72vh;position:sticky;top:10px}
 #print3d-stage{min-height:0;height:100%;flex:1}
@@ -425,6 +425,23 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:560px){.print3d-modebar{align-items:stretch}.print3d-modebuttons{width:100%}.print3d-modebtn{flex:1}.print3d-simple-stats{grid-template-columns:1fr}}
 
 
+
+
+/* KONTROLA NÁVRHU — V3.13p BETA */
+.audit-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.audit-privacy{font-size:11px;color:var(--muted);line-height:1.5;max-width:620px}
+.audit-rules{margin:14px 0;padding:12px;border:1px solid var(--border);border-radius:9px;background:#fafafa}
+.audit-rules-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}.audit-rules-head b{font:normal 13px 'Antarctican Mono',monospace}
+.audit-rule-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:7px}.audit-rule-grid label{font-size:10px;color:var(--muted);display:flex;flex-direction:column;gap:3px}.audit-rule-grid input{width:100%}
+.audit-runbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0}.audit-runbar .action{margin:0}.audit-runbar .muted{margin:0}
+.audit-summary{display:grid;grid-template-columns:repeat(5,minmax(100px,1fr));gap:8px;margin:14px 0}.audit-summary-card{border:1px solid var(--border);border-radius:8px;background:#fafafa;padding:10px}.audit-summary-card span{display:block;font-size:10px;color:var(--muted);margin-bottom:3px}.audit-summary-card b{font-size:20px;font-weight:600}.audit-summary-card.error{background:#fef2f2;border-color:#fecaca}.audit-summary-card.warn{background:#fffbeb;border-color:#fde68a}.audit-summary-card.rec{background:#f7f7f8}
+.audit-filters{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.audit-filter{border:1px solid var(--border);background:#fff;border-radius:999px;padding:5px 9px;font-size:11px;cursor:pointer}.audit-filter.active{background:#18181b;color:#fff;border-color:#18181b}.audit-filter:hover:not(.active){background:#f7f197;border-color:#d4cc5d}
+.audit-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(330px,.95fr);gap:12px;align-items:start}.audit-issues{display:grid;gap:7px}.audit-issue{border:1px solid var(--border);border-radius:8px;background:#fff;padding:10px 11px;cursor:pointer;text-align:left;width:100%;color:var(--text)}.audit-issue:hover{border-color:#a1a1aa;background:#fafafa}.audit-issue.active{box-shadow:0 0 0 2px rgba(24,24,27,.12);border-color:#18181b}.audit-issue.error{border-left:4px solid #dc2626}.audit-issue.warn{border-left:4px solid #d97706}.audit-issue.rec{border-left:4px solid #71717a}.audit-issue-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}.audit-issue-top b{font-size:12px}.audit-badge{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:1px 6px;font-size:9px;color:var(--muted);background:#fafafa;white-space:nowrap}.audit-issue p{margin:0;font-size:11px;line-height:1.45}.audit-evidence{font-size:10px;color:var(--muted);margin-top:5px;line-height:1.35}.audit-empty{padding:24px;border:1px dashed #cbd5e1;border-radius:8px;text-align:center;color:var(--muted);font-size:12px}
+.audit-preview{border:1px solid var(--border);border-radius:9px;background:#fafafa;overflow:hidden;position:sticky;top:10px}.audit-preview-head{padding:8px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:11px}.audit-preview-stage{padding:10px;overflow:auto;max-height:68vh;background:#d4d4d8;text-align:center}.audit-preview-stage canvas{display:block;margin:0 auto;background:#fff;max-width:100%;height:auto;box-shadow:0 2px 8px rgba(0,0,0,.12)}.audit-preview-note{font-size:10px;color:var(--muted)}
+.audit-pages{margin-top:14px}.audit-pages summary{cursor:pointer;font:normal 12px 'Antarctican Mono',monospace}.audit-pages table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}.audit-pages th,.audit-pages td{padding:6px 7px;border-bottom:1px solid var(--border);text-align:left}.audit-pages th{background:#fafafa}
+.audit-disclaimer{margin-top:12px;padding:10px 12px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:8px;font-size:10px;line-height:1.5}
+@media(max-width:1000px){.audit-layout{grid-template-columns:1fr}.audit-preview{position:relative;top:auto}.audit-preview-stage{max-height:none}.audit-summary{grid-template-columns:repeat(2,1fr)}}
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://unpkg.com/@pdf-lib/fontkit/dist/fontkit.umd.min.js"></script>
@@ -437,7 +454,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version" id="app-version">V3.13o</div>
+  <div class="app-version" id="app-version">V3.13p</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ A DOKUMENTACÍ</div>
 </header>
 
@@ -462,6 +479,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
       <div class="tile" onclick="openTool('pdfa')"><b>Konverze do PDF/A</b><span>Standardy 1b, 2b, 3b + hromadný ZIP</span></div>
       <div class="tile" onclick="openPanelProjects()"><b>Prezentační nástroj</b><span>Vytvářejte prezentace v pár kliknutích</span></div>
       <div class="tile" onclick="openTool('docs'); openDocsSection('preflight')"><b>Dokumentační nástroje <small class="menu-status">BETA</small></b><span>Pre-flight, seznam výkresů, přejmenování a porovnání PDF</span></div>
+      <div class="tile" onclick="openTool('designcheck')"><b>Kontrola návrhu <small class="menu-status">BETA</small></b><span>Audit výkresů, místností, schodišť a vzájemné konzistence PDF</span></div>
       <div class="tile" onclick="openTool('3dprint')"><b>3D tisk <small class="menu-status">BETA</small></b><span>Prusa MK3S, slicerové vrstvy, odhad a export G-code</span></div>
       <div class="tile" onclick="openTool('3dmodels')"><b>3D knihovna výrobků <small class="menu-status">BETA</small></b><span>Reálné produkty, BIM/CAD odkazy a živé 3D náhledy</span></div>
     </div>
@@ -665,6 +683,52 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
     </div>
   </div>
 
+
+
+  <div id="tool-designcheck" class="tool-view">
+    <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+    <div class="audit-head">
+      <div>
+        <h1>Kontrola návrhu <small class="menu-status">BETA</small></h1>
+        <div class="muted">Předběžný audit celé výkresové dokumentace z jednoho PDF. Toolbox porovnává texty, rozpisy, místnosti, rozměry a odkazy mezi stránkami a ukazuje konkrétní místo problému.</div>
+      </div>
+      <div class="audit-privacy"><b>LOKÁLNÍ ANALÝZA</b><br>PDF se zpracovává pouze v prohlížeči. Tato verze není autorizovaným normovým posudkem; hodnoty níže jsou nastavitelné kontrolní limity pro rychlou kontrolu projektanta.</div>
+    </div>
+    <div id="drop-designcheck" class="drop" onclick="document.getElementById('f-designcheck').click()">
+      <b>Sem přetáhni jedno PDF celé dokumentace</b><br><span style="color:var(--muted);font-size:12px">nebo klikni pro výběr souboru</span>
+      <input id="f-designcheck" type="file" accept=".pdf,application/pdf" style="display:none">
+    </div>
+    <div id="audit-loaded" class="loaded-files-panel"></div>
+    <div class="audit-rules">
+      <div class="audit-rules-head"><b>KONTROLNÍ LIMITY</b><span class="muted" style="font-size:10px;margin:0">Uprav podle typu stavby a pravidel projektu.</span></div>
+      <div class="audit-rule-grid">
+        <label>Max. odchylka ploch [%]<input id="audit-area-tol" type="number" min="0.5" max="25" step="0.5" value="3"></label>
+        <label>Schod – min. výška [mm]<input id="audit-riser-min" type="number" min="80" max="250" step="1" value="150"></label>
+        <label>Schod – max. výška [mm]<input id="audit-riser-max" type="number" min="80" max="250" step="1" value="190"></label>
+        <label>Schod – min. nášlap [mm]<input id="audit-tread-min" type="number" min="150" max="500" step="1" value="250"></label>
+        <label>Schod – max. nášlap [mm]<input id="audit-tread-max" type="number" min="150" max="500" step="1" value="320"></label>
+        <label>Min. kontrolní podchodná výška [mm]<input id="audit-headroom-min" type="number" min="1700" max="3000" step="10" value="2100"></label>
+        <label>Min. kontrolní šířka dveří [mm]<input id="audit-door-min" type="number" min="500" max="1500" step="10" value="800"></label>
+      </div>
+    </div>
+    <div class="audit-runbar">
+      <button id="audit-run" class="action" type="button" onclick="runDesignAudit()" disabled>Analyzovat dokumentaci</button>
+      <button id="audit-csv" class="back-btn" type="button" onclick="exportDesignAuditCsv()" disabled>Export CSV</button>
+      <button id="audit-print" class="back-btn" type="button" onclick="printDesignAuditReport()" disabled>Vytisknout report</button>
+      <span id="audit-status" class="muted">Nahraj PDF.</span>
+    </div>
+    <div class="bar"><div id="audit-progress" class="fill"></div></div>
+    <div id="audit-summary" class="audit-summary" style="display:none"></div>
+    <div id="audit-filters" class="audit-filters" style="display:none"></div>
+    <div id="audit-results-wrap" class="audit-layout" style="display:none">
+      <div>
+        <div id="audit-issues" class="audit-issues"></div>
+        <details class="audit-pages"><summary>Rozpoznané stránky dokumentace</summary><div class="docs-table-wrap" style="margin-top:8px"><table class="docs-table" style="min-width:680px"><thead><tr><th>Str.</th><th>Typ</th><th>Číslo výkresu</th><th>Název</th><th>Měřítko</th><th>Místnosti</th></tr></thead><tbody id="audit-pages-body"></tbody></table></div></details>
+      </div>
+      <div class="audit-preview"><div class="audit-preview-head"><b id="audit-preview-title">Náhled stránky</b><span id="audit-preview-page" class="audit-preview-note">Klikni na připomínku</span></div><div class="audit-preview-stage"><canvas id="audit-preview-canvas"></canvas><div id="audit-preview-empty" class="audit-empty">Po analýze klikni na připomínku a Toolbox otevře příslušnou stránku.</div></div></div>
+    </div>
+    <div class="audit-disclaimer"><b>Jak číst výsledky:</b> „Chyba“ je objektivní rozpor, který Toolbox dokázal porovnat. „Upozornění“ znamená překročení nastaveného kontrolního limitu nebo pravděpodobný problém. „Doporučení“ je věc k ruční kontrole — například severka může být čistě grafická a bez textu ji PDF parser nemusí rozpoznat.</div>
+  </div>
 
   <div id="tool-3dprint" class="tool-view" data-p3mode="simple">
     <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
@@ -917,7 +981,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
               <button class="back-btn" style="margin:0" onclick="fit3DPrintLayerView()">Pohled shora</button>
               <button class="back-btn" style="margin:0" onclick="toggle3DPrintLayerView()">Zapnout / vypnout vrstvy</button>
             </div>
-            <div class="print3d-beta-note">Posuvník je číslovaný od vrstvy 0. Přehrání projde postupně vrstvu 0 až po poslední. Náhled vrstev v Toolboxu je orientační; finální G-code od V3.13o generuje plnohodnotný slicer Kiri:Moto.</div>
+            <div class="print3d-beta-note">Posuvník je číslovaný od vrstvy 0. Přehrání projde postupně vrstvu 0 až po poslední. Náhled vrstev v Toolboxu je orientační; finální G-code od V3.13p generuje plnohodnotný slicer Kiri:Moto.</div>
           </div>
         </div>
 
@@ -1409,7 +1473,7 @@ function initProjectStorageUI() {
   const button = document.getElementById('projects-storage-btn');
   const autosave = document.getElementById('project-autosave-note');
   if (projectStorageMode === 'browser') {
-    if (version) version.textContent = 'V3.13o · SAFARI';
+    if (version) version.textContent = 'V3.13p · SAFARI';
     if (note) note.innerHTML = 'Vyberte existující projekt, nebo založte nový. V Safari se projekty ukládají <b>lokálně v tomto Macu</b> do úložiště Safari a načítají se přímo ze seznamu projektů.';
     if (warning) {
       warning.style.display = 'block';
@@ -1418,7 +1482,7 @@ function initProjectStorageUI() {
     if (button) button.textContent = '🔄 Obnovit seznam projektů';
     if (autosave) autosave.textContent = '(automatické ukládání v Safari)';
   } else {
-    if (version) version.textContent = 'V3.13o';
+    if (version) version.textContent = 'V3.13p';
     if (note) note.innerHTML = 'Vyberte existující projekt, nebo založte nový. Projekty se ukládají do složky <code>saved_projects</code>.';
     if (warning) warning.style.display = 'none';
     if (button) button.textContent = '🔄 Připojit / obnovit složku saved_projects';
@@ -2401,6 +2465,7 @@ function sessionDataSections(){return [
   {title:'Pre-flight',files:docsData.preflight||[],clear:"clearDocLoadedFiles('preflight')"},
   {title:'Seznam výkresů',files:docsData.drawinglist||[],clear:"clearDocLoadedFiles('drawinglist')"},
   {title:'Přejmenování',files:docsData.renamer||[],clear:"clearDocLoadedFiles('renamer')"},
+  {title:'Kontrola návrhu',files:designAuditState.file?[designAuditState.file]:[],clear:'clearDesignAudit()'},
   {title:'3D tisk',files:print3dState.file?[print3dState.file]:[],clear:'clear3DPrintModel()'},
   {title:'Porovnání PDF',files:[docsData.compareA,docsData.compareB].filter(Boolean),clear:"removeCompareSide('A');removeCompareSide('B')"}
 ];}
@@ -2413,7 +2478,7 @@ function openTool(name) {
   document.getElementById('menu-view').style.display = 'none';
   document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
   document.getElementById('tool-' + name).classList.add('active');
-  if(name==='3dprint') init3DPrintTool(); else if(name==='3dmodels') init3DProductFinder(); else setupDropZone(name);
+  if(name==='3dprint') init3DPrintTool(); else if(name==='3dmodels') init3DProductFinder(); else if(name==='designcheck') initDesignAudit(); else setupDropZone(name);
 }
 function closeTool() {
   document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
@@ -5870,7 +5935,7 @@ async function runPanel(fromModal = false){
 
 
 // ============================================================
-// 3D TISK — V3.13o BETA
+// 3D TISK — V3.13p BETA
 // ============================================================
 const print3dState={
   initialized:false,deps:null,renderer:null,scene:null,camera:null,controls:null,root:null,file:null,
@@ -6370,11 +6435,11 @@ async function repair3DPrintModel(){
     if(sum.rejected)parts.push(`změny odmítnuté bezpečnostní kontrolou: ${sum.rejected}`);if(sum.errors)parts.push(`části s technickou chybou: ${sum.errors}`);if(before&&!before.skipped&&after&&!after.skipped)parts.push(`otevřené hrany: ${before.boundary} → ${after.boundary}`,`ne-manifold hrany: ${before.nonManifold} → ${after.nonManifold}`,`degenerované plochy: ${before.degenerate} → ${after.degenerate}`);
     const ok=sum.errors===0,title=sum.changed?(remaining===0?'✓ OPRAVA MODELU DOKONČENA':'⚠ OPRAVA PROVEDENA, NĚKTERÉ PROBLÉMY ZŮSTÁVAJÍ'):(sum.errors?'⚠ OPRAVA NARAZILA NA CHYBU':'ℹ MODEL ZKONTROLOVÁN — BEZ BEZPEČNÉ AUTOMATICKÉ ZMĚNY');
     const extra=sum.reasons.length?'<br><br><b>DETAIL:</b><br>'+sum.reasons.slice(0,6).map(escapeHtml).join('<br>'):'';
-    const html=`<b>${title}</b><br>${parts.map(escapeHtml).join('<br>')}${extra}${remaining>0?'<br><br>Zbývající problém je topologicky nejednoznačný; Toolbox ho raději nemaže naslepo.':''}${sum.changed?'<br>Kdyby výsledek neseděl, lze opravu vrátit.':''}<br><span style="opacity:.65">Repair engine V3.13o</span>`;
+    const html=`<b>${title}</b><br>${parts.map(escapeHtml).join('<br>')}${extra}${remaining>0?'<br><br>Zbývající problém je topologicky nejednoznačný; Toolbox ho raději nemaže naslepo.':''}${sum.changed?'<br>Kdyby výsledek neseděl, lze opravu vrátit.':''}<br><span style="opacity:.65">Repair engine V3.13p</span>`;
     if(report){report.className='print3d-repair-report '+(remaining===0&&ok?'ok':'warn');report.innerHTML=html}if(simpleReport){simpleReport.className='print3d-repair-report '+(remaining===0&&ok?'ok':'warn');simpleReport.innerHTML=html}
     print3dState.lastRepairResult={ok,changed:sum.changed>0,remaining,html};update3DPrintSimpleUI();if(st)st.textContent=sum.errors?'Oprava proběhla částečně; podrobnosti jsou zobrazené u modelu.':sum.changed?'Oprava dokončena a model znovu zkontrolován.':'Model zkontrolován; žádná bezpečná změna nebyla potřeba nebo možná.';return sum.changed>0;
   }catch(e){
-    console.error(e);const msg='Oprava se zastavila [V3.13o]: '+(e?.message||String(e));const html=`<b>⚠ OPRAVA SE ZASTAVILA</b><br>${escapeHtml(msg)}<br>Původní geometrie nebyla smazána.`;if(report){report.className='print3d-repair-report warn';report.innerHTML=html}if(simpleReport){simpleReport.className='print3d-repair-report warn';simpleReport.innerHTML=html}print3dState.lastRepairResult={ok:false,changed:false,remaining:null,html};if(st)st.textContent=msg;return false;
+    console.error(e);const msg='Oprava se zastavila [V3.13p]: '+(e?.message||String(e));const html=`<b>⚠ OPRAVA SE ZASTAVILA</b><br>${escapeHtml(msg)}<br>Původní geometrie nebyla smazána.`;if(report){report.className='print3d-repair-report warn';report.innerHTML=html}if(simpleReport){simpleReport.className='print3d-repair-report warn';simpleReport.innerHTML=html}print3dState.lastRepairResult={ok:false,changed:false,remaining:null,html};if(st)st.textContent=msg;return false;
   }finally{print3dState.repairBusy=false;if(btn){btn.disabled=false;btn.textContent='✦ Bezpečně opravit model'}}
 }
 
@@ -6605,7 +6670,7 @@ function kiri3DPrintDevice(){
   const nozzle=Math.max(.15,num3D('print3d-nozzle',.4)),bx=num3D('print3d-bedx',250),by=num3D('print3d-bedy',210),bz=num3D('print3d-bedz',210);
   return {new:false,mode:'FDM',deviceName:'Original Prusa i3 MK3S',noclone:false,internal:0,imageURL:'',imageScale:.75,imageAnchor:0,bedHeight:2.5,bedWidth:bx,bedDepth:by,bedRound:false,bedBelt:false,maxHeight:bz,originCenter:false,extrudeAbs:true,spindleMax:0,
     gcodeFan:['M106 S{fan_speed}'],gcodeTrack:[],gcodeLayer:[';LAYER:{layer}'],
-    gcodePre:['; generated by 20-20-TOOLBOX V3.13o + Kiri:Moto','; target = Original Prusa i3 MK3S','M107 ; fan off','G90 ; absolute XYZ','M82 ; absolute extrusion','G21 ; millimeters','M104 S{temp} T{tool} ; set nozzle','M140 S{bed_temp} ; set bed','M190 S{bed_temp} ; wait bed','M109 S{temp} T{tool} ; wait nozzle','G28 W ; home without mesh leveling','G80 ; mesh bed leveling','G92 E0','G1 Z0.20 F7200','G1 Y-3.0 F1000','G1 X60.0 E9.0 F1000','G1 X100.0 E12.5 F1000','G92 E0'],
+    gcodePre:['; generated by 20-20-TOOLBOX V3.13p + Kiri:Moto','; target = Original Prusa i3 MK3S','M107 ; fan off','G90 ; absolute XYZ','M82 ; absolute extrusion','G21 ; millimeters','M104 S{temp} T{tool} ; set nozzle','M140 S{bed_temp} ; set bed','M190 S{bed_temp} ; wait bed','M109 S{temp} T{tool} ; wait nozzle','G28 W ; home without mesh leveling','G80 ; mesh bed leveling','G92 E0','G1 Z0.20 F7200','G1 Y-3.0 F1000','G1 X60.0 E9.0 F1000','G1 X100.0 E12.5 F1000','G92 E0'],
     gcodePost:['M107 ; fan off','M104 S0 ; hotend off','M140 S0 ; bed off','G91','G1 Z5 F720','G90','G28 X0 ; park X','M84 ; motors off','; end of 20-20-TOOLBOX Kiri:Moto G-code'],gcodeProc:'',gcodePause:[],gcodeDwell:[],gcodeSpindle:[],gcodeChange:[],gcodeFExt:'gcode',gcodeSpace:true,gcodeStrip:false,gcodeLaserOn:[],gcodeLaserOff:[],extruders:[{extFilament:1.75,extNozzle:nozzle,extSelect:['T0'],extDeselect:[],extOffsetX:0,extOffsetY:0}]};
 }
 function kiri3DPrintProcess(){
@@ -6640,7 +6705,7 @@ async function export3DPrintGcode(){
     const factory=await get3DPrintKiriFactory();if(st)st.textContent='Připravuji model pro Kiri:Moto…';const stl=await get3DPrintSTLArrayBuffer();engine=factory();if(!engine)throw new Error('Kiri:Moto Engine se nepodařilo vytvořit.');
     engine.setListener?.(update3DPrintKiriProgress);engine.setRender?.(false);engine.setMode?.('FDM');engine.setDevice?.(kiri3DPrintDevice());engine.setProcess?.(kiri3DPrintProcess());
     if(status)status.innerHTML='<b>SLICER ENGINE · KIRI:MOTO</b><br>Načítám STL do plného sliceru…';await engine.parse(stl);await engine.slice();await engine.prepare();const raw=await engine.export();const gcode=validate3DPrintKiriGcode(raw);
-    const header=`; 20-20-TOOLBOX V3.13o\n; slicer_engine = Kiri:Moto\n; source = ${f.name}\n; scale = 1:${document.getElementById('print3d-scale')?.value||1}\n`;
+    const header=`; 20-20-TOOLBOX V3.13p\n; slicer_engine = Kiri:Moto\n; source = ${f.name}\n; scale = 1:${document.getElementById('print3d-scale')?.value||1}\n`;
     const blob=new Blob([header+gcode],{type:'text/x-gcode'}),a=document.createElement('a'),ratio=String(document.getElementById('print3d-scale')?.value||1).replace(/[^0-9._-]/g,'');a.href=URL.createObjectURL(blob);a.download=f.name.replace(/\.[^.]+$/,'')+`_MK3S_KIRI_1-${ratio}.gcode`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2500);
     if(st)st.textContent='G-code vytvořen plným Kiri:Moto slicerem. Zkontroluj ho v PrusaSlicer G-code Vieweru.';if(status)status.innerHTML='<b>✓ KIRI:MOTO · HOTOVO</b><br>Vrstvy a tiskové dráhy vytvořil plnohodnotný slicer engine. Původní 3D model nebyl při exportu přestavěn ani uploadován.';
   }catch(e){console.error('Kiri export',e);print3dState.kiriLastError=e;if(st)st.textContent='Plný slicer se nepodařilo dokončit.';if(status)status.innerHTML='<b>⚠ KIRI:MOTO EXPORT SELHAL</b><br>'+escapeHtml(e?.message||String(e))+'<br>Starý interní generátor drah se automaticky nepoužil, aby nevznikl chybný G-code.';alert('G-code se nepodařilo bezpečně vytvořit pomocí Kiri:Moto:\n\n'+(e?.message||String(e))+'\n\nModel zůstal beze změny.');
@@ -6653,7 +6718,7 @@ async function export3DPrintGcodeLegacy(){
   try{
     const layers=calc3DPrintLayerCount(),nozzle=num3D('print3d-nozzle',.4),width=nozzle*1.125,firstH=num3D('print3d-first-layer',.2),lh=num3D('print3d-layer-height',.15),perims=Math.max(1,Math.round(num3D('print3d-perimeters',3))),top=Math.max(1,Math.round(num3D('print3d-top-solid',5))),bottom=Math.max(1,Math.round(num3D('print3d-bottom-solid',4))),perimSpeed=num3D('print3d-speed-perim',35)*60,infillSpeed=num3D('print3d-speed-infill',50)*60,supportSpeed=Math.min(num3D('print3d-speed-infill',50),40)*60,travelSpeed=num3D('print3d-speed-travel',180)*60,retract=Math.max(0,num3D('print3d-retract',.8)),zhop=Math.max(0,num3D('print3d-zhop',.4)),fan=Math.round(Math.max(0,Math.min(100,num3D('print3d-fan',50)))*2.55),noz1=Math.round(num3D('print3d-nozzle-first',230)),noz=Math.round(num3D('print3d-nozzle-temp',240)),bed1=Math.round(num3D('print3d-bed-first',85)),bed=Math.round(num3D('print3d-bed-temp',90)),filArea=Math.PI*Math.pow(1.75/2,2),brim=Math.max(0,num3D('print3d-brim',0)),bounds=get3DPrintXYBounds();
     if(!bounds)throw new Error('Nelze získat rozměry modelu.');const ox=bx/2-(bounds.minX+bounds.maxX)/2,oy=by/2-(bounds.minY+bounds.maxY)/2;
-    const g=[];g.push('; LEGACY internal slicer — 20-20-TOOLBOX V3.13o','; printer_model = Original Prusa i3 MK3S',`; source = ${f.name}`,`; layer_height = ${lh}`,`; first_layer_height = ${firstH}`,`; nozzle_diameter = ${nozzle}`,`; filament_type = ${document.getElementById('print3d-material')?.value?.toUpperCase()||'PETG'}`,`; fill_density = ${num3D('print3d-infill',12)}%`, `; support_material = ${(document.getElementById('print3d-supports')?.value||'off')}`, `; support_density = ${num3D('print3d-support-density',15)}%`,'; verify this BETA G-code in PrusaSlicer G-code Viewer before printing','M83 ; relative extrusion','G90 ; absolute coordinates','G21 ; millimeters',`M104 S${noz1} ; nozzle temp`,`M140 S${bed1} ; bed temp`,`M190 S${bed1} ; wait bed`,`M109 S${noz1} ; wait nozzle`,'G28 W ; home without mesh leveling','G80 ; mesh bed leveling',`G1 Z${firstH.toFixed(3)} F7200`,'G92 E0','G1 Y-3.0 F1000','G1 X60.0 E9.0 F1000','G1 X100.0 E12.5 F1000','G92 E0','M107');
+    const g=[];g.push('; LEGACY internal slicer — 20-20-TOOLBOX V3.13p','; printer_model = Original Prusa i3 MK3S',`; source = ${f.name}`,`; layer_height = ${lh}`,`; first_layer_height = ${firstH}`,`; nozzle_diameter = ${nozzle}`,`; filament_type = ${document.getElementById('print3d-material')?.value?.toUpperCase()||'PETG'}`,`; fill_density = ${num3D('print3d-infill',12)}%`, `; support_material = ${(document.getElementById('print3d-supports')?.value||'off')}`, `; support_density = ${num3D('print3d-support-density',15)}%`,'; verify this BETA G-code in PrusaSlicer G-code Viewer before printing','M83 ; relative extrusion','G90 ; absolute coordinates','G21 ; millimeters',`M104 S${noz1} ; nozzle temp`,`M140 S${bed1} ; bed temp`,`M190 S${bed1} ; wait bed`,`M109 S${noz1} ; wait nozzle`,'G28 W ; home without mesh leveling','G80 ; mesh bed leveling',`G1 Z${firstH.toFixed(3)} F7200`,'G92 E0','G1 Y-3.0 F1000','G1 X60.0 E9.0 F1000','G1 X100.0 E12.5 F1000','G92 E0','M107');
     let cx=100,cy=-3,cz=0,retracted=false,totalE=0;const eFor=(len,h)=>len*width*h/filArea;
     const travel=(x,y,z)=>{const dist=Math.hypot(x-cx,y-cy);if(dist>2&&retract>0&&!retracted){g.push(`G1 E-${retract.toFixed(3)} F2100`);retracted=true}if(zhop>0&&dist>2)g.push(`G1 Z${Math.min(bz,z+zhop).toFixed(3)} F7200`);g.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} F${Math.round(travelSpeed)}`);if(zhop>0&&dist>2)g.push(`G1 Z${z.toFixed(3)} F7200`);if(retracted){g.push(`G1 E${retract.toFixed(3)} F2100`);retracted=false}cx=x;cy=y;cz=z};
     const extrudePolyline=(poly,z,h,speed,closed=true)=>{if(!poly||poly.length<2)return;const p0=poly[0];travel(p0[0]+ox,p0[1]+oy,z);const n=closed?poly.length+1:poly.length;for(let i=1;i<n;i++){const p=poly[i%poly.length],x=p[0]+ox,y=p[1]+oy,len=Math.hypot(x-cx,y-cy);if(len<1e-5)continue;const e=eFor(len,h);g.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} E${e.toFixed(5)} F${Math.round(speed)}`);cx=x;cy=y;totalE+=e}};
@@ -6674,7 +6739,7 @@ async function export3DPrintGcodeLegacy(){
 async function export3DPrintSTL(){const root=print3dState.root,f=print3dState.file;if(!root||!f)return;try{const {STLExporter}=await get3DPrintDeps();root.updateMatrixWorld(true);const data=new STLExporter().parse(root,{binary:true});let blob;if(data instanceof DataView)blob=new Blob([data.buffer],{type:'model/stl'});else if(data instanceof ArrayBuffer)blob=new Blob([data],{type:'model/stl'});else blob=new Blob([data],{type:'model/stl'});const a=document.createElement('a'),ratio=String(document.getElementById('print3d-scale').value||1).replace(/[^0-9._-]/g,'');a.href=URL.createObjectURL(blob);a.download=f.name.replace(/\.[^.]+$/,'')+`_3DPRINT_1-${ratio}.stl`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);document.getElementById('st-3dprint').textContent='STL model exportován (vedlejší export).'}catch(e){console.error(e);alert('STL se nepodařilo vytvořit: '+e.message)}}
 
 
-// 3D KNIHOVNA VÝROBKŮ — V3.13o BETA — MULTI-SOURCE
+// 3D KNIHOVNA VÝROBKŮ — V3.13p BETA — MULTI-SOURCE
 const PRODUCT3D_SOURCE_ORDER=['bimobject','warehouse','sketchfab','archiproducts','3dfindit','syncronia','caddetails'];
 const PRODUCT3D_SOURCE_META={
   bimobject:{label:'BIMobject',domain:'bimobject.com',kind:'BIM výrobci'},
@@ -6891,6 +6956,76 @@ async function search3DProducts(){
 function open3DProductPreview(index){const m=product3DState.flatResults[index];if(!m?.uid)return;const modal=document.getElementById('product3d-preview-modal'),frame=document.getElementById('product3d-preview-frame'),title=document.getElementById('product3d-preview-title');if(title)title.textContent=m.title||'3D náhled';if(frame)frame.src=`https://sketchfab.com/models/${encodeURIComponent(m.uid)}/embed?autostart=1&ui_infos=1&ui_controls=1&ui_stop=0`;modal?.classList.add('active')}
 function close3DProductPreview(){const modal=document.getElementById('product3d-preview-modal'),frame=document.getElementById('product3d-preview-frame');modal?.classList.remove('active');if(frame)frame.src=''}
 function open3DProductSource(source){const btn=document.querySelector(`#product3d-source-strip .product3d-source[data-source="${source}"]`),url=btn?.dataset.searchUrl||product3DSourceUrl(source);if(!url)return;window.open(url,'_blank','noopener,noreferrer')}
+
+
+// ============================================================
+// KONTROLA NÁVRHU — V3.13p BETA
+// ============================================================
+const designAuditState={initialized:false,file:null,pdf:null,pages:[],issues:[],filter:'all',selected:-1,runId:0};
+function initDesignAudit(){
+  if(designAuditState.initialized)return;designAuditState.initialized=true;
+  const input=document.getElementById('f-designcheck'),drop=document.getElementById('drop-designcheck');
+  input?.addEventListener('change',()=>{if(input.files?.[0])loadDesignAuditFile(input.files[0]);input.value=''});
+  if(drop){['dragenter','dragover'].forEach(n=>drop.addEventListener(n,e=>{e.preventDefault();e.stopPropagation();drop.classList.add('over')}));['dragleave','drop'].forEach(n=>drop.addEventListener(n,e=>{e.preventDefault();e.stopPropagation();drop.classList.remove('over')}));drop.addEventListener('drop',e=>{const f=[...(e.dataTransfer?.files||[])].find(x=>/\.pdf$/i.test(x.name));if(f)loadDesignAuditFile(f)})}
+}
+async function loadDesignAuditFile(file){
+  if(!file||!/\.pdf$/i.test(file.name)){alert('Vyber PDF dokumentaci.');return}
+  try{await designAuditState.pdf?.destroy?.()}catch(e){}
+  designAuditState.file=file;designAuditState.pdf=null;designAuditState.pages=[];designAuditState.issues=[];designAuditState.selected=-1;
+  const loaded=document.getElementById('audit-loaded');if(loaded)loaded.innerHTML=`<div class="loaded-files-head"><span><b>Načtená dokumentace</b></span></div><div class="loaded-file-row"><span class="loaded-file-name">${escapeHtml(file.name)}</span><span class="loaded-file-size">${formatBytes(file.size)}</span><button class="mini-remove" onclick="clearDesignAudit()">Odstranit</button></div>`;
+  const st=document.getElementById('audit-status');if(st)st.textContent='PDF načteno. Spusť analýzu.';document.getElementById('audit-run').disabled=false;document.getElementById('audit-csv').disabled=true;document.getElementById('audit-print').disabled=true;document.getElementById('audit-summary').style.display='none';document.getElementById('audit-filters').style.display='none';document.getElementById('audit-results-wrap').style.display='none';document.getElementById('audit-progress').style.width='0%';renderSessionDataOverview();
+}
+async function clearDesignAudit(){
+  try{await designAuditState.pdf?.destroy?.()}catch(e){}
+  designAuditState.file=null;designAuditState.pdf=null;designAuditState.pages=[];designAuditState.issues=[];designAuditState.selected=-1;designAuditState.runId++;
+  const loaded=document.getElementById('audit-loaded');if(loaded)loaded.innerHTML='';const input=document.getElementById('f-designcheck');if(input)input.value='';const st=document.getElementById('audit-status');if(st)st.textContent='Nahraj PDF.';const btn=document.getElementById('audit-run');if(btn)btn.disabled=true;for(const id of ['audit-csv','audit-print']){const b=document.getElementById(id);if(b)b.disabled=true}document.getElementById('audit-summary').style.display='none';document.getElementById('audit-filters').style.display='none';document.getElementById('audit-results-wrap').style.display='none';document.getElementById('audit-progress').style.width='0%';const c=document.getElementById('audit-preview-canvas');if(c){c.width=1;c.height=1}const emp=document.getElementById('audit-preview-empty');if(emp)emp.style.display='block';renderSessionDataOverview();
+}
+function auditNum(id,fallback){const v=Number(document.getElementById(id)?.value);return Number.isFinite(v)?v:fallback}
+function auditRules(){return {areaTol:auditNum('audit-area-tol',3),riserMin:auditNum('audit-riser-min',150),riserMax:auditNum('audit-riser-max',190),treadMin:auditNum('audit-tread-min',250),treadMax:auditNum('audit-tread-max',320),headroomMin:auditNum('audit-headroom-min',2100),doorMin:auditNum('audit-door-min',800)}}
+function auditAscii(s){return removeDiacritics(String(s||'')).toUpperCase()}
+function auditPageType(raw,meta){const a=auditAscii(`${meta?.title||''} ${raw||''}`);if(/\bPUDORYS\b/.test(a))return 'Půdorys';if(/\bSITUACE\b/.test(a))return 'Situace';if(/\bREZ\b|\bSECTION\b/.test(a))return 'Řez';if(/\bPOHLED\b|\bELEVATION\b/.test(a))return 'Pohled';if(/\bDETAIL\b/.test(a))return 'Detail';if(/\bTABULKA\b|\bVYPIS\b/.test(a))return 'Tabulka / výpis';return meta?.confidence>=2?'Výkres':'Jiná strana'}
+function auditTextItems(tc,vp){return (tc.items||[]).map((it,index)=>{const tx=pdfjsLib.Util.transform(vp.transform,it.transform),size=Math.max(1,Math.hypot(tx[2],tx[3]));return {text:normalizeSpaces(it.str||''),x:tx[4],y:tx[5],size,index}}).filter(x=>x.text)}
+function auditParseArea(s){const m=String(s||'').match(/(\d{1,4}(?:[.,]\d{1,2})?)\s*(?:m\s*[²2]|m\^2)(?![A-Za-z0-9_])/i);return m?Number(m[1].replace(',','.')):null}
+function auditRoomEntries(lines,page){const roomRe=/(OBYVAC|POKOJ|LOZNIC|KUCHY|KOUPELN|\bWC\b|CHODB|HALA|SATN|KOMOR|TECHNICK|PRACOVN|GARAZ|SKLAD|TERAS|BALKON|ZADVER|JIDELN|SPIZ|ATELIER|KANCELAR)/;const out=[];for(const l of lines){const txt=normalizeSpaces(l.text),a=auditAscii(txt),area=auditParseArea(txt);if(area==null||!roomRe.test(a))continue;const num=(txt.match(/(?:^|\s)(\d{1,3}(?:[.-]\d{1,3})?)(?=\s)/)||[])[1]||'';const nameMatch=a.match(roomRe);out.push({page,number:num,name:nameMatch?.[1]||txt.slice(0,45),area,evidence:txt})}return out}
+function auditTotalArea(lines){for(const l of lines){const a=auditAscii(l.text);if(/\b(CELKEM|SOUCET|PLOCHA CELKEM|CELKOVA PLOCHA)\b/.test(a)){const v=auditParseArea(l.text);if(v!=null)return {area:v,evidence:l.text}}}return null}
+function auditAddIssue(arr,severity,category,page,title,message,evidence='',confidence='medium',extra={}){arr.push({id:arr.length,severity,category,page,title,message,evidence,confidence,...extra})}
+function auditFindScales(raw){return [...String(raw||'').matchAll(/\b1\s*[:/]\s*(\d{1,6})\b/g)].map(m=>`1:${m[1]}`)}
+function auditStairs(lines,page,rules,issues){for(const l of lines){for(const m of l.text.matchAll(/\b(\d{1,2})\s*[x×]\s*(\d{2,3})\s*[/x×]\s*(\d{2,3})\b/gi)){const count=Number(m[1]),r=Number(m[2]),t=Number(m[3]),bl=2*r+t;if(r<rules.riserMin||r>rules.riserMax)auditAddIssue(issues,'warn','Schodiště',page,'Výška stupně mimo kontrolní limit',`Nalezeno ${count}× ${r}/${t} mm. Výška ${r} mm je mimo nastavený rozsah ${rules.riserMin}–${rules.riserMax} mm.`,m[0],'high');if(t<rules.treadMin||t>rules.treadMax)auditAddIssue(issues,'warn','Schodiště',page,'Nášlap mimo kontrolní limit',`Nalezeno ${count}× ${r}/${t} mm. Nášlap ${t} mm je mimo nastavený rozsah ${rules.treadMin}–${rules.treadMax} mm.`,m[0],'high');if(bl<600||bl>650)auditAddIssue(issues,'warn','Schodiště',page,'Poměr stupně je podezřelý',`Kontrolní vztah 2h+b vychází ${bl} mm. Toolbox používá orientační rozsah 600–650 mm; ověř podle pravidel konkrétního schodiště.`,m[0],'medium')}}}
+function auditHeadrooms(lines,page,rules,issues){for(const l of lines){const a=auditAscii(l.text);if(!/(PODCHODN|PRUCHODN|SVETLA VYSKA)/.test(a))continue;let mm=null,m=l.text.match(/(\d{3,4})\s*mm\b/i);if(m)mm=Number(m[1]);if(mm==null){m=l.text.match(/(\d+[.,]\d+)\s*m\b/i);if(m)mm=Number(m[1].replace(',','.'))*1000}if(mm==null){m=l.text.match(/\b(1\d{3}|2\d{3}|3\d{3})\b/);if(m)mm=Number(m[1])}if(mm!=null&&mm<rules.headroomMin)auditAddIssue(issues,'warn','Výšky',page,'Malá podchodná / světlá výška',`Nalezená hodnota ${Math.round(mm)} mm je pod nastaveným kontrolním limitem ${rules.headroomMin} mm.`,l.text,'high')}}
+function auditDoors(lines,page,rules,issues){for(const l of lines){const a=auditAscii(l.text);if(!/(DVER|\bD\d{1,3}\b)/.test(a))continue;const m=l.text.match(/\b(\d{3,4})\s*[x×/]\s*(\d{3,4})\b/);if(!m)continue;const w=Number(m[1]),h=Number(m[2]);if(w>=500&&w<rules.doorMin&&h>=1500)auditAddIssue(issues,'rec','Dveře',page,'Možná malá světlá šířka dveří',`Rozměr ${w}×${h} mm má první hodnotu pod kontrolním limitem ${rules.doorMin} mm. Ověř, zda jde skutečně o světlý rozměr dveří.`,m[0],'low')}}
+function auditSectionTokens(raw){const set=new Set();for(const m of auditAscii(raw).matchAll(/\bREZ\s+([A-Z0-9]{1,3}\s*[-–]\s*[A-Z0-9]{1,3})\b/g))set.add(m[1].replace(/\s+/g,'').replace('–','-'));return set}
+function auditPlanSectionRefs(raw){const set=new Set();for(const m of auditAscii(raw).matchAll(/\b([A-Z])\s*[-–]\s*\1\b/g))set.add(`${m[1]}-${m[1]}`);return set}
+async function runDesignAudit(){
+  const file=designAuditState.file;if(!file)return;const runId=++designAuditState.runId,st=document.getElementById('audit-status'),fill=document.getElementById('audit-progress'),btn=document.getElementById('audit-run');btn.disabled=true;document.getElementById('audit-csv').disabled=true;document.getElementById('audit-print').disabled=true;designAuditState.pages=[];designAuditState.issues=[];designAuditState.selected=-1;if(st)st.textContent='Načítám PDF…';if(fill)fill.style.width='2%';
+  try{
+    const bytes=new Uint8Array(await file.arrayBuffer());if(runId!==designAuditState.runId)return;const pdf=await pdfjsLib.getDocument({data:bytes.slice(0)}).promise;designAuditState.pdf=pdf;const rules=auditRules(),pages=[],issues=[],allRooms=[],definedSections=new Set(),sectionRefs=[];
+    for(let p=1;p<=pdf.numPages;p++){
+      if(runId!==designAuditState.runId)return;const page=await pdf.getPage(p),vp=page.getViewport({scale:1}),tc=await page.getTextContent(),items=auditTextItems(tc,vp),lines=groupTextLines(items),raw=normalizeSpaces((tc.items||[]).map(x=>x.str||'').join(' ')),meta=parseDrawingPageMeta(tc,vp,file),type=auditPageType(raw,meta),rooms=auditRoomEntries(lines,p),total=auditTotalArea(lines),scales=auditFindScales(raw);rooms.forEach(r=>allRooms.push(r));auditSectionTokens(raw).forEach(x=>definedSections.add(x));if(type==='Půdorys'||type==='Situace')auditPlanSectionRefs(raw).forEach(x=>sectionRefs.push({token:x,page:p}));
+      pages.push({page:p,type,meta,raw,rooms,total,scales,textCount:tc.items?.length||0,width:vp.width,height:vp.height});
+      const isDrawing=type!=='Jiná strana'&&type!=='Tabulka / výpis';if(isDrawing&&!scales.length&&!meta?.scale)auditAddIssue(issues,'rec','Výkresová úplnost',p,'Nebylo nalezeno měřítko','Na stránce vypadající jako výkres nebyl v textové vrstvě nalezen zápis 1:x.','měřítko','medium');
+      if(type==='Půdorys'||type==='Situace'){const a=auditAscii(raw);if(!/\bSEVER\b/.test(a)&&!(tc.items||[]).some(x=>/^[Nn]$/.test(String(x.str||'').trim())))auditAddIssue(issues,'rec','Výkresová úplnost',p,'Severka nebyla textově rozpoznána','Toolbox nenašel text „SEVER“ ani samostatné „N“. Pokud je severka čistě grafický symbol, zkontroluj ji ručně.','SEVER','low')}
+      if(isDrawing&&meta?.confidence<2)auditAddIssue(issues,'rec','Rozpiska',p,'Rozpiska nebyla spolehlivě rozpoznána','Stránka působí jako výkres, ale z rozpisky se nepodařilo spolehlivě přečíst číslo/název/měřítko.','', 'low');
+      auditStairs(lines,p,rules,issues);auditHeadrooms(lines,p,rules,issues);auditDoors(lines,p,rules,issues);
+      if(total&&rooms.length>=2){const sum=rooms.reduce((a,r)=>a+r.area,0),diff=Math.abs(sum-total.area),tol=Math.max(.15,total.area*rules.areaTol/100);if(diff>tol)auditAddIssue(issues,'error','Plochy',p,'Součet ploch neodpovídá uvedenému celku',`Součet rozpoznaných místností je ${sum.toFixed(2)} m², ale uvedený celek je ${total.area.toFixed(2)} m². Rozdíl ${diff.toFixed(2)} m² překračuje toleranci ${rules.areaTol} %.`,total.evidence,'high')}
+      if(fill)fill.style.width=`${Math.max(3,Math.round(p/pdf.numPages*82))}%`;if(st)st.textContent=`Analyzuji stránku ${p}/${pdf.numPages}…`;await new Promise(r=>setTimeout(r,0));
+    }
+    const byNo=new Map();for(const pg of pages){const no=pg.meta?.number;if(!no)continue;if(!byNo.has(no))byNo.set(no,[]);byNo.get(no).push(pg)}for(const [no,arr] of byNo){if(arr.length>1){const titles=new Set(arr.map(x=>normalizeSpaces(x.meta?.title||'')).filter(Boolean)),sc=new Set(arr.map(x=>x.meta?.scale||x.scales?.[0]||'').filter(Boolean));if(titles.size>1||sc.size>1)auditAddIssue(issues,'error','Konzistence',arr[0].page,'Stejné číslo výkresu má rozdílné údaje',`Číslo ${no} se vyskytuje na ${arr.length} stránkách s rozdílným názvem nebo měřítkem. Strany: ${arr.map(x=>x.page).join(', ')}.`,no,'high');else auditAddIssue(issues,'rec','Konzistence',arr[0].page,'Duplicitní číslo výkresu',`Číslo ${no} se vyskytuje na více stránkách (${arr.map(x=>x.page).join(', ')}). Ověř, zda jde o záměr.`,no,'medium')}}
+    const byRoom=new Map();for(const r of allRooms){if(!r.number)continue;if(!byRoom.has(r.number))byRoom.set(r.number,[]);byRoom.get(r.number).push(r)}for(const [num,arr] of byRoom){if(arr.length<2)continue;const min=Math.min(...arr.map(x=>x.area)),max=Math.max(...arr.map(x=>x.area));if(min>0&&(max-min)/max*100>rules.areaTol)auditAddIssue(issues,'error','Plochy',arr[0].page,'Stejná místnost má rozdílnou plochu',`Místnost ${num} má v dokumentaci plochy ${[...new Set(arr.map(x=>x.area.toFixed(2)))].join(' / ')} m². Rozdíl překračuje toleranci ${rules.areaTol} %.`,arr[0].evidence,'high')}
+    for(const ref of sectionRefs){if(!definedSections.has(ref.token))auditAddIssue(issues,'rec','Konzistence',ref.page,'Odkaz na řez bez nalezeného protějšku',`Na půdorysu byl nalezen odkaz ${ref.token}, ale Toolbox nenašel stránku s textem „ŘEZ ${ref.token}“. Ověř ručně — označení může být grafické.`,ref.token,'low')}
+    designAuditState.pages=pages;designAuditState.issues=issues.map((x,i)=>({...x,id:i}));if(fill)fill.style.width='100%';renderDesignAudit();if(st)st.textContent=`Hotovo · ${pdf.numPages} stran · ${issues.length} připomínek.`;document.getElementById('audit-csv').disabled=false;document.getElementById('audit-print').disabled=false;
+  }catch(e){console.error('design audit',e);if(st)st.textContent='Analýza se zastavila: '+(e?.message||String(e));if(fill)fill.style.width='0%'}finally{btn.disabled=!designAuditState.file}
+}
+function auditSeverityLabel(s){return s==='error'?'CHYBA':s==='warn'?'UPOZORNĚNÍ':'DOPORUČENÍ'}
+function renderDesignAudit(){
+  const issues=designAuditState.issues,pages=designAuditState.pages,sum=document.getElementById('audit-summary'),filters=document.getElementById('audit-filters'),wrap=document.getElementById('audit-results-wrap');sum.style.display='grid';filters.style.display='flex';wrap.style.display='grid';const ec=issues.filter(x=>x.severity==='error').length,wc=issues.filter(x=>x.severity==='warn').length,rc=issues.filter(x=>x.severity==='rec').length;sum.innerHTML=`<div class="audit-summary-card"><span>Stránky</span><b>${pages.length}</b></div><div class="audit-summary-card error"><span>Chyby</span><b>${ec}</b></div><div class="audit-summary-card warn"><span>Upozornění</span><b>${wc}</b></div><div class="audit-summary-card rec"><span>Doporučení</span><b>${rc}</b></div><div class="audit-summary-card"><span>Kontroly bez nálezu</span><b>${Math.max(0,pages.length*4-issues.length)}</b></div>`;
+  const cats=[...new Set(issues.map(x=>x.category))];filters.innerHTML=[['all','Vše'],['error','Chyby'],['warn','Upozornění'],['rec','Doporučení'],...cats.map(x=>['cat:'+x,x])].map(([v,l])=>`<button type="button" class="audit-filter ${designAuditState.filter===v?'active':''}" onclick="setDesignAuditFilter('${String(v).replace(/'/g,"\\'")}')">${escapeHtml(l)}</button>`).join('');renderDesignAuditIssues();const body=document.getElementById('audit-pages-body');body.innerHTML=pages.map(p=>`<tr><td>${p.page}</td><td>${escapeHtml(p.type)}</td><td>${escapeHtml(p.meta?.number||'–')}</td><td>${escapeHtml(p.meta?.title||'–')}</td><td>${escapeHtml(p.meta?.scale||p.scales?.[0]||'–')}</td><td>${p.rooms.length}</td></tr>`).join('');
+}
+function setDesignAuditFilter(v){designAuditState.filter=v;renderDesignAudit()}
+function renderDesignAuditIssues(){const box=document.getElementById('audit-issues'),f=designAuditState.filter;let arr=designAuditState.issues;if(f!=='all')arr=f.startsWith('cat:')?arr.filter(x=>x.category===f.slice(4)):arr.filter(x=>x.severity===f);if(!arr.length){box.innerHTML='<div class="audit-empty">V tomto filtru nejsou žádné připomínky.</div>';return}box.innerHTML=arr.map(x=>`<button type="button" class="audit-issue ${x.severity} ${designAuditState.selected===x.id?'active':''}" onclick="showDesignAuditIssue(${x.id})"><div class="audit-issue-top"><b>${escapeHtml(x.title)}</b><span class="audit-badge">${auditSeverityLabel(x.severity)} · str. ${x.page}</span></div><p>${escapeHtml(x.message)}</p><div class="audit-evidence">${escapeHtml(x.category)} · jistota ${x.confidence==='high'?'vysoká':x.confidence==='medium'?'střední':'nízká'}${x.evidence?` · „${escapeHtml(x.evidence).slice(0,140)}“`:''}</div></button>`).join('')}
+async function showDesignAuditIssue(id){const issue=designAuditState.issues.find(x=>x.id===id);if(!issue||!designAuditState.pdf)return;designAuditState.selected=id;renderDesignAuditIssues();await renderDesignAuditPage(issue.page,issue.evidence);const pg=designAuditState.pages.find(x=>x.page===issue.page);document.getElementById('audit-preview-title').textContent=issue.title;document.getElementById('audit-preview-page').textContent=`Strana ${issue.page} · ${pg?.type||''}`}
+async function renderDesignAuditPage(pageNum,evidence=''){const pdf=designAuditState.pdf,canvas=document.getElementById('audit-preview-canvas'),empty=document.getElementById('audit-preview-empty');if(!pdf||!canvas)return;const page=await pdf.getPage(pageNum),base=page.getViewport({scale:1}),stage=canvas.parentElement,avail=Math.max(320,Math.min(760,(stage?.clientWidth||620)-22)),scale=Math.min(1.8,avail/base.width),vp=page.getViewport({scale}),ctx=canvas.getContext('2d');canvas.width=Math.ceil(vp.width);canvas.height=Math.ceil(vp.height);canvas.style.width=`${vp.width}px`;canvas.style.height=`${vp.height}px`;await page.render({canvasContext:ctx,viewport:vp}).promise;if(empty)empty.style.display='none';if(!evidence)return;const tc=await page.getTextContent(),needle=normalizeSpaces(evidence).toLowerCase();let hits=(tc.items||[]).filter(it=>{const t=normalizeSpaces(it.str||'').toLowerCase();return t&&needle&&(t.includes(needle)||needle.includes(t)&&t.length>=3)}).slice(0,8);if(!hits.length&&needle){const words=needle.split(/\s+/).filter(x=>x.length>3).slice(0,3);hits=(tc.items||[]).filter(it=>words.some(w=>normalizeSpaces(it.str||'').toLowerCase().includes(w))).slice(0,6)}ctx.save();ctx.strokeStyle='#dc2626';ctx.fillStyle='rgba(220,38,38,.10)';ctx.lineWidth=3;for(const it of hits){const tx=pdfjsLib.Util.transform(vp.transform,it.transform),h=Math.max(9,Math.hypot(tx[2],tx[3])),x=tx[4]-3,y=tx[5]-h-3,w=Math.max(20,(it.width||20)*scale+6);ctx.fillRect(x,y,w,h+7);ctx.strokeRect(x,y,w,h+7)}ctx.restore()}
+function exportDesignAuditCsv(){if(!designAuditState.issues.length&&!designAuditState.pages.length)return;const rows=[['Závažnost','Kategorie','Strana','Název','Popis','Důkaz','Jistota'],...designAuditState.issues.map(x=>[auditSeverityLabel(x.severity),x.category,x.page,x.title,x.message,x.evidence||'',x.confidence])];const csv='\ufeff'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');downloadBlob(new Blob([csv],{type:'text/csv;charset=utf-8'}),`${filenameBase(designAuditState.file?.name||'dokumentace')}_kontrola_navrhu.csv`)}
+function printDesignAuditReport(){const f=designAuditState.file;if(!f)return;const issues=designAuditState.issues,counts={error:issues.filter(x=>x.severity==='error').length,warn:issues.filter(x=>x.severity==='warn').length,rec:issues.filter(x=>x.severity==='rec').length},w=window.open('','_blank');if(!w)return;w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Kontrola návrhu</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:22px}.meta{color:#666;font-size:12px;margin-bottom:20px}.summary{display:flex;gap:10px;margin:14px 0}.summary div{border:1px solid #bbb;padding:10px 14px}.issue{border-bottom:1px solid #ddd;padding:10px 0}.issue b{display:block;margin-bottom:3px}.small{font-size:11px;color:#666}.warn{color:#92400e}.error{color:#991b1b}@media print{body{margin:10mm}}</style></head><body><h1>Kontrola návrhu</h1><div class="meta">${escapeHtml(f.name)} · 20-20-TOOLBOX V3.13p · předběžný automatický audit</div><div class="summary"><div>Chyby<br><b>${counts.error}</b></div><div>Upozornění<br><b>${counts.warn}</b></div><div>Doporučení<br><b>${counts.rec}</b></div></div>${issues.map(x=>`<div class="issue ${x.severity}"><b>${auditSeverityLabel(x.severity)} · ${escapeHtml(x.category)} · str. ${x.page} — ${escapeHtml(x.title)}</b><div>${escapeHtml(x.message)}</div>${x.evidence?`<div class="small">Důkaz: ${escapeHtml(x.evidence)}</div>`:''}</div>`).join('')}<p class="small">Výstup je předběžná kontrola, nikoli autorizovaný normový nebo právní posudek.</p><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close()}
 
 </script>
 </body>
