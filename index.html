@@ -454,7 +454,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version" id="app-version">V3.13w</div>
+  <div class="app-version" id="app-version">V3.13x</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ A DOKUMENTACÍ</div>
 </header>
 
@@ -6783,17 +6783,34 @@ async function get3DPrintMeshRepairEngine(){
   if(print3dState.meshRepairEngine)return print3dState.meshRepairEngine;
   if(print3dState.meshRepairPromise)return print3dState.meshRepairPromise;
   print3dState.meshRepairPromise=(async()=>{
+    // @goodtools/meshrepair je Emscripten/WASM modul. Pri importu pres +esm/esm.sh
+    // se relativni cesta k .wasm souboru muze ztratit. Proto ji predavame explicitne
+    // pres locateFile; presne tento zpusob podporuje i API balicku.
     const pairs=[
-      ['https://cdn.jsdelivr.net/npm/@goodtools/meshrepair@0.1.1/+esm','https://cdn.jsdelivr.net/npm/@goodtools/meshrepair@0.1.1/wasm/+esm'],
-      ['https://esm.sh/@goodtools/meshrepair@0.1.1?bundle','https://esm.sh/@goodtools/meshrepair@0.1.1/wasm?bundle']
+      {
+        mainURL:'https://cdn.jsdelivr.net/npm/@goodtools/meshrepair@0.1.1/+esm',
+        loaderURL:'https://cdn.jsdelivr.net/npm/@goodtools/meshrepair@0.1.1/wasm/+esm',
+        wasmBinaryURL:'https://cdn.jsdelivr.net/npm/@goodtools/meshrepair@0.1.1/dist/meshrepair.wasm'
+      },
+      {
+        mainURL:'https://esm.sh/@goodtools/meshrepair@0.1.1?bundle',
+        loaderURL:'https://esm.sh/@goodtools/meshrepair@0.1.1/wasm?bundle',
+        wasmBinaryURL:'https://cdn.jsdelivr.net/npm/@goodtools/meshrepair@0.1.1/dist/meshrepair.wasm'
+      }
     ];
     let last=null;
-    for(const [mainURL,wasmURL] of pairs){
+    for(const cfg of pairs){
       try{
-        const [mod,wmod]=await Promise.all([import(mainURL),import(wasmURL)]),MeshRepair=mod.MeshRepair||mod.default?.MeshRepair||mod.default,PRESETS=mod.PRESETS||mod.default?.PRESETS||{};
-        const loader=wmod.default||wmod.loadMeshRepair||wmod;if(!MeshRepair?.init||typeof loader!=='function')throw new Error('nekompatibilní API balíčku');
-        const engine=await MeshRepair.init(loader),bundle={engine,PRESETS,source:mainURL};print3dState.meshRepairEngine=bundle;return bundle;
-      }catch(e){last=e;console.warn('MeshRepair CDN',mainURL,e)}
+        const [mod,wmod]=await Promise.all([import(cfg.mainURL),import(cfg.loaderURL)]);
+        const MeshRepair=mod.MeshRepair||mod.default?.MeshRepair||mod.default,PRESETS=mod.PRESETS||mod.default?.PRESETS||{};
+        const loader=wmod.default||wmod.loadMeshRepair||wmod;
+        if(!MeshRepair?.init||typeof loader!=='function')throw new Error('nekompatibilní API balíčku');
+        const engine=await MeshRepair.init(loader,{
+          locateFile:(path,prefix)=>String(path||'').endsWith('.wasm')?cfg.wasmBinaryURL:(prefix||'')+path
+        });
+        if(!engine?.repair)throw new Error('repair engine byl načten, ale nemá metodu repair()');
+        const bundle={engine,PRESETS,source:cfg.mainURL};print3dState.meshRepairEngine=bundle;return bundle;
+      }catch(e){last=e;console.warn('MeshRepair CDN',cfg.mainURL,e)}
     }
     throw new Error('VCG/MeshLab repair engine se nepodařilo načíst: '+(last?.message||last||'neznámá chyba'));
   })();
@@ -6812,7 +6829,7 @@ async function prepare3DPrintSTLForCura(force=false){
     try{
       if(st)st.textContent='Model není uzavřený — vytvářím print-ready manifold kopii…';
       const {engine,PRESETS}=await get3DPrintMeshRepairEngine(),preset=PRESETS?.['print-ready']||{};
-      const opts={...preset,maxHoleSize:Math.max(100,Number(preset.maxHoleSize)||100),removeDuplicateVertex:true,removeDuplicateFace:true,removeUnreferencedVertex:true,removeDegenerateFace:true,removeNonManifoldFace:true,removeNonManifoldVertex:true,fixNormalOrientation:true,flipNormalsOutside:true,removeTVertexByFlip:true,removeFaceFoldByFlip:true,binaryOutput:true};
+      const opts={...preset,fillHoles:true,maxHoleSize:Math.max(500,Math.min(10000,Math.max(Number(preset.maxHoleSize)||100,originalCheck.boundary||0))),removeDuplicateVertex:true,removeDuplicateFace:true,removeUnreferencedVertex:true,removeDegenerateFace:true,removeNonManifoldFace:true,removeNonManifoldVertex:true,fixNormalOrientation:true,flipNormalsOutside:true,removeTVertexByFlip:true,removeFaceFoldByFlip:true,binaryOutput:true};
       const rr=await Promise.resolve(engine.repair('toolbox_input.stl',new Uint8Array(buffer),opts,(step,p)=>{if(st)st.textContent=`Oprava pro slicer: ${step} ${Math.round((Number(p)||0)*100)} %`}));
       repairResult=rr?.result||null;if(repairResult&&repairResult.code!=null&&repairResult.code!==0)throw new Error(repairResult.error||`repair code ${repairResult.code}`);
       const out=rr?.output;if(!out?.byteLength)throw new Error('repair engine nevrátil opravený STL');
