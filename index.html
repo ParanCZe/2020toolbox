@@ -26,7 +26,7 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 .tile span{font-size:12px;color:var(--muted)}
 .menu-status{display:inline-block;margin-left:7px;padding:1px 5px;border:1px solid #d4d4d8;border-radius:999px;background:#f4f4f5;color:#71717a;font:500 9px/1.45 system-ui,Segoe UI,sans-serif;letter-spacing:.45px;vertical-align:2px;text-transform:uppercase}
 
-/* BASECAMP ODKAZ V HLAVNÍM MENU — V3.13v */
+/* BASECAMP ODKAZ V HLAVNÍM MENU — V3.13w */
 .menu-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:0}
 .menu-title-copy{min-width:0}
 .basecamp-launcher{position:relative;display:inline-flex;align-items:center;justify-content:center;width:58px;height:58px;flex:0 0 58px;text-decoration:none;border-radius:16px;outline:none;transition:transform .22s cubic-bezier(.2,.8,.2,1),filter .22s ease;will-change:transform}
@@ -43,7 +43,7 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 @media(max-width:600px){.basecamp-launcher{width:52px;height:52px;flex-basis:52px}.basecamp-launcher svg{width:34px;height:34px}.basecamp-launcher .basecamp-tooltip{display:none}}
 
 
-/* 3D KNIHOVNA VÝROBKŮ — V3.13v BETA */
+/* 3D KNIHOVNA VÝROBKŮ — V3.13w BETA */
 .product3d-search{margin:16px 0;border:1px solid var(--border);border-radius:10px;background:#fafafa;padding:14px}
 .product3d-search-grid{display:grid;grid-template-columns:minmax(260px,1.45fr) minmax(230px,1fr) auto;gap:9px;align-items:end}
 .product3d-search-grid label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted);min-width:0}
@@ -363,7 +363,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:800px){.compare-grid{grid-template-columns:1fr}.compare-diff{grid-column:auto}.docs-summary{grid-template-columns:1fr 1fr}}
 
 
-/* 3D TISK — V3.13v BETA */
+/* 3D TISK — V3.13w BETA */
 .print3d-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.85fr);gap:14px;margin-top:14px}
 .print3d-viewer{border:1px solid var(--border);border-radius:10px;background:#e4e4e7;overflow:hidden;min-height:560px;display:flex;flex-direction:column}
 .print3d-viewer-head{padding:9px 11px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
@@ -387,7 +387,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:900px){.print3d-layout{grid-template-columns:1fr}.print3d-viewer{min-height:460px}#print3d-stage,#print3d-canvas{min-height:400px}}
 
 
-/* 3D TISK — V3.13v: kompaktní rozhraní + záložky */
+/* 3D TISK — V3.13w: kompaktní rozhraní + záložky */
 .print3d-layout{align-items:start}
 .print3d-viewer{height:650px;min-height:0;max-height:72vh;position:sticky;top:10px}
 #print3d-stage{min-height:0;height:100%;flex:1}
@@ -427,7 +427,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 
 
-/* KONTROLA NÁVRHU — V3.13v BETA */
+/* KONTROLA NÁVRHU — V3.13w BETA */
 .audit-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
 .audit-privacy{font-size:11px;color:var(--muted);line-height:1.5;max-width:620px}
 .audit-rules{margin:14px 0;padding:12px;border:1px solid var(--border);border-radius:9px;background:#fafafa}
@@ -454,7 +454,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version" id="app-version">V3.13v</div>
+  <div class="app-version" id="app-version">V3.13w</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ A DOKUMENTACÍ</div>
 </header>
 
@@ -1473,7 +1473,7 @@ function initProjectStorageUI() {
   const button = document.getElementById('projects-storage-btn');
   const autosave = document.getElementById('project-autosave-note');
   if (projectStorageMode === 'browser') {
-    if (version) version.textContent = 'V3.13v · SAFARI';
+    if (version) version.textContent = 'V3.13w · SAFARI';
     if (note) note.innerHTML = 'Vyberte existující projekt, nebo založte nový. V Safari se projekty ukládají <b>lokálně v tomto Macu</b> do úložiště Safari a načítají se přímo ze seznamu projektů.';
     if (warning) {
       warning.style.display = 'block';
@@ -1482,7 +1482,7 @@ function initProjectStorageUI() {
     if (button) button.textContent = '🔄 Obnovit seznam projektů';
     if (autosave) autosave.textContent = '(automatické ukládání v Safari)';
   } else {
-    if (version) version.textContent = 'V3.13v';
+    if (version) version.textContent = 'V3.13w';
     if (note) note.innerHTML = 'Vyberte existující projekt, nebo založte nový. Projekty se ukládají do složky <code>saved_projects</code>.';
     if (warning) warning.style.display = 'none';
     if (button) button.textContent = '🔄 Připojit / obnovit složku saved_projects';
@@ -5935,7 +5935,7 @@ async function runPanel(fromModal = false){
 
 
 // ============================================================
-// 3D TISK — V3.13v BETA
+// 3D TISK — V3.13w BETA
 // ============================================================
 const print3dState={
   initialized:false,deps:null,renderer:null,scene:null,camera:null,controls:null,root:null,file:null,
@@ -5946,7 +5946,8 @@ const print3dState={
   uiMode:'simple',simplePrepared:false,simplePreparing:false,
   manifoldDeps:null,manifoldLoadPromise:null,kiriFactory:null,kiriFactoryName:null,kiriLoadPromise:null,kiriLastError:null,kiriBusy:false,
   curaDeps:null,curaLoadPromise:null,curaLastError:null,slicerBusy:false,curaSource:null,
-  repairProxy:null,repairProxyAnalysis:null,preparedSlicerCopy:null,meshRepairEngine:null,meshRepairPromise:null
+  repairProxy:null,repairProxyAnalysis:null,preparedSlicerCopy:null,meshRepairEngine:null,meshRepairPromise:null,
+  voxelDeps:null,voxelLoadPromise:null,lastVoxelInfo:null
 };
 
 async function get3DPrintDeps(){
@@ -6262,7 +6263,7 @@ function clone3DPrintRootForRepair(){
   if(src.length!==dst.length)return null;for(let i=0;i<dst.length;i++)dst[i].geometry=src[i].geometry.clone();return clone;
 }
 function capture3DPrintRepairBackup(){
-  // Od V3.13v se zobrazovaný model nikdy neopravuje in-place. Tato funkce jen zruší starší tiskovou kopii.
+  // Od V3.13w se zobrazovaný model nikdy neopravuje in-place. Tato funkce jen zruší starší tiskovou kopii.
   dispose3DPrintRepairProxy();print3dState.repairBackup={proxyMode:true};return print3dState.repairBackup;
 }
 async function refresh3DPrintSourceAnalysis(){
@@ -6799,37 +6800,114 @@ async function get3DPrintMeshRepairEngine(){
   })();
   try{return await print3dState.meshRepairPromise}finally{print3dState.meshRepairPromise=null}
 }
+
+async function get3DPrintVoxelDeps(){
+  if(print3dState.voxelDeps)return print3dState.voxelDeps;
+  if(print3dState.voxelLoadPromise)return print3dState.voxelLoadPromise;
+  print3dState.voxelLoadPromise=(async()=>{
+    const urls=[
+      'https://esm.sh/three-mesh-bvh@0.9.14?deps=three@0.169.0',
+      'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.14/+esm'
+    ];
+    let last=null;
+    for(const url of urls){
+      try{
+        const mod=await import(url);if(typeof mod.MeshBVH!=='function')throw new Error('MeshBVH API není dostupné.');
+        const deps={MeshBVH:mod.MeshBVH,source:url};print3dState.voxelDeps=deps;return deps;
+      }catch(e){last=e;console.warn('Voxel BVH CDN',url,e)}
+    }
+    throw new Error('Voxelový repair modul se nepodařilo načíst: '+(last?.message||last||'neznámá chyba'));
+  })();
+  try{return await print3dState.voxelLoadPromise}finally{print3dState.voxelLoadPromise=null}
+}
+
+function manifoldMeshTo3DPrintGeometry(outMesh,THREE){
+  const np=Number(outMesh?.numProp)||3,vp=outMesh?.vertProperties,tri=outMesh?.triVerts;
+  const nv=Number(outMesh?.numVert)||Math.floor((vp?.length||0)/Math.max(np,1));
+  if(!vp?.length||!tri?.length||!nv)throw new Error('Manifold level-set vrátil prázdnou geometrii.');
+  const arr=new Float32Array(nv*3);for(let i=0;i<nv;i++){arr[i*3]=vp[i*np];arr[i*3+1]=vp[i*np+1];arr[i*3+2]=vp[i*np+2]}
+  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(arr,3));geo.setIndex(new THREE.BufferAttribute(new Uint32Array(tri),1));geo.computeVertexNormals();geo.computeBoundingBox();geo.computeBoundingSphere();return geo;
+}
+
+async function voxelSolidify3DPrintSTL(buffer,originalCheck){
+  const status=document.getElementById('print3d-cura-status'),st=document.getElementById('st-3dprint');
+  const {THREE,STLLoader,STLExporter}=await get3DPrintDeps();const wasm=await get3DPrintManifoldDeps();const {MeshBVH,source}=await get3DPrintVoxelDeps();
+  let geo=null,solid=null,outMesh=null,outGeo=null,mat=null,mesh=null;
+  try{
+    geo=new STLLoader().parse(buffer.slice(0));if(!geo?.attributes?.position)throw new Error('Voxelová oprava nedostala platnou STL geometrii.');
+    geo.computeBoundingBox();const box=geo.boundingBox.clone(),size=new THREE.Vector3();box.getSize(size);const maxDim=Math.max(size.x,size.y,size.z,1e-6);
+    // Cílem není měnit návrh, ale vytvořit tisknutelný uzavřený obal kolem ploch. Rozlišení držíme blízko fyzické možnosti 0,4mm trysky a současně omezíme počet buněk.
+    const nozzle=Math.max(.15,num3D('print3d-nozzle',.4));
+    const targetCells=120;const edgeLength=Math.max(nozzle*1.15,maxDim/targetCells);
+    const shellRadius=Math.max(nozzle*1.35,edgeLength*.85);
+    const pad=shellRadius+edgeLength*2;box.expandByScalar(pad);
+    if(st)st.textContent=`Model není spolehlivý solid — vytvářím voxelovou tiskovou kopii (~${edgeLength.toFixed(2)} mm)…`;
+    if(status)status.innerHTML=`<b>VOXELOVÝ SOLIDIFY · PRINT-READY</b><br>Otevřenou / non-manifold geometrii převádím na nový uzavřený objem. Přesnost mřížky ~${edgeLength.toFixed(2)} mm, minimální tisková tloušťka ~${(shellRadius*2).toFixed(2)} mm.<br><span style="opacity:.72">Původní model se nemění. Používá se Manifold LevelSet + BVH vzdálenostní pole.</span>`;
+    // BVH pracuje přímo v souřadnicích zapečeného STL.
+    const bvh=new MeshBVH(geo,{maxLeafTris:12});const p=new THREE.Vector3(),hit={};let evals=0;
+    const sdf=(point)=>{
+      const x=Array.isArray(point)||ArrayBuffer.isView(point)?point[0]:point.x,y=Array.isArray(point)||ArrayBuffer.isView(point)?point[1]:point.y,z=Array.isArray(point)||ArrayBuffer.isView(point)?point[2]:point.z;
+      p.set(Number(x)||0,Number(y)||0,Number(z)||0);evals++;
+      const h=bvh.closestPointToPoint(p,hit,0,shellRadius+edgeLength*2);const d=h?.distance;
+      // Manifold levelSet očekává kladné hodnoty uvnitř. Tímto vytvoříme uzavřený tisknutelný obal kolem všech původních ploch.
+      return shellRadius-(Number.isFinite(d)?d:(shellRadius+edgeLength*2));
+    };
+    const bounds={min:[box.min.x,box.min.y,box.min.z],max:[box.max.x,box.max.y,box.max.z]};
+    await new Promise(r=>setTimeout(r,20));
+    solid=wasm.Manifold.levelSet(sdf,bounds,edgeLength,0,-1);const stat=solid?.status?.();if((typeof stat==='number'&&stat!==0)||solid?.isEmpty?.())throw new Error('Voxelový level-set nevytvořil platný solid (status '+String(stat)+').');
+    outMesh=solid.getMesh();outGeo=manifoldMeshTo3DPrintGeometry(outMesh,THREE);
+    mat=new THREE.MeshBasicMaterial();mesh=new THREE.Mesh(outGeo,mat);mesh.updateMatrixWorld(true);
+    const exporter=new STLExporter(),raw=exporter.parse(mesh,{binary:true});let outBuffer;
+    if(raw instanceof ArrayBuffer)outBuffer=raw;else if(ArrayBuffer.isView(raw))outBuffer=raw.buffer.slice(raw.byteOffset,raw.byteOffset+raw.byteLength);else throw new Error('STLExporter nevrátil binární data.');
+    const check=await analyze3DPrintSTLBuffer(outBuffer);const dimDelta=compare3DPrintSizes(originalCheck.size,check.size);
+    const fullyClosed=(check.boundary||0)===0&&(check.nonManifold||0)===0&&(check.degenerate||0)===0;
+    // Solidify smí model o něco zvětšit o tloušťku obalu, ale ne zásadně změnit jeho envelope.
+    const absMax=Math.max(Math.abs(check.size.x-originalCheck.size.x),Math.abs(check.size.y-originalCheck.size.y),Math.abs(check.size.z-originalCheck.size.z));
+    const allowedAbs=shellRadius*3.5+edgeLength*2.5;
+    if(!fullyClosed)throw new Error(`Voxelová kopie není uzavřená (${check.boundary||0} otevřených hran / ${check.nonManifold||0} non-manifold).`);
+    if(absMax>allowedAbs&&dimDelta>.08)throw new Error(`Voxelová kopie změnila obálku modelu příliš výrazně (${(dimDelta*100).toFixed(1)} %).`);
+    print3dState.lastVoxelInfo={edgeLength,shellRadius,evals,source,triangles:check.triangles};
+    return {buffer:outBuffer,check,edgeLength,shellRadius,evals,source};
+  }finally{
+    try{mesh?.removeFromParent?.()}catch{}try{mat?.dispose?.()}catch{}try{outGeo?.dispose?.()}catch{}try{geo?.dispose?.()}catch{}try{solid?.delete?.()}catch{}try{outMesh?.delete?.()}catch{}
+  }
+}
+
 async function prepare3DPrintSTLForCura(force=false){
   if(!force&&print3dState.preparedSlicerCopy)return print3dState.preparedSlicerCopy;
   const status=document.getElementById('print3d-cura-status'),st=document.getElementById('st-3dprint');
   if(st)st.textContent='Peču přesnou geometrii z 3D náhledu do STL…';
   const baked=await build3DPrintBakedSTL(),viewer=current3DPrintDims(),originalCheck=await analyze3DPrintSTLBuffer(baked.buffer),mismatch=compare3DPrintSizes(viewer,originalCheck.size);
   if(mismatch>.005)throw new Error(`Interní kontrola STL nesedí s viewerem (${(mismatch*100).toFixed(2)} %). Export byl zastaven.`);
-  let buffer=baked.buffer,repaired=false,repairResult=null,repairNote='',finalCheck=originalCheck,topologyMode='solid';
-  const broken=(originalCheck.boundary||0)>0||(originalCheck.nonManifold||0)>0||(originalCheck.degenerate||0)>0;
+  let buffer=baked.buffer,repaired=false,repairResult=null,repairMethod='none',repairNote='',finalCheck=originalCheck,topologyMode='solid';
+  const hasOpen=(originalCheck.boundary||0)>0||(originalCheck.nonManifold||0)>0;
+  const onlyDegenerate=!hasOpen&&(originalCheck.degenerate||0)>0;
   if(status)status.innerHTML=`<b>PŘÍPRAVA MODELU PRO SLICER</b><br>Přesná kopie vieweru: ${originalCheck.triangles.toLocaleString('cs-CZ')} trojúhelníků · ${originalCheck.size.x.toFixed(2)} × ${originalCheck.size.y.toFixed(2)} × ${originalCheck.size.z.toFixed(2)} mm.<br>Topologie: ${originalCheck.boundary||0} otevřených hran · ${originalCheck.nonManifold||0} non-manifold · ${originalCheck.degenerate||0} degenerací.`;
-  if(broken){
+
+  // Pouhá degenerace se dá bezpečně čistit klasicky. Otevřené/non-manifold architektonické meshe už nepokoušíme agresivně „sešívat“ — vytvoříme z nich nový uzavřený tiskový obal.
+  if(onlyDegenerate){
     try{
-      if(st)st.textContent='Model není uzavřený — vytvářím print-ready manifold kopii…';
+      if(st)st.textContent='Odstraňuji pouze degenerované plochy z tiskové kopie…';
       const {engine,PRESETS}=await get3DPrintMeshRepairEngine(),preset=PRESETS?.['print-ready']||{};
-      const opts={...preset,maxHoleSize:Math.max(100,Number(preset.maxHoleSize)||100),removeDuplicateVertex:true,removeDuplicateFace:true,removeUnreferencedVertex:true,removeDegenerateFace:true,removeNonManifoldFace:true,removeNonManifoldVertex:true,fixNormalOrientation:true,flipNormalsOutside:true,removeTVertexByFlip:true,removeFaceFoldByFlip:true,binaryOutput:true};
-      const rr=await Promise.resolve(engine.repair('toolbox_input.stl',new Uint8Array(buffer),opts,(step,p)=>{if(st)st.textContent=`Oprava pro slicer: ${step} ${Math.round((Number(p)||0)*100)} %`}));
-      repairResult=rr?.result||null;if(repairResult&&repairResult.code!=null&&repairResult.code!==0)throw new Error(repairResult.error||`repair code ${repairResult.code}`);
-      const out=rr?.output;if(!out?.byteLength)throw new Error('repair engine nevrátil opravený STL');
-      const rb=out.buffer.slice(out.byteOffset,out.byteOffset+out.byteLength),rc=await analyze3DPrintSTLBuffer(rb),delta=compare3DPrintSizes(originalCheck.size,rc.size),areaDelta=Math.abs((rc.area||0)-(originalCheck.area||0))/Math.max(originalCheck.area||0,1e-9),faceRatio=rc.triangles/Math.max(1,originalCheck.triangles);
-      const fullyClosed=(rc.boundary||0)===0&&(rc.nonManifold||0)===0&&(rc.degenerate||0)===0;
-      const shapeSafe=delta<=.006&&areaDelta<=.12&&faceRatio>=.45&&faceRatio<=3.0&&rc.triangles>0;
-      if(fullyClosed&&shapeSafe){buffer=rb;repaired=true;finalCheck=rc;topologyMode='solid';repairNote=`Print-ready oprava přijata: otevřené hrany ${originalCheck.boundary||0} → 0, non-manifold ${originalCheck.nonManifold||0} → 0, trojúhelníky ${originalCheck.triangles.toLocaleString('cs-CZ')} → ${rc.triangles.toLocaleString('cs-CZ')}.`}
-      else{
-        topologyMode='mixed';
-        const why=[];if(!fullyClosed)why.push(`opravená kopie zůstala otevřená (${rc.boundary||0} hran / ${rc.nonManifold||0} non-manifold)`);if(delta>.006)why.push(`změnila rozměr o ${(delta*100).toFixed(1)} %`);if(areaDelta>.12)why.push(`změnila plochu o ${(areaDelta*100).toFixed(1)} %`);if(faceRatio<.45||faceRatio>3)why.push(`změnila počet ploch ${faceRatio.toFixed(2)}×`);
-        repairNote='Opravená kopie nebyla dostatečně bezpečná: '+why.join(', ')+'. Používám přesný původní STL a Cura režim „objem + volné plochy“ bez agresivního stitching.';
-      }
-    }catch(e){topologyMode='mixed';repairNote='Automatická manifold oprava nebyla dostupná nebo selhala: '+(e?.message||e)+'. Používám přesný původní STL a Cura režim „objem + volné plochy“.';console.warn('print-ready repair fallback',e)}
-  } else repairNote='Model je už manifold; geometrická oprava není potřeba.';
-  const prepared={buffer,repaired,repairResult,baked,check:finalCheck,originalCheck,finalCheck,repairNote,topologyMode};
+      const opts={...preset,maxHoleSize:0,removeDuplicateVertex:true,removeDuplicateFace:true,removeUnreferencedVertex:true,removeDegenerateFace:true,removeNonManifoldFace:false,removeNonManifoldVertex:false,fixNormalOrientation:true,flipNormalsOutside:true,removeTVertexByFlip:false,removeFaceFoldByFlip:false,binaryOutput:true};
+      const rr=await Promise.resolve(engine.repair('toolbox_input.stl',new Uint8Array(buffer),opts));repairResult=rr?.result||null;
+      const out=rr?.output;if(out?.byteLength){const rb=out.buffer.slice(out.byteOffset,out.byteOffset+out.byteLength),rc=await analyze3DPrintSTLBuffer(rb),delta=compare3DPrintSizes(originalCheck.size,rc.size);if((rc.boundary||0)===0&&(rc.nonManifold||0)===0&&(rc.degenerate||0)===0&&delta<=.006){buffer=rb;repaired=true;repairMethod='cleanup';finalCheck=rc;repairNote=`Bezpečné vyčištění odstranilo degenerace ${originalCheck.degenerate||0} → 0 bez změny tvaru.`}}
+    }catch(e){console.warn('degenerate cleanup failed',e)}
+  }
+
+  if(hasOpen){
+    try{
+      const vx=await voxelSolidify3DPrintSTL(baked.buffer,originalCheck);buffer=vx.buffer;finalCheck=vx.check;repaired=true;repairMethod='voxel-solidify';topologyMode='solid';
+      repairNote=`Voxelový solidify vytvořil nový uzavřený tiskový obal: ${originalCheck.boundary||0} otevřených hran → 0, ${originalCheck.nonManifold||0} non-manifold → 0. Přesnost ~${vx.edgeLength.toFixed(2)} mm, minimální zachovaná/tisknutelná tloušťka ~${(vx.shellRadius*2).toFixed(2)} mm. Originál ve vieweru zůstal beze změny.`;
+    }catch(e){
+      topologyMode='mixed';repaired=false;repairMethod='surface-fallback';repairNote='Voxelový solidify se nepodařil: '+(e?.message||e)+'. Cura dostane přesný původní STL v nouzovém surface režimu; tento výstup je nutné pečlivě zkontrolovat.';console.warn('voxel solidify fallback',e)
+    }
+  }else if(!onlyDegenerate)repairNote='Model je už manifold; geometrická oprava není potřeba.';
+  else if(!repaired){topologyMode='mixed';repairMethod='surface-fallback';repairNote='Degenerované plochy se nepodařilo bezpečně odstranit. Používám přesný původní STL v nouzovém surface režimu.'}
+
+  const prepared={buffer,repaired,repairResult,repairMethod,baked,check:finalCheck,originalCheck,finalCheck,repairNote,topologyMode};
   print3dState.preparedSlicerCopy=prepared;
-  if(status)status.innerHTML=`<b>✓ MODEL PRO SLICER PŘIPRAVEN</b><br>${escapeHtml(repairNote)}<br><span style="opacity:.72">Režim sliceru: ${topologyMode==='solid'?'uzavřený objem':'objem + otevřené plochy'}.</span>`;
+  if(status)status.innerHTML=`<b>✓ MODEL PRO SLICER PŘIPRAVEN</b><br>${escapeHtml(repairNote)}<br><span style="opacity:.72">Režim sliceru: ${topologyMode==='solid'?'uzavřený objem':'nouzové otevřené plochy'}${repairMethod==='voxel-solidify'?' · voxel solidify':''}.</span>`;
   return prepared;
 }
 
@@ -6838,7 +6916,7 @@ function kiri3DPrintDevice(){
   const nozzle=Math.max(.15,num3D('print3d-nozzle',.4)),bx=num3D('print3d-bedx',250),by=num3D('print3d-bedy',210),bz=num3D('print3d-bedz',210);
   return {new:false,mode:'FDM',deviceName:'Original Prusa i3 MK3S',noclone:false,internal:0,imageURL:'',imageScale:.75,imageAnchor:0,bedHeight:2.5,bedWidth:bx,bedDepth:by,bedRound:false,bedBelt:false,maxHeight:bz,originCenter:false,extrudeAbs:true,spindleMax:0,
     gcodeFan:['M106 S{fan_speed}'],gcodeTrack:[],gcodeLayer:[';LAYER:{layer}'],
-    gcodePre:['; generated by 20-20-TOOLBOX V3.13v + Kiri:Moto','; target = Original Prusa i3 MK3S','M107 ; fan off','G90 ; absolute XYZ','M82 ; absolute extrusion','G21 ; millimeters','M104 S{temp} T{tool} ; set nozzle','M140 S{bed_temp} ; set bed','M190 S{bed_temp} ; wait bed','M109 S{temp} T{tool} ; wait nozzle','G28 W ; home without mesh leveling','G80 ; mesh bed leveling','G92 E0','G1 Z0.20 F7200','G1 Y-3.0 F1000','G1 X60.0 E9.0 F1000','G1 X100.0 E12.5 F1000','G92 E0'],
+    gcodePre:['; generated by 20-20-TOOLBOX V3.13w + Kiri:Moto','; target = Original Prusa i3 MK3S','M107 ; fan off','G90 ; absolute XYZ','M82 ; absolute extrusion','G21 ; millimeters','M104 S{temp} T{tool} ; set nozzle','M140 S{bed_temp} ; set bed','M190 S{bed_temp} ; wait bed','M109 S{temp} T{tool} ; wait nozzle','G28 W ; home without mesh leveling','G80 ; mesh bed leveling','G92 E0','G1 Z0.20 F7200','G1 Y-3.0 F1000','G1 X60.0 E9.0 F1000','G1 X100.0 E12.5 F1000','G92 E0'],
     gcodePost:['M107 ; fan off','M104 S0 ; hotend off','M140 S0 ; bed off','G91','G1 Z5 F720','G90','G28 X0 ; park X','M84 ; motors off','; end of 20-20-TOOLBOX Kiri:Moto G-code'],gcodeProc:'',gcodePause:[],gcodeDwell:[],gcodeSpindle:[],gcodeChange:[],gcodeFExt:'gcode',gcodeSpace:true,gcodeStrip:false,gcodeLaserOn:[],gcodeLaserOff:[],extruders:[{extFilament:1.75,extNozzle:nozzle,extSelect:['T0'],extDeselect:[],extOffsetX:0,extOffsetY:0}]};
 }
 function kiri3DPrintProcess(){
@@ -7004,11 +7082,11 @@ async function export3DPrintGcode(){
     const result=await run3DPrintCura(prepared.buffer,prepared.topologyMode,prepared.repaired);
     const gcode=validate3DPrintSlicerGcode(result.gcode);
     const ratio=String(document.getElementById('print3d-scale')?.value||1).replace(/[^0-9._-]/g,'');
-    const header=`; 20-20-TOOLBOX V3.13v\n; slicer_engine = CuraEngine WASM\n; source = ${f.name}\n; source_geometry = baked + verified viewer geometry\n; pre_slice_repair = ${prepared.repaired?'VCG/MeshLab print-ready':'none / mixed-surface fallback'}\n; topology_mode = ${prepared.topologyMode}\n; scale = 1:${document.getElementById('print3d-scale')?.value||1}\n; IMPORTANT: verify in PrusaSlicer G-code Viewer before printing\n`;
+    const header=`; 20-20-TOOLBOX V3.13w\n; slicer_engine = CuraEngine WASM\n; source = ${f.name}\n; source_geometry = baked + verified viewer geometry\n; pre_slice_repair = ${prepared.repairMethod||'none'}\n; topology_mode = ${prepared.topologyMode}\n; scale = 1:${document.getElementById('print3d-scale')?.value||1}\n; IMPORTANT: verify in PrusaSlicer G-code Viewer before printing\n`;
     const blob=new Blob([header+gcode],{type:'text/x-gcode'}),a=document.createElement('a');
     a.href=URL.createObjectURL(blob);a.download=f.name.replace(/\.[^.]+$/,'')+`_MK3S_CURA_1-${ratio}.gcode`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2500);
     if(st)st.textContent='G-code vytvořen CuraEngine slicerem. Zkontroluj ho v PrusaSlicer G-code Vieweru.';
-    if(status)status.innerHTML=`<b>✓ CURAENGINE WASM · HOTOVO</b><br>G-code vytvořen CuraEngine z geometrie, která byla před slicingem zapečena z vieweru a rozměrově ověřena. ${prepared.repaired?'Použita byla manifold print-ready kopie ověřená po opravě.':prepared.topologyMode==='mixed'?'Model zůstal otevřený; Cura ho slicovala v režimu objem + volné plochy bez agresivního spojování kontur.':'Použit byl přesný původní manifold STL.'}${result.metadata?'<br><span style="opacity:.75">Cura metadata byla vytvořena spolu s G-code.</span>':''}`;
+    if(status)status.innerHTML=`<b>✓ CURAENGINE WASM · HOTOVO</b><br>G-code vytvořen CuraEngine z geometrie, která byla před slicingem zapečena z vieweru a rozměrově ověřena. ${prepared.repairMethod==='voxel-solidify'?'Použita byla voxelově solidifikovaná uzavřená tisková kopie.':prepared.repaired?'Použita byla bezpečně vyčištěná tisková kopie.':prepared.topologyMode==='mixed'?'Model zůstal otevřený; Cura použila nouzový surface režim.':'Použit byl přesný původní manifold STL.'}${result.metadata?'<br><span style="opacity:.75">Cura metadata byla vytvořena spolu s G-code.</span>':''}`;
   }catch(e){
     console.error('Cura export',e);print3dState.curaLastError=e;
     if(st)st.textContent='CuraEngine slicing se nepodařilo dokončit.';
@@ -7025,7 +7103,7 @@ async function export3DPrintGcodeLegacy(){
   try{
     const layers=calc3DPrintLayerCount(),nozzle=num3D('print3d-nozzle',.4),width=nozzle*1.125,firstH=num3D('print3d-first-layer',.2),lh=num3D('print3d-layer-height',.15),perims=Math.max(1,Math.round(num3D('print3d-perimeters',3))),top=Math.max(1,Math.round(num3D('print3d-top-solid',5))),bottom=Math.max(1,Math.round(num3D('print3d-bottom-solid',4))),perimSpeed=num3D('print3d-speed-perim',35)*60,infillSpeed=num3D('print3d-speed-infill',50)*60,supportSpeed=Math.min(num3D('print3d-speed-infill',50),40)*60,travelSpeed=num3D('print3d-speed-travel',180)*60,retract=Math.max(0,num3D('print3d-retract',.8)),zhop=Math.max(0,num3D('print3d-zhop',.4)),fan=Math.round(Math.max(0,Math.min(100,num3D('print3d-fan',50)))*2.55),noz1=Math.round(num3D('print3d-nozzle-first',230)),noz=Math.round(num3D('print3d-nozzle-temp',240)),bed1=Math.round(num3D('print3d-bed-first',85)),bed=Math.round(num3D('print3d-bed-temp',90)),filArea=Math.PI*Math.pow(1.75/2,2),brim=Math.max(0,num3D('print3d-brim',0)),bounds=get3DPrintXYBounds();
     if(!bounds)throw new Error('Nelze získat rozměry modelu.');const ox=bx/2-(bounds.minX+bounds.maxX)/2,oy=by/2-(bounds.minY+bounds.maxY)/2;
-    const g=[];g.push('; DISABLED LEGACY internal slicer — 20-20-TOOLBOX V3.13v','; printer_model = Original Prusa i3 MK3S',`; source = ${f.name}`,`; layer_height = ${lh}`,`; first_layer_height = ${firstH}`,`; nozzle_diameter = ${nozzle}`,`; filament_type = ${document.getElementById('print3d-material')?.value?.toUpperCase()||'PETG'}`,`; fill_density = ${num3D('print3d-infill',12)}%`, `; support_material = ${(document.getElementById('print3d-supports')?.value||'off')}`, `; support_density = ${num3D('print3d-support-density',15)}%`,'; verify this BETA G-code in PrusaSlicer G-code Viewer before printing','M83 ; relative extrusion','G90 ; absolute coordinates','G21 ; millimeters',`M104 S${noz1} ; nozzle temp`,`M140 S${bed1} ; bed temp`,`M190 S${bed1} ; wait bed`,`M109 S${noz1} ; wait nozzle`,'G28 W ; home without mesh leveling','G80 ; mesh bed leveling',`G1 Z${firstH.toFixed(3)} F7200`,'G92 E0','G1 Y-3.0 F1000','G1 X60.0 E9.0 F1000','G1 X100.0 E12.5 F1000','G92 E0','M107');
+    const g=[];g.push('; DISABLED LEGACY internal slicer — 20-20-TOOLBOX V3.13w','; printer_model = Original Prusa i3 MK3S',`; source = ${f.name}`,`; layer_height = ${lh}`,`; first_layer_height = ${firstH}`,`; nozzle_diameter = ${nozzle}`,`; filament_type = ${document.getElementById('print3d-material')?.value?.toUpperCase()||'PETG'}`,`; fill_density = ${num3D('print3d-infill',12)}%`, `; support_material = ${(document.getElementById('print3d-supports')?.value||'off')}`, `; support_density = ${num3D('print3d-support-density',15)}%`,'; verify this BETA G-code in PrusaSlicer G-code Viewer before printing','M83 ; relative extrusion','G90 ; absolute coordinates','G21 ; millimeters',`M104 S${noz1} ; nozzle temp`,`M140 S${bed1} ; bed temp`,`M190 S${bed1} ; wait bed`,`M109 S${noz1} ; wait nozzle`,'G28 W ; home without mesh leveling','G80 ; mesh bed leveling',`G1 Z${firstH.toFixed(3)} F7200`,'G92 E0','G1 Y-3.0 F1000','G1 X60.0 E9.0 F1000','G1 X100.0 E12.5 F1000','G92 E0','M107');
     let cx=100,cy=-3,cz=0,retracted=false,totalE=0;const eFor=(len,h)=>len*width*h/filArea;
     const travel=(x,y,z)=>{const dist=Math.hypot(x-cx,y-cy);if(dist>2&&retract>0&&!retracted){g.push(`G1 E-${retract.toFixed(3)} F2100`);retracted=true}if(zhop>0&&dist>2)g.push(`G1 Z${Math.min(bz,z+zhop).toFixed(3)} F7200`);g.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} F${Math.round(travelSpeed)}`);if(zhop>0&&dist>2)g.push(`G1 Z${z.toFixed(3)} F7200`);if(retracted){g.push(`G1 E${retract.toFixed(3)} F2100`);retracted=false}cx=x;cy=y;cz=z};
     const extrudePolyline=(poly,z,h,speed,closed=true)=>{if(!poly||poly.length<2)return;const p0=poly[0];travel(p0[0]+ox,p0[1]+oy,z);const n=closed?poly.length+1:poly.length;for(let i=1;i<n;i++){const p=poly[i%poly.length],x=p[0]+ox,y=p[1]+oy,len=Math.hypot(x-cx,y-cy);if(len<1e-5)continue;const e=eFor(len,h);g.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} E${e.toFixed(5)} F${Math.round(speed)}`);cx=x;cy=y;totalE+=e}};
@@ -7256,7 +7334,7 @@ function open3DProductSource(source){const btn=document.querySelector(`#product3
 
 
 // ============================================================
-// KONTROLA NÁVRHU — V3.13v BETA
+// KONTROLA NÁVRHU — V3.13w BETA
 // ============================================================
 const designAuditState={initialized:false,file:null,pdf:null,pages:[],issues:[],filter:'all',selected:-1,runId:0};
 function initDesignAudit(){
@@ -7322,7 +7400,7 @@ function renderDesignAuditIssues(){const box=document.getElementById('audit-issu
 async function showDesignAuditIssue(id){const issue=designAuditState.issues.find(x=>x.id===id);if(!issue||!designAuditState.pdf)return;designAuditState.selected=id;renderDesignAuditIssues();await renderDesignAuditPage(issue.page,issue.evidence);const pg=designAuditState.pages.find(x=>x.page===issue.page);document.getElementById('audit-preview-title').textContent=issue.title;document.getElementById('audit-preview-page').textContent=`Strana ${issue.page} · ${pg?.type||''}`}
 async function renderDesignAuditPage(pageNum,evidence=''){const pdf=designAuditState.pdf,canvas=document.getElementById('audit-preview-canvas'),empty=document.getElementById('audit-preview-empty');if(!pdf||!canvas)return;const page=await pdf.getPage(pageNum),base=page.getViewport({scale:1}),stage=canvas.parentElement,avail=Math.max(320,Math.min(760,(stage?.clientWidth||620)-22)),scale=Math.min(1.8,avail/base.width),vp=page.getViewport({scale}),ctx=canvas.getContext('2d');canvas.width=Math.ceil(vp.width);canvas.height=Math.ceil(vp.height);canvas.style.width=`${vp.width}px`;canvas.style.height=`${vp.height}px`;await page.render({canvasContext:ctx,viewport:vp}).promise;if(empty)empty.style.display='none';if(!evidence)return;const tc=await page.getTextContent(),needle=normalizeSpaces(evidence).toLowerCase();let hits=(tc.items||[]).filter(it=>{const t=normalizeSpaces(it.str||'').toLowerCase();return t&&needle&&(t.includes(needle)||needle.includes(t)&&t.length>=3)}).slice(0,8);if(!hits.length&&needle){const words=needle.split(/\s+/).filter(x=>x.length>3).slice(0,3);hits=(tc.items||[]).filter(it=>words.some(w=>normalizeSpaces(it.str||'').toLowerCase().includes(w))).slice(0,6)}ctx.save();ctx.strokeStyle='#dc2626';ctx.fillStyle='rgba(220,38,38,.10)';ctx.lineWidth=3;for(const it of hits){const tx=pdfjsLib.Util.transform(vp.transform,it.transform),h=Math.max(9,Math.hypot(tx[2],tx[3])),x=tx[4]-3,y=tx[5]-h-3,w=Math.max(20,(it.width||20)*scale+6);ctx.fillRect(x,y,w,h+7);ctx.strokeRect(x,y,w,h+7)}ctx.restore()}
 function exportDesignAuditCsv(){if(!designAuditState.issues.length&&!designAuditState.pages.length)return;const rows=[['Závažnost','Kategorie','Strana','Název','Popis','Důkaz','Jistota'],...designAuditState.issues.map(x=>[auditSeverityLabel(x.severity),x.category,x.page,x.title,x.message,x.evidence||'',x.confidence])];const csv='\ufeff'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');downloadBlob(new Blob([csv],{type:'text/csv;charset=utf-8'}),`${filenameBase(designAuditState.file?.name||'dokumentace')}_kontrola_navrhu.csv`)}
-function printDesignAuditReport(){const f=designAuditState.file;if(!f)return;const issues=designAuditState.issues,counts={error:issues.filter(x=>x.severity==='error').length,warn:issues.filter(x=>x.severity==='warn').length,rec:issues.filter(x=>x.severity==='rec').length},w=window.open('','_blank');if(!w)return;w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Kontrola návrhu</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:22px}.meta{color:#666;font-size:12px;margin-bottom:20px}.summary{display:flex;gap:10px;margin:14px 0}.summary div{border:1px solid #bbb;padding:10px 14px}.issue{border-bottom:1px solid #ddd;padding:10px 0}.issue b{display:block;margin-bottom:3px}.small{font-size:11px;color:#666}.warn{color:#92400e}.error{color:#991b1b}@media print{body{margin:10mm}}</style></head><body><h1>Kontrola návrhu</h1><div class="meta">${escapeHtml(f.name)} · 20-20-TOOLBOX V3.13v · předběžný automatický audit</div><div class="summary"><div>Chyby<br><b>${counts.error}</b></div><div>Upozornění<br><b>${counts.warn}</b></div><div>Doporučení<br><b>${counts.rec}</b></div></div>${issues.map(x=>`<div class="issue ${x.severity}"><b>${auditSeverityLabel(x.severity)} · ${escapeHtml(x.category)} · str. ${x.page} — ${escapeHtml(x.title)}</b><div>${escapeHtml(x.message)}</div>${x.evidence?`<div class="small">Důkaz: ${escapeHtml(x.evidence)}</div>`:''}</div>`).join('')}<p class="small">Výstup je předběžná kontrola, nikoli autorizovaný normový nebo právní posudek.</p><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close()}
+function printDesignAuditReport(){const f=designAuditState.file;if(!f)return;const issues=designAuditState.issues,counts={error:issues.filter(x=>x.severity==='error').length,warn:issues.filter(x=>x.severity==='warn').length,rec:issues.filter(x=>x.severity==='rec').length},w=window.open('','_blank');if(!w)return;w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Kontrola návrhu</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:22px}.meta{color:#666;font-size:12px;margin-bottom:20px}.summary{display:flex;gap:10px;margin:14px 0}.summary div{border:1px solid #bbb;padding:10px 14px}.issue{border-bottom:1px solid #ddd;padding:10px 0}.issue b{display:block;margin-bottom:3px}.small{font-size:11px;color:#666}.warn{color:#92400e}.error{color:#991b1b}@media print{body{margin:10mm}}</style></head><body><h1>Kontrola návrhu</h1><div class="meta">${escapeHtml(f.name)} · 20-20-TOOLBOX V3.13w · předběžný automatický audit</div><div class="summary"><div>Chyby<br><b>${counts.error}</b></div><div>Upozornění<br><b>${counts.warn}</b></div><div>Doporučení<br><b>${counts.rec}</b></div></div>${issues.map(x=>`<div class="issue ${x.severity}"><b>${auditSeverityLabel(x.severity)} · ${escapeHtml(x.category)} · str. ${x.page} — ${escapeHtml(x.title)}</b><div>${escapeHtml(x.message)}</div>${x.evidence?`<div class="small">Důkaz: ${escapeHtml(x.evidence)}</div>`:''}</div>`).join('')}<p class="small">Výstup je předběžná kontrola, nikoli autorizovaný normový nebo právní posudek.</p><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close()}
 
 </script>
 </body>
