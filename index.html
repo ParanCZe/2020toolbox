@@ -981,7 +981,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
               <button class="back-btn" style="margin:0" onclick="fit3DPrintLayerView()">Pohled shora</button>
               <button class="back-btn" style="margin:0" onclick="toggle3DPrintLayerView()">Zapnout / vypnout vrstvy</button>
             </div>
-            <div class="print3d-beta-note">Posuvník je číslovaný od vrstvy 0. Přehrání projde postupně vrstvu 0 až po poslední. Náhled vrstev v Toolboxu je orientační; finální G-code generuje CuraEngine běžící jako WebAssembly přímo v prohlížeči.</div>
+            <div class="print3d-beta-note">Posuvník je číslovaný od vrstvy 0. Přehrání projde postupně vrstvu 0 až po poslední. Náhled vrstev v Toolboxu je orientační; finální G-code generuje OrcaSlicer-derived WASM kernel přímo v prohlížeči.</div>
           </div>
         </div>
 
@@ -993,8 +993,8 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
           </div>
           <div class="print3d-box">
             <h3>EXPORT PRO PRUSA MK3S</h3>
-            <div class="print3d-export-warning"><b>PLNOHODNOTNÝ SLICER:</b> finální G-code vytváří <b>CuraEngine WASM</b> přímo v prohlížeči. Toolbox do něj předá původní viditelný model v aktuálním měřítku a orientaci a tvoje nastavení tisku. CuraEngine počítá skutečné vrstvy, perimetry, výplň, podpěry a mesh-fix. Model ani projekt se nikam neuploaduje. Před prvním reálným tiskem G-code vždy zkontroluj v PrusaSlicer G-code Vieweru.</div>
-            <div id="print3d-cura-status" class="print3d-recommended" style="display:block;margin-top:9px"><b>SLICER ENGINE · CURAENGINE WASM</b><br>Při prvním exportu se načte browserová WebAssembly verze CuraEngine z veřejného CDN. Toolbox zkouší více CDN cest, aby fungoval i na GitHub Pages/Safari. Do sítě jde pouze kód sliceru; model zůstává lokálně v paměti prohlížeče.</div>
+            <div class="print3d-export-warning"><b>PLNOHODNOTNÝ SLICER:</b> finální G-code teď vytváří <b>three-slicer / OrcaSlicer-derived WASM kernel</b> přímo v prohlížeči. Toolbox mu předá přesně zapečenou geometrii z vieweru a tvoje nastavení. Starý Cura fallback se při exportu nepoužívá, aby neměnil otevřené nebo problematické meshe jiným způsobem než slicer. Model ani projekt se nikam neuploaduje. Před prvním reálným tiskem G-code vždy zkontroluj v PrusaSlicer G-code Vieweru.</div>
+            <div id="print3d-cura-status" class="print3d-recommended" style="display:block;margin-top:9px"><b>SLICER ENGINE · ORCA WASM</b><br>Při prvním exportu se načte headless balíček <b>three-slicer 0.2.5</b>, jehož kernel je odvozený z OrcaSliceru. WASM je součástí balíčku a model zůstává lokálně v paměti prohlížeče.</div>
             <div class="print3d-gcode-actions">
               <button id="btn-3dprint-export" class="action" disabled onclick="export3DPrintGcode()">Exportovat G-code pro MK3S</button>
               <button id="btn-3dprint-stl-export" class="back-btn" disabled onclick="export3DPrintSTL()">Exportovat STL model</button>
@@ -5945,9 +5945,8 @@ const print3dState={
   playToken:0,playbackActive:false,measureMode:false,measurePointsLocal:[],measureGroup:null,measurePointerDown:null,repairBusy:false,repairBackup:null,lastRepairResult:null,
   uiMode:'simple',simplePrepared:false,simplePreparing:false,
   manifoldDeps:null,manifoldLoadPromise:null,kiriFactory:null,kiriFactoryName:null,kiriLoadPromise:null,kiriLastError:null,kiriBusy:false,
-  curaDeps:null,curaLoadPromise:null,curaLastError:null,slicerBusy:false,curaSource:null,
-  repairProxy:null,repairProxyAnalysis:null,preparedSlicerCopy:null,meshRepairEngine:null,meshRepairPromise:null,
-  voxelDeps:null,voxelLoadPromise:null,lastVoxelInfo:null
+  curaDeps:null,curaLoadPromise:null,curaLastError:null,orcaDeps:null,orcaLoadPromise:null,orcaLastError:null,slicerBusy:false,curaSource:null,
+  repairProxy:null,repairProxyAnalysis:null,preparedSlicerCopy:null,meshRepairEngine:null,meshRepairPromise:null
 };
 
 async function get3DPrintDeps(){
@@ -6800,114 +6799,37 @@ async function get3DPrintMeshRepairEngine(){
   })();
   try{return await print3dState.meshRepairPromise}finally{print3dState.meshRepairPromise=null}
 }
-
-async function get3DPrintVoxelDeps(){
-  if(print3dState.voxelDeps)return print3dState.voxelDeps;
-  if(print3dState.voxelLoadPromise)return print3dState.voxelLoadPromise;
-  print3dState.voxelLoadPromise=(async()=>{
-    const urls=[
-      'https://esm.sh/three-mesh-bvh@0.9.14?deps=three@0.169.0',
-      'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.14/+esm'
-    ];
-    let last=null;
-    for(const url of urls){
-      try{
-        const mod=await import(url);if(typeof mod.MeshBVH!=='function')throw new Error('MeshBVH API není dostupné.');
-        const deps={MeshBVH:mod.MeshBVH,source:url};print3dState.voxelDeps=deps;return deps;
-      }catch(e){last=e;console.warn('Voxel BVH CDN',url,e)}
-    }
-    throw new Error('Voxelový repair modul se nepodařilo načíst: '+(last?.message||last||'neznámá chyba'));
-  })();
-  try{return await print3dState.voxelLoadPromise}finally{print3dState.voxelLoadPromise=null}
-}
-
-function manifoldMeshTo3DPrintGeometry(outMesh,THREE){
-  const np=Number(outMesh?.numProp)||3,vp=outMesh?.vertProperties,tri=outMesh?.triVerts;
-  const nv=Number(outMesh?.numVert)||Math.floor((vp?.length||0)/Math.max(np,1));
-  if(!vp?.length||!tri?.length||!nv)throw new Error('Manifold level-set vrátil prázdnou geometrii.');
-  const arr=new Float32Array(nv*3);for(let i=0;i<nv;i++){arr[i*3]=vp[i*np];arr[i*3+1]=vp[i*np+1];arr[i*3+2]=vp[i*np+2]}
-  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(arr,3));geo.setIndex(new THREE.BufferAttribute(new Uint32Array(tri),1));geo.computeVertexNormals();geo.computeBoundingBox();geo.computeBoundingSphere();return geo;
-}
-
-async function voxelSolidify3DPrintSTL(buffer,originalCheck){
-  const status=document.getElementById('print3d-cura-status'),st=document.getElementById('st-3dprint');
-  const {THREE,STLLoader,STLExporter}=await get3DPrintDeps();const wasm=await get3DPrintManifoldDeps();const {MeshBVH,source}=await get3DPrintVoxelDeps();
-  let geo=null,solid=null,outMesh=null,outGeo=null,mat=null,mesh=null;
-  try{
-    geo=new STLLoader().parse(buffer.slice(0));if(!geo?.attributes?.position)throw new Error('Voxelová oprava nedostala platnou STL geometrii.');
-    geo.computeBoundingBox();const box=geo.boundingBox.clone(),size=new THREE.Vector3();box.getSize(size);const maxDim=Math.max(size.x,size.y,size.z,1e-6);
-    // Cílem není měnit návrh, ale vytvořit tisknutelný uzavřený obal kolem ploch. Rozlišení držíme blízko fyzické možnosti 0,4mm trysky a současně omezíme počet buněk.
-    const nozzle=Math.max(.15,num3D('print3d-nozzle',.4));
-    const targetCells=120;const edgeLength=Math.max(nozzle*1.15,maxDim/targetCells);
-    const shellRadius=Math.max(nozzle*1.35,edgeLength*.85);
-    const pad=shellRadius+edgeLength*2;box.expandByScalar(pad);
-    if(st)st.textContent=`Model není spolehlivý solid — vytvářím voxelovou tiskovou kopii (~${edgeLength.toFixed(2)} mm)…`;
-    if(status)status.innerHTML=`<b>VOXELOVÝ SOLIDIFY · PRINT-READY</b><br>Otevřenou / non-manifold geometrii převádím na nový uzavřený objem. Přesnost mřížky ~${edgeLength.toFixed(2)} mm, minimální tisková tloušťka ~${(shellRadius*2).toFixed(2)} mm.<br><span style="opacity:.72">Původní model se nemění. Používá se Manifold LevelSet + BVH vzdálenostní pole.</span>`;
-    // BVH pracuje přímo v souřadnicích zapečeného STL.
-    const bvh=new MeshBVH(geo,{maxLeafTris:12});const p=new THREE.Vector3(),hit={};let evals=0;
-    const sdf=(point)=>{
-      const x=Array.isArray(point)||ArrayBuffer.isView(point)?point[0]:point.x,y=Array.isArray(point)||ArrayBuffer.isView(point)?point[1]:point.y,z=Array.isArray(point)||ArrayBuffer.isView(point)?point[2]:point.z;
-      p.set(Number(x)||0,Number(y)||0,Number(z)||0);evals++;
-      const h=bvh.closestPointToPoint(p,hit,0,shellRadius+edgeLength*2);const d=h?.distance;
-      // Manifold levelSet očekává kladné hodnoty uvnitř. Tímto vytvoříme uzavřený tisknutelný obal kolem všech původních ploch.
-      return shellRadius-(Number.isFinite(d)?d:(shellRadius+edgeLength*2));
-    };
-    const bounds={min:[box.min.x,box.min.y,box.min.z],max:[box.max.x,box.max.y,box.max.z]};
-    await new Promise(r=>setTimeout(r,20));
-    solid=wasm.Manifold.levelSet(sdf,bounds,edgeLength,0,-1);const stat=solid?.status?.();if((typeof stat==='number'&&stat!==0)||solid?.isEmpty?.())throw new Error('Voxelový level-set nevytvořil platný solid (status '+String(stat)+').');
-    outMesh=solid.getMesh();outGeo=manifoldMeshTo3DPrintGeometry(outMesh,THREE);
-    mat=new THREE.MeshBasicMaterial();mesh=new THREE.Mesh(outGeo,mat);mesh.updateMatrixWorld(true);
-    const exporter=new STLExporter(),raw=exporter.parse(mesh,{binary:true});let outBuffer;
-    if(raw instanceof ArrayBuffer)outBuffer=raw;else if(ArrayBuffer.isView(raw))outBuffer=raw.buffer.slice(raw.byteOffset,raw.byteOffset+raw.byteLength);else throw new Error('STLExporter nevrátil binární data.');
-    const check=await analyze3DPrintSTLBuffer(outBuffer);const dimDelta=compare3DPrintSizes(originalCheck.size,check.size);
-    const fullyClosed=(check.boundary||0)===0&&(check.nonManifold||0)===0&&(check.degenerate||0)===0;
-    // Solidify smí model o něco zvětšit o tloušťku obalu, ale ne zásadně změnit jeho envelope.
-    const absMax=Math.max(Math.abs(check.size.x-originalCheck.size.x),Math.abs(check.size.y-originalCheck.size.y),Math.abs(check.size.z-originalCheck.size.z));
-    const allowedAbs=shellRadius*3.5+edgeLength*2.5;
-    if(!fullyClosed)throw new Error(`Voxelová kopie není uzavřená (${check.boundary||0} otevřených hran / ${check.nonManifold||0} non-manifold).`);
-    if(absMax>allowedAbs&&dimDelta>.08)throw new Error(`Voxelová kopie změnila obálku modelu příliš výrazně (${(dimDelta*100).toFixed(1)} %).`);
-    print3dState.lastVoxelInfo={edgeLength,shellRadius,evals,source,triangles:check.triangles};
-    return {buffer:outBuffer,check,edgeLength,shellRadius,evals,source};
-  }finally{
-    try{mesh?.removeFromParent?.()}catch{}try{mat?.dispose?.()}catch{}try{outGeo?.dispose?.()}catch{}try{geo?.dispose?.()}catch{}try{solid?.delete?.()}catch{}try{outMesh?.delete?.()}catch{}
-  }
-}
-
 async function prepare3DPrintSTLForCura(force=false){
   if(!force&&print3dState.preparedSlicerCopy)return print3dState.preparedSlicerCopy;
   const status=document.getElementById('print3d-cura-status'),st=document.getElementById('st-3dprint');
   if(st)st.textContent='Peču přesnou geometrii z 3D náhledu do STL…';
   const baked=await build3DPrintBakedSTL(),viewer=current3DPrintDims(),originalCheck=await analyze3DPrintSTLBuffer(baked.buffer),mismatch=compare3DPrintSizes(viewer,originalCheck.size);
   if(mismatch>.005)throw new Error(`Interní kontrola STL nesedí s viewerem (${(mismatch*100).toFixed(2)} %). Export byl zastaven.`);
-  let buffer=baked.buffer,repaired=false,repairResult=null,repairMethod='none',repairNote='',finalCheck=originalCheck,topologyMode='solid';
-  const hasOpen=(originalCheck.boundary||0)>0||(originalCheck.nonManifold||0)>0;
-  const onlyDegenerate=!hasOpen&&(originalCheck.degenerate||0)>0;
+  let buffer=baked.buffer,repaired=false,repairResult=null,repairNote='',finalCheck=originalCheck,topologyMode='solid';
+  const broken=(originalCheck.boundary||0)>0||(originalCheck.nonManifold||0)>0||(originalCheck.degenerate||0)>0;
   if(status)status.innerHTML=`<b>PŘÍPRAVA MODELU PRO SLICER</b><br>Přesná kopie vieweru: ${originalCheck.triangles.toLocaleString('cs-CZ')} trojúhelníků · ${originalCheck.size.x.toFixed(2)} × ${originalCheck.size.y.toFixed(2)} × ${originalCheck.size.z.toFixed(2)} mm.<br>Topologie: ${originalCheck.boundary||0} otevřených hran · ${originalCheck.nonManifold||0} non-manifold · ${originalCheck.degenerate||0} degenerací.`;
-
-  // Pouhá degenerace se dá bezpečně čistit klasicky. Otevřené/non-manifold architektonické meshe už nepokoušíme agresivně „sešívat“ — vytvoříme z nich nový uzavřený tiskový obal.
-  if(onlyDegenerate){
+  if(broken){
     try{
-      if(st)st.textContent='Odstraňuji pouze degenerované plochy z tiskové kopie…';
+      if(st)st.textContent='Model není uzavřený — vytvářím print-ready manifold kopii…';
       const {engine,PRESETS}=await get3DPrintMeshRepairEngine(),preset=PRESETS?.['print-ready']||{};
-      const opts={...preset,maxHoleSize:0,removeDuplicateVertex:true,removeDuplicateFace:true,removeUnreferencedVertex:true,removeDegenerateFace:true,removeNonManifoldFace:false,removeNonManifoldVertex:false,fixNormalOrientation:true,flipNormalsOutside:true,removeTVertexByFlip:false,removeFaceFoldByFlip:false,binaryOutput:true};
-      const rr=await Promise.resolve(engine.repair('toolbox_input.stl',new Uint8Array(buffer),opts));repairResult=rr?.result||null;
-      const out=rr?.output;if(out?.byteLength){const rb=out.buffer.slice(out.byteOffset,out.byteOffset+out.byteLength),rc=await analyze3DPrintSTLBuffer(rb),delta=compare3DPrintSizes(originalCheck.size,rc.size);if((rc.boundary||0)===0&&(rc.nonManifold||0)===0&&(rc.degenerate||0)===0&&delta<=.006){buffer=rb;repaired=true;repairMethod='cleanup';finalCheck=rc;repairNote=`Bezpečné vyčištění odstranilo degenerace ${originalCheck.degenerate||0} → 0 bez změny tvaru.`}}
-    }catch(e){console.warn('degenerate cleanup failed',e)}
-  }
-
-  if(hasOpen){
-    try{
-      const vx=await voxelSolidify3DPrintSTL(baked.buffer,originalCheck);buffer=vx.buffer;finalCheck=vx.check;repaired=true;repairMethod='voxel-solidify';topologyMode='solid';
-      repairNote=`Voxelový solidify vytvořil nový uzavřený tiskový obal: ${originalCheck.boundary||0} otevřených hran → 0, ${originalCheck.nonManifold||0} non-manifold → 0. Přesnost ~${vx.edgeLength.toFixed(2)} mm, minimální zachovaná/tisknutelná tloušťka ~${(vx.shellRadius*2).toFixed(2)} mm. Originál ve vieweru zůstal beze změny.`;
-    }catch(e){
-      topologyMode='mixed';repaired=false;repairMethod='surface-fallback';repairNote='Voxelový solidify se nepodařil: '+(e?.message||e)+'. Cura dostane přesný původní STL v nouzovém surface režimu; tento výstup je nutné pečlivě zkontrolovat.';console.warn('voxel solidify fallback',e)
-    }
-  }else if(!onlyDegenerate)repairNote='Model je už manifold; geometrická oprava není potřeba.';
-  else if(!repaired){topologyMode='mixed';repairMethod='surface-fallback';repairNote='Degenerované plochy se nepodařilo bezpečně odstranit. Používám přesný původní STL v nouzovém surface režimu.'}
-
-  const prepared={buffer,repaired,repairResult,repairMethod,baked,check:finalCheck,originalCheck,finalCheck,repairNote,topologyMode};
+      const opts={...preset,maxHoleSize:Math.max(100,Number(preset.maxHoleSize)||100),removeDuplicateVertex:true,removeDuplicateFace:true,removeUnreferencedVertex:true,removeDegenerateFace:true,removeNonManifoldFace:true,removeNonManifoldVertex:true,fixNormalOrientation:true,flipNormalsOutside:true,removeTVertexByFlip:true,removeFaceFoldByFlip:true,binaryOutput:true};
+      const rr=await Promise.resolve(engine.repair('toolbox_input.stl',new Uint8Array(buffer),opts,(step,p)=>{if(st)st.textContent=`Oprava pro slicer: ${step} ${Math.round((Number(p)||0)*100)} %`}));
+      repairResult=rr?.result||null;if(repairResult&&repairResult.code!=null&&repairResult.code!==0)throw new Error(repairResult.error||`repair code ${repairResult.code}`);
+      const out=rr?.output;if(!out?.byteLength)throw new Error('repair engine nevrátil opravený STL');
+      const rb=out.buffer.slice(out.byteOffset,out.byteOffset+out.byteLength),rc=await analyze3DPrintSTLBuffer(rb),delta=compare3DPrintSizes(originalCheck.size,rc.size),areaDelta=Math.abs((rc.area||0)-(originalCheck.area||0))/Math.max(originalCheck.area||0,1e-9),faceRatio=rc.triangles/Math.max(1,originalCheck.triangles);
+      const fullyClosed=(rc.boundary||0)===0&&(rc.nonManifold||0)===0&&(rc.degenerate||0)===0;
+      const shapeSafe=delta<=.006&&areaDelta<=.12&&faceRatio>=.45&&faceRatio<=3.0&&rc.triangles>0;
+      if(fullyClosed&&shapeSafe){buffer=rb;repaired=true;finalCheck=rc;topologyMode='solid';repairNote=`Print-ready oprava přijata: otevřené hrany ${originalCheck.boundary||0} → 0, non-manifold ${originalCheck.nonManifold||0} → 0, trojúhelníky ${originalCheck.triangles.toLocaleString('cs-CZ')} → ${rc.triangles.toLocaleString('cs-CZ')}.`}
+      else{
+        topologyMode='mixed';
+        const why=[];if(!fullyClosed)why.push(`opravená kopie zůstala otevřená (${rc.boundary||0} hran / ${rc.nonManifold||0} non-manifold)`);if(delta>.006)why.push(`změnila rozměr o ${(delta*100).toFixed(1)} %`);if(areaDelta>.12)why.push(`změnila plochu o ${(areaDelta*100).toFixed(1)} %`);if(faceRatio<.45||faceRatio>3)why.push(`změnila počet ploch ${faceRatio.toFixed(2)}×`);
+        repairNote='Opravená kopie nebyla dostatečně bezpečná: '+why.join(', ')+'. Používám přesný původní STL a Cura režim „objem + volné plochy“ bez agresivního stitching.';
+      }
+    }catch(e){topologyMode='mixed';repairNote='Automatická manifold oprava nebyla dostupná nebo selhala: '+(e?.message||e)+'. Používám přesný původní STL a Cura režim „objem + volné plochy“.';console.warn('print-ready repair fallback',e)}
+  } else repairNote='Model je už manifold; geometrická oprava není potřeba.';
+  const prepared={buffer,repaired,repairResult,baked,check:finalCheck,originalCheck,finalCheck,repairNote,topologyMode};
   print3dState.preparedSlicerCopy=prepared;
-  if(status)status.innerHTML=`<b>✓ MODEL PRO SLICER PŘIPRAVEN</b><br>${escapeHtml(repairNote)}<br><span style="opacity:.72">Režim sliceru: ${topologyMode==='solid'?'uzavřený objem':'nouzové otevřené plochy'}${repairMethod==='voxel-solidify'?' · voxel solidify':''}.</span>`;
+  if(status)status.innerHTML=`<b>✓ MODEL PRO SLICER PŘIPRAVEN</b><br>${escapeHtml(repairNote)}<br><span style="opacity:.72">Režim sliceru: ${topologyMode==='solid'?'uzavřený objem':'objem + otevřené plochy'}.</span>`;
   return prepared;
 }
 
@@ -6942,7 +6864,7 @@ function validate3DPrintSlicerGcode(gcode){
   if(text.length<1000)throw new Error('Výsledný G-code je podezřele krátký.');
   const moves=(text.match(/^G[01]\s+/gm)||[]).length;
   const extr=(text.match(/\bE-?\d/i)||[]).length;
-  if(moves<20||extr<1)throw new Error('CuraEngine nevygeneroval dostatek tiskových pohybů nebo extruze.');
+  if(moves<20||extr<1)throw new Error('Slicer nevygeneroval dostatek tiskových pohybů nebo extruze.');
   return text;
 }
 function decode3DPrintGcode(raw){
@@ -6950,7 +6872,7 @@ function decode3DPrintGcode(raw){
   if(raw instanceof ArrayBuffer)return new TextDecoder().decode(new Uint8Array(raw));
   if(ArrayBuffer.isView(raw))return new TextDecoder().decode(new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength));
   if(raw&&typeof raw==='object'&&typeof raw.gcode==='string')return raw.gcode;
-  throw new Error('CuraEngine vrátil G-code v neznámém formátu.');
+  throw new Error('Slicer vrátil G-code v neznámém formátu.');
 }
 function timeout3DPrintPromise(promise,ms,label){
   let timer;
@@ -6969,132 +6891,122 @@ async function import3DPrintFirst(urls,label){
   }
   throw new Error(`${label} se nepodařilo načíst z žádného CDN. ${errors.slice(0,3).join(' | ')}`);
 }
-async function get3DPrintCuraDeps(){
-  if(print3dState.curaDeps)return print3dState.curaDeps;
-  if(print3dState.curaLoadPromise)return print3dState.curaLoadPromise;
+async function get3DPrintOrcaDeps(){
+  if(print3dState.orcaDeps)return print3dState.orcaDeps;
+  if(print3dState.orcaLoadPromise)return print3dState.orcaLoadPromise;
   const status=document.getElementById('print3d-cura-status');
-  print3dState.curaLoadPromise=(async()=>{
-    if(status)status.innerHTML='<b>SLICER ENGINE · CURAENGINE WASM</b><br>Načítám CuraEngine a tiskové definice…';
-    // Primární fork má browserový ESM build. Další URL jsou kompatibilní zálohy.
-    const curaURLs=[
-      'https://cdn.jsdelivr.net/npm/@toybox-labs/cura-wasm@1.5.4/+esm',
-      'https://esm.sh/@toybox-labs/cura-wasm@1.5.4?bundle',
-      'https://cdn.skypack.dev/@toybox-labs/cura-wasm@1.5.4',
-      'https://cdn.jsdelivr.net/npm/cura-wasm@1.5.2/+esm',
-      'https://esm.sh/cura-wasm@1.5.2?bundle',
-      'https://cdn.skypack.dev/cura-wasm@1.5.2'
+  print3dState.orcaLoadPromise=(async()=>{
+    if(status)status.innerHTML='<b>SLICER ENGINE · ORCA WASM</b><br>Načítám three-slicer 0.2.5 a jeho zabudovaný WASM kernel…';
+    const urls=[
+      'https://cdn.jsdelivr.net/npm/three-slicer@0.2.5/+esm',
+      'https://esm.sh/three-slicer@0.2.5?bundle'
     ];
-    const defURLs=[
-      'https://cdn.jsdelivr.net/npm/cura-wasm-definitions@1.5.1/+esm',
-      'https://esm.sh/cura-wasm-definitions@1.5.1?bundle',
-      'https://cdn.skypack.dev/cura-wasm-definitions@1.5.1'
-    ];
-    const [c,d]=await Promise.all([import3DPrintFirst(curaURLs,'Cura WASM'),import3DPrintFirst(defURLs,'Cura definice')]);
-    const CuraWASM=c.mod.CuraWASM||c.mod.default?.CuraWASM||c.mod.default;
-    const resolveDefinition=d.mod.resolveDefinition||d.mod.default?.resolveDefinition||d.mod.default;
-    if(typeof CuraWASM!=='function')throw new Error('Načtený Cura balíček neexportuje CuraWASM.');
-    if(typeof resolveDefinition!=='function')throw new Error('Načtený balíček definic neexportuje resolveDefinition().');
-    const deps={CuraWASM,resolveDefinition,curaURL:c.url,defsURL:d.url};
-    print3dState.curaDeps=deps;print3dState.curaSource=c.url;print3dState.curaLastError=null;
-    if(status)status.innerHTML=`<b>✓ CURAENGINE WASM NAČTEN</b><br>Engine: ${escapeHtml(c.url.replace(/^https?:\/\//,''))}<br>Model zůstává lokálně v prohlížeči.`;
-    return deps;
+    let last=null;
+    for(const url of urls){
+      try{
+        const mod=await timeout3DPrintPromise(import(url),45000,'načtení Orca WASM modulu');
+        const createSlicer=mod?.createSlicer||mod?.default?.createSlicer;
+        if(typeof createSlicer!=='function')throw new Error('Balíček neexportuje createSlicer().');
+        const deps={createSlicer,source:url};print3dState.orcaDeps=deps;return deps;
+      }catch(e){last=e;console.warn('three-slicer CDN failed',url,e)}
+    }
+    throw new Error('Orca WASM slicer se nepodařilo načíst z CDN: '+(last?.message||last||'neznámá chyba'));
   })();
-  try{return await print3dState.curaLoadPromise}
-  catch(e){print3dState.curaLastError=e;if(status)status.innerHTML='<b>⚠ CURAENGINE WASM SE NENAČETL</b><br>'+escapeHtml(e?.message||String(e))+'<br><span style="opacity:.7">Zkontroluj internet / blokátor obsahu. Toolbox zkusil jsDelivr, esm.sh i Skypack.</span>';throw e}
-  finally{print3dState.curaLoadPromise=null}
+  try{return await print3dState.orcaLoadPromise}finally{print3dState.orcaLoadPromise=null}
 }
-function cura3DPrintOverride(scope,key,value){return {scope,key,value}}
-function build3DPrintCuraOverrides(topologyMode='solid',modelWasRepaired=false){
-  const nozzle=Math.max(.15,num3D('print3d-nozzle',.4));
-  const lh=Math.max(.04,num3D('print3d-layer-height',.15));
-  const first=Math.max(.04,num3D('print3d-first-layer',.2));
-  const perims=Math.max(1,Math.round(num3D('print3d-perimeters',3)));
-  const top=Math.max(1,Math.round(num3D('print3d-top-solid',5)));
-  const bottom=Math.max(1,Math.round(num3D('print3d-bottom-solid',4)));
-  const infill=Math.max(0,Math.min(100,num3D('print3d-infill',12)));
-  const patRaw=document.getElementById('print3d-infill-pattern')?.value||'gyroid';
-  const pattern=patRaw==='rectilinear'?'lines':patRaw;
-  const support=document.getElementById('print3d-supports')?.value||'off';
-  const supportOn=support!=='off';
-  const supportDensity=Math.max(1,Math.min(80,num3D('print3d-support-density',15)));
-  const supportInterface=Math.max(0,Math.round(num3D('print3d-support-interface',2)));
-  const brim=Math.max(0,num3D('print3d-brim',0));
-  const perimSpeed=Math.max(5,num3D('print3d-speed-perim',35));
-  const infillSpeed=Math.max(5,num3D('print3d-speed-infill',50));
-  const travel=Math.max(20,num3D('print3d-speed-travel',180));
-  const retract=Math.max(0,num3D('print3d-retract',.8));
-  const zhop=Math.max(0,num3D('print3d-zhop',.4));
-  const fan=Math.max(0,Math.min(100,num3D('print3d-fan',50)));
-  const noz1=Math.round(num3D('print3d-nozzle-first',230));
-  const noz=Math.round(num3D('print3d-nozzle-temp',240));
-  const bed1=Math.round(num3D('print3d-bed-first',85));
-  const bed=Math.round(num3D('print3d-bed-temp',90));
-  const bx=Math.max(20,num3D('print3d-bedx',250)),by=Math.max(20,num3D('print3d-bedy',210)),bz=Math.max(20,num3D('print3d-bedz',210));
-  const lineWidth=Math.max(nozzle,nozzle*1.125);
-  const startG=`M107 ; fan off\nG90 ; absolute XYZ\nM82 ; absolute extrusion\nG21 ; millimeters\nM104 S${noz1}\nM140 S${bed1}\nM190 S${bed1}\nM109 S${noz1}\nG28 W ; home without mesh leveling\nG80 ; mesh bed leveling\nG92 E0\nG1 Z0.20 F7200\nG1 Y-3.0 F1000\nG1 X60.0 E9.0 F1000\nG1 X100.0 E12.5 F1000\nG92 E0`;
-  const endG=`M107\nM104 S0\nM140 S0\nG91\nG1 Z5 F720\nG90\nG28 X0\nM84`;
-  const g=(key,value)=>cura3DPrintOverride('g',key,value),e=(key,value)=>cura3DPrintOverride('e0',key,value);
-  return [
-    g('machine_width',bx),g('machine_depth',by),g('machine_height',bz),g('machine_center_is_zero',false),g('machine_shape','rectangular'),g('machine_heated_bed',true),g('machine_extruder_count',1),g('machine_gcode_flavor','RepRap (Marlin/Sprinter)'),g('machine_start_gcode',startG),g('machine_end_gcode',endG),
-    g('layer_height',lh),g('layer_height_0',first),g('wall_line_count',perims),g('top_layers',top),g('bottom_layers',bottom),g('infill_sparse_density',infill),g('infill_pattern',pattern),g('line_width',lineWidth),g('wall_line_width_0',lineWidth),g('wall_line_width_x',lineWidth),g('infill_line_width',lineWidth),g('skin_line_width',lineWidth),
-    g('speed_print',Math.max(perimSpeed,infillSpeed)),g('speed_wall',perimSpeed),g('speed_wall_0',perimSpeed),g('speed_wall_x',perimSpeed),g('speed_infill',infillSpeed),g('speed_travel',travel),
-    g('material_print_temperature_layer_0',noz1),g('material_print_temperature',noz),g('material_bed_temperature_layer_0',bed1),g('material_bed_temperature',bed),g('material_print_temp_wait',true),g('material_bed_temp_wait',true),
-    g('cool_fan_enabled',fan>0),g('cool_fan_speed',fan),g('cool_fan_speed_min',fan),g('cool_fan_speed_max',fan),g('cool_fan_full_layer',3),
-    g('retraction_enable',retract>0),g('retraction_amount',retract),g('retraction_retract_speed',35),g('retraction_prime_speed',35),g('retraction_hop_enabled',zhop>0),g('retraction_hop',zhop),
-    g('support_enable',supportOn),g('support_type',support==='buildplate'?'buildplate':'everywhere'),g('support_pattern','zigzag'),g('support_angle',50),g('support_infill_rate',supportDensity),g('support_interface_enable',supportInterface>0),g('support_roof_enable',supportInterface>0),g('support_roof_height',supportInterface*lh),
-    g('adhesion_type',brim>0?'brim':'skirt'),g('brim_width',brim),g('skirt_line_count',brim>0?0:1),
-    // Geometrii už před Cura ověřujeme a případně opravíme VCG/MeshLab enginem. Cura nesmí jednotlivé skořepiny agresivně sjednocovat a měnit jejich tvar.
-    g('center_object',true),g('meshfix_union_all',false),g('meshfix_union_all_remove_holes',false),g('magic_mesh_surface_mode',topologyMode==='mixed'?'both':'normal'),g('meshfix_extensive_stitching',false),g('meshfix_keep_open_polygons',topologyMode==='mixed'),g('remove_empty_first_layers',true),
-    e('machine_nozzle_size',nozzle),e('material_diameter',1.75),e('extruder_nr',0)
-  ];
-}
-async function run3DPrintCura(stl,topologyMode='solid',modelWasRepaired=false){
+
+async function prepare3DPrintSTLForOrca(){
   const status=document.getElementById('print3d-cura-status'),st=document.getElementById('st-3dprint');
-  const {CuraWASM,resolveDefinition,curaURL}=await get3DPrintCuraDeps();
-  let definition;
-  try{definition=resolveDefinition('ultimaker2')}catch(e){throw new Error('Cura definice ultimaker2 se nepodařila připravit: '+(e?.message||e))}
-  const overrides=build3DPrintCuraOverrides(topologyMode,modelWasRepaired);
-  let slicer;
-  try{
-    slicer=new CuraWASM({definition,overrides,transfer:false,verbose:false});
-    slicer.on?.('progress',pct=>{
-      let p=Number(pct);if(!Number.isFinite(p))p=0;if(p<=1)p*=100;p=Math.max(0,Math.min(100,p));
-      const msg=`CuraEngine počítá skutečné vrstvy a tiskové dráhy… ${Math.round(p)} %`;
-      if(st)st.textContent=msg;if(status)status.innerHTML=`<b>SLICER ENGINE · CURAENGINE WASM · ${Math.round(p)} %</b><br>${escapeHtml(msg)}<br><span style="opacity:.7">Model je pouze v paměti tohoto prohlížeče.</span>`;
-    });
-    if(st)st.textContent='CuraEngine připravuje model…';
-    const result=await timeout3DPrintPromise(slicer.slice(stl,'stl'),300000,'CuraEngine slicing');
-    if(!result||result.gcode==null)throw new Error('CuraEngine dokončil běh bez G-code výstupu.');
-    return {gcode:decode3DPrintGcode(result.gcode),metadata:result.metadata||null,source:curaURL};
-  }finally{try{slicer?.dispose?.()}catch(e){console.warn('Cura dispose',e)}}
+  if(st)st.textContent='Peču přesnou geometrii z 3D vieweru…';
+  const baked=await build3DPrintBakedSTL(),viewer=current3DPrintDims(),check=await analyze3DPrintSTLBuffer(baked.buffer),mismatch=compare3DPrintSizes(viewer,check.size);
+  if(mismatch>.005)throw new Error(`Interní kontrola STL nesedí s viewerem (${(mismatch*100).toFixed(2)} %). Export byl zastaven.`);
+  const broken=(check.boundary||0)>0||(check.nonManifold||0)>0||(check.degenerate||0)>0;
+  const note=broken
+    ?`Model má ${check.boundary||0} otevřených hran, ${check.nonManifold||0} non-manifold hran a ${check.degenerate||0} degenerací. Do Orca kernelu jde přesto přesně geometrie z vieweru — Toolbox ji před slicingem násilně nepřestavuje.`
+    :'Model je podle kontroly uzavřený/manifold. Do sliceru jde přesná geometrie z vieweru.';
+  if(status)status.innerHTML=`<b>✓ VSTUP PRO ORCA SLICER OVĚŘEN</b><br>${escapeHtml(note)}<br><span style="opacity:.72">${check.triangles.toLocaleString('cs-CZ')} trojúhelníků · ${check.size.x.toFixed(2)} × ${check.size.y.toFixed(2)} × ${check.size.z.toFixed(2)} mm.</span>`;
+  return {buffer:baked.buffer,baked,check,broken,note};
 }
+
+function build3DPrintOrcaParams(){
+  const nozzle=Math.max(.15,num3D('print3d-nozzle',.4)),lh=Math.max(.04,num3D('print3d-layer-height',.15)),first=Math.max(.04,num3D('print3d-first-layer',.2)),perims=Math.max(1,Math.round(num3D('print3d-perimeters',3))),top=Math.max(1,Math.round(num3D('print3d-top-solid',5))),bottom=Math.max(1,Math.round(num3D('print3d-bottom-solid',4))),infill=Math.max(0,Math.min(100,num3D('print3d-infill',12))),pattern=document.getElementById('print3d-infill-pattern')?.value||'gyroid',support=document.getElementById('print3d-supports')?.value||'off',supportOn=support!=='off',supportDensity=Math.max(1,Math.min(80,num3D('print3d-support-density',15)))/100,brim=Math.max(0,num3D('print3d-brim',0)),fan=Math.max(0,Math.min(100,num3D('print3d-fan',50))),perimSpeed=Math.max(5,num3D('print3d-speed-perim',35)),infillSpeed=Math.max(5,num3D('print3d-speed-infill',50)),travel=Math.max(20,num3D('print3d-speed-travel',180)),retract=Math.max(0,num3D('print3d-retract',.8)),zhop=Math.max(0,num3D('print3d-zhop',.4));
+  return {
+    layer_height:lh,first_layer_height:first,line_width:nozzle*1.125,wall_loops:perims,
+    infill_density:infill/100,sparse_infill_pattern:pattern,top_shell_layers:top,bottom_shell_layers:bottom,
+    nozzle_diameter:nozzle,filament_diameter:1.75,bed_width:num3D('print3d-bedx',250),bed_depth:num3D('print3d-bedy',210),bed_height:num3D('print3d-bedz',210),
+    brim_width:brim,skirt_loops:brim>0?0:1,skirt_distance:4,
+    enable_support:supportOn,support_density:supportDensity,support_threshold_angle:50,support_xy_distance:Math.max(.3,nozzle),support_top_z_distance:lh*1.5,support_interface_top_layers:2,support_on_build_plate_only:support==='bed',
+    fan_speed:fan,close_fan_the_first_x_layers:2,full_fan_speed_layer:4,slow_down_layer_time:8,
+    retract_length:retract,retract_speed:35,z_hop:zhop,
+    outer_wall_speed:perimSpeed,inner_wall_speed:perimSpeed,sparse_infill_speed:infillSpeed,travel_speed:travel,
+    wall_speed:perimSpeed,infill_speed:infillSpeed
+  };
+}
+
+function inspect3DPrintOrcaToolpath(result,expected){
+  let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity,count=0;
+  for(const layer of (result?.layers||[])){
+    const p=layer?.paths;if(!p||p.length<4)continue;
+    for(let i=0;i+3<p.length;i+=4){
+      const role=(Math.round(p[i+3])&15);if(role===0||role===4||role===5||role===6||role===11)continue;
+      const x=Number(p[i]),y=Number(p[i+1]),z=Number(p[i+2]);if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z))continue;
+      minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);minZ=Math.min(minZ,z);maxZ=Math.max(maxZ,z);count++;
+    }
+  }
+  if(!count)return {ok:true,count:0,size:null,note:'Slicer neposkytl detailní toolpath pro rozměrovou kontrolu.'};
+  const size={x:maxX-minX,y:maxY-minY,z:maxZ-minZ};
+  const rel=(a,b)=>Math.abs(a-b)/Math.max(Math.abs(a),Math.abs(b),1e-6);
+  const dx=Math.min(rel(size.x,expected.x),rel(size.x,expected.y)),dy=Math.min(rel(size.y,expected.y),rel(size.y,expected.x)),dz=rel(size.z,expected.z);
+  const bad=Math.max(dx,dy,dz)>.35;
+  return {ok:!bad,count,size,note:bad?`Toolpath má podezřele jiný rozsah (${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)} mm) než model (${expected.x.toFixed(1)} × ${expected.y.toFixed(1)} × ${expected.z.toFixed(1)} mm).`:''};
+}
+
+function postprocess3DPrintOrcaGcode(gcode){
+  let body=String(gcode||'').replace(/\r/g,'');
+  const noz1=Math.round(num3D('print3d-nozzle-first',230)),bed1=Math.round(num3D('print3d-bed-first',85));
+  // Pokud kernel homing obsahuje, uprav ho na MK3S mesh-leveling. Jinak ho vlož před první tiskové pohyby.
+  if(/^G28(?:\s.*)?$/m.test(body))body=body.replace(/^G28(?:\s.*)?$/m,'G28 W ; MK3S home without mesh leveling\nG80 ; MK3S mesh bed leveling');
+  else body=`G28 W ; MK3S home without mesh leveling\nG80 ; MK3S mesh bed leveling\n`+body;
+  const pre=`; 20-20-TOOLBOX V3.13w\n; slicer_engine = three-slicer 0.2.5 / OrcaSlicer-derived WASM\n; target = Original Prusa i3 MK3S\nG90\nM82\nM140 S${bed1}\nM104 S${noz1}\nM190 S${bed1}\nM109 S${noz1}\n`;
+  const post='\nM107\nM104 S0\nM140 S0\nG91\nG1 Z5 F720\nG90\nM84\n; end 20-20-TOOLBOX\n';
+  return pre+body.trimEnd()+post;
+}
+
+async function run3DPrintOrca(stl,expectedDims){
+  const status=document.getElementById('print3d-cura-status'),st=document.getElementById('st-3dprint'),{createSlicer,source}=await get3DPrintOrcaDeps();
+  let slicer=null;
+  try{
+    if(status)status.innerHTML='<b>SLICER ENGINE · ORCA WASM</b><br>Spouštím skutečný OrcaSlicer-derived kernel…';
+    slicer=await timeout3DPrintPromise(createSlicer(),60000,'inicializace Orca WASM');
+    const params=build3DPrintOrcaParams();
+    const result=await timeout3DPrintPromise(Promise.resolve(slicer.slice(stl,params,{onProgress:(done,total)=>{const p=total?Math.round(done/total*100):0;if(st)st.textContent=`Orca WASM počítá vrstvy a tiskové dráhy… ${p} %`;if(status)status.innerHTML=`<b>SLICER ENGINE · ORCA WASM · ${p} %</b><br>Počítám perimetry, výplň, plné vrstvy a podpěry…`;}})),300000,'Orca WASM slicing');
+    if(result?.error)throw new Error(result.error);
+    if(!result?.gcode)throw new Error('Orca WASM dokončil slicing bez G-code výstupu.');
+    const check=inspect3DPrintOrcaToolpath(result,expectedDims);
+    if(!check.ok)throw new Error(check.note+' Export byl zastaven, aby se nevytvořil zjevně chybný G-code.');
+    return {gcode:postprocess3DPrintOrcaGcode(result.gcode),stats:result.stats||{},warnings:result.warnings||[],toolpathCheck:check,source};
+  }finally{try{slicer?.dispose?.()}catch(e){console.warn('Orca slicer dispose',e)}}
+}
+
 async function export3DPrintGcode(){
-  const root=print3dState.root,f=print3dState.file;
-  if(!root||!f||print3dState.slicerBusy)return;
+  const root=print3dState.root,f=print3dState.file;if(!root||!f||print3dState.slicerBusy)return;
   const st=document.getElementById('st-3dprint'),status=document.getElementById('print3d-cura-status'),btn=document.getElementById('btn-3dprint-export'),simpleBtn=document.getElementById('print3d-simple-export'),out=current3DPrintDims(),bx=num3D('print3d-bedx',250),by=num3D('print3d-bedy',210),bz=num3D('print3d-bedz',210);
   if(!out||out.x>bx+.01||out.y>by+.01||out.z>bz+.01){alert('Model se nevejde na tiskovou plochu MK3S. Model zůstává ve své velikosti — zmenši ho měřítkem nebo změň orientaci.');if(print3dState.uiMode==='advanced')open3DPrintTab('model');return}
   print3dState.slicerBusy=true;if(btn)btn.disabled=true;if(simpleBtn)simpleBtn.disabled=true;
   try{
-    // Transformace vieweru se nejdřív ručně zapečou do jednoho STL. STL se znovu načte a jeho rozměr se porovná s tím, co uživatel skutečně vidí.
     if(st)st.textContent='Připravuji přesnou tiskovou geometrii…';
-    if(status)status.innerHTML='<b>SLICER ENGINE · CURAENGINE WASM</b><br>Ověřuji, že slicer dostane přesně geometrii z 3D vieweru…';
-    const prepared=await prepare3DPrintSTLForCura();
-    const result=await run3DPrintCura(prepared.buffer,prepared.topologyMode,prepared.repaired);
-    const gcode=validate3DPrintSlicerGcode(result.gcode);
-    const ratio=String(document.getElementById('print3d-scale')?.value||1).replace(/[^0-9._-]/g,'');
-    const header=`; 20-20-TOOLBOX V3.13w\n; slicer_engine = CuraEngine WASM\n; source = ${f.name}\n; source_geometry = baked + verified viewer geometry\n; pre_slice_repair = ${prepared.repairMethod||'none'}\n; topology_mode = ${prepared.topologyMode}\n; scale = 1:${document.getElementById('print3d-scale')?.value||1}\n; IMPORTANT: verify in PrusaSlicer G-code Viewer before printing\n`;
-    const blob=new Blob([header+gcode],{type:'text/x-gcode'}),a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);a.download=f.name.replace(/\.[^.]+$/,'')+`_MK3S_CURA_1-${ratio}.gcode`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2500);
-    if(st)st.textContent='G-code vytvořen CuraEngine slicerem. Zkontroluj ho v PrusaSlicer G-code Vieweru.';
-    if(status)status.innerHTML=`<b>✓ CURAENGINE WASM · HOTOVO</b><br>G-code vytvořen CuraEngine z geometrie, která byla před slicingem zapečena z vieweru a rozměrově ověřena. ${prepared.repairMethod==='voxel-solidify'?'Použita byla voxelově solidifikovaná uzavřená tisková kopie.':prepared.repaired?'Použita byla bezpečně vyčištěná tisková kopie.':prepared.topologyMode==='mixed'?'Model zůstal otevřený; Cura použila nouzový surface režim.':'Použit byl přesný původní manifold STL.'}${result.metadata?'<br><span style="opacity:.75">Cura metadata byla vytvořena spolu s G-code.</span>':''}`;
+    if(status)status.innerHTML='<b>SLICER ENGINE · ORCA WASM</b><br>Ověřuji přesnou geometrii z vieweru. Automatická repair kopie se do sliceru nevnutí.';
+    const prepared=await prepare3DPrintSTLForOrca();
+    const result=await run3DPrintOrca(prepared.buffer,prepared.check.size);
+    const gcode=validate3DPrintSlicerGcode(result.gcode),ratio=String(document.getElementById('print3d-scale')?.value||1).replace(/[^0-9._-]/g,'');
+    const header=`; source = ${f.name}\n; source_geometry = exact baked viewer STL\n; source_topology = boundary:${prepared.check.boundary||0} nonmanifold:${prepared.check.nonManifold||0} degenerate:${prepared.check.degenerate||0}\n; scale = 1:${document.getElementById('print3d-scale')?.value||1}\n; IMPORTANT: verify in PrusaSlicer G-code Viewer before printing\n`;
+    const blob=new Blob([header+gcode],{type:'text/x-gcode'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=f.name.replace(/\.[^.]+$/,'')+`_MK3S_ORCA_1-${ratio}.gcode`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2500);
+    const tc=result.toolpathCheck?.size?` Toolpath rozsah: ${result.toolpathCheck.size.x.toFixed(1)} × ${result.toolpathCheck.size.y.toFixed(1)} × ${result.toolpathCheck.size.z.toFixed(1)} mm.`:'';
+    if(st)st.textContent='G-code vytvořen Orca WASM slicerem. Zkontroluj ho v PrusaSlicer G-code Vieweru.';
+    if(status)status.innerHTML=`<b>✓ ORCA WASM · HOTOVO</b><br>G-code vytvořen z přesné kopie modelu ve vieweru. ${prepared.broken?'Vstupní mesh není dokonale manifold, ale nebyl před slicingem destruktivně přestavěn.':'Vstupní mesh je manifold.'}${tc}${result.warnings?.length?'<br>Upozornění kernelu: '+escapeHtml(result.warnings.join(', ')):''}`;
   }catch(e){
-    console.error('Cura export',e);print3dState.curaLastError=e;
-    if(st)st.textContent='CuraEngine slicing se nepodařilo dokončit.';
-    if(status)status.innerHTML='<b>⚠ CURAENGINE WASM EXPORT SELHAL</b><br>'+escapeHtml(e?.message||String(e))+'<br>Toolbox nevytvoří náhradní G-code starým interním slicerem.';
-    alert('G-code se nepodařilo bezpečně vytvořit:\n\n'+(e?.message||String(e))+'\n\nModel zůstal beze změny.');
-  }finally{
-    print3dState.slicerBusy=false;if(btn)btn.disabled=!print3dState.root;if(simpleBtn)simpleBtn.disabled=!print3dState.root||!print3dState.simplePrepared;
-  }
+    console.error('Orca export',e);print3dState.orcaLastError=e;if(st)st.textContent='Orca WASM slicing se nepodařilo bezpečně dokončit.';if(status)status.innerHTML='<b>⚠ ORCA WASM EXPORT SELHAL</b><br>'+escapeHtml(e?.message||String(e))+'<br>Toolbox nevytvoří náhradní chybný G-code.';alert('G-code se nepodařilo bezpečně vytvořit:\n\n'+(e?.message||String(e))+'\n\nModel zůstal beze změny.');
+  }finally{print3dState.slicerBusy=false;if(btn)btn.disabled=!print3dState.root;if(simpleBtn)simpleBtn.disabled=!print3dState.root||!print3dState.simplePrepared}
 }
 
 async function export3DPrintGcodeLegacy(){
