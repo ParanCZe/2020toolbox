@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/bootstrap-prusabridge314o.yml
       - PrusaBridge/src/**
+      - tools/patch_print_recommendations_v314t.py
   workflow_dispatch:
 
 permissions:
@@ -18,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Patch V3.14s
+      - name: Patch Bridge and V3.14t web recommendations
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -30,13 +31,13 @@ jobs:
           $s = $s.Replace('args = append(args, "--support-material", "0")', '// support disabled: no boolean CLI flag')
           Set-Content -Encoding UTF8 -Path $p -Value $s
 
-          $i = 'index.html'
-          $h = Get-Content -Raw -Encoding UTF8 $i
-          $h = $h.Replace('3.14r', '3.14s')
-          Set-Content -Encoding UTF8 -Path $i -Value $h
+          python tools\patch_print_recommendations_v314t.py
+          if ($LASTEXITCODE -ne 0) { throw "V3.14t recommendation patch failed: $LASTEXITCODE" }
 
           if (-not ((Get-Content -Raw $p).Contains('const bridgeVersion = "3.14s"'))) { throw 'Bridge version patch failed' }
           if ((Get-Content -Raw $p).Contains('"--support-material", "1"')) { throw 'Boolean CLI fix did not apply' }
+          if (-not ((Get-Content -Raw -Encoding UTF8 index.html).Contains('id="print3d-priority"'))) { throw 'Priority selector was not added' }
+          if (-not ((Get-Content -Raw -Encoding UTF8 index.html).Contains('analyze3DPrintRecommendationGeometry'))) { throw 'Smart recommendation function missing' }
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -94,7 +95,7 @@ jobs:
           } | ConvertTo-Json
           Set-Content -Encoding UTF8 -Path 'PrusaBridge\latest.json' -Value $manifest
 
-      - name: Commit V3.14s
+      - name: Commit V3.14t web and Bridge 3.14s
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -102,5 +103,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add PrusaBridge/src/main.go PrusaBridge/src/Win3DRepair.cpp PrusaBridge/src/go.mod PrusaBridge/20-20-PrusaBridge.exe PrusaBridge/latest.json index.html
           if (git diff --cached --quiet) { exit 0 }
-          git commit -m 'PrusaBridge 3.14s slicer CLI fix'
+          git commit -m 'V3.14t model-aware print recommendations'
           git push origin main
