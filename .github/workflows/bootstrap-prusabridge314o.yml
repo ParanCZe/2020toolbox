@@ -43,7 +43,7 @@ jobs:
           if (-not $html.Contains('id="print3d-priority"')) { throw 'Priority selector was not added' }
           if (-not $html.Contains('analyze3DPrintRecommendationGeometry')) { throw 'Smart recommendation function missing' }
           if (-not $html.Contains('class="menu-app-groups"')) { throw 'V3.14u main menu layout missing' }
-          if (-not $html.Contains('AKTUÁLNĚ VYUŽITÁ DATA APLIKACEMI')) { throw 'V3.14u data overview missing' }
+          if (-not $html.Contains('session-data-mb')) { throw 'V3.14u data overview missing' }
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
