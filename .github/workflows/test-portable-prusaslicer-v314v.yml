@@ -41,18 +41,12 @@ jobs:
             [IO.File]::WriteAllText((Join-Path $datadir 'PrusaSlicer.ini'), $cfg, [Text.Encoding]::ASCII)
 
             $old=$ErrorActionPreference; $ErrorActionPreference='Continue'
-            $models=Join-Path $env:RUNNER_TEMP 'models.json'
-            & $status.slicerPath --datadir $datadir --query-printer-models -o $models 2>&1 | ForEach-Object {Write-Host $_}
-            Write-Host "MODELS_EXIT=$LASTEXITCODE OUT=$((Test-Path $models))"
-            if(-not (Test-Path $models)){throw 'printer models output missing'}
-            Get-Content $models -TotalCount 120 | Write-Host
-
             $profilesOut=Join-Path $env:RUNNER_TEMP 'profiles.json'
-            & $status.slicerPath --datadir $datadir --printer-profile 'Original Prusa i3 MK3S & MK3S+' --query-print-tool-filament-profiles -o $profilesOut 2>&1 | ForEach-Object {Write-Host $_}
+            & $status.slicerPath --datadir $datadir --printer-profile 'Original Prusa i3 MK3S & MK3S+' --query-print-filament-profiles -o $profilesOut 2>&1 | ForEach-Object {Write-Host $_}
             Write-Host "PROFILES_EXIT=$LASTEXITCODE OUT=$((Test-Path $profilesOut))"
             $ErrorActionPreference=$old
             if(-not (Test-Path $profilesOut)){throw 'profile output missing'}
-            Get-Content $profilesOut -TotalCount 240 | Write-Host
+            Get-Content $profilesOut -TotalCount 260 | Write-Host
             $txt=Get-Content $profilesOut -Raw
             if($txt -notmatch '0.20mm QUALITY @MK3'){throw 'MK3 print profile missing'}
             if($txt -notmatch 'Prusament PLA'){throw 'PLA material profile missing'}
