@@ -488,7 +488,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version" id="app-version">V3.15a</div>
+  <div class="app-version" id="app-version">V3.15b</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ A DOKUMENTACÍ</div>
 </header>
 
@@ -3449,12 +3449,12 @@ function printDrawingList(){
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Seznam výkresů</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}.section td{background:#f3ef99;font-weight:bold;font-size:12px;padding-top:8px;padding-bottom:8px}@media print{body{margin:10mm}}</style></head><body>
 <div id="toolbox-whatsnew" role="dialog" aria-modal="true" aria-labelledby="toolbox-whatsnew-title">
   <div class="whatsnew-box">
-    <div class="whatsnew-head"><b id="toolbox-whatsnew-title">Co je nového</b><span class="whatsnew-ver">V3.15a</span></div>
+    <div class="whatsnew-head"><b id="toolbox-whatsnew-title">Co je nového</b><span class="whatsnew-ver">V3.15b</span></div>
     <div class="whatsnew-body">
-      <div class="whatsnew-item"><strong>Normy — přímé odkazy na konkrétní zdroj</strong><span>Karty a výsledky hledání jsou nyní klikatelné. U veřejných předpisů se otevře přímo příslušný paragraf; u ČSN se otevře detail normy v oficiálním katalogu, pokud je k dispozici.</span></div>
-      <div class="whatsnew-item"><strong>Interiérové standardy — velké rozšíření</strong><span>Doplněny desítky praktických rozměrů pro kuchyně, koupelny, nábytek, ložnice, kanceláře, gastro, retail, hotely, školy, dětské prostory a další.</span></div>
-      <div class="whatsnew-item"><strong>Interiérové standardy — chytré hledání</strong><span>Vyhledávací pole je nyní výrazně nahoře a hledá přes názvy, doporučené hodnoty, poznámky, kategorie a související výrazy.</span></div>
-      <div class="whatsnew-item"><strong>Ovládání výsledků</strong><span>Výsledek normy už jen neposouvá pohled v Toolboxu — otevře rovnou zdroj. Vnitřní standardy se při hledání zvýrazní a zobrazí v přehledu.</span></div>
+      <div class="whatsnew-item"><strong>Normy — celá karta je teď odkaz</strong><span>Zmizelo samostatné tlačítko „Otevřít zdroj“. Kliknutí kamkoli na kartu otevře zdrojovou stránku.</span></div>
+      <div class="whatsnew-item"><strong>Přesnější skok na konkrétní ustanovení</strong><span>U právních předpisů se nyní odkaz skládá i z odstavce, například § 39 odst. 1 otevře přímo #p39-1 místo začátku celé vyhlášky.</span></div>
+      <div class="whatsnew-item"><strong>Přílohy a tabulky</strong><span>Pokud záznam pochází z přílohy nebo tabulky, Toolbox používá cílený textový odkaz na danou část zdroje, pokud jej prohlížeč podporuje.</span></div>
+      <div class="whatsnew-item"><strong>Interiérové standardy</strong><span>Vyhledávání zůstává nahoře a prohledává všechny aktuálně zařazené rozměry, odstupy, výšky, nábytek, sanitu, kuchyně, kanceláře a další kategorie.</span></div>
     </div>
     <div class="whatsnew-actions"><button class="action" type="button" onclick="closeToolboxWhatsNew()">Rozumím</button></div>
   </div>
@@ -8274,12 +8274,12 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>check3DPrintPrus
 
 </script>
 
-<script src="norms_data_v314y.js?v=315a"></script>
-<script src="norms_engine_v314y.js?v=315a"></script>
+<script src="norms_data_v314y.js?v=315b"></script>
+<script src="norms_engine_v314y.js?v=315b"></script>
 
 <script>
 (function(){
-  const VERSION='V3.15a', KEY='20-20-toolbox-whatsnew-seen';
+  const VERSION='V3.15b', KEY='20-20-toolbox-whatsnew-seen';
   window.closeToolboxWhatsNew=function(){
     const el=document.getElementById('toolbox-whatsnew');
     if(el)el.classList.remove('active');
