@@ -114,8 +114,8 @@ if 'gcode_viewer_embedded.html?v=314w' not in s:
     raise SystemExit('G-code viewer iframe missing')
 if 'open3DPrintGcodePreview(header+gcode,downloadName)' not in s:
     raise SystemExit('Export does not open preview')
-if "a.download=f.name.replace" in s:
-    raise SystemExit('Old direct download still present')
+if old_download in s:
+    raise SystemExit('Old direct export download still present')
 
 P.write_text(s, encoding='utf-8')
 print('V3.14w G-code preview patch applied')
