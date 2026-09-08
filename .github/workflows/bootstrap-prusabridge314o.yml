@@ -1,4 +1,4 @@
-name: Bootstrap PrusaBridge 3.14o
+name: Bootstrap and Build PrusaBridge 3.14o
 
 on:
   push:
@@ -11,25 +11,83 @@ permissions:
   contents: write
 
 jobs:
-  bootstrap:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Restore PrusaBridge sources
-        shell: bash
+        shell: powershell
         run: |
-          set -euo pipefail
-          cat PrusaBridge/bootstrap/chunk*.txt > payload.b64
-          base64 -d payload.b64 > payload.tar.gz
+          $ErrorActionPreference = 'Stop'
+          $b64 = ''
+          Get-ChildItem 'PrusaBridge\bootstrap\chunk*.txt' | Sort-Object Name | ForEach-Object {
+            $b64 += [IO.File]::ReadAllText($_.FullName)
+          }
+          [IO.File]::WriteAllBytes('payload.tar.gz', [Convert]::FromBase64String($b64))
           tar -xzf payload.tar.gz
-          rm -f payload.b64 payload.tar.gz
-      - name: Commit sources and Windows build workflow
-        shell: bash
+          if ($LASTEXITCODE -ne 0) { throw "Source payload extraction failed: $LASTEXITCODE" }
+          Remove-Item payload.tar.gz -Force
+          # This bootstrap compiles directly, so do not commit the extracted second workflow.
+          Remove-Item '.github\workflows\build-prusabridge.yml' -Force -ErrorAction SilentlyContinue
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build native WinRT repair helper
+        shell: powershell
         run: |
-          set -euo pipefail
-          git config user.name '20-20 Bridge Bootstrap'
+          $ErrorActionPreference = 'Stop'
+          $sdkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Include'
+          $sdk = Get-ChildItem $sdkRoot -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          if (-not $sdk) { throw 'Windows SDK include directory not found.' }
+          $cppwinrt = Join-Path $sdk.FullName 'cppwinrt'
+          if (-not (Test-Path $cppwinrt)) { throw "C++/WinRT headers not found: $cppwinrt" }
+          cl /nologo /std:c++17 /EHsc /O2 /DUNICODE /D_UNICODE /I"$cppwinrt" PrusaBridge\src\Win3DRepair.cpp /Fe:PrusaBridge\src\Win3DRepair.exe /link windowsapp.lib
+          if ($LASTEXITCODE -ne 0) { throw "Win3DRepair build failed: $LASTEXITCODE" }
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+
+      - name: Build PrusaBridge
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Push-Location PrusaBridge\src
+          go build -trimpath -ldflags "-H=windowsgui -s -w" -o ..\20-20-PrusaBridge.exe .
+          if ($LASTEXITCODE -ne 0) { throw "PrusaBridge build failed: $LASTEXITCODE" }
+          Pop-Location
+
+      - name: Create update manifest and patch web app
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = 'PrusaBridge\20-20-PrusaBridge.exe'
+          $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $manifest = [ordered]@{
+            version = '3.14o'
+            url = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/20-20-PrusaBridge.exe'
+            sha256 = $sha
+          } | ConvertTo-Json
+          Set-Content -Path 'PrusaBridge\latest.json' -Value $manifest -Encoding UTF8
+          python PrusaBridge\src\patch_index_314o.py
+          if ($LASTEXITCODE -ne 0) { throw "index patch failed: $LASTEXITCODE" }
+
+      - name: Commit Bridge, source, manifest and index
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name '20-20 Bridge Builder'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git rm -r PrusaBridge/bootstrap
-          git add PrusaBridge/src .github/workflows/build-prusabridge.yml
-          git commit -m 'Bootstrap PrusaBridge 3.14o sources'
+          git add PrusaBridge/src/main.go PrusaBridge/src/Win3DRepair.cpp PrusaBridge/src/patch_index_314o.py PrusaBridge/src/go.mod PrusaBridge/20-20-PrusaBridge.exe PrusaBridge/latest.json index.html
+          if (git diff --cached --quiet) {
+            Write-Host 'No changes.'
+            exit 0
+          }
+          git commit -m 'Add self-updating PrusaBridge 3.14o with native WinRT repair'
           git push origin main
