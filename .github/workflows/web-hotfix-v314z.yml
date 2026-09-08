@@ -1,0 +1,40 @@
+name: Web V3.14z Hotfix and Changelog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/web-hotfix-v314z.yml
+      - tools/patch_hotfix_changelog_v314z.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Repair broken UI and add changelog
+        run: |
+          python tools/patch_hotfix_changelog_v314z.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert '<div class="app-version" id="app-version">V3.14z</div>' in s
+          assert s.count('norms_data_v314y.js?v=314z') == 1
+          assert s.count('norms_engine_v314y.js?v=314z') == 1
+          assert 'id="toolbox-whatsnew"' in s
+          assert "const VERSION='V3.14z', KEY='20-20-toolbox-whatsnew-seen'" in s
+          assert '<\\/script>\n<script src="norms_data_v314y.js?v=314y"></script>' not in s
+          print('V3.14z checks OK')
+          PY
+      - name: Commit V3.14z hotfix
+        run: |
+          git config user.name '20-20 Web Builder'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'V3.14z fix broken UI and add whats new dialog'
+          git push origin main
