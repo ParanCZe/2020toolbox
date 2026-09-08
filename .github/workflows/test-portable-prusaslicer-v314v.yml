@@ -3,52 +3,185 @@ name: Test V3.14v Portable PrusaSlicer
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/test-portable-prusaslicer-v314v.yml']
+    paths:
+      - '.github/workflows/test-portable-prusaslicer-v314v.yml'
+      - 'PrusaBridge/20-20-PrusaBridge.exe'
+      - 'PrusaBridge/latest.json'
+      - 'PrusaBridge/src/main.go'
   workflow_dispatch:
 
 jobs:
   test-portable-runtime:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Probe managed presets in clean portable runtime
+
+      - name: Start Bridge on a clean PC profile
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'toolbox-localappdata'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'toolbox-clean-localappdata'
+          Remove-Item $env:LOCALAPPDATA -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path $env:LOCALAPPDATA | Out-Null
           $exe = Join-Path $PWD 'PrusaBridge\20-20-PrusaBridge.exe'
           $p = Start-Process -FilePath $exe -ArgumentList '--serve' -PassThru -WindowStyle Hidden
-          try {
-            $status=$null
-            for($i=0;$i -lt 120;$i++){
-              Start-Sleep -Seconds 2
-              try{$status=Invoke-RestMethod 'http://127.0.0.1:8091/status' -TimeoutSec 3}catch{continue}
-              Write-Host ("ready={0} managed={1} boot={2} {3}" -f $status.ok,$status.slicerManaged,$status.slicerBootstrapping,$status.slicerBootstrapStatus)
-              if($status.ok){break}
-              if($status.slicerBootstrapError){throw $status.slicerBootstrapError}
-            }
-            if(-not $status.ok -or -not $status.slicerManaged){throw 'portable runtime not ready'}
-            $runtime = Split-Path $status.slicerPath -Parent
-            $profiles = Join-Path $runtime 'resources\profiles'
-            $datadir = Join-Path $env:LOCALAPPDATA '20-20-TOOLBOX\PrusaBridge\PrusaData'
-            $vendorDir = Join-Path $datadir 'vendor'
-            New-Item -ItemType Directory -Force $vendorDir | Out-Null
-            Copy-Item (Join-Path $profiles 'PrusaResearch.ini') (Join-Path $vendorDir 'PrusaResearch.ini') -Force
-            Copy-Item (Join-Path $profiles 'PrusaResearch.idx') (Join-Path $vendorDir 'PrusaResearch.idx') -Force
-            $cfg = "[presets]`r`nfilament = Prusament PLA`r`nprint = 0.20mm QUALITY @MK3`r`nprinter = Original Prusa i3 MK3S & MK3S+`r`n`r`n[vendor:PrusaResearch]`r`nmodel:MK3S = 0.4`r`n"
-            [IO.File]::WriteAllText((Join-Path $datadir 'PrusaSlicer.ini'), $cfg, [Text.Encoding]::ASCII)
+          Set-Content -Path (Join-Path $env:RUNNER_TEMP 'bridge.pid') -Value $p.Id
 
-            $old=$ErrorActionPreference; $ErrorActionPreference='Continue'
-            $profilesOut=Join-Path $env:RUNNER_TEMP 'profiles.json'
-            & $status.slicerPath --datadir $datadir --printer-profile 'Original Prusa i3 MK3S & MK3S+' --query-print-filament-profiles -o $profilesOut 2>&1 | ForEach-Object {Write-Host $_}
-            Write-Host "PROFILES_EXIT=$LASTEXITCODE OUT=$((Test-Path $profilesOut))"
-            $ErrorActionPreference=$old
-            if(-not (Test-Path $profilesOut)){throw 'profile output missing'}
-            Get-Content $profilesOut -TotalCount 260 | Write-Host
-            $txt=Get-Content $profilesOut -Raw
-            if($txt -notmatch '0.20mm QUALITY @MK3'){throw 'MK3 print profile missing'}
-            if($txt -notmatch 'Prusament PLA'){throw 'PLA material profile missing'}
-            Write-Host 'PORTABLE_PRESETS_OK'
-          } finally { try{Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}catch{} }
+          $status=$null
+          for($i=0;$i -lt 180;$i++){
+            Start-Sleep -Seconds 2
+            try{$status=Invoke-RestMethod 'http://127.0.0.1:8091/status' -TimeoutSec 4}catch{continue}
+            Write-Host ("bridge={0} ready={1} managed={2} boot={3} status={4}" -f $status.bridgeVersion,$status.ok,$status.slicerManaged,$status.slicerBootstrapping,$status.slicerBootstrapStatus)
+            if($status.slicerBootstrapError){throw $status.slicerBootstrapError}
+            if($status.ok -and $status.slicerManaged){break}
+          }
+          if(-not $status){throw 'Bridge status unavailable'}
+          if($status.bridgeVersion -ne '3.14v'){throw "Wrong Bridge: $($status.bridgeVersion)"}
+          if(-not $status.ok){throw 'Bridge did not become ready'}
+          if(-not $status.slicerManaged){throw 'Bridge used an external PrusaSlicer instead of its managed runtime'}
+          if(-not (Test-Path $status.slicerPath)){throw 'Managed prusa-slicer-console.exe missing'}
+
+          $dataDir = Join-Path $env:LOCALAPPDATA '20-20-TOOLBOX\PrusaBridge\PrusaData'
+          foreach($f in @('PrusaSlicer.ini','vendor\PrusaResearch.ini','vendor\PrusaResearch.idx')){
+            if(-not (Test-Path (Join-Path $dataDir $f))){throw "Managed preset file missing: $f"}
+          }
+          Write-Host "PORTABLE_RUNTIME_READY=$($status.slicerPath)"
+          Write-Host "DATADIR=$dataDir"
+
+      - name: Verify named MK3S profiles from Bridge-owned datadir
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'toolbox-clean-localappdata'
+          $status=Invoke-RestMethod 'http://127.0.0.1:8091/status' -TimeoutSec 5
+          $dataDir = Join-Path $env:LOCALAPPDATA '20-20-TOOLBOX\PrusaBridge\PrusaData'
+          $out=Join-Path $env:RUNNER_TEMP 'profiles.json'
+          $old=$ErrorActionPreference; $ErrorActionPreference='Continue'
+          & $status.slicerPath --datadir $dataDir --printer-profile 'Original Prusa i3 MK3S & MK3S+' --query-print-filament-profiles -o $out 2>&1 | ForEach-Object {Write-Host $_}
+          $ErrorActionPreference=$old
+          if(-not (Test-Path $out)){throw 'PrusaSlicer profile query produced no output'}
+          $txt=Get-Content $out -Raw
+          if($txt -notmatch '0.20mm QUALITY @MK3'){throw 'MK3 print profile missing'}
+          if($txt -notmatch 'Prusament PLA'){throw 'Prusament PLA profile missing'}
+          Write-Host 'MANAGED_PRESETS_OK'
+
+      - name: Slice a cube through the real Bridge API
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stl=Join-Path $env:RUNNER_TEMP 'cube.stl'
+          $gcode=Join-Path $env:RUNNER_TEMP 'cube.gcode'
+          $errFile=Join-Path $env:RUNNER_TEMP 'slice-error.txt'
+          @'
+solid cube
+facet normal 0 0 -1
+ outer loop
+  vertex 0 0 0
+  vertex 20 20 0
+  vertex 20 0 0
+ endloop
+endfacet
+facet normal 0 0 -1
+ outer loop
+  vertex 0 0 0
+  vertex 0 20 0
+  vertex 20 20 0
+ endloop
+endfacet
+facet normal 0 0 1
+ outer loop
+  vertex 0 0 20
+  vertex 20 0 20
+  vertex 20 20 20
+ endloop
+endfacet
+facet normal 0 0 1
+ outer loop
+  vertex 0 0 20
+  vertex 20 20 20
+  vertex 0 20 20
+ endloop
+endfacet
+facet normal 0 -1 0
+ outer loop
+  vertex 0 0 0
+  vertex 20 0 0
+  vertex 20 0 20
+ endloop
+endfacet
+facet normal 0 -1 0
+ outer loop
+  vertex 0 0 0
+  vertex 20 0 20
+  vertex 0 0 20
+ endloop
+endfacet
+facet normal 0 1 0
+ outer loop
+  vertex 0 20 0
+  vertex 0 20 20
+  vertex 20 20 20
+ endloop
+endfacet
+facet normal 0 1 0
+ outer loop
+  vertex 0 20 0
+  vertex 20 20 20
+  vertex 20 20 0
+ endloop
+endfacet
+facet normal -1 0 0
+ outer loop
+  vertex 0 0 0
+  vertex 0 0 20
+  vertex 0 20 20
+ endloop
+endfacet
+facet normal -1 0 0
+ outer loop
+  vertex 0 0 0
+  vertex 0 20 20
+  vertex 0 20 0
+ endloop
+endfacet
+facet normal 1 0 0
+ outer loop
+  vertex 20 0 0
+  vertex 20 20 0
+  vertex 20 20 20
+ endloop
+endfacet
+facet normal 1 0 0
+ outer loop
+  vertex 20 0 0
+  vertex 20 20 20
+  vertex 20 0 20
+ endloop
+endfacet
+endsolid cube
+'@ | Set-Content -Encoding ASCII $stl
+
+          $settings='{"printer":"MK3S","material":"PLA","nozzle":0.4,"layerHeight":0.20,"firstLayer":0.20,"perimeters":2,"infill":10,"infillPattern":"rectilinear","supports":"off","brim":0,"topSolid":4,"bottomSolid":4,"retract":0.8,"zHop":0.4,"supportInterface":2,"nozzleFirst":215,"nozzleTemp":210,"bedFirst":60,"bedTemp":60,"speedPerimeter":45,"speedInfill":80,"speedTravel":180}'
+          $code = & curl.exe -sS -o $gcode -w '%{http_code}' -F "file=@$stl;type=application/sla" -F "settings=$settings" 'http://127.0.0.1:8091/slice'
+          Write-Host "HTTP=$code"
+          if($code -ne '200'){
+            if(Test-Path $gcode){Get-Content $gcode -Raw | Write-Host}
+            throw "Bridge /slice failed with HTTP $code"
+          }
+          if(-not (Test-Path $gcode)){throw 'G-code missing'}
+          $len=(Get-Item $gcode).Length
+          if($len -lt 1000){Get-Content $gcode -Raw | Write-Host; throw "G-code too small: $len"}
+          $head=Get-Content $gcode -TotalCount 30 -Raw
+          Write-Host $head
+          Write-Host "FULL_PORTABLE_SLICE_OK=$len bytes"
+
+      - name: Stop Bridge
+        if: always()
+        shell: powershell
+        run: |
+          $pidFile=Join-Path $env:RUNNER_TEMP 'bridge.pid'
+          if(Test-Path $pidFile){
+            $bridgePid=[int](Get-Content $pidFile -Raw)
+            Stop-Process -Id $bridgePid -Force -ErrorAction SilentlyContinue
+          }
