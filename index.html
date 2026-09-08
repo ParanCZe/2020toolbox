@@ -467,7 +467,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version" id="app-version">V3.14u</div>
+  <div class="app-version" id="app-version">V3.14v</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ A DOKUMENTACÍ</div>
 </header>
 
@@ -941,9 +941,9 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
               <a class="back-btn" style="margin:0;display:inline-flex;align-items:center;text-decoration:none" href="https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/20-20-PrusaBridge.exe" download>↓ Bridge / instalace</a>
             </div>
             <div style="margin-top:9px;padding:8px 9px;background:#fff;border:1px solid var(--border);border-radius:7px;font-size:11px;line-height:1.5">
-              <div class="print3d-simple-note strong"><b>V3.14s · Native WinRT repair + automatické aktualizace</b><br>Bridge už nevolá Windows 3D API z PowerShellu. Používá typovaný C++/WinRT helper, který načte 3MF, zavolá <code>Printing3DModel.RepairAsync()</code> a vrátí opravený model PrusaSliceru. Bridge si zároveň umí z GitHubu zkontrolovat novou verzi, ověřit její SHA-256, ukončit starý proces a spustit nový.</div>
+              <div class="print3d-simple-note strong"><b>V3.14t · Native WinRT repair + portable PrusaSlicer</b><br>Bridge už nevolá Windows 3D API z PowerShellu. Používá typovaný C++/WinRT helper, který načte 3MF, zavolá <code>Printing3DModel.RepairAsync()</code> a vrátí opravený model PrusaSliceru. Bridge si zároveň umí z GitHubu zkontrolovat novou verzi, ověřit její SHA-256, ukončit starý proces a spustit nový.</div>
             </div>
-            <div class="print3d-estimate-note" style="margin-top:9px"><b>V3.14s používá skutečný nainstalovaný PrusaSlicer na tomto Windows PC.</b> Web komunikuje pouze s <code>127.0.0.1:8091</code>. <b>V3.14s je potřeba jednou ručně spustit</b>, protože starší Bridge ještě neumí bezpečný self-update. Od V3.14s dál už tlačítko na webu umí verzi zkontrolovat a Bridge se při dostupné novější verzi aktualizuje automaticky.</div>
+            <div class="print3d-estimate-note" style="margin-top:9px"><b>PrusaSlicer už nemusí být předem nainstalovaný.</b> Když ho Bridge nenajde, automaticky stáhne oficiální stabilní Windows ZIP přímo z GitHub Releases projektu Prusa3D, ověří jeho SHA-256 a rozbalí jej jako lokální portable runtime do <code>%LOCALAPPDATA%\20-20-TOOLBOX\PrusaBridge\Slicer</code>. Stávající systémová instalace je stále podporovaná. Web komunikuje pouze s <code>127.0.0.1:8091</code>.</div>
             <div id="print3d-repair-report" class="print3d-repair-report"></div>
           </div>
           <div class="print3d-box">
@@ -6596,6 +6596,15 @@ function analyze3DPrintRecommendationGeometry(){
   const shape=complexity>2.6?'complex':complexity>1.55?'medium':'simple';
   return {ready:true,out,tri,over,minDim,maxDim,foot,bboxVol,complexity,stability,aspect,size,shape};
 }
+function analyze3DPrintRecommendationGeometry(){
+  const out=current3DPrintDims(),tri=get3DPrintTriangleCache(),over=get3DPrintOverhangInfo();
+  if(!out)return {ready:false,over};
+  const dims=[Math.max(.001,out.x),Math.max(.001,out.y),Math.max(.001,out.z)].sort((a,b)=>a-b),minDim=dims[0],maxDim=dims[2],foot=Math.max(1,out.x*out.y),bboxVol=Math.max(1,out.x*out.y*out.z),boxArea=Math.max(1,2*(out.x*out.y+out.x*out.z+out.y*out.z));
+  const complexity=tri?.area>0?tri.area/boxArea:1,stability=out.z/Math.max(1,Math.sqrt(foot)),aspect=maxDim/minDim;
+  const size=maxDim<20?'tiny':maxDim<45?'small':maxDim>130?'large':'medium';
+  const shape=complexity>2.6?'complex':complexity>1.55?'medium':'simple';
+  return {ready:true,out,tri,over,minDim,maxDim,foot,bboxVol,complexity,stability,aspect,size,shape};
+}
 function apply3DPrintRecommendedSettings(show=true){
   print3dState.simplePrepared=true;
   const purpose=document.getElementById('print3d-purpose')?.value||'architecture',priority=document.getElementById('print3d-priority')?.value||'balanced',material=document.getElementById('print3d-material')?.value||'pla',g=analyze3DPrintRecommendationGeometry();
@@ -7927,10 +7936,10 @@ function printDesignAuditReport(){const f=designAuditState.file;if(!f)return;con
 <script>
 
 // ============================================================
-// 3D TISK — V3.14s · LOCAL PRUSASLICER BRIDGE
+// 3D TISK — V3.14t · SELF-CONTAINED PRUSASLICER BRIDGE
 // ============================================================
 const PRINT3D_PRUSA_BRIDGE_URL='http://127.0.0.1:8091';
-const PRINT3D_PRUSA_BRIDGE_EXPECTED='3.14s';
+const PRINT3D_PRUSA_BRIDGE_EXPECTED='3.14t';
 const PRINT3D_PRUSA_BRIDGE_DOWNLOAD='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/20-20-PrusaBridge.exe';
 function p3BridgeState(){
   if(!print3dState.prusaBridge)print3dState.prusaBridge={online:false,status:null,lastCheck:0,updating:false,autoTried:false};
@@ -7977,10 +7986,11 @@ async function check3DPrintPrusaBridge(silent=true,fromUpdater=false){
           if(!fromUpdater&&!state.autoTried){state.autoTried=true;setTimeout(()=>update3DPrintPrusaBridge(true),250)}
           return false
         }
-        box.className='print3d-health ok';box.innerHTML=`<b>✓ PRUSASLICER + NATIVE WINRT REPAIR PŘIPOJEN</b><br>${escapeHtml(j.slicerVersion||'PrusaSlicer')} · Bridge ${escapeHtml(j.bridgeVersion||'')}${j.protocolRegistered?' · webové spuštění aktivní':''}${j.latestVersion?` · latest ${escapeHtml(j.latestVersion)}`:''}<br><b>Repair:</b> ${escapeHtml(j.repairEngine||'Native WinRT RepairAsync')}<br><span style="opacity:.75">${escapeHtml(j.slicerPath||'')}</span>`;
+        box.className='print3d-health ok';box.innerHTML=`<b>✓ PRUSASLICER + NATIVE WINRT REPAIR PŘIPOJEN</b><br>${escapeHtml(j.slicerVersion||'PrusaSlicer')} · Bridge ${escapeHtml(j.bridgeVersion||'')}${j.slicerManaged?' · portable runtime':''}${j.protocolRegistered?' · webové spuštění aktivní':''}${j.latestVersion?` · latest ${escapeHtml(j.latestVersion)}`:''}<br><b>Repair:</b> ${escapeHtml(j.repairEngine||'Native WinRT RepairAsync')}<br><span style="opacity:.75">${escapeHtml(j.slicerPath||'')}</span>`;
         state.autoTried=false;return true
       }
-      box.className='print3d-health err';box.innerHTML=`<b>⚠ BRIDGE BĚŽÍ, ALE PRUSASLICER NENALEZEN</b><br>${escapeHtml(j.message||'Nastav cestu k prusa-slicer-console.exe v PrusaBridge.ini.')}`
+      if(j.slicerBootstrapping){box.className='print3d-health warn';box.innerHTML=`<b>↓ PŘIPRAVUJI PORTABLE PRUSASLICER…</b><br>${escapeHtml(j.slicerBootstrapStatus||j.message||'Stahuji oficiální PrusaSlicer z GitHub Releases. První spuštění může chvíli trvat.')}`;setTimeout(()=>check3DPrintPrusaBridge(true),1800);return false}
+      box.className='print3d-health err';box.innerHTML=`<b>⚠ PORTABLE PRUSASLICER SE NEPODAŘILO PŘIPRAVIT</b><br>${escapeHtml(j.slicerBootstrapError||j.message||'Zkontroluj připojení k internetu a zkus Bridge restartovat.')}`
     }
     return false
   }catch(e){state.online=false;state.status=null;state.lastCheck=Date.now();if(box){box.className='print3d-health err';box.innerHTML=`<b>⚠ PRUSABRIDGE NENÍ SPUŠTĚNÝ</b><br>Klikni <b>▶ Spustit PrusaBridge</b>. Pokud Bridge ještě není nainstalovaný, použij <b>↓ Bridge / instalace</b> a EXE jednou spusť.<br><span style="opacity:.75">${escapeHtml(e?.message||String(e))}</span>`}return false}

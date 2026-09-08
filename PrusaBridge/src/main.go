@@ -1,6 +1,7 @@
-﻿package main
+package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -23,8 +24,11 @@ import (
 	"time"
 )
 
-const bridgeVersion = "3.14s"
+const bridgeVersion = "3.14t"
 const latestJSONURL = "https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/latest.json"
+const prusaLatestReleaseAPI = "https://api.github.com/repos/prusa3d/PrusaSlicer/releases/latest"
+const prusaFallbackZipURL = "https://github.com/prusa3d/PrusaSlicer/releases/download/version_2.9.6/PrusaSlicer-2.9.6.zip"
+const prusaFallbackZipSHA256 = "5aaf22e42f95accecfa122d23a835911f289ecc2ff606db3e83d637ddcc0a209"
 const listenAddr = "127.0.0.1:8091"
 
 var (
@@ -35,12 +39,28 @@ var (
 	repairHelper string
 	updateMu     sync.Mutex
 	runMu        sync.Mutex
+	slicerBootstrapMu     sync.Mutex
+	slicerBootstrapping   bool
+	slicerBootstrapStatus string
+	slicerBootstrapError  string
+	slicerManaged         bool
 )
 
 type latestInfo struct {
 	Version string `json:"version"`
 	URL     string `json:"url"`
 	SHA256  string `json:"sha256"`
+}
+
+type prusaRelease struct {
+	TagName string `json:"tag_name"`
+	Name    string `json:"name"`
+	Assets  []struct {
+		Name               string `json:"name"`
+		BrowserDownloadURL string `json:"browser_download_url"`
+		Digest             string `json:"digest"`
+		Size               int64  `json:"size"`
+	} `json:"assets"`
 }
 
 //go:embed Win3DRepair.exe
@@ -53,6 +73,10 @@ type statusResp struct {
 	SlicerPath         string `json:"slicerPath,omitempty"`
 	SlicerGUI          string `json:"slicerGUI,omitempty"`
 	SlicerVersion      string `json:"slicerVersion,omitempty"`
+	SlicerManaged      bool   `json:"slicerManaged"`
+	SlicerBootstrapping bool  `json:"slicerBootstrapping"`
+	SlicerBootstrapStatus string `json:"slicerBootstrapStatus,omitempty"`
+	SlicerBootstrapError string `json:"slicerBootstrapError,omitempty"`
 	ProtocolRegistered bool   `json:"protocolRegistered"`
 	WindowsRepair      bool   `json:"windowsRepair"`
 	RepairEngine       string `json:"repairEngine,omitempty"`
@@ -120,6 +144,9 @@ func main() {
 		ensureInstalledArtifacts()
 		registerProtocol()
 		findSlicer()
+		if slicerPath == "" {
+			startPortableSlicerBootstrap()
+		}
 		if started, _ := maybeAutoUpdate(); started {
 			return
 		}
@@ -236,6 +263,10 @@ func pingBridge() bool {
 }
 
 func findSlicer() {
+	slicerPath = ""
+	slicerGUI = ""
+	slicerVer = ""
+	slicerManaged = false
 	var candidates []string
 	// ini override
 	iniPaths := []string{filepath.Join(installDir, "PrusaBridge.ini")}
@@ -251,6 +282,9 @@ func findSlicer() {
 				}
 			}
 		}
+	}
+	if p := findPortableSlicer(); p != "" {
+		candidates = append(candidates, p)
 	}
 	pf := os.Getenv("ProgramFiles")
 	pfx86 := os.Getenv("ProgramFiles(x86)")
@@ -292,6 +326,7 @@ func findSlicer() {
 		seen[key] = true
 		if st, err := os.Stat(ap); err == nil && !st.IsDir() {
 			slicerPath = ap
+			slicerManaged = pathWithin(ap, filepath.Join(installDir, "Slicer"))
 			slicerGUI = filepath.Join(filepath.Dir(ap), "prusa-slicer.exe")
 			if _, err := os.Stat(slicerGUI); err != nil {
 				slicerGUI = ap
@@ -304,6 +339,275 @@ func findSlicer() {
 			return
 		}
 	}
+}
+
+
+func setSlicerBootstrapState(running bool, status, errText string) {
+	slicerBootstrapMu.Lock()
+	slicerBootstrapping = running
+	slicerBootstrapStatus = status
+	slicerBootstrapError = errText
+	slicerBootstrapMu.Unlock()
+}
+
+func slicerBootstrapSnapshot() (bool, string, string) {
+	slicerBootstrapMu.Lock()
+	defer slicerBootstrapMu.Unlock()
+	return slicerBootstrapping, slicerBootstrapStatus, slicerBootstrapError
+}
+
+func startPortableSlicerBootstrap() {
+	slicerBootstrapMu.Lock()
+	if slicerBootstrapping || slicerPath != "" {
+		slicerBootstrapMu.Unlock()
+		return
+	}
+	slicerBootstrapping = true
+	slicerBootstrapStatus = "Připravuji automatické stažení portable PrusaSliceru…"
+	slicerBootstrapError = ""
+	slicerBootstrapMu.Unlock()
+	go func() {
+		err := ensurePortableSlicer()
+		if err != nil {
+			setSlicerBootstrapState(false, "Automatická instalace portable PrusaSliceru selhala.", err.Error())
+			return
+		}
+		findSlicer()
+		if slicerPath == "" {
+			setSlicerBootstrapState(false, "Portable PrusaSlicer byl rozbalen, ale konzolový slicer nebyl nalezen.", "prusa-slicer-console.exe nebyl po rozbalení nalezen")
+			return
+		}
+		setSlicerBootstrapState(false, "Portable PrusaSlicer je připravený.", "")
+	}()
+}
+
+func fetchPrusaStableRelease() (prusaRelease, error) {
+	var rel prusaRelease
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, prusaLatestReleaseAPI, nil)
+	if err != nil {
+		return rel, err
+	}
+	req.Header.Set("User-Agent", "20-20-PrusaBridge/"+bridgeVersion)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return rel, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return rel, fmt.Errorf("GitHub release API HTTP %d", resp.StatusCode)
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&rel); err != nil {
+		return rel, err
+	}
+	return rel, nil
+}
+
+func choosePrusaWindowsZip(rel prusaRelease) (name, url, digest string, size int64) {
+	for _, a := range rel.Assets {
+		n := strings.ToLower(a.Name)
+		if strings.HasPrefix(n, "prusaslicer-") && strings.HasSuffix(n, ".zip") && a.BrowserDownloadURL != "" {
+			return a.Name, a.BrowserDownloadURL, a.Digest, a.Size
+		}
+	}
+	return "PrusaSlicer-2.9.6.zip", prusaFallbackZipURL, "sha256:" + prusaFallbackZipSHA256, 106598059
+}
+
+func ensurePortableSlicer() error {
+	if p := findPortableSlicer(); p != "" {
+		return nil
+	}
+	if err := os.MkdirAll(installDir, 0755); err != nil {
+		return err
+	}
+	rel, relErr := fetchPrusaStableRelease()
+	assetName, assetURL, digest, assetSize := choosePrusaWindowsZip(rel)
+	if relErr != nil || assetURL == "" {
+		assetName = "PrusaSlicer-2.9.6.zip"
+		assetURL = prusaFallbackZipURL
+		digest = "sha256:" + prusaFallbackZipSHA256
+		assetSize = 106598059
+	}
+	label := rel.Name
+	if label == "" {
+		label = rel.TagName
+	}
+	if label == "" {
+		label = "PrusaSlicer 2.9.6"
+	}
+	setSlicerBootstrapState(true, fmt.Sprintf("Stahuji %s z oficiálního GitHubu Prusa3D (%.1f MB)…", assetName, float64(assetSize)/(1024*1024)), "")
+	zipPath := filepath.Join(installDir, "PrusaSlicer.download.zip")
+	defer os.Remove(zipPath)
+	if err := downloadPrusaAsset(assetURL, zipPath, digest); err != nil {
+		return err
+	}
+	setSlicerBootstrapState(true, "Staženo. Ověřuji a rozbaluji portable PrusaSlicer…", "")
+	newRoot := filepath.Join(installDir, "Slicer.new")
+	_ = os.RemoveAll(newRoot)
+	if err := os.MkdirAll(newRoot, 0755); err != nil {
+		return err
+	}
+	if err := extractZipSafe(zipPath, newRoot); err != nil {
+		_ = os.RemoveAll(newRoot)
+		return err
+	}
+	if findFileNamed(newRoot, "prusa-slicer-console.exe") == "" {
+		_ = os.RemoveAll(newRoot)
+		return errors.New("oficiální ZIP neobsahuje prusa-slicer-console.exe")
+	}
+	runtimeRoot := filepath.Join(installDir, "Slicer")
+	oldRoot := filepath.Join(installDir, "Slicer.old")
+	_ = os.RemoveAll(oldRoot)
+	if _, err := os.Stat(runtimeRoot); err == nil {
+		if err := os.Rename(runtimeRoot, oldRoot); err != nil {
+			_ = os.RemoveAll(runtimeRoot)
+		}
+	}
+	if err := os.Rename(newRoot, runtimeRoot); err != nil {
+		return fmt.Errorf("aktivace portable sliceru: %w", err)
+	}
+	_ = os.RemoveAll(oldRoot)
+	notice := "20-20 Toolbox stáhl oficiální binární vydání " + label + " přímo z GitHub Releases projektu PrusaSlicer.\r\n" +
+		"Zdroj: https://github.com/prusa3d/PrusaSlicer\r\n" +
+		"Licence projektu: GNU Affero General Public License v3.0 (AGPL-3.0).\r\n" +
+		"Toolbox tento balík nemodifikuje; používá jeho prusa-slicer-console.exe jako lokální slicovací engine.\r\n"
+	_ = os.WriteFile(filepath.Join(runtimeRoot, "20-20-PRUSASLICER-NOTICE.txt"), []byte(notice), 0644)
+	_ = os.WriteFile(filepath.Join(runtimeRoot, "20-20-runtime-version.txt"), []byte(label+"\r\n"), 0644)
+	return nil
+}
+
+func downloadPrusaAsset(url, dst, digest string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", "20-20-PrusaBridge/"+bridgeVersion)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("stažení PrusaSliceru: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("stažení PrusaSliceru: HTTP %d", resp.StatusCode)
+	}
+	tmp := dst + ".part"
+	_ = os.Remove(tmp)
+	f, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	h := sha256.New()
+	written, copyErr := io.Copy(io.MultiWriter(f, h), io.LimitReader(resp.Body, 400<<20))
+	closeErr := f.Close()
+	if copyErr != nil {
+		_ = os.Remove(tmp)
+		return copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(tmp)
+		return closeErr
+	}
+	if written <= 0 || written >= 400<<20 {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("neplatná velikost staženého ZIPu: %d B", written)
+	}
+	want := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(digest, "sha256:")))
+	got := hex.EncodeToString(h.Sum(nil))
+	if want != "" && got != want {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("SHA-256 portable PrusaSliceru nesedí: očekáváno %s, získáno %s", want, got)
+	}
+	_ = os.Remove(dst)
+	if err := os.Rename(tmp, dst); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
+func extractZipSafe(zipPath, dst string) error {
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return err
+	}
+	defer zr.Close()
+	base, _ := filepath.Abs(dst)
+	prefix := strings.ToLower(filepath.Clean(base) + string(os.PathSeparator))
+	for _, zf := range zr.File {
+		clean := filepath.Clean(strings.ReplaceAll(zf.Name, "/", string(os.PathSeparator)))
+		if clean == "." || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(os.PathSeparator)) {
+			return fmt.Errorf("nebezpečná cesta v ZIPu: %s", zf.Name)
+		}
+		target := filepath.Join(base, clean)
+		absTarget, _ := filepath.Abs(target)
+		if strings.ToLower(absTarget) != strings.ToLower(base) && !strings.HasPrefix(strings.ToLower(absTarget), prefix) {
+			return fmt.Errorf("cesta mimo cílovou složku: %s", zf.Name)
+		}
+		if zf.FileInfo().IsDir() {
+			if err := os.MkdirAll(absTarget, 0755); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(absTarget), 0755); err != nil {
+			return err
+		}
+		rc, err := zf.Open()
+		if err != nil {
+			return err
+		}
+		out, err := os.OpenFile(absTarget, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			rc.Close()
+			return err
+		}
+		_, copyErr := io.Copy(out, io.LimitReader(rc, 2<<30))
+		closeErr := out.Close()
+		rc.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+	}
+	return nil
+}
+
+func findFileNamed(root, name string) string {
+	var found string
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil {
+			return nil
+		}
+		if !info.IsDir() && strings.EqualFold(info.Name(), name) {
+			found = path
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
+}
+
+func findPortableSlicer() string {
+	if installDir == "" {
+		return ""
+	}
+	return findFileNamed(filepath.Join(installDir, "Slicer"), "prusa-slicer-console.exe")
+}
+
+func pathWithin(path, root string) bool {
+	ap, err1 := filepath.Abs(path)
+	ar, err2 := filepath.Abs(root)
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	rel, err := filepath.Rel(ar, ap)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
 func serve() {
@@ -352,16 +656,26 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 func handleStatus(w http.ResponseWriter, r *http.Request) {
 	if slicerPath == "" {
 		findSlicer()
+		if slicerPath == "" {
+			startPortableSlicerBootstrap()
+		}
 	}
+	booting, bootStatus, bootErr := slicerBootstrapSnapshot()
 	li, _ := fetchLatestInfo(2500 * time.Millisecond)
-	resp := statusResp{OK: slicerPath != "", BridgeVersion: bridgeVersion, SlicerFound: slicerPath != "", SlicerPath: slicerPath, SlicerGUI: slicerGUI, SlicerVersion: slicerVer, ProtocolRegistered: protocolRegistered(), WindowsRepair: true, RepairEngine: "Native WinRT Printing3DModel.RepairAsync", PID: os.Getpid(), UpdateSupported: true}
+	resp := statusResp{OK: slicerPath != "", BridgeVersion: bridgeVersion, SlicerFound: slicerPath != "", SlicerPath: slicerPath, SlicerGUI: slicerGUI, SlicerVersion: slicerVer, SlicerManaged: slicerManaged, SlicerBootstrapping: booting, SlicerBootstrapStatus: bootStatus, SlicerBootstrapError: bootErr, ProtocolRegistered: protocolRegistered(), WindowsRepair: true, RepairEngine: "Native WinRT Printing3DModel.RepairAsync", PID: os.Getpid(), UpdateSupported: true}
 	if li.Version != "" {
 		resp.LatestVersion = li.Version
 		resp.UpdateAvailable = li.Version != bridgeVersion
 		resp.DownloadURL = li.URL
 	}
 	if slicerPath == "" {
-		resp.Message = "PrusaSlicer nebyl nalezen. Nastav SlicerPath v PrusaBridge.ini."
+		if booting {
+			resp.Message = bootStatus
+		} else if bootErr != "" {
+			resp.Message = "Portable PrusaSlicer se nepodařilo připravit: " + bootErr
+		} else {
+			resp.Message = "PrusaSlicer zatím není připravený. Bridge ho automaticky stáhne z oficiálního GitHub Releases."
+		}
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -373,9 +687,15 @@ func handleRepair(w http.ResponseWriter, r *http.Request) {
 	}
 	if slicerPath == "" {
 		findSlicer()
+		if slicerPath == "" {
+			startPortableSlicerBootstrap()
+		}
 	}
 	if slicerPath == "" {
-		writeErr(w, 500, "PrusaSlicer není dostupný.", "")
+		booting, status, bootErr := slicerBootstrapSnapshot()
+		detail := status
+		if bootErr != "" { detail = bootErr }
+		if booting { writeErr(w, 503, "Portable PrusaSlicer se právě automaticky stahuje a připravuje.", detail) } else { writeErr(w, 500, "Portable PrusaSlicer není dostupný.", detail) }
 		return
 	}
 	data, err := io.ReadAll(io.LimitReader(r.Body, 500<<20))
@@ -408,9 +728,15 @@ func handleSlice(w http.ResponseWriter, r *http.Request) {
 	}
 	if slicerPath == "" {
 		findSlicer()
+		if slicerPath == "" {
+			startPortableSlicerBootstrap()
+		}
 	}
 	if slicerPath == "" {
-		writeErr(w, 500, "PrusaSlicer není dostupný.", "")
+		booting, status, bootErr := slicerBootstrapSnapshot()
+		detail := status
+		if bootErr != "" { detail = bootErr }
+		if booting { writeErr(w, 503, "Portable PrusaSlicer se právě automaticky stahuje a připravuje.", detail) } else { writeErr(w, 500, "Portable PrusaSlicer není dostupný.", detail) }
 		return
 	}
 	if err := r.ParseMultipartForm(520 << 20); err != nil {
@@ -917,6 +1243,7 @@ func copyFileRetry(src, dst string, tries int, delay time.Duration) error {
 	}
 	return last
 }
+
 
 
 
