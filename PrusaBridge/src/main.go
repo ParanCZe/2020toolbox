@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"bytes"
@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-const bridgeVersion = "3.14r"
+const bridgeVersion = "3.14s"
 const latestJSONURL = "https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/latest.json"
 const listenAddr = "127.0.0.1:8091"
 
@@ -572,11 +572,11 @@ func sliceWithPrusa(stl []byte, s SliceSettings) ([]byte, string, error) {
 	}
 	switch strings.ToLower(s.Supports) {
 	case "buildplate":
-		args = append(args, "--support-material", "1", "--support-material-buildplate-only", "1")
+		args = append(args, "--support-material", "--support-material-buildplate-only")
 	case "everywhere":
-		args = append(args, "--support-material", "1", "--support-material-buildplate-only", "0")
+		args = append(args, "--support-material")
 	default:
-		args = append(args, "--support-material", "0")
+		// support disabled: no boolean CLI flag
 	}
 	if s.SupportInterface >= 0 {
 		add("--support-material-interface-layers", strconv.Itoa(s.SupportInterface))
@@ -917,3 +917,4 @@ func copyFileRetry(src, dst string, tries int, delay time.Duration) error {
 	}
 	return last
 }
+
