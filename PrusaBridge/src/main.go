@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-const bridgeVersion = "3.14q"
+const bridgeVersion = "3.14r"
 const latestJSONURL = "https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/latest.json"
 const listenAddr = "127.0.0.1:8091"
 
