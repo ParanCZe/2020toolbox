@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Run Bridge without installed PrusaSlicer
+      - name: Download portable runtime and create G-code without installed PrusaSlicer
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -42,9 +42,110 @@ jobs:
             if (-not (Test-Path $status.slicerPath)) { throw "Portable slicer path does not exist: $($status.slicerPath)" }
             $expectedRoot = Join-Path $env:LOCALAPPDATA '20-20-TOOLBOX\PrusaBridge\Slicer'
             if (-not $status.slicerPath.StartsWith($expectedRoot,[System.StringComparison]::OrdinalIgnoreCase)) { throw "Portable slicer is outside managed root: $($status.slicerPath)" }
-            $ver = & $status.slicerPath --version
-            if ($LASTEXITCODE -ne 0) { throw 'Portable prusa-slicer-console.exe --version failed.' }
-            Write-Host "PORTABLE_RUNTIME_OK: $ver"
+
+            $stl = Join-Path $env:RUNNER_TEMP 'cube.stl'
+            @'
+          solid cube
+            facet normal 0 0 -1
+              outer loop
+                vertex 0 0 0
+                vertex 20 20 0
+                vertex 20 0 0
+              endloop
+            endfacet
+            facet normal 0 0 -1
+              outer loop
+                vertex 0 0 0
+                vertex 0 20 0
+                vertex 20 20 0
+              endloop
+            endfacet
+            facet normal 0 0 1
+              outer loop
+                vertex 0 0 20
+                vertex 20 0 20
+                vertex 20 20 20
+              endloop
+            endfacet
+            facet normal 0 0 1
+              outer loop
+                vertex 0 0 20
+                vertex 20 20 20
+                vertex 0 20 20
+              endloop
+            endfacet
+            facet normal 0 -1 0
+              outer loop
+                vertex 0 0 0
+                vertex 20 0 0
+                vertex 20 0 20
+              endloop
+            endfacet
+            facet normal 0 -1 0
+              outer loop
+                vertex 0 0 0
+                vertex 20 0 20
+                vertex 0 0 20
+              endloop
+            endfacet
+            facet normal 0 1 0
+              outer loop
+                vertex 0 20 0
+                vertex 0 20 20
+                vertex 20 20 20
+              endloop
+            endfacet
+            facet normal 0 1 0
+              outer loop
+                vertex 0 20 0
+                vertex 20 20 20
+                vertex 20 20 0
+              endloop
+            endfacet
+            facet normal -1 0 0
+              outer loop
+                vertex 0 0 0
+                vertex 0 0 20
+                vertex 0 20 20
+              endloop
+            endfacet
+            facet normal -1 0 0
+              outer loop
+                vertex 0 0 0
+                vertex 0 20 20
+                vertex 0 20 0
+              endloop
+            endfacet
+            facet normal 1 0 0
+              outer loop
+                vertex 20 0 0
+                vertex 20 20 0
+                vertex 20 20 20
+              endloop
+            endfacet
+            facet normal 1 0 0
+              outer loop
+                vertex 20 0 0
+                vertex 20 20 20
+                vertex 20 0 20
+              endloop
+            endfacet
+          endsolid cube
+          '@ | Set-Content -Encoding ASCII $stl
+
+            $settings = '{"printer":"mk3s","material":"PLA","nozzle":0.4,"layerHeight":0.2,"firstLayer":0.2,"perimeters":2,"infill":10,"infillPattern":"rectilinear","supports":"off","brim":0,"topSolid":4,"bottomSolid":4,"retract":0.8,"zHop":0.4,"supportInterface":2,"nozzleFirst":215,"nozzleTemp":210,"bedFirst":60,"bedTemp":60,"fan":100,"speedPerimeter":45,"speedInfill":70,"speedTravel":180}'
+            $gcode = Join-Path $env:RUNNER_TEMP 'cube.gcode'
+            $http = & curl.exe -sS -o $gcode -w "%{http_code}" -F "file=@$stl;type=application/sla" -F "settings=$settings" 'http://127.0.0.1:8091/slice'
+            if ($LASTEXITCODE -ne 0) { throw "curl failed: $LASTEXITCODE" }
+            if ($http -ne '200') {
+              $body = if (Test-Path $gcode) { Get-Content -Raw $gcode } else { '' }
+              throw "Bridge slicing HTTP $http : $body"
+            }
+            $len = (Get-Item $gcode).Length
+            if ($len -lt 1000) { throw "Generated G-code is too small: $len bytes" }
+            $head = Get-Content $gcode -TotalCount 40 | Out-String
+            if ($head -notmatch 'PrusaSlicer|generated') { throw 'Generated file does not look like PrusaSlicer G-code.' }
+            Write-Host "PORTABLE_RUNTIME_AND_SLICE_OK: $len bytes"
           } finally {
             try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
           }
