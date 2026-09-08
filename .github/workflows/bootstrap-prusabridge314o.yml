@@ -1,0 +1,35 @@
+name: Bootstrap PrusaBridge 3.14o
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/bootstrap-prusabridge314o.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore PrusaBridge sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat PrusaBridge/bootstrap/chunk*.txt > payload.b64
+          base64 -d payload.b64 > payload.tar.gz
+          tar -xzf payload.tar.gz
+          rm -f payload.b64 payload.tar.gz
+      - name: Commit sources and Windows build workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name '20-20 Bridge Bootstrap'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -r PrusaBridge/bootstrap
+          git add PrusaBridge/src .github/workflows/build-prusabridge.yml
+          git commit -m 'Bootstrap PrusaBridge 3.14o sources'
+          git push origin main
