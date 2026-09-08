@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-const bridgeVersion = "3.14o"
+const bridgeVersion = "3.14p"
 const latestJSONURL = "https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/latest.json"
 const listenAddr = "127.0.0.1:8091"
 
@@ -207,7 +207,7 @@ func registerProtocolPath(exe string) error {
 		{"add", `HKCU\Software\Classes\toolbox-prusa`, "/ve", "/d", "URL:20-20 PrusaBridge", "/f"},
 		{"add", `HKCU\Software\Classes\toolbox-prusa`, "/v", "URL Protocol", "/d", "", "/f"},
 		{"add", `HKCU\Software\Classes\toolbox-prusa\DefaultIcon`, "/ve", "/d", exe + ",0", "/f"},
-		{"add", `HKCU\Software\Classes\toolbox-prusa\shell\open\command`, "/ve", "/d", fmt.Sprintf(`\"%s\" --serve \"%%1\"`, exe), "/f"},
+		{"add", `HKCU\Software\Classes\toolbox-prusa\shell\open\command`, "/ve", "/d", fmt.Sprintf(`"%s" --serve "%%1"`, exe), "/f"},
 	}
 	for _, a := range commands {
 		c := exec.Command("reg.exe", a...)
@@ -849,6 +849,8 @@ func startSelfUpdate(li latestInfo) (bool, error) {
 }
 
 func replaceRunningBridge(oldPID int, target string) error {
+	// Let the /update HTTP response reach the browser before the old server is terminated.
+	time.Sleep(700 * time.Millisecond)
 	if oldPID > 0 && oldPID != os.Getpid() {
 		_ = killPID(oldPID)
 		waitPIDGone(oldPID, 5*time.Second)
