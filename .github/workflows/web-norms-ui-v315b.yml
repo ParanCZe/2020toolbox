@@ -1,0 +1,41 @@
+name: Web V3.15b Norms UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/web-norms-ui-v315b.yml
+      - tools/patch_norms_ui_v315b.py
+      - norms_ui_v315b.js
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch V3.15b norms UI
+        run: |
+          python tools/patch_norms_ui_v315b.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert 'V3.15b' in s
+          assert 'norms_ui_v315b.js?v=315b' in s
+          js=Path('norms_ui_v315b.js').read_text(encoding='utf-8')
+          assert "#p'+par[1]" in js
+          assert 'font-size:12px!important' in js
+          assert 'WHATSNEW_KEY' in js
+          print('V3.15b checks OK')
+          PY
+      - name: Commit V3.15b web
+        run: |
+          git config user.name '20-20 Web Builder'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'V3.15b exact norm links and whats-new fix'
+          git push origin main
