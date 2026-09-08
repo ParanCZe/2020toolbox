@@ -1,0 +1,43 @@
+name: Web V3.15a Norms and Interior
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/web-norms-interior-v315a.yml
+      - tools/patch_norms_interior_v315a.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Expand norms and interior standards
+        run: |
+          python tools/patch_norms_interior_v315a.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          d=Path('norms_data_v314y.js').read_text(encoding='utf-8')
+          e=Path('norms_engine_v314y.js').read_text(encoding='utf-8')
+          assert 'V3.15a' in s
+          assert 'norms_data_v314y.js?v=315a' in s
+          assert "id:'int-kitchen-base-depth'" in d
+          assert "id:'int-general-passage'" in d
+          assert 'function normSourceUrl(x)' in e
+          assert 'openNormSource' in e
+          assert 'oninput="interiorYSearch()"' in e
+          print('V3.15a checks OK')
+          PY
+      - name: Commit V3.15a
+        run: |
+          git config user.name '20-20 Web Builder'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html norms_data_v314y.js norms_engine_v314y.js
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'V3.15a clickable norm sources and expanded interior standards'
+          git push origin main
