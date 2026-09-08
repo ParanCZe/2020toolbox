@@ -40,16 +40,19 @@ jobs:
           python tools\patch_portable_prusaslicer_v314v.py
           if ($LASTEXITCODE -ne 0) { throw "V3.14v portable PrusaSlicer patch failed: $LASTEXITCODE" }
 
-          if (-not ((Get-Content -Raw $p).Contains('const bridgeVersion = "3.14t"'))) { throw 'Bridge 3.14t version patch failed' }
-          if ((Get-Content -Raw $p).Contains('"--support-material", "1"')) { throw 'Boolean CLI fix did not apply' }
-          if (-not ((Get-Content -Raw $p).Contains('startPortableSlicerBootstrap'))) { throw 'Portable slicer bootstrap missing' }
+          $main = Get-Content -Raw -Encoding UTF8 $p
+          if (-not $main.Contains('const bridgeVersion = "3.14v"')) { throw 'Bridge 3.14v version patch failed' }
+          if ($main.Contains('"--support-material", "1"')) { throw 'Boolean CLI fix did not apply' }
+          if (-not $main.Contains('startPortableSlicerBootstrap')) { throw 'Portable slicer bootstrap missing' }
+          if (-not $main.Contains('ensureManagedSlicerData')) { throw 'Managed PrusaSlicer datadir missing' }
+          if (-not $main.Contains('runSlicer(10*time.Minute, args...)')) { throw 'Managed datadir is not used for slicing' }
           $html = Get-Content -Raw -Encoding UTF8 index.html
           if (-not $html.Contains('id="print3d-priority"')) { throw 'Priority selector was not added' }
           if (-not $html.Contains('analyze3DPrintRecommendationGeometry')) { throw 'Smart recommendation function missing' }
           if (-not $html.Contains('class="menu-app-groups"')) { throw 'V3.14u main menu layout missing' }
           if (-not $html.Contains('session-data-mb')) { throw 'V3.14u data overview missing' }
           if (-not $html.Contains('V3.14v')) { throw 'V3.14v web version missing' }
-          if (-not $html.Contains("PRINT3D_PRUSA_BRIDGE_EXPECTED='3.14t'")) { throw 'Web does not expect Bridge 3.14t' }
+          if (-not $html.Contains("PRINT3D_PRUSA_BRIDGE_EXPECTED='3.14v'")) { throw 'Web does not expect Bridge 3.14v' }
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -84,6 +87,7 @@ jobs:
           try {
             Push-Location PrusaBridge\src
             try {
+              gofmt -w main.go
               go build -trimpath -ldflags "-H=windowsgui -s -w" -o ..\20-20-PrusaBridge.exe .
               if ($LASTEXITCODE -ne 0) { throw "PrusaBridge build failed: $LASTEXITCODE" }
             } finally {
@@ -101,13 +105,13 @@ jobs:
           if (-not (Test-Path $exe)) { throw 'Built PrusaBridge EXE is missing.' }
           $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           $manifest = [ordered]@{
-            version = '3.14t'
+            version = '3.14v'
             url = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/20-20-PrusaBridge.exe'
             sha256 = $sha
           } | ConvertTo-Json
-          Set-Content -Encoding UTF8 -Path 'PrusaBridge\latest.json' -Value $manifest
+          [IO.File]::WriteAllText((Join-Path $PWD 'PrusaBridge\latest.json'), $manifest + "`n", [Text.UTF8Encoding]::new($false))
 
-      - name: Commit V3.14v web and Bridge 3.14t
+      - name: Commit V3.14v portable runtime
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -115,5 +119,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add PrusaBridge/src/main.go PrusaBridge/src/Win3DRepair.cpp PrusaBridge/src/go.mod PrusaBridge/20-20-PrusaBridge.exe PrusaBridge/latest.json index.html
           if (git diff --cached --quiet) { exit 0 }
-          git commit -m 'V3.14v portable PrusaSlicer bootstrap'
+          git commit -m 'V3.14v self-contained portable PrusaSlicer runtime'
           git push origin main
