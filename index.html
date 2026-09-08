@@ -27,7 +27,7 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 .menu-status{display:inline-block;margin-left:7px;padding:1px 5px;border:1px solid #d4d4d8;border-radius:999px;background:#f4f4f5;color:#71717a;font:500 9px/1.45 system-ui,Segoe UI,sans-serif;letter-spacing:.45px;vertical-align:2px;text-transform:uppercase}
 
 
-/* HLAVNI MENU — V3.14u: stabilni / beta + vyuziti dat */
+/* HLAVNI MENU — V3.14v: stabilni / beta + vyuziti dat */
 .menu-app-groups{display:flex;flex-direction:column;gap:16px}
 .menu-app-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .menu-section-divider{height:1px;background:var(--border);margin:1cm 0}
@@ -6605,6 +6605,15 @@ function analyze3DPrintRecommendationGeometry(){
   const shape=complexity>2.6?'complex':complexity>1.55?'medium':'simple';
   return {ready:true,out,tri,over,minDim,maxDim,foot,bboxVol,complexity,stability,aspect,size,shape};
 }
+function analyze3DPrintRecommendationGeometry(){
+  const out=current3DPrintDims(),tri=get3DPrintTriangleCache(),over=get3DPrintOverhangInfo();
+  if(!out)return {ready:false,over};
+  const dims=[Math.max(.001,out.x),Math.max(.001,out.y),Math.max(.001,out.z)].sort((a,b)=>a-b),minDim=dims[0],maxDim=dims[2],foot=Math.max(1,out.x*out.y),bboxVol=Math.max(1,out.x*out.y*out.z),boxArea=Math.max(1,2*(out.x*out.y+out.x*out.z+out.y*out.z));
+  const complexity=tri?.area>0?tri.area/boxArea:1,stability=out.z/Math.max(1,Math.sqrt(foot)),aspect=maxDim/minDim;
+  const size=maxDim<20?'tiny':maxDim<45?'small':maxDim>130?'large':'medium';
+  const shape=complexity>2.6?'complex':complexity>1.55?'medium':'simple';
+  return {ready:true,out,tri,over,minDim,maxDim,foot,bboxVol,complexity,stability,aspect,size,shape};
+}
 function apply3DPrintRecommendedSettings(show=true){
   print3dState.simplePrepared=true;
   const purpose=document.getElementById('print3d-purpose')?.value||'architecture',priority=document.getElementById('print3d-priority')?.value||'balanced',material=document.getElementById('print3d-material')?.value||'pla',g=analyze3DPrintRecommendationGeometry();
@@ -7939,7 +7948,7 @@ function printDesignAuditReport(){const f=designAuditState.file;if(!f)return;con
 // 3D TISK — V3.14t · SELF-CONTAINED PRUSASLICER BRIDGE
 // ============================================================
 const PRINT3D_PRUSA_BRIDGE_URL='http://127.0.0.1:8091';
-const PRINT3D_PRUSA_BRIDGE_EXPECTED='3.14t';
+const PRINT3D_PRUSA_BRIDGE_EXPECTED='3.14v';
 const PRINT3D_PRUSA_BRIDGE_DOWNLOAD='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/20-20-PrusaBridge.exe';
 function p3BridgeState(){
   if(!print3dState.prusaBridge)print3dState.prusaBridge={online:false,status:null,lastCheck:0,updating:false,autoTried:false};

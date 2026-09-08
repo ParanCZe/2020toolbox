@@ -24,7 +24,7 @@ import (
 	"time"
 )
 
-const bridgeVersion = "3.14t"
+const bridgeVersion = "3.14v"
 const latestJSONURL = "https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/latest.json"
 const prusaLatestReleaseAPI = "https://api.github.com/repos/prusa3d/PrusaSlicer/releases/latest"
 const prusaFallbackZipURL = "https://github.com/prusa3d/PrusaSlicer/releases/download/version_2.9.6/PrusaSlicer-2.9.6.zip"
@@ -32,18 +32,20 @@ const prusaFallbackZipSHA256 = "5aaf22e42f95accecfa122d23a835911f289ecc2ff606db3
 const listenAddr = "127.0.0.1:8091"
 
 var (
-	slicerPath   string
-	slicerGUI    string
-	slicerVer    string
-	installDir   string
-	repairHelper string
-	updateMu     sync.Mutex
-	runMu        sync.Mutex
+	slicerPath            string
+	slicerGUI             string
+	slicerVer             string
+	installDir            string
+	repairHelper          string
+	updateMu              sync.Mutex
+	runMu                 sync.Mutex
 	slicerBootstrapMu     sync.Mutex
 	slicerBootstrapping   bool
 	slicerBootstrapStatus string
 	slicerBootstrapError  string
 	slicerManaged         bool
+	slicerDataDir         string
+	slicerDataMu          sync.Mutex
 )
 
 type latestInfo struct {
@@ -67,25 +69,25 @@ type prusaRelease struct {
 var embeddedRepairHelper []byte
 
 type statusResp struct {
-	OK                 bool   `json:"ok"`
-	BridgeVersion      string `json:"bridgeVersion"`
-	SlicerFound        bool   `json:"slicerFound"`
-	SlicerPath         string `json:"slicerPath,omitempty"`
-	SlicerGUI          string `json:"slicerGUI,omitempty"`
-	SlicerVersion      string `json:"slicerVersion,omitempty"`
-	SlicerManaged      bool   `json:"slicerManaged"`
-	SlicerBootstrapping bool  `json:"slicerBootstrapping"`
+	OK                    bool   `json:"ok"`
+	BridgeVersion         string `json:"bridgeVersion"`
+	SlicerFound           bool   `json:"slicerFound"`
+	SlicerPath            string `json:"slicerPath,omitempty"`
+	SlicerGUI             string `json:"slicerGUI,omitempty"`
+	SlicerVersion         string `json:"slicerVersion,omitempty"`
+	SlicerManaged         bool   `json:"slicerManaged"`
+	SlicerBootstrapping   bool   `json:"slicerBootstrapping"`
 	SlicerBootstrapStatus string `json:"slicerBootstrapStatus,omitempty"`
-	SlicerBootstrapError string `json:"slicerBootstrapError,omitempty"`
-	ProtocolRegistered bool   `json:"protocolRegistered"`
-	WindowsRepair      bool   `json:"windowsRepair"`
-	RepairEngine       string `json:"repairEngine,omitempty"`
-	Message            string `json:"message,omitempty"`
-	PID                int    `json:"pid"`
-	LatestVersion      string `json:"latestVersion,omitempty"`
-	UpdateAvailable    bool   `json:"updateAvailable"`
-	UpdateSupported    bool   `json:"updateSupported"`
-	DownloadURL        string `json:"downloadUrl,omitempty"`
+	SlicerBootstrapError  string `json:"slicerBootstrapError,omitempty"`
+	ProtocolRegistered    bool   `json:"protocolRegistered"`
+	WindowsRepair         bool   `json:"windowsRepair"`
+	RepairEngine          string `json:"repairEngine,omitempty"`
+	Message               string `json:"message,omitempty"`
+	PID                   int    `json:"pid"`
+	LatestVersion         string `json:"latestVersion,omitempty"`
+	UpdateAvailable       bool   `json:"updateAvailable"`
+	UpdateSupported       bool   `json:"updateSupported"`
+	DownloadURL           string `json:"downloadUrl,omitempty"`
 }
 
 type SliceSettings struct {
@@ -267,6 +269,7 @@ func findSlicer() {
 	slicerGUI = ""
 	slicerVer = ""
 	slicerManaged = false
+	slicerDataDir = ""
 	var candidates []string
 	// ini override
 	iniPaths := []string{filepath.Join(installDir, "PrusaBridge.ini")}
@@ -327,6 +330,14 @@ func findSlicer() {
 		if st, err := os.Stat(ap); err == nil && !st.IsDir() {
 			slicerPath = ap
 			slicerManaged = pathWithin(ap, filepath.Join(installDir, "Slicer"))
+			if slicerManaged {
+				if err := ensureManagedSlicerData(ap); err != nil {
+					slicerPath = ""
+					slicerManaged = false
+					slicerDataDir = ""
+					continue
+				}
+			}
 			slicerGUI = filepath.Join(filepath.Dir(ap), "prusa-slicer.exe")
 			if _, err := os.Stat(slicerGUI); err != nil {
 				slicerGUI = ap
@@ -341,6 +352,64 @@ func findSlicer() {
 	}
 }
 
+func ensureManagedSlicerData(consolePath string) error {
+	slicerDataMu.Lock()
+	defer slicerDataMu.Unlock()
+
+	runtimeDir := filepath.Dir(consolePath)
+	profilesDir := filepath.Join(runtimeDir, "resources", "profiles")
+	dataDir := filepath.Join(installDir, "PrusaData")
+	vendorDir := filepath.Join(dataDir, "vendor")
+	if err := os.MkdirAll(vendorDir, 0755); err != nil {
+		return fmt.Errorf("vytvoření PrusaData: %w", err)
+	}
+
+	for _, name := range []string{"PrusaResearch.ini", "PrusaResearch.idx"} {
+		src := filepath.Join(profilesDir, name)
+		dst := filepath.Join(vendorDir, name)
+		ss, err := os.Stat(src)
+		if err != nil {
+			return fmt.Errorf("portable profil %s chybí: %w", name, err)
+		}
+		if ds, err := os.Stat(dst); err == nil && ds.Size() == ss.Size() {
+			continue
+		}
+		if err := copyFile(src, dst); err != nil {
+			return fmt.Errorf("kopie profilu %s: %w", name, err)
+		}
+	}
+
+	cfg := "[presets]\r\n" +
+		"filament = Prusament PLA\r\n" +
+		"print = 0.20mm QUALITY @MK3\r\n" +
+		"printer = Original Prusa i3 MK3S & MK3S+\r\n\r\n" +
+		"[vendor:PrusaResearch]\r\n" +
+		"model:MK3S = 0.4\r\n"
+	cfgPath := filepath.Join(dataDir, "PrusaSlicer.ini")
+	if old, err := os.ReadFile(cfgPath); err != nil || string(old) != cfg {
+		// os.WriteFile writes raw UTF-8 bytes without a BOM. PrusaSlicer rejects a BOM
+		// before the first INI section on a clean portable installation.
+		if err := os.WriteFile(cfgPath, []byte(cfg), 0644); err != nil {
+			return fmt.Errorf("zápis PrusaSlicer.ini: %w", err)
+		}
+	}
+	slicerDataDir = dataDir
+	return nil
+}
+
+func slicerCLIArgs(args ...string) []string {
+	if slicerManaged && slicerDataDir != "" {
+		out := make([]string, 0, len(args)+2)
+		out = append(out, "--datadir", slicerDataDir)
+		out = append(out, args...)
+		return out
+	}
+	return args
+}
+
+func runSlicer(timeout time.Duration, args ...string) (string, error) {
+	return runCmd(timeout, slicerPath, slicerCLIArgs(args...)...)
+}
 
 func setSlicerBootstrapState(running bool, status, errText string) {
 	slicerBootstrapMu.Lock()
@@ -646,7 +715,11 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `<!doctype html><meta charset="utf-8"><title>20-20 PrusaBridge</title><style>body{font:15px system-ui;margin:32px;max-width:850px}code{background:#eee;padding:2px 5px} .ok{color:#167a39}.bad{color:#b42318}</style><h1>20-20 PrusaBridge %s</h1>`, bridgeVersion)
 	if ok {
-		fmt.Fprintf(w, `<p class="ok"><b>✓ Bridge běží a PrusaSlicer byl nalezen.</b></p><p>%s</p><p>Repair engine: <b>Native WinRT Printing3DModel.RepairAsync</b> → PrusaSlicer.</p>`, htmlEscape(slicerPath))
+		if slicerManaged {
+			fmt.Fprintf(w, `<p class="ok"><b>✓ Bridge běží s vlastním portable PrusaSlicerem.</b></p><p>Samostatná instalace PrusaSliceru není potřeba.</p><p>%s</p><p>Repair engine: <b>Native WinRT Printing3DModel.RepairAsync</b> → PrusaSlicer.</p>`, htmlEscape(slicerPath))
+		} else {
+			fmt.Fprintf(w, `<p class="ok"><b>✓ Bridge běží a PrusaSlicer byl nalezen.</b></p><p>%s</p><p>Repair engine: <b>Native WinRT Printing3DModel.RepairAsync</b> → PrusaSlicer.</p>`, htmlEscape(slicerPath))
+		}
 	} else {
 		fmt.Fprintf(w, `<p class="bad"><b>PrusaSlicer nebyl nalezen.</b></p><p>Nastav <code>SlicerPath=...</code> v <code>%s</code> a Bridge restartuj.</p>`, htmlEscape(filepath.Join(installDir, "PrusaBridge.ini")))
 	}
@@ -667,6 +740,9 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		resp.LatestVersion = li.Version
 		resp.UpdateAvailable = li.Version != bridgeVersion
 		resp.DownloadURL = li.URL
+	}
+	if slicerPath != "" && slicerManaged {
+		resp.Message = "Portable PrusaSlicer je připravený. Samostatná instalace PrusaSliceru není potřeba."
 	}
 	if slicerPath == "" {
 		if booting {
@@ -694,8 +770,14 @@ func handleRepair(w http.ResponseWriter, r *http.Request) {
 	if slicerPath == "" {
 		booting, status, bootErr := slicerBootstrapSnapshot()
 		detail := status
-		if bootErr != "" { detail = bootErr }
-		if booting { writeErr(w, 503, "Portable PrusaSlicer se právě automaticky stahuje a připravuje.", detail) } else { writeErr(w, 500, "Portable PrusaSlicer není dostupný.", detail) }
+		if bootErr != "" {
+			detail = bootErr
+		}
+		if booting {
+			writeErr(w, 503, "Portable PrusaSlicer se právě automaticky stahuje a připravuje.", detail)
+		} else {
+			writeErr(w, 500, "Portable PrusaSlicer není dostupný.", detail)
+		}
 		return
 	}
 	data, err := io.ReadAll(io.LimitReader(r.Body, 500<<20))
@@ -735,8 +817,14 @@ func handleSlice(w http.ResponseWriter, r *http.Request) {
 	if slicerPath == "" {
 		booting, status, bootErr := slicerBootstrapSnapshot()
 		detail := status
-		if bootErr != "" { detail = bootErr }
-		if booting { writeErr(w, 503, "Portable PrusaSlicer se právě automaticky stahuje a připravuje.", detail) } else { writeErr(w, 500, "Portable PrusaSlicer není dostupný.", detail) }
+		if bootErr != "" {
+			detail = bootErr
+		}
+		if booting {
+			writeErr(w, 503, "Portable PrusaSlicer se právě automaticky stahuje a připravuje.", detail)
+		} else {
+			writeErr(w, 500, "Portable PrusaSlicer není dostupný.", detail)
+		}
 		return
 	}
 	if err := r.ParseMultipartForm(520 << 20); err != nil {
@@ -824,7 +912,7 @@ func repairWithWindows(stl []byte) ([]byte, string, error) {
 	if err := os.WriteFile(inputSTL, stl, 0644); err != nil {
 		return nil, "", err
 	}
-	if out, err := runCmd(180*time.Second, slicerPath, "--export-3mf", "-o", input3MF, inputSTL); err != nil {
+	if out, err := runSlicer(180*time.Second, "--export-3mf", "-o", input3MF, inputSTL); err != nil {
 		return nil, "", fmt.Errorf("STL→3MF: %v\n%s", err, trimLog(out))
 	}
 	if _, err := os.Stat(repairHelper); err != nil {
@@ -836,7 +924,7 @@ func repairWithWindows(stl []byte) ([]byte, string, error) {
 	if _, err := os.Stat(fixed3MF); err != nil {
 		return nil, "", fmt.Errorf("Windows RepairAsync nevytvořil 3MF: %w", err)
 	}
-	if out, err := runCmd(180*time.Second, slicerPath, "--export-stl", "-o", fixedSTL, fixed3MF); err != nil {
+	if out, err := runSlicer(180*time.Second, "--export-stl", "-o", fixedSTL, fixed3MF); err != nil {
 		return nil, "", fmt.Errorf("3MF→STL: %v\n%s", err, trimLog(out))
 	}
 	b, err := os.ReadFile(fixedSTL)
@@ -935,7 +1023,7 @@ func sliceWithPrusa(stl []byte, s SliceSettings) ([]byte, string, error) {
 		add("--first-layer-bed-temperature", strconv.Itoa(s.BedFirst))
 	}
 	args = append(args, input)
-	log, err := runCmd(10*time.Minute, slicerPath, args...)
+	log, err := runSlicer(10*time.Minute, args...)
 	if err != nil {
 		return nil, "", fmt.Errorf("%v\n%s", err, trimLog(log))
 	}
@@ -1243,7 +1331,3 @@ func copyFileRetry(src, dst string, tries int, delay time.Duration) error {
 	}
 	return last
 }
-
-
-
-
