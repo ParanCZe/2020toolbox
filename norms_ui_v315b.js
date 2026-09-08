@@ -11,7 +11,7 @@
       #tool-norms .ny-entry,#tool-norms .ny-result{cursor:pointer;position:relative;transition:.15s}
       #tool-norms .ny-entry:hover,#tool-norms .ny-result:hover{border-color:#a1a1aa;background:#fffef3;box-shadow:0 2px 7px rgba(0,0,0,.05)}
       #tool-norms .ny-link{display:none!important}
-      #tool-norms .ny-note,#tool-norms .ny-entry p,#tool-norms .ny-result p{font-size:12px!important;line-height:1.65!important;color:#27272a!important;margin-top:7px!important}
+      #tool-norms .ny-note,#tool-norms .ny-entry p,#tool-norms .ny-result p{font-size:14px!important;line-height:1.65!important;color:#27272a!important;margin-top:7px!important}
       #tool-norms .ny-meta{font-size:10px!important;line-height:1.45!important}
       #tool-norms .ny-value{font-size:13px!important;line-height:1.45!important}
       #tool-norms .ny-entry::after,#tool-norms .ny-result::after{content:'Kliknutím otevřít přesný zdroj ↗';display:block;margin-top:9px;font-size:9px;color:#71717a}
@@ -25,16 +25,27 @@
     return (window.TOOLBOX_NORMS_V314Y||[]).find(x=>String(x.id)===raw)||null;
   }
 
-  function sectionAnchor(section){
+  function sectionTarget(section){
     const s=String(section||'').trim();
-    if(!s) return '';
-    // ZakonyProlidi používají např. #p29, #p29-3, #p39-3-a.
+    if(!s) return null;
     const par=s.match(/§\s*(\d+)\s*(?:odst\.\s*(\d+))?\s*(?:písm\.\s*([a-z]))?/i);
-    if(par){
-      let a='#p'+par[1];
-      if(par[2]) a+='-'+par[2];
-      if(par[3]) a+='-'+par[3].toLowerCase();
-      return a;
+    if(!par) return null;
+    return {
+      paragraph:par[1],
+      subsection:par[2]||'',
+      letter:(par[3]||'').toLowerCase()
+    };
+  }
+
+  function textFragment(target){
+    if(!target) return '';
+    if(target.subsection && target.letter){
+      const start=`(${target.subsection})`;
+      const end=`${target.letter})`;
+      return `:~:text=${encodeURIComponent(start)},${encodeURIComponent(end)}`;
+    }
+    if(target.subsection){
+      return `:~:text=${encodeURIComponent(`(${target.subsection})`)}`;
     }
     return '';
   }
@@ -43,9 +54,11 @@
     if(!item||!item.url) return '';
     let url=String(item.url);
     if(/zakonyprolidi\.cz\/cs\//i.test(url)){
-      const anchor=sectionAnchor(item.section);
-      if(anchor){
-        url=url.split('#')[0]+anchor;
+      const target=sectionTarget(item.section);
+      if(target){
+        const base=url.split('#')[0];
+        const fragment=textFragment(target);
+        url=base+'#p'+target.paragraph+fragment;
       }
     }
     return url;
