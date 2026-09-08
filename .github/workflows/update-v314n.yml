@@ -1,0 +1,43 @@
+name: Update index to V3.14n
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/update-v314n.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update-index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Patch index.html to V3.14n
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('3.14m', '3.14n')
+          old = 'Při exportu se vždy pošle přesná STL z vieweru do Bridge. Bridge ji převede do 3MF, spustí Windows <code>RepairAsync()</code>, převede opravený model zpět na STL a až potom ho slicuje PrusaSlicerem. Tím se neopíráme o slabší CLI <code>--repair</code>.'
+          new = 'Při exportu se vždy pošle přesná STL z vieweru do Bridge. Bridge ji převede do 3MF, načte ji do nativního WinRT <code>InMemoryRandomAccessStream</code>, spustí Windows <code>RepairAsync()</code>, převede opravený model zpět na STL a až potom ho slicuje PrusaSlicerem. Tím se neopíráme o slabší CLI <code>--repair</code> ani o .NET stream adaptér bez <code>CloneStream()</code>.'
+          s = s.replace(old, new)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit updated index
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes needed.'
+            exit 0
+          fi
+          git config user.name 'ChatGPT update'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Update index.html to V3.14n'
+          git push origin main
