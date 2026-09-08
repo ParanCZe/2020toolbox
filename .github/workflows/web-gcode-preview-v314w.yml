@@ -26,7 +26,7 @@ jobs:
           from pathlib import Path
           s=Path('index.html').read_text(encoding='utf-8')
           v=Path('gcode_viewer_embedded.html').read_text(encoding='utf-8')
-          assert '<div class="app-version">V3.14w</div>' in s
+          assert '<div class="app-version" id="app-version">V3.14w</div>' in s
           assert 'open3DPrintGcodePreview(header+gcode,downloadName)' in s
           assert 'gcode_viewer_embedded.html?v=314w' in s
           assert "toolbox-gcode-preview-load" in v
