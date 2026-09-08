@@ -16,6 +16,7 @@
       #tool-norms .ny-value{font-size:13px!important;line-height:1.45!important}
       #tool-norms .ny-entry::after,#tool-norms .ny-result::after{content:'Kliknutím otevřít přesný zdroj ↗';display:block;margin-top:9px;font-size:9px;color:#71717a}
       #tool-norms .ny-entry:focus-visible,#tool-norms .ny-result:focus-visible{outline:2px solid #18181b;outline-offset:2px}
+      #material-library-launcher .menu-status{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
     `;
     document.head.appendChild(st);
   }
@@ -30,11 +31,7 @@
     if(!s) return null;
     const par=s.match(/§\s*(\d+)\s*(?:odst\.\s*(\d+))?\s*(?:písm\.\s*([a-z]))?/i);
     if(!par) return null;
-    return {
-      paragraph:par[1],
-      subsection:par[2]||'',
-      letter:(par[3]||'').toLowerCase()
-    };
+    return {paragraph:par[1],subsection:par[2]||'',letter:(par[3]||'').toLowerCase()};
   }
 
   function textFragment(target){
@@ -44,9 +41,7 @@
       const end=`${target.letter})`;
       return `:~:text=${encodeURIComponent(start)},${encodeURIComponent(end)}`;
     }
-    if(target.subsection){
-      return `:~:text=${encodeURIComponent(`(${target.subsection})`)}`;
-    }
+    if(target.subsection) return `:~:text=${encodeURIComponent(`(${target.subsection})`)}`;
     return '';
   }
 
@@ -78,14 +73,8 @@
       card.setAttribute('role','link');
       card.setAttribute('tabindex','0');
       card.setAttribute('title','Otevřít konkrétní část zdroje');
-      card.addEventListener('click',e=>{
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        openCard(card);
-      },true);
-      card.addEventListener('keydown',e=>{
-        if(e.key==='Enter'||e.key===' '){e.preventDefault();openCard(card)}
-      });
+      card.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();openCard(card)},true);
+      card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openCard(card)}});
     });
   }
 
@@ -95,6 +84,20 @@
     enhanceCards(document);
     const mo=new MutationObserver(()=>enhanceCards(host));
     mo.observe(host,{childList:true,subtree:true});
+  }
+
+  function addMaterialLibraryLauncher(){
+    if(document.getElementById('material-library-launcher')) return;
+    const rows=[...document.querySelectorAll('.menu-app-row')];
+    const target=document.querySelector('.menu-app-row.beta')||rows[rows.length-1];
+    if(!target) return;
+    const tile=document.createElement('button');
+    tile.type='button';
+    tile.id='material-library-launcher';
+    tile.className='tile';
+    tile.innerHTML='<b>Knihovna materiálů <span class="menu-status">ONLINE</span></b><span>Vyhledá čisté textury a detaily materiálů pro AI reference.</span>';
+    tile.addEventListener('click',()=>{window.location.href='material_library.html'});
+    target.appendChild(tile);
   }
 
   function setupWhatsNew(){
@@ -118,6 +121,6 @@
     if(seen!==VERSION){setTimeout(()=>modal.classList.add('active'),300)}
   }
 
-  function init(){css();observeNorms();setupWhatsNew();}
+  function init(){css();observeNorms();addMaterialLibraryLauncher();setupWhatsNew();}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
 })();
