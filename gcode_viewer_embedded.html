@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>G-code Viewer</title>
+  <style>
+    :root{
+      --bg:#17191d;
+      --panel:#22252b;
+      --panel2:#2a2e35;
+      --text:#f4f6f8;
+      --muted:#9ca3ad;
+      --border:#3a3f47;
+      --accent:#f47b20;
+      --accent2:#ff9b52;
+      --green:#55d187;
+      --red:#ff606b;
+      --blue:#4da3ff;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;overflow:hidden}
+    button,input,select{font:inherit}
+    #app{height:100%;display:grid;grid-template-columns:310px 1fr;grid-template-rows:54px 1fr}
+    header{
+      grid-column:1/3;display:flex;align-items:center;gap:14px;padding:0 16px;
+      border-bottom:1px solid var(--border);background:#1c1f24;z-index:4
+    }
+    .brand{font-weight:800;letter-spacing:.2px;white-space:nowrap}
+    .brand span{color:var(--accent)}
+    .filebtn{
+      border:0;border-radius:8px;padding:9px 14px;background:var(--accent);color:white;
+      font-weight:700;cursor:pointer
+    }
+    .filebtn:hover{background:var(--accent2)}
+    #fileInput{display:none}
+    #fileName{color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .header-spacer{flex:1}
+    .mini{font-size:12px;color:var(--muted)}
+    aside{
+      grid-row:2;grid-column:1;background:var(--panel);border-right:1px solid var(--border);
+      padding:14px;overflow:auto
+    }
+    main{grid-row:2;grid-column:2;position:relative;min-width:0;min-height:0}
+    #viewer{position:absolute;inset:0}
+    canvas{display:block}
+    .section{
+      background:var(--panel2);border:1px solid var(--border);border-radius:10px;
+      padding:12px;margin-bottom:12px
+    }
+    .section h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#c8ccd2;margin:0 0 10px}
+    label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
+    select,.num,input[type="number"]{
+      width:100%;background:#181b20;color:var(--text);border:1px solid var(--border);
+      border-radius:7px;padding:7px 8px;outline:none
+    }
+    input[type="range"]{width:100%;accent-color:var(--accent)}
+    .row{display:flex;gap:8px;align-items:center}
+    .row > *{flex:1}
+    .checkrow{display:flex;align-items:center;justify-content:space-between;margin:8px 0;font-size:13px}
+    .checkrow input{accent-color:var(--accent)}
+    .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .stat{background:#181b20;border-radius:8px;padding:8px}
+    .stat b{display:block;font-size:15px}
+    .stat span{font-size:11px;color:var(--muted)}
+    .buttonrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .btn{
+      border:1px solid var(--border);background:#1a1d22;color:var(--text);
+      border-radius:8px;padding:8px 10px;cursor:pointer
+    }
+    .btn:hover{border-color:#626872}
+    .btn.primary{background:var(--accent);border-color:var(--accent);font-weight:700}
+    .layer-label{display:flex;justify-content:space-between;align-items:center;font-size:12px}
+    .layer-label strong{color:white}
+    #dropOverlay{
+      position:absolute;inset:18px;border:2px dashed rgba(255,255,255,.18);border-radius:16px;
+      display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;
+      background:rgba(244,123,32,.08);transition:.15s;z-index:3
+    }
+    #dropOverlay.show{opacity:1}
+    #empty{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;
+      color:var(--muted);pointer-events:none
+    }
+    #empty strong{display:block;color:white;font-size:20px;margin-bottom:7px}
+    #progress{
+      position:absolute;left:50%;top:18px;transform:translateX(-50%);
+      background:rgba(20,22,26,.94);border:1px solid var(--border);border-radius:10px;
+      padding:10px 14px;min-width:270px;display:none;z-index:5;box-shadow:0 8px 30px #0008
+    }
+    #progressText{font-size:12px;margin-bottom:7px}
+    .bar{height:5px;border-radius:99px;background:#30343b;overflow:hidden}
+    #barFill{height:100%;width:0;background:var(--accent)}
+    #hud{
+      position:absolute;right:14px;bottom:14px;background:rgba(22,25,29,.86);
+      border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--muted)
+    }
+    .legend{display:flex;flex-direction:column;gap:6px;font-size:12px}
+    .legend-item{display:flex;align-items:center;gap:7px}
+    .swatch{width:12px;height:12px;border-radius:3px}
+    .hint{font-size:11px;color:var(--muted);line-height:1.45}
+    @media (max-width:850px){
+      #app{grid-template-columns:260px 1fr}
+    }
+
+    #downloadPreview:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.35)}
+    #cancelPreview{white-space:nowrap}
+    @media (max-width:720px){
+      header{gap:8px;padding:0 10px}
+      .mini{display:none}
+      #fileName{font-size:11px}
+      #cancelPreview,#downloadPreview{padding:7px 9px;font-size:11px}
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">G-code <span>Viewer</span></div>
+    <input id="fileInput" type="file" accept=".gcode,.gco,.gc,.ngc,.txt,text/plain" style="display:none" />
+    <div id="fileName">Čekám na G-code z 20-20 Toolboxu…</div>
+    <div class="header-spacer"></div>
+    <div class="mini">kontrola před stažením · lokální zpracování</div>
+    <button id="cancelPreview" class="btn">Storno</button>
+    <button id="downloadPreview" class="filebtn" disabled>Stáhnout G-code</button>
+  </header>
+
+  <aside>
+    <div class="section">
+      <h3>Vrstvy</h3>
+      <div class="layer-label"><span>Zobrazená vrstva</span><strong id="layerValue">–</strong></div>
+      <input id="layerSlider" type="range" min="0" max="0" value="0" disabled>
+      <label>Režim zobrazení</label>
+      <select id="displayMode">
+        <option value="feature">Typ extruze</option>
+        <option value="speed">Rychlost</option>
+        <option value="flow">Průtok / šířka</option>
+      </select>
+      <div class="checkrow"><span>Zobrazit jen aktuální vrstvu</span><input id="singleLayer" type="checkbox"></div>
+      <div class="checkrow"><span>Travel pohyby</span><input id="showTravel" type="checkbox"></div>
+      <div class="checkrow"><span>Tisková podložka</span><input id="showBed" type="checkbox" checked></div>
+    </div>
+
+    <div class="section">
+      <h3>Přehrávání</h3>
+      <div class="buttonrow">
+        <button id="prevLayer" class="btn">◀ Vrstva</button>
+        <button id="nextLayer" class="btn">Vrstva ▶</button>
+        <button id="play" class="btn primary">▶ Přehrát</button>
+        <button id="resetView" class="btn">Reset pohledu</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Statistiky</h3>
+      <div class="statgrid">
+        <div class="stat"><b id="statLayers">–</b><span>vrstev</span></div>
+        <div class="stat"><b id="statHeight">–</b><span>výška</span></div>
+        <div class="stat"><b id="statTime">–</b><span>odhad času</span></div>
+        <div class="stat"><b id="statLength">–</b><span>dráha extruze</span></div>
+        <div class="stat"><b id="statFilament">–</b><span>filament</span></div>
+        <div class="stat"><b id="statSize">–</b><span>rozměr XY</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Legenda</h3>
+      <div id="legend" class="legend"></div>
+    </div>
+
+    <div class="section">
+      <h3>Ovládání</h3>
+      <div class="hint">
+        Levé tlačítko: otáčení<br>
+        Pravé tlačítko: posun<br>
+        Kolečko: zoom<br>
+        G-code se nikam neodesílá.
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <div id="viewer"></div>
+    <div id="dropOverlay">Pusť G-code sem</div>
+    <div id="empty"><div><strong>Načítám G-code</strong>Viewer čeká na data z 20-20 Toolboxu.</div></div>
+    <div id="progress"><div id="progressText">Načítám…</div><div class="bar"><div id="barFill"></div></div></div>
+    <div id="hud">X 0 · Y 0 · Z 0</div>
+  </main>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const viewer = document.getElementById('viewer');
+const fileInput = document.getElementById('fileInput');
+const fileName = document.getElementById('fileName');
+const empty = document.getElementById('empty');
+const layerSlider = document.getElementById('layerSlider');
+const layerValue = document.getElementById('layerValue');
+const displayMode = document.getElementById('displayMode');
+const singleLayer = document.getElementById('singleLayer');
+const showTravel = document.getElementById('showTravel');
+const showBed = document.getElementById('showBed');
+const prevLayer = document.getElementById('prevLayer');
+const nextLayer = document.getElementById('nextLayer');
+const playBtn = document.getElementById('play');
+const resetViewBtn = document.getElementById('resetView');
+const legendEl = document.getElementById('legend');
+const dropOverlay = document.getElementById('dropOverlay');
+const progress = document.getElementById('progress');
+const progressText = document.getElementById('progressText');
+const barFill = document.getElementById('barFill');
+const cancelPreviewBtn = document.getElementById('cancelPreview');
+const downloadPreviewBtn = document.getElementById('downloadPreview');
+let previewGcodeText = '';
+let previewDownloadName = 'toolbox.gcode';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x17191d);
+
+const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 5000);
+camera.up.set(0,0,1);
+camera.position.set(220,-260,220);
+
+const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+viewer.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.screenSpacePanning = true;
+controls.target.set(100,100,0);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x333333,1.25));
+
+const root = new THREE.Group();
+scene.add(root);
+let bedGroup = null;
+let layerObjects = [];
+let parsed = null;
+let playTimer = null;
+
+const FEATURE_COLORS = {
+  'External perimeter': '#ffb300',
+  'Perimeter': '#ffd15c',
+  'Internal infill': '#6abf69',
+  'Solid infill': '#2ec4b6',
+  'Top solid infill': '#00bcd4',
+  'Bridge infill': '#8e7dff',
+  'Support material': '#ef6c9b',
+  'Support material interface': '#ff8fab',
+  'Skirt/Brim': '#b0bec5',
+  'Wipe tower': '#9c6ade',
+  'Custom': '#f47b20',
+  'Extrusion': '#f47b20',
+  'Travel': '#4b5563'
+};
+
+function colorForFeature(name){
+  if(!name) return FEATURE_COLORS.Extrusion;
+  const n = name.toLowerCase();
+  if(n.includes('external') || n.includes('outer wall')) return FEATURE_COLORS['External perimeter'];
+  if(n.includes('perimeter') || n.includes('wall')) return FEATURE_COLORS.Perimeter;
+  if(n.includes('top')) return FEATURE_COLORS['Top solid infill'];
+  if(n.includes('solid')) return FEATURE_COLORS['Solid infill'];
+  if(n.includes('bridge')) return FEATURE_COLORS['Bridge infill'];
+  if(n.includes('support') && n.includes('interface')) return FEATURE_COLORS['Support material interface'];
+  if(n.includes('support')) return FEATURE_COLORS['Support material'];
+  if(n.includes('skirt') || n.includes('brim')) return FEATURE_COLORS['Skirt/Brim'];
+  if(n.includes('wipe')) return FEATURE_COLORS['Wipe tower'];
+  if(n.includes('infill') || n.includes('fill')) return FEATURE_COLORS['Internal infill'];
+  return FEATURE_COLORS.Custom;
+}
+
+function hexToRgb01(hex){
+  const c = new THREE.Color(hex);
+  return [c.r,c.g,c.b];
+}
+function lerp(a,b,t){ return a+(b-a)*t; }
+function speedColor(v,min,max){
+  const t = max>min ? Math.max(0,Math.min(1,(v-min)/(max-min))) : .5;
+  const stops = [
+    [0.00,[0.10,0.36,0.95]],
+    [0.35,[0.00,0.78,0.75]],
+    [0.60,[0.42,0.86,0.22]],
+    [0.80,[1.00,0.74,0.12]],
+    [1.00,[1.00,0.20,0.18]]
+  ];
+  for(let i=0;i<stops.length-1;i++){
+    const [ta,ca]=stops[i], [tb,cb]=stops[i+1];
+    if(t<=tb){
+      const u=(t-ta)/(tb-ta);
+      return [lerp(ca[0],cb[0],u),lerp(ca[1],cb[1],u),lerp(ca[2],cb[2],u)];
+    }
+  }
+  return stops.at(-1)[1];
+}
+function flowColor(v,min,max){
+  const t = max>min ? Math.max(0,Math.min(1,(v-min)/(max-min))) : .5;
+  return [lerp(.22,1,t), lerp(.82,.25,t), lerp(1,.2,t)];
+}
+
+function resize(){
+  const w=viewer.clientWidth,h=viewer.clientHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize',resize);
+resize();
+
+renderer.domElement.addEventListener('pointermove', e=>{
+  const rect=renderer.domElement.getBoundingClientRect();
+  const x=((e.clientX-rect.left)/rect.width)*2-1;
+  const y=-((e.clientY-rect.top)/rect.height)*2+1;
+  const p=new THREE.Vector3(x,y,0.5).unproject(camera);
+  const dir=p.sub(camera.position).normalize();
+  if(Math.abs(dir.z)>1e-6){
+    const t=-camera.position.z/dir.z;
+    const hit=camera.position.clone().add(dir.multiplyScalar(t));
+    document.getElementById('hud').textContent=`X ${hit.x.toFixed(1)} · Y ${hit.y.toFixed(1)} · Z 0`;
+  }
+});
+
+function animate(){
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene,camera);
+}
+animate();
+
+function clearScene(){
+  for(const o of layerObjects){
+    root.remove(o);
+    o.geometry?.dispose();
+    o.material?.dispose();
+  }
+  layerObjects=[];
+  if(bedGroup){
+    scene.remove(bedGroup);
+    bedGroup.traverse(o=>{o.geometry?.dispose?.(); o.material?.dispose?.();});
+    bedGroup=null;
+  }
+}
+
+function makeBed(bounds){
+  const margin=15;
+  let minX=Math.floor((bounds.minX-margin)/10)*10;
+  let minY=Math.floor((bounds.minY-margin)/10)*10;
+  let maxX=Math.ceil((bounds.maxX+margin)/10)*10;
+  let maxY=Math.ceil((bounds.maxY+margin)/10)*10;
+  if(!isFinite(minX)){minX=0;minY=0;maxX=250;maxY=210;}
+  if(maxX-minX<100){const c=(minX+maxX)/2;minX=c-60;maxX=c+60;}
+  if(maxY-minY<100){const c=(minY+maxY)/2;minY=c-60;maxY=c+60;}
+
+  bedGroup=new THREE.Group();
+
+  const verts=[];
+  const step=10;
+  for(let x=minX;x<=maxX+1e-6;x+=step){verts.push(x,minY,0,x,maxY,0);}
+  for(let y=minY;y<=maxY+1e-6;y+=step){verts.push(minX,y,0,maxX,y,0);}
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));
+  const mat=new THREE.LineBasicMaterial({color:0x3b414a,transparent:true,opacity:.6});
+  bedGroup.add(new THREE.LineSegments(geo,mat));
+
+  const borderPts=[minX,minY,0.02,maxX,minY,0.02,maxX,maxY,0.02,minX,maxY,0.02,minX,minY,0.02];
+  const bgeo=new THREE.BufferGeometry();
+  bgeo.setAttribute('position',new THREE.Float32BufferAttribute(borderPts,3));
+  bedGroup.add(new THREE.Line(bgeo,new THREE.LineBasicMaterial({color:0x737a84})));
+
+  scene.add(bedGroup);
+  bedGroup.visible=showBed.checked;
+}
+
+function parseNum(line, letter){
+  const re = new RegExp(
+    '(?:^|\\s)' + letter + '\\s*([-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)',
+    'i'
+  );
+  const m = line.match(re);
+  return m ? Number(m[1]) : null;
+}
+
+async function parseGcode(text){
+  const lines=text.split(/\r?\n/);
+  let x=0,y=0,z=0,e=0,f=1800;
+  let xyzAbs=true, eAbs=true;
+  let feature='Extrusion';
+  let currentLayer=-1;
+  let pendingLayerChange=false;
+  let explicitLayerPendingZ=false;
+  let lastExtrudeZ=null;
+
+  const layers=[];
+  const bounds={minX:Infinity,minY:Infinity,maxX:-Infinity,maxY:-Infinity,minZ:Infinity,maxZ:-Infinity};
+  let extrusionPath=0, filament=0, seconds=0, segCount=0;
+  let speedMin=Infinity,speedMax=-Infinity,flowMin=Infinity,flowMax=-Infinity;
+  const features=new Set();
+
+  function ensureLayer(zVal){
+    if(currentLayer<0){
+      currentLayer=0;
+      layers.push({z:zVal,segments:[]});
+    }
+    return layers[currentLayer];
+  }
+  function startLayer(zVal){
+    if(currentLayer>=0 && layers[currentLayer]?.segments.length===0 && Math.abs((layers[currentLayer].z??zVal)-zVal)<1e-5) return;
+    currentLayer++;
+    layers.push({z:zVal,segments:[]});
+  }
+
+  for(let i=0;i<lines.length;i++){
+    const raw=lines[i];
+    const semi=raw.indexOf(';');
+    const code=(semi>=0?raw.slice(0,semi):raw).trim();
+    const comment=(semi>=0?raw.slice(semi+1):'').trim();
+
+    if(comment){
+      let m;
+      if(/^LAYER_CHANGE/i.test(comment)) pendingLayerChange=true;
+      else if((m=comment.match(/^LAYER\s*:\s*(-?\d+)/i))){
+        const wanted=Number(m[1]);
+        if(wanted>=0 && wanted!==currentLayer){
+          currentLayer=wanted;
+          while(layers.length<=currentLayer) layers.push({z:null,segments:[]});
+          explicitLayerPendingZ=true;
+        }
+      } else if((m=comment.match(/^(?:TYPE|FEATURE)\s*:\s*(.+)$/i))){
+        feature=m[1].trim() || 'Extrusion';
+      } else if((m=comment.match(/^Z\s*:\s*(-?\d*\.?\d+)/i))){
+        const nz=Number(m[1]);
+        if(pendingLayerChange){
+          startLayer(nz);
+          pendingLayerChange=false;
+        }
+      }
+    }
+
+    if(!code) {
+      if(i%50000===0){ updateProgress(i/lines.length,'Parsuji G-code…'); await new Promise(r=>setTimeout(r,0)); }
+      continue;
+    }
+
+    const cmdLine = code.replace(/^N\d+\s+/i,'').replace(/\*\d+\s*$/,'').trim();
+    const cmd=cmdLine.split(/\s+/)[0].toUpperCase();
+    if(cmd==='G90'){xyzAbs=true;continue;}
+    if(cmd==='G91'){xyzAbs=false;continue;}
+    if(cmd==='M82'){eAbs=true;continue;}
+    if(cmd==='M83'){eAbs=false;continue;}
+    if(cmd==='G92'){
+      const nx=parseNum(cmdLine,'X'), ny=parseNum(cmdLine,'Y'), nz=parseNum(cmdLine,'Z'), ne=parseNum(cmdLine,'E');
+      if(nx!==null)x=nx;if(ny!==null)y=ny;if(nz!==null)z=nz;if(ne!==null)e=ne;
+      continue;
+    }
+
+    if(cmd==='G0'||cmd==='G1'||cmd==='G2'||cmd==='G3'){
+      const X=parseNum(cmdLine,'X'), Y=parseNum(cmdLine,'Y'), Z=parseNum(cmdLine,'Z'), E=parseNum(cmdLine,'E'), F=parseNum(cmdLine,'F');
+      const nx=X===null?x:(xyzAbs?X:x+X);
+      const ny=Y===null?y:(xyzAbs?Y:y+Y);
+      const nz=Z===null?z:(xyzAbs?Z:z+Z);
+      const ne=E===null?e:(eAbs?E:e+E);
+      if(F!==null) f=F;
+
+      const de=ne-e;
+      const dx=nx-x,dy=ny-y,dz=nz-z;
+      const dist=Math.hypot(dx,dy,dz);
+      const xyDist=Math.hypot(dx,dy);
+      const extruding=de>0.000001 && xyDist>0.00001;
+
+      if(extruding){
+        let layerHandled=false;
+        if(currentLayer<0){
+          startLayer(nz);
+          layerHandled=true;
+        }
+        if(pendingLayerChange){
+          startLayer(nz);
+          pendingLayerChange=false;
+          layerHandled=true;
+        }
+        if(explicitLayerPendingZ){
+          if(!layers[currentLayer]) layers[currentLayer]={z:nz,segments:[]};
+          layers[currentLayer].z=nz;
+          explicitLayerPendingZ=false;
+          layerHandled=true;
+        }
+        if(!layerHandled && lastExtrudeZ!==null && nz>lastExtrudeZ+0.02){
+          startLayer(nz);
+        }
+      }
+
+      if(dist>0.000001){
+        seconds += dist / Math.max(f/60,0.001);
+        if(extruding){
+          extrusionPath += dist;
+          filament += Math.max(0,de);
+          lastExtrudeZ=nz;
+          bounds.minX=Math.min(bounds.minX,x,nx);bounds.maxX=Math.max(bounds.maxX,x,nx);
+          bounds.minY=Math.min(bounds.minY,y,ny);bounds.maxY=Math.max(bounds.maxY,y,ny);
+          bounds.minZ=Math.min(bounds.minZ,z,nz);bounds.maxZ=Math.max(bounds.maxZ,z,nz);
+          const speed=f/60;
+          const flow=dist>0 ? de/dist : 0;
+          speedMin=Math.min(speedMin,speed);speedMax=Math.max(speedMax,speed);
+          flowMin=Math.min(flowMin,flow);flowMax=Math.max(flowMax,flow);
+          features.add(feature);
+          ensureLayer(nz).segments.push({x1:x,y1:y,z1:z,x2:nx,y2:ny,z2:nz,speed,flow,feature,travel:false});
+          segCount++;
+        } else if(xyDist>0.00001){
+          ensureLayer(nz).segments.push({x1:x,y1:y,z1:z,x2:nx,y2:ny,z2:nz,speed:f/60,flow:0,feature:'Travel',travel:true});
+        }
+      }
+
+      x=nx;y=ny;z=nz;e=ne;
+    }
+
+    if(i%50000===0){
+      updateProgress(i/lines.length,'Parsuji G-code…');
+      await new Promise(r=>setTimeout(r,0));
+    }
+  }
+
+  while(layers.length && layers[0].segments.length===0) layers.shift();
+  layers.forEach((l,i)=>l.index=i);
+
+  if(!isFinite(speedMin)){speedMin=0;speedMax=1;}
+  if(!isFinite(flowMin)){flowMin=0;flowMax=1;}
+
+  return {layers,bounds,extrusionPath,filament,seconds,segCount,speedMin,speedMax,flowMin,flowMax,features:[...features]};
+}
+
+function buildLayerObjects(data){
+  updateProgress(.87,'Vytvářím 3D dráhy…');
+  data.layers.forEach((layer,idx)=>{
+    const pos=[], colors=[];
+    for(const s of layer.segments){
+      if(s.travel && !showTravel.checked) continue;
+
+      pos.push(s.x1,s.y1,s.z1+0.02,s.x2,s.y2,s.z2+0.02);
+      const c = segmentColor(s,data,displayMode.value);
+      colors.push(...c,...c);
+    }
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+    geo.userData.segments=layer.segments;
+    const mat=new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:1});
+    const obj=new THREE.LineSegments(geo,mat);
+    obj.userData.layer=idx;
+    root.add(obj);
+    layerObjects.push(obj);
+  });
+}
+
+function segmentColor(s,data,mode){
+  if(s.travel) return hexToRgb01(FEATURE_COLORS.Travel);
+  if(mode==='speed') return speedColor(s.speed,data.speedMin,data.speedMax);
+  if(mode==='flow') return flowColor(s.flow,data.flowMin,data.flowMax);
+  return hexToRgb01(colorForFeature(s.feature));
+}
+
+function recolor(){
+  if(!parsed)return;
+  layerObjects.forEach((obj,idx)=>{
+    const arr=obj.geometry.attributes.color.array;
+    const segs=obj.geometry.userData.segments;
+    let p=0;
+    for(const s of segs){
+      const c=segmentColor(s,parsed,displayMode.value);
+      arr[p++]=c[0];arr[p++]=c[1];arr[p++]=c[2];
+      arr[p++]=c[0];arr[p++]=c[1];arr[p++]=c[2];
+    }
+    obj.geometry.attributes.color.needsUpdate=true;
+  });
+  updateLegend();
+}
+
+function updateLayerVisibility(){
+  if(!parsed)return;
+  const active=Number(layerSlider.value);
+  layerObjects.forEach((obj,i)=>{
+    obj.visible = singleLayer.checked ? i===active : i<=active;
+  });
+  layerValue.textContent=`${active+1} / ${parsed.layers.length} · Z ${parsed.layers[active]?.z?.toFixed(2) ?? '0.00'} mm`;
+}
+
+function rebuildForTravelToggle(){
+  if(!parsed)return;
+  for(const o of layerObjects){root.remove(o);o.geometry.dispose();o.material.dispose();}
+  layerObjects=[];
+  parsed.layers.forEach((layer,idx)=>{
+    const pos=[], colors=[], visibleSegs=[];
+    for(const s of layer.segments){
+      if(s.travel && !showTravel.checked) continue;
+      visibleSegs.push(s);
+      pos.push(s.x1,s.y1,s.z1+0.02,s.x2,s.y2,s.z2+0.02);
+      const c=segmentColor(s,parsed,displayMode.value);
+      colors.push(...c,...c);
+    }
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+    geo.userData.segments=visibleSegs;
+    const obj=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true}));
+    obj.userData.layer=idx;
+    root.add(obj);layerObjects.push(obj);
+  });
+  updateLayerVisibility();
+}
+
+function updateLegend(){
+  if(!parsed){legendEl.innerHTML='';return;}
+  if(displayMode.value==='feature'){
+    const items=[...parsed.features].slice(0,12).map(f=>[f,colorForFeature(f)]);
+    if(showTravel.checked) items.push(['Travel',FEATURE_COLORS.Travel]);
+    legendEl.innerHTML=items.map(([n,c])=>`<div class="legend-item"><span class="swatch" style="background:${c}"></span>${escapeHtml(n)}</div>`).join('');
+  }else if(displayMode.value==='speed'){
+    legendEl.innerHTML=gradientLegend(`${parsed.speedMin.toFixed(0)} mm/s`,`${parsed.speedMax.toFixed(0)} mm/s`);
+  }else{
+    legendEl.innerHTML=gradientLegend(parsed.flowMin.toFixed(3),parsed.flowMax.toFixed(3));
+  }
+}
+function gradientLegend(a,b){
+  return `<div style="height:12px;border-radius:4px;background:linear-gradient(90deg,#1a5cf2,#00c7bf,#6bdc38,#ffbd1f,#ff332e)"></div><div style="display:flex;justify-content:space-between;color:#9ca3ad"><span>${a}</span><span>${b}</span></div>`;
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+
+function fmtTime(sec){
+  if(!isFinite(sec))return '–';
+  const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=Math.floor(sec%60);
+  return h?`${h} h ${m} min`:(m?`${m} min ${s} s`:`${s} s`);
+}
+function fmtLen(mm){
+  if(mm>=1000)return `${(mm/1000).toFixed(1)} m`;
+  return `${mm.toFixed(0)} mm`;
+}
+function updateStats(d){
+  document.getElementById('statLayers').textContent=d.layers.length;
+  document.getElementById('statHeight').textContent=isFinite(d.bounds.maxZ)?`${d.bounds.maxZ.toFixed(2)} mm`:'–';
+  document.getElementById('statTime').textContent=fmtTime(d.seconds);
+  document.getElementById('statLength').textContent=fmtLen(d.extrusionPath);
+  document.getElementById('statFilament').textContent=fmtLen(d.filament);
+  const sx=d.bounds.maxX-d.bounds.minX,sy=d.bounds.maxY-d.bounds.minY;
+  document.getElementById('statSize').textContent=isFinite(sx)?`${sx.toFixed(1)}×${sy.toFixed(1)} mm`:'–';
+}
+
+function fitCamera(bounds){
+  const cx=(bounds.minX+bounds.maxX)/2,cy=(bounds.minY+bounds.maxY)/2;
+  const sx=bounds.maxX-bounds.minX,sy=bounds.maxY-bounds.minY,sz=Math.max(10,bounds.maxZ-bounds.minZ);
+  const size=Math.max(sx,sy,sz,80);
+  controls.target.set(cx,cy,Math.max(0,bounds.minZ)+sz*.25);
+  camera.position.set(cx+size*.8,cy-size*1.05,sz+size*.85);
+  camera.near=Math.max(.1,size/1000);
+  camera.far=Math.max(5000,size*30);
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+
+function updateProgress(frac,text){
+  progress.style.display='block';
+  progressText.textContent=text;
+  barFill.style.width=`${Math.max(0,Math.min(100,frac*100)).toFixed(0)}%`;
+}
+
+async function loadFile(file){
+  stopPlay();
+  fileName.textContent=file.name;
+  empty.style.display='none';
+  updateProgress(.02,'Načítám soubor…');
+  try{
+    const text=await file.text();
+    clearScene();
+    parsed=await parseGcode(text);
+
+    showTravel.checked = false;
+
+    if(!parsed.layers.length){
+      const binaryLike = /\x00/.test(text.slice(0,2000)) || text.slice(0,32).includes('GCDE');
+      if(binaryLike) throw new Error('Soubor vypadá jako binární G-code (BGCODE). Tato verze zatím načítá textový G-code.');
+      throw new Error('V souboru jsem nenašel tiskové extruze. Zkontroluj, zda jde o textový G-code.');
+    }
+    buildLayerObjects(parsed);
+    makeBed(parsed.bounds);
+    layerSlider.min=0;
+    layerSlider.max=Math.max(0,parsed.layers.length-1);
+    layerSlider.value=parsed.layers.length-1;
+    layerSlider.disabled=false;
+    updateLayerVisibility();
+    updateStats(parsed);
+    updateLegend();
+    fitCamera(parsed.bounds);
+    updateProgress(1,'Hotovo');
+    setTimeout(()=>progress.style.display='none',350);
+    if(downloadPreviewBtn) downloadPreviewBtn.disabled=false;
+    try{ parent.postMessage({type:'toolbox-gcode-preview-ready',filename:file.name,layers:parsed.layers.length},'*'); }catch{}
+  }catch(err){
+    console.error(err);
+    progress.style.display='none';
+    empty.style.display='flex';
+    empty.innerHTML=`<div><strong>Soubor se nepodařilo načíst</strong>${escapeHtml(err.message||String(err))}</div>`;
+    if(downloadPreviewBtn) downloadPreviewBtn.disabled=true;
+    try{ parent.postMessage({type:'toolbox-gcode-preview-error',message:err.message||String(err)},'*'); }catch{}
+  }
+}
+
+window.addEventListener('message', e=>{
+  const d=e.data||{};
+  if(d.type!=='toolbox-gcode-preview-load')return;
+  previewGcodeText=String(d.gcode||'');
+  previewDownloadName=String(d.filename||'toolbox.gcode').replace(/[\\/:*?"<>|]+/g,'_');
+  if(downloadPreviewBtn)downloadPreviewBtn.disabled=true;
+  if(!previewGcodeText.trim()){
+    empty.style.display='flex';
+    empty.innerHTML='<div><strong>G-code je prázdný</strong>Nemám co zobrazit.</div>';
+    try{parent.postMessage({type:'toolbox-gcode-preview-error',message:'G-code je prázdný.'},'*')}catch{}
+    return;
+  }
+  const file=new File([previewGcodeText],previewDownloadName,{type:'text/x-gcode'});
+  loadFile(file);
+});
+
+cancelPreviewBtn?.addEventListener('click',()=>{
+  try{parent.postMessage({type:'toolbox-gcode-preview-cancel'},'*')}catch{}
+});
+
+downloadPreviewBtn?.addEventListener('click',()=>{
+  if(downloadPreviewBtn.disabled||!previewGcodeText)return;
+  const blob=new Blob([previewGcodeText],{type:'text/x-gcode;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=previewDownloadName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2500);
+  try{parent.postMessage({type:'toolbox-gcode-preview-downloaded',filename:previewDownloadName},'*')}catch{}
+});
+
+fileInput.addEventListener('change',()=>{if(fileInput.files[0])loadFile(fileInput.files[0]);});
+
+['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{
+  e.preventDefault();dropOverlay.classList.add('show');
+}));
+['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{
+  e.preventDefault();dropOverlay.classList.remove('show');
+}));
+document.addEventListener('drop',e=>{
+  const f=e.dataTransfer.files?.[0];
+  if(f)loadFile(f);
+});
+
+layerSlider.addEventListener('input',updateLayerVisibility);
+singleLayer.addEventListener('change',updateLayerVisibility);
+showTravel.addEventListener('change',()=>{rebuildForTravelToggle();updateLegend();});
+showBed.addEventListener('change',()=>{if(bedGroup)bedGroup.visible=showBed.checked;});
+displayMode.addEventListener('change',recolor);
+
+prevLayer.addEventListener('click',()=>{
+  if(!parsed)return;
+  layerSlider.value=Math.max(0,Number(layerSlider.value)-1);updateLayerVisibility();
+});
+nextLayer.addEventListener('click',()=>{
+  if(!parsed)return;
+  layerSlider.value=Math.min(Number(layerSlider.max),Number(layerSlider.value)+1);updateLayerVisibility();
+});
+
+function stopPlay(){
+  if(playTimer){clearInterval(playTimer);playTimer=null;}
+  playBtn.textContent='▶ Přehrát';
+}
+playBtn.addEventListener('click',()=>{
+  if(!parsed)return;
+  if(playTimer){stopPlay();return;}
+  if(Number(layerSlider.value)>=Number(layerSlider.max))layerSlider.value=0;
+  playBtn.textContent='⏸ Pauza';
+  playTimer=setInterval(()=>{
+    const n=Number(layerSlider.value)+1;
+    if(n>Number(layerSlider.max)){stopPlay();return;}
+    layerSlider.value=n;updateLayerVisibility();
+  },180);
+});
+
+resetViewBtn.addEventListener('click',()=>{if(parsed)fitCamera(parsed.bounds);});
+</script>
+</body>
+</html>
