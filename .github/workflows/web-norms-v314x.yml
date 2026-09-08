@@ -1,0 +1,40 @@
+name: Web V3.14x Norms
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/web-norms-v314x.yml
+      - tools/patch_norms_v314x.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add norms app
+        run: |
+          python tools/patch_norms_v314x.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert 'V3.14x' in s
+          assert 'id="tool-norms"' in s
+          assert "openTool('norms')" in s
+          assert 'const NORMS_DB=' in s
+          assert 'function searchNorms()' in s
+          assert 'Šířka veřejného prostranství' in s
+          print('V3.14x norms checks OK')
+          PY
+      - name: Commit V3.14x norms app
+        run: |
+          git config user.name '20-20 Web Builder'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'V3.14x norms beta app'
+          git push origin main
