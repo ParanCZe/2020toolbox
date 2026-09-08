@@ -1,0 +1,46 @@
+name: Web V3.14y Norms and Interior Standards
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/web-norms-v314y.yml
+      - tools/patch_norms_v314y.py
+      - norms_data_v314y.js
+      - norms_engine_v314y.js
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Integrate norms and interior standards
+        run: |
+          python tools/patch_norms_v314y.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          d=Path('norms_data_v314y.js').read_text(encoding='utf-8')
+          e=Path('norms_engine_v314y.js').read_text(encoding='utf-8')
+          assert '<div class="app-version" id="app-version">V3.14y</div>' in s
+          assert 'norms_data_v314y.js?v=314y' in s
+          assert 'norms_engine_v314y.js?v=314y' in s
+          assert 'TOOLBOX_NORMS_V314Y' in d
+          assert 'TOOLBOX_INTERIOR_STANDARDS_V314Y' in d
+          assert 'Interiérové standardy' in e
+          assert 'normsYSearch' in e and 'interiorYSearch' in e
+          assert 'ČSN – METADATA' in d
+          print('V3.14y checks OK')
+          PY
+      - name: Commit V3.14y web integration
+        run: |
+          git config user.name '20-20 Web Builder'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'V3.14y expanded norms and interior standards'
+          git push origin main
