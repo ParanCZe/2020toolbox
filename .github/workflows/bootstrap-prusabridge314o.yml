@@ -2,10 +2,11 @@ name: Build PrusaBridge
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - '.github/workflows/bootstrap-prusabridge314o.yml'
-      - 'PrusaBridge/src/**'
+      - .github/workflows/bootstrap-prusabridge314o.yml
+      - PrusaBridge/src/**
   workflow_dispatch:
 
 permissions:
@@ -17,47 +18,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Patch Bridge V3.14s PrusaSlicer CLI fix
+      - name: Patch V3.14s
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          @'
-          from pathlib import Path
+          $p = 'PrusaBridge\src\main.go'
+          $s = Get-Content -Raw -Encoding UTF8 $p
+          $s = $s.Replace('const bridgeVersion = "3.14r"', 'const bridgeVersion = "3.14s"')
+          $s = $s.Replace('args = append(args, "--support-material", "1", "--support-material-buildplate-only", "1")', 'args = append(args, "--support-material", "--support-material-buildplate-only")')
+          $s = $s.Replace('args = append(args, "--support-material", "1", "--support-material-buildplate-only", "0")', 'args = append(args, "--support-material")')
+          $s = $s.Replace('args = append(args, "--support-material", "0")', '// support disabled: no boolean CLI flag')
+          Set-Content -Encoding UTF8 -Path $p -Value $s
 
-          p = Path('PrusaBridge/src/main.go')
-          s = p.read_text(encoding='utf-8')
-          s = s.replace('const bridgeVersion = "3.14r"', 'const bridgeVersion = "3.14s"')
+          $i = 'index.html'
+          $h = Get-Content -Raw -Encoding UTF8 $i
+          $h = $h.Replace('3.14r', '3.14s')
+          Set-Content -Encoding UTF8 -Path $i -Value $h
 
-          old = '''\tswitch strings.ToLower(s.Supports) {
-\tcase "buildplate":
-\t\targs = append(args, "--support-material", "1", "--support-material-buildplate-only", "1")
-\tcase "everywhere":
-\t\targs = append(args, "--support-material", "1", "--support-material-buildplate-only", "0")
-\tdefault:
-\t\targs = append(args, "--support-material", "0")
-\t}'''
-          new = '''\tswitch strings.ToLower(s.Supports) {
-\tcase "buildplate":
-\t\t// PrusaSlicer boolean CLI switches are flags. Passing a separate "1"
-\t\t// makes PrusaSlicer interpret that token as an input filename ("No such file: 1").
-\t\targs = append(args, "--support-material", "--support-material-buildplate-only")
-\tcase "everywhere":
-\t\targs = append(args, "--support-material")
-\tdefault:
-\t\t// Support is disabled by the selected print profile by default; do not append
-\t\t// a synthetic "0" token because it is parsed as a filename by the CLI.
-\t}'''
-          if old not in s:
-              raise SystemExit('Expected support-material CLI block was not found')
-          s = s.replace(old, new, 1)
-          p.write_text(s, encoding='utf-8')
-
-          i = Path('index.html')
-          h = i.read_text(encoding='utf-8').replace('3.14r', '3.14s')
-          h = h.replace('Stahuji Bridge 3.14r', 'Stahuji Bridge 3.14s')
-          i.write_text(h, encoding='utf-8')
-          '@ | python -
-          if ($LASTEXITCODE -ne 0) { throw "V3.14s patch failed: $LASTEXITCODE" }
+          if (-not ((Get-Content -Raw $p).Contains('const bridgeVersion = "3.14s"'))) { throw 'Bridge version patch failed' }
+          if ((Get-Content -Raw $p).Contains('"--support-material", "1"')) { throw 'Boolean CLI fix did not apply' }
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -79,7 +58,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24.x'
+          go-version: 1.24.x
           cache: false
 
       - name: Build PrusaBridge
@@ -113,18 +92,15 @@ jobs:
             url = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/20-20-PrusaBridge.exe'
             sha256 = $sha
           } | ConvertTo-Json
-          Set-Content -Path 'PrusaBridge\latest.json' -Value $manifest -Encoding UTF8
+          Set-Content -Encoding UTF8 -Path 'PrusaBridge\latest.json' -Value $manifest
 
-      - name: Commit Bridge V3.14s
+      - name: Commit V3.14s
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           git config user.name '20-20 Bridge Builder'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add PrusaBridge/src/main.go PrusaBridge/src/Win3DRepair.cpp PrusaBridge/src/go.mod PrusaBridge/20-20-PrusaBridge.exe PrusaBridge/latest.json index.html
-          if (git diff --cached --quiet) {
-            Write-Host 'No changes.'
-            exit 0
-          }
-          git commit -m 'PrusaBridge 3.14s PrusaSlicer CLI boolean fix'
+          if (git diff --cached --quiet) { exit 0 }
+          git commit -m 'PrusaBridge 3.14s slicer CLI fix'
           git push origin main
