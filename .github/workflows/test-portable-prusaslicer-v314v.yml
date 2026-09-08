@@ -39,11 +39,22 @@ jobs:
             Copy-Item (Join-Path $profiles 'PrusaResearch.idx') (Join-Path $vendorDir 'PrusaResearch.idx') -Force
             $cfg = "[presets]`r`nfilament = Prusament PLA`r`nprint = 0.20mm QUALITY @MK3`r`nprinter = Original Prusa i3 MK3S & MK3S+`r`n`r`n[vendor:PrusaResearch]`r`nmodel:MK3S = 0.4`r`n"
             [IO.File]::WriteAllText((Join-Path $datadir 'PrusaSlicer.ini'), $cfg, [Text.Encoding]::ASCII)
-            $out=Join-Path $env:RUNNER_TEMP 'models.json'
+
             $old=$ErrorActionPreference; $ErrorActionPreference='Continue'
-            & $status.slicerPath --datadir $datadir --query-printer-models -o $out 2>&1 | ForEach-Object {Write-Host $_}
-            $q=$LASTEXITCODE; $ErrorActionPreference=$old
-            Write-Host "QUERY_EXIT=$q OUT=$((Test-Path $out))"
-            if(Test-Path $out){Get-Content $out -TotalCount 160 | Write-Host}
-            if($q -ne 0){throw 'query-printer-models failed'}
+            $models=Join-Path $env:RUNNER_TEMP 'models.json'
+            & $status.slicerPath --datadir $datadir --query-printer-models -o $models 2>&1 | ForEach-Object {Write-Host $_}
+            Write-Host "MODELS_EXIT=$LASTEXITCODE OUT=$((Test-Path $models))"
+            if(-not (Test-Path $models)){throw 'printer models output missing'}
+            Get-Content $models -TotalCount 120 | Write-Host
+
+            $profilesOut=Join-Path $env:RUNNER_TEMP 'profiles.json'
+            & $status.slicerPath --datadir $datadir --printer-profile 'Original Prusa i3 MK3S & MK3S+' --query-print-tool-filament-profiles -o $profilesOut 2>&1 | ForEach-Object {Write-Host $_}
+            Write-Host "PROFILES_EXIT=$LASTEXITCODE OUT=$((Test-Path $profilesOut))"
+            $ErrorActionPreference=$old
+            if(-not (Test-Path $profilesOut)){throw 'profile output missing'}
+            Get-Content $profilesOut -TotalCount 240 | Write-Host
+            $txt=Get-Content $profilesOut -Raw
+            if($txt -notmatch '0.20mm QUALITY @MK3'){throw 'MK3 print profile missing'}
+            if($txt -notmatch 'Prusament PLA'){throw 'PLA material profile missing'}
+            Write-Host 'PORTABLE_PRESETS_OK'
           } finally { try{Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}catch{} }
