@@ -479,7 +479,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version" id="app-version">V3.14x</div>
+  <div class="app-version" id="app-version">V3.14y</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ A DOKUMENTACÍ</div>
 </header>
 
@@ -3437,7 +3437,10 @@ function printDrawingList(){
     for(const {row:x} of entries)rows+=`<tr><td>${++poř}</td><td>${escapeHtml(x.pageCount>1?`${x.page}/${x.pageCount}`:'1')}</td><td>${escapeHtml(x.number)}</td><td>${escapeHtml(x.title)}</td><td>${escapeHtml(x.scale)}</td><td>${escapeHtml(x.documentationStage||'')}</td><td>${escapeHtml(x.format)}</td></tr>`;
   }
   const w=window.open('','_blank');if(!w){alert('Prohlížeč zablokoval nové okno. Povolte vyskakovací okna pro tisk.');return;}
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Seznam výkresů</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}.section td{background:#f3ef99;font-weight:bold;font-size:12px;padding-top:8px;padding-bottom:8px}@media print{body{margin:10mm}}</style></head><body><h1>Seznam výkresů</h1><table><thead><tr><th>Poř.</th><th>List</th><th>Číslo výkresu</th><th>Název výkresu</th><th>Měřítko</th><th>Stupeň dokumentace</th><th>Formát</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Seznam výkresů</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}.section td{background:#f3ef99;font-weight:bold;font-size:12px;padding-top:8px;padding-bottom:8px}@media print{body{margin:10mm}}</style></head><body><h1>Seznam výkresů</h1><table><thead><tr><th>Poř.</th><th>List</th><th>Číslo výkresu</th><th>Název výkresu</th><th>Měřítko</th><th>Stupeň dokumentace</th><th>Formát</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script>
+<script src="norms_data_v314y.js?v=314y"></script>
+<script src="norms_engine_v314y.js?v=314y"></script>
+</body></html>`);w.document.close();
 }
 
 function useDrawingListForRenamer(){const files=[];const seen=new Set();for(const r of docsData.drawingRows){const f=r.file;if(!f)continue;const k=`${f.name}|${f.size}|${f.lastModified}`;if(!seen.has(k)){seen.add(k);files.push(f);}} if(!files.length){alert('V seznamu výkresů zatím nejsou načtené soubory.');return;}docsData.renamer=files;document.getElementById('btn-renamer').disabled=false;document.getElementById('st-renamer').textContent=`${files.length} PDF převzato ze seznamu výkresů`;refreshRenameSuggestions();openDocsSection('renamer');}
