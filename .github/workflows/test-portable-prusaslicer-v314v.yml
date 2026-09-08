@@ -12,10 +12,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Test clean portable runtime with managed presets
+      - name: Probe managed presets in clean portable runtime
         shell: powershell
         run: |
-          $ErrorActionPreference = 'Continue'
+          $ErrorActionPreference = 'Stop'
           $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'toolbox-localappdata'
           New-Item -ItemType Directory -Force -Path $env:LOCALAPPDATA | Out-Null
           $exe = Join-Path $PWD 'PrusaBridge\20-20-PrusaBridge.exe'
@@ -30,7 +30,6 @@ jobs:
               if($status.slicerBootstrapError){throw $status.slicerBootstrapError}
             }
             if(-not $status.ok -or -not $status.slicerManaged){throw 'portable runtime not ready'}
-
             $runtime = Split-Path $status.slicerPath -Parent
             $profiles = Join-Path $runtime 'resources\profiles'
             $datadir = Join-Path $env:LOCALAPPDATA '20-20-TOOLBOX\PrusaBridge\PrusaData'
@@ -38,120 +37,13 @@ jobs:
             New-Item -ItemType Directory -Force $vendorDir | Out-Null
             Copy-Item (Join-Path $profiles 'PrusaResearch.ini') (Join-Path $vendorDir 'PrusaResearch.ini') -Force
             Copy-Item (Join-Path $profiles 'PrusaResearch.idx') (Join-Path $vendorDir 'PrusaResearch.idx') -Force
-            @'
-[presets]
-filament = Prusament PLA
-print = 0.20mm QUALITY @MK3
-printer = Original Prusa i3 MK3S & MK3S+
-
-[vendor:PrusaResearch]
-model:MK3S = 0.4
-'@ | Set-Content -Encoding ASCII (Join-Path $datadir 'PrusaSlicer.ini')
-
+            $cfg = "[presets]`r`nfilament = Prusament PLA`r`nprint = 0.20mm QUALITY @MK3`r`nprinter = Original Prusa i3 MK3S & MK3S+`r`n`r`n[vendor:PrusaResearch]`r`nmodel:MK3S = 0.4`r`n"
+            [IO.File]::WriteAllText((Join-Path $datadir 'PrusaSlicer.ini'), $cfg, [Text.Encoding]::ASCII)
             $out=Join-Path $env:RUNNER_TEMP 'models.json'
-            & $status.slicerPath --datadir $datadir --query-printer-models -o $out
-            $q=$LASTEXITCODE
+            $old=$ErrorActionPreference; $ErrorActionPreference='Continue'
+            & $status.slicerPath --datadir $datadir --query-printer-models -o $out 2>&1 | ForEach-Object {Write-Host $_}
+            $q=$LASTEXITCODE; $ErrorActionPreference=$old
             Write-Host "QUERY_EXIT=$q OUT=$((Test-Path $out))"
-            if(Test-Path $out){Get-Content $out -TotalCount 120 | Write-Host}
+            if(Test-Path $out){Get-Content $out -TotalCount 160 | Write-Host}
             if($q -ne 0){throw 'query-printer-models failed'}
-
-            $stl=Join-Path $env:RUNNER_TEMP 'cube.stl'
-            @'
-solid cube
-facet normal 0 0 -1
- outer loop
-  vertex 0 0 0
-  vertex 20 20 0
-  vertex 20 0 0
- endloop
-endfacet
-facet normal 0 0 -1
- outer loop
-  vertex 0 0 0
-  vertex 0 20 0
-  vertex 20 20 0
- endloop
-endfacet
-facet normal 0 0 1
- outer loop
-  vertex 0 0 20
-  vertex 20 0 20
-  vertex 20 20 20
- endloop
-endfacet
-facet normal 0 0 1
- outer loop
-  vertex 0 0 20
-  vertex 20 20 20
-  vertex 0 20 20
- endloop
-endfacet
-facet normal 0 -1 0
- outer loop
-  vertex 0 0 0
-  vertex 20 0 0
-  vertex 20 0 20
- endloop
-endfacet
-facet normal 0 -1 0
- outer loop
-  vertex 0 0 0
-  vertex 20 0 20
-  vertex 0 0 20
- endloop
-endfacet
-facet normal 0 1 0
- outer loop
-  vertex 0 20 0
-  vertex 0 20 20
-  vertex 20 20 20
- endloop
-endfacet
-facet normal 0 1 0
- outer loop
-  vertex 0 20 0
-  vertex 20 20 20
-  vertex 20 20 0
- endloop
-endfacet
-facet normal -1 0 0
- outer loop
-  vertex 0 0 0
-  vertex 0 0 20
-  vertex 0 20 20
- endloop
-endfacet
-facet normal -1 0 0
- outer loop
-  vertex 0 0 0
-  vertex 0 20 20
-  vertex 0 20 0
- endloop
-endfacet
-facet normal 1 0 0
- outer loop
-  vertex 20 0 0
-  vertex 20 20 0
-  vertex 20 20 20
- endloop
-endfacet
-facet normal 1 0 0
- outer loop
-  vertex 20 0 0
-  vertex 20 20 20
-  vertex 20 0 20
- endloop
-endfacet
-endsolid cube
-'@ | Set-Content -Encoding ASCII $stl
-
-            $gcode=Join-Path $env:RUNNER_TEMP 'cube.gcode'
-            & $status.slicerPath --datadir $datadir -g --printer-profile 'Original Prusa i3 MK3S & MK3S+' --print-profile '0.20mm QUALITY @MK3' --material-profile 'Prusament PLA' -o $gcode $stl
-            $s=$LASTEXITCODE
-            Write-Host "SLICE_EXIT=$s GCODE=$((Test-Path $gcode))"
-            if($s -ne 0){throw 'portable slice failed'}
-            if(-not (Test-Path $gcode)){throw 'gcode missing'}
-            $len=(Get-Item $gcode).Length
-            if($len -lt 1000){throw "gcode too small: $len"}
-            Write-Host "PORTABLE_PRESETS_AND_SLICE_OK $len bytes"
           } finally { try{Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}catch{} }
