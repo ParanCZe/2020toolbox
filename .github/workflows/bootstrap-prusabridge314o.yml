@@ -51,21 +51,36 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.x'
+          cache: false
 
       - name: Build PrusaBridge
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          Push-Location PrusaBridge\src
-          go build -trimpath -ldflags "-H=windowsgui -s -w" -o ..\20-20-PrusaBridge.exe .
-          if ($LASTEXITCODE -ne 0) { throw "PrusaBridge build failed: $LASTEXITCODE" }
-          Pop-Location
+          # Go refuses a C++ source file in a package that does not use cgo. The native
+          # helper is already compiled above, so hide only its .cpp source during Go build
+          # and restore it afterwards for the source commit.
+          $cpp = Join-Path $PWD 'PrusaBridge\src\Win3DRepair.cpp'
+          $tmpCpp = Join-Path $env:RUNNER_TEMP 'Win3DRepair.cpp'
+          Move-Item $cpp $tmpCpp -Force
+          try {
+            Push-Location PrusaBridge\src
+            try {
+              go build -trimpath -ldflags "-H=windowsgui -s -w" -o ..\20-20-PrusaBridge.exe .
+              if ($LASTEXITCODE -ne 0) { throw "PrusaBridge build failed: $LASTEXITCODE" }
+            } finally {
+              Pop-Location
+            }
+          } finally {
+            Move-Item $tmpCpp $cpp -Force
+          }
 
       - name: Create update manifest and patch web app
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           $exe = 'PrusaBridge\20-20-PrusaBridge.exe'
+          if (-not (Test-Path $exe)) { throw 'Built PrusaBridge EXE is missing.' }
           $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           $manifest = [ordered]@{
             version = '3.14o'
