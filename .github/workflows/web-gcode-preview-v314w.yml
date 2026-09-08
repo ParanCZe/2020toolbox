@@ -1,0 +1,45 @@
+name: Web V3.14w G-code Preview
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/web-gcode-preview-v314w.yml
+      - tools/patch_gcode_preview_v314w.py
+      - gcode_viewer_embedded.html
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Integrate G-code viewer before download
+        run: |
+          python tools/patch_gcode_preview_v314w.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          v=Path('gcode_viewer_embedded.html').read_text(encoding='utf-8')
+          assert '<div class="app-version">V3.14w</div>' in s
+          assert 'open3DPrintGcodePreview(header+gcode,downloadName)' in s
+          assert 'gcode_viewer_embedded.html?v=314w' in s
+          assert "toolbox-gcode-preview-load" in v
+          assert "toolbox-gcode-preview-downloaded" in v
+          assert 'Stáhnout G-code' in v and 'Storno' in v
+          print('V3.14w integration checks OK')
+          PY
+
+      - name: Commit V3.14w web integration
+        run: |
+          git config user.name '20-20 Web Builder'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'V3.14w G-code preview before download'
+          git push origin main
