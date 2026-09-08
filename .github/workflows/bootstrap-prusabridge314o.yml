@@ -17,51 +17,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Patch Bridge V3.14r web launch fix
+      - name: Patch Bridge V3.14s PrusaSlicer CLI fix
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           @'
           from pathlib import Path
-          import re
 
           p = Path('PrusaBridge/src/main.go')
           s = p.read_text(encoding='utf-8')
-          s = s.replace('const bridgeVersion = "3.14q"', 'const bridgeVersion = "3.14r"')
+          s = s.replace('const bridgeVersion = "3.14r"', 'const bridgeVersion = "3.14s"')
+
+          old = '''\tswitch strings.ToLower(s.Supports) {
+\tcase "buildplate":
+\t\targs = append(args, "--support-material", "1", "--support-material-buildplate-only", "1")
+\tcase "everywhere":
+\t\targs = append(args, "--support-material", "1", "--support-material-buildplate-only", "0")
+\tdefault:
+\t\targs = append(args, "--support-material", "0")
+\t}'''
+          new = '''\tswitch strings.ToLower(s.Supports) {
+\tcase "buildplate":
+\t\t// PrusaSlicer boolean CLI switches are flags. Passing a separate "1"
+\t\t// makes PrusaSlicer interpret that token as an input filename ("No such file: 1").
+\t\targs = append(args, "--support-material", "--support-material-buildplate-only")
+\tcase "everywhere":
+\t\targs = append(args, "--support-material")
+\tdefault:
+\t\t// Support is disabled by the selected print profile by default; do not append
+\t\t// a synthetic "0" token because it is parsed as a filename by the CLI.
+\t}'''
+          if old not in s:
+              raise SystemExit('Expected support-material CLI block was not found')
+          s = s.replace(old, new, 1)
           p.write_text(s, encoding='utf-8')
 
           i = Path('index.html')
-          h = i.read_text(encoding='utf-8')
-          h = h.replace('3.14q', '3.14r')
-
-          new_btn = '<button id="print3d-prusa-start-btn" class="back-btn" style="margin:0;display:inline-flex;align-items:center" onclick="start3DPrintPrusaBridge()">▶ Spustit PrusaBridge</button>'
-          h = re.sub(r'<(?P<tag>a|button)\s+id="print3d-prusa-start-btn"[^>]*>.*?</(?P=tag)>', new_btn, h, count=1, flags=re.S)
-
-          marker = 'function poll3DPrintPrusaBridgeStart(){'
-          starter = r'''async function start3DPrintPrusaBridge(){
-            const box=document.getElementById('print3d-prusa-bridge-status');
-            try{if(await check3DPrintPrusaBridge(true))return}catch{}
-            if(box){box.className='print3d-health warn';box.innerHTML='<b>Spoustim PrusaBridge...</b><br>Zkousim Windows protokol <code>toolbox-prusa://</code>.'}
-            const frame=document.createElement('iframe');
-            frame.style.display='none';
-            frame.src='toolbox-prusa://start';
-            document.body.appendChild(frame);
-            poll3DPrintPrusaBridgeStart();
-            setTimeout(async()=>{
-              let ok=false;try{ok=await check3DPrintPrusaBridge(true)}catch{}
-              try{frame.remove()}catch{}
-              if(ok)return;
-              if(box){box.className='print3d-health warn';box.innerHTML='<b>PRUSABRIDGE SE NESPustil</b><br>Windows protokol zatim neni zaregistrovany. Stahuji Bridge 3.14r. EXE je potreba jen jednou rucne spustit; potom bude tlacitko fungovat primo z webu.'}
-              download3DPrintPrusaBridge();
-            },2600);
-          }
-          '''
-          h = re.sub(r'async function start3DPrintPrusaBridge\(\)\{.*?(?=function poll3DPrintPrusaBridgeStart\(\)\{)', starter, h, count=1, flags=re.S)
-          if 'function start3DPrintPrusaBridge()' not in h and marker in h:
-              h = h.replace(marker, starter + marker, 1)
+          h = i.read_text(encoding='utf-8').replace('3.14r', '3.14s')
+          h = h.replace('Stahuji Bridge 3.14r', 'Stahuji Bridge 3.14s')
           i.write_text(h, encoding='utf-8')
           '@ | python -
-          if ($LASTEXITCODE -ne 0) { throw "V3.14r patch failed: $LASTEXITCODE" }
+          if ($LASTEXITCODE -ne 0) { throw "V3.14s patch failed: $LASTEXITCODE" }
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -113,13 +109,13 @@ jobs:
           if (-not (Test-Path $exe)) { throw 'Built PrusaBridge EXE is missing.' }
           $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           $manifest = [ordered]@{
-            version = '3.14r'
+            version = '3.14s'
             url = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/20-20-PrusaBridge.exe'
             sha256 = $sha
           } | ConvertTo-Json
           Set-Content -Path 'PrusaBridge\latest.json' -Value $manifest -Encoding UTF8
 
-      - name: Commit Bridge V3.14r
+      - name: Commit Bridge V3.14s
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -130,5 +126,5 @@ jobs:
             Write-Host 'No changes.'
             exit 0
           }
-          git commit -m 'PrusaBridge 3.14r web launch fix'
+          git commit -m 'PrusaBridge 3.14s PrusaSlicer CLI boolean fix'
           git push origin main
