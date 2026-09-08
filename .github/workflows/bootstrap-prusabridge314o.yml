@@ -1,10 +1,11 @@
-name: Bootstrap and Build PrusaBridge 3.14o
+name: Build PrusaBridge
 
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/bootstrap-prusabridge314o.yml'
+      - 'PrusaBridge/src/**'
   workflow_dispatch:
 
 permissions:
@@ -16,19 +17,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore PrusaBridge sources
+      - name: Patch Bridge V3.14p updater fixes
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $b64 = ''
-          Get-ChildItem 'PrusaBridge\bootstrap\chunk*.txt' | Sort-Object Name | ForEach-Object {
-            $b64 += [IO.File]::ReadAllText($_.FullName)
-          }
-          [IO.File]::WriteAllBytes('payload.tar.gz', [Convert]::FromBase64String($b64))
-          tar -xzf payload.tar.gz
-          if ($LASTEXITCODE -ne 0) { throw "Source payload extraction failed: $LASTEXITCODE" }
-          Remove-Item payload.tar.gz -Force
-          Remove-Item '.github\workflows\build-prusabridge.yml' -Force -ErrorAction SilentlyContinue
+          @'
+          from pathlib import Path
+
+          p = Path('PrusaBridge/src/main.go')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('const bridgeVersion = "3.14o"', 'const bridgeVersion = "3.14p"')
+          s = s.replace(r'fmt.Sprintf(`\"%s\" --serve \"%%1\"`, exe)', r'fmt.Sprintf(`"%s" --serve "%%1"`, exe)')
+          marker = 'func replaceRunningBridge(oldPID int, target string) error {\n'
+          delay = marker + '\t// Let the /update HTTP response reach the browser before the old server is terminated.\n\ttime.Sleep(700 * time.Millisecond)\n'
+          if marker in s and 'Let the /update HTTP response reach the browser' not in s:
+              s = s.replace(marker, delay, 1)
+          p.write_text(s, encoding='utf-8')
+
+          i = Path('index.html')
+          h = i.read_text(encoding='utf-8')
+          h = h.replace('3.14o', '3.14p')
+          i.write_text(h, encoding='utf-8')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw "V3.14p patch failed: $LASTEXITCODE" }
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -57,9 +68,6 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          # Go refuses a C++ source file in a package that does not use cgo. The native
-          # helper is already compiled above, so hide only its .cpp source during Go build
-          # and restore it afterwards for the source commit.
           $cpp = Join-Path $PWD 'PrusaBridge\src\Win3DRepair.cpp'
           $tmpCpp = Join-Path $env:RUNNER_TEMP 'Win3DRepair.cpp'
           Move-Item $cpp $tmpCpp -Force
@@ -75,7 +83,7 @@ jobs:
             Move-Item $tmpCpp $cpp -Force
           }
 
-      - name: Create update manifest and patch web app
+      - name: Create update manifest
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -83,25 +91,22 @@ jobs:
           if (-not (Test-Path $exe)) { throw 'Built PrusaBridge EXE is missing.' }
           $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           $manifest = [ordered]@{
-            version = '3.14o'
+            version = '3.14p'
             url = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/20-20-PrusaBridge.exe'
             sha256 = $sha
           } | ConvertTo-Json
           Set-Content -Path 'PrusaBridge\latest.json' -Value $manifest -Encoding UTF8
-          python PrusaBridge\src\patch_index_314o.py
-          if ($LASTEXITCODE -ne 0) { throw "index patch failed: $LASTEXITCODE" }
 
-      - name: Commit Bridge, source, manifest and index
+      - name: Commit Bridge V3.14p
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           git config user.name '20-20 Bridge Builder'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm -r PrusaBridge/bootstrap
-          git add PrusaBridge/src/main.go PrusaBridge/src/Win3DRepair.cpp PrusaBridge/src/patch_index_314o.py PrusaBridge/src/go.mod PrusaBridge/20-20-PrusaBridge.exe PrusaBridge/latest.json index.html
+          git add PrusaBridge/src/main.go PrusaBridge/src/Win3DRepair.cpp PrusaBridge/src/go.mod PrusaBridge/20-20-PrusaBridge.exe PrusaBridge/latest.json index.html
           if (git diff --cached --quiet) {
             Write-Host 'No changes.'
             exit 0
           }
-          git commit -m 'Add self-updating PrusaBridge 3.14o with native WinRT repair'
+          git commit -m 'PrusaBridge 3.14p updater fixes'
           git push origin main
