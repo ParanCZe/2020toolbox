@@ -467,7 +467,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version" id="app-version">V3.14v</div>
+  <div class="app-version" id="app-version">V3.14w</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ A DOKUMENTACÍ</div>
 </header>
 
@@ -8089,13 +8089,78 @@ async function export3DPrintGcode(){
     // Hlídáme pouze zjevně absurdní Z nebo překročení rozměru podložky s velkou rezervou.
     if(bounds.size.z>bz*1.15)throw new Error(`G-code má zjevně neplatnou výšku ${bounds.size.z.toFixed(1)} mm (limit tiskárny ${bz.toFixed(1)} mm).`);
     const ver=resp.headers.get('X-PrusaSlicer-Version')||p3BridgeState().status?.slicerVersion||'PrusaSlicer',mode=resp.headers.get('X-Prusa-Slice-Mode')||'',repairMode=resp.headers.get('X-Prusa-Repair-Mode')||'Windows RepairAsync',engine=resp.headers.get('X-Repair-Engine')||'Windows.Graphics.Printing3D.RepairAsync',tc=`${bounds.size.x.toFixed(1)} × ${bounds.size.y.toFixed(1)} × ${bounds.size.z.toFixed(1)} mm`;
-    const header=`; 20-20-TOOLBOX V3.14s\n; slicer_engine = LOCAL ${ver}\n; repair_engine = ${engine}\n; repair_mode = ${repairMode}\n; source = ${f.name}\n; toolpath_bounds_including_support_skirt = ${tc}\n; IMPORTANT: verify in PrusaSlicer G-code Viewer before printing\n`;
-    const blob=new Blob([header+gcode],{type:'text/x-gcode'}),a=document.createElement('a'),ratio=String(document.getElementById('print3d-scale')?.value||1).replace(/[^0-9._-]/g,'');a.href=URL.createObjectURL(blob);a.download=f.name.replace(/\.[^.]+$/,'')+`_MK3S_WINDOWS_REPAIR_1-${ratio}.gcode`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2500);
-    if(st)st.textContent='G-code vytvořen: Windows RepairAsync → PrusaSlicer.';
-    if(status)status.innerHTML=`<b>✓ WINDOWS REPAIRASYNC → PRUSASLICER · HOTOVO</b><br><b>${escapeHtml(ver)}</b><br>Repair: ${escapeHtml(repairMode)}<br>Tiskový rozsah včetně skirt/brim/support: ${escapeHtml(tc)}.${mode?'<br>CLI profil: '+escapeHtml(mode):''}<br><b>Zkontroluj výsledný model v PrusaSlicer G-code Vieweru.</b>`;
+    const header=`; 20-20-TOOLBOX V3.14w\n; slicer_engine = LOCAL ${ver}\n; repair_engine = ${engine}\n; repair_mode = ${repairMode}\n; source = ${f.name}\n; toolpath_bounds_including_support_skirt = ${tc}\n; IMPORTANT: verify in PrusaSlicer G-code Viewer before printing\n`;
+    const ratio=String(document.getElementById('print3d-scale')?.value||1).replace(/[^0-9._-]/g,'');
+    const downloadName=f.name.replace(/\.[^.]+$/,'')+`_MK3S_WINDOWS_REPAIR_1-${ratio}.gcode`;
+    open3DPrintGcodePreview(header+gcode,downloadName);
+    if(st)st.textContent='G-code vytvořen. Zkontroluj náhled a potom zvol Stáhnout G-code.';
+    if(status)status.innerHTML=`<b>✓ WINDOWS REPAIRASYNC → PRUSASLICER · HOTOVO</b><br><b>${escapeHtml(ver)}</b><br>Repair: ${escapeHtml(repairMode)}<br>Tiskový rozsah včetně skirt/brim/support: ${escapeHtml(tc)}.${mode?'<br>CLI profil: '+escapeHtml(mode):''}<br><b>Otevřen náhled G-code. Stažení je povolené až po úspěšném načtení vieweru.</b>`;
   }catch(e){console.error('Prusa bridge export',e);if(st)st.textContent='PrusaSlicer export selhal.';if(status)status.innerHTML='<b>⚠ WINDOWS REPAIR / PRUSASLICER EXPORT SELHAL</b><br>'+escapeHtml(e?.message||String(e));alert('G-code se nepodařilo vytvořit přes Windows RepairAsync + PrusaSlicer:\n\n'+(e?.message||String(e)))}
   finally{print3dState.slicerBusy=false;if(btn)btn.disabled=!print3dState.root;if(simpleBtn)simpleBtn.disabled=!print3dState.root||!print3dState.simplePrepared}
 }
+
+
+let print3dGcodePreviewOverlay=null;
+let print3dGcodePreviewPayload=null;
+let print3dGcodePreviewOldOverflow='';
+function close3DPrintGcodePreview(reason='cancel'){
+  if(!print3dGcodePreviewOverlay)return;
+  try{print3dGcodePreviewOverlay.remove()}catch{}
+  print3dGcodePreviewOverlay=null;
+  print3dGcodePreviewPayload=null;
+  document.body.style.overflow=print3dGcodePreviewOldOverflow||'';
+  const st=document.getElementById('st-3dprint');
+  if(reason==='cancel'&&st)st.textContent='Stažení G-code zrušeno. Můžeš upravit nastavení a export spustit znovu.';
+}
+function open3DPrintGcodePreview(gcode,filename){
+  close3DPrintGcodePreview('replace');
+  print3dGcodePreviewPayload={gcode:String(gcode||''),filename:String(filename||'toolbox.gcode')};
+  print3dGcodePreviewOldOverflow=document.body.style.overflow;
+  document.body.style.overflow='hidden';
+  const overlay=document.createElement('div');
+  overlay.id='print3d-gcode-preview-overlay';
+  overlay.setAttribute('role','dialog');
+  overlay.setAttribute('aria-modal','true');
+  overlay.setAttribute('aria-label','Kontrola G-code před stažením');
+  Object.assign(overlay.style,{position:'fixed',inset:'0',zIndex:'50000',background:'rgba(0,0,0,.72)',padding:'18px',display:'flex',alignItems:'center',justifyContent:'center'});
+  const frame=document.createElement('iframe');
+  frame.id='print3d-gcode-preview-frame';
+  frame.title='G-code Viewer – kontrola před stažením';
+  frame.src='gcode_viewer_embedded.html?v=314w';
+  frame.allow='fullscreen';
+  Object.assign(frame.style,{width:'min(1500px,97vw)',height:'min(920px,95vh)',border:'1px solid #3a3f47',borderRadius:'14px',background:'#17191d',boxShadow:'0 24px 70px rgba(0,0,0,.45)'});
+  frame.addEventListener('load',()=>{
+    try{frame.contentWindow.postMessage({type:'toolbox-gcode-preview-load',...print3dGcodePreviewPayload},'*')}catch(e){console.error('G-code preview postMessage',e)}
+  });
+  overlay.appendChild(frame);
+  overlay.addEventListener('mousedown',e=>{if(e.target===overlay)close3DPrintGcodePreview('cancel')});
+  document.body.appendChild(overlay);
+  print3dGcodePreviewOverlay=overlay;
+}
+window.addEventListener('message',e=>{
+  const overlay=print3dGcodePreviewOverlay,frame=overlay?.querySelector('#print3d-gcode-preview-frame');
+  if(!overlay||!frame||e.source!==frame.contentWindow)return;
+  const d=e.data||{},st=document.getElementById('st-3dprint'),status=document.getElementById('print3d-cura-status');
+  if(d.type==='toolbox-gcode-preview-ready'){
+    if(st)st.textContent=`G-code náhled připraven: ${Number(d.layers||0)} vrstev. Zkontroluj ho a klikni „Stáhnout G-code“.`;
+    return;
+  }
+  if(d.type==='toolbox-gcode-preview-error'){
+    if(st)st.textContent='G-code viewer našel problém. Stažení zůstává zablokované.';
+    if(status)status.innerHTML='<b>⚠ G-CODE VIEWER NENAČETL VÝSTUP</b><br>'+escapeHtml(d.message||'Neznámá chyba vieweru.')+'<br><b>Soubor se nestáhl.</b>';
+    return;
+  }
+  if(d.type==='toolbox-gcode-preview-cancel'){
+    close3DPrintGcodePreview('cancel');
+    return;
+  }
+  if(d.type==='toolbox-gcode-preview-downloaded'){
+    if(st)st.textContent='G-code zkontrolován a stažen.';
+    if(status)status.innerHTML='<b>✓ G-CODE ZKONTROLOVÁN A STAŽEN</b><br>Viewer G-code úspěšně načetl před povolením stažení.';
+    close3DPrintGcodePreview('download');
+  }
+});
+window.addEventListener('keydown',e=>{if(e.key==='Escape'&&print3dGcodePreviewOverlay)close3DPrintGcodePreview('cancel')});
 
 document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>check3DPrintPrusaBridge(true),700));
 
