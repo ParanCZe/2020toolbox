@@ -1,10 +1,14 @@
 from pathlib import Path
+import re
 
 P = Path('index.html')
 s = P.read_text(encoding='utf-8-sig')
 
 # Visible app version only. Bridge remains 3.14v.
-s = s.replace('<div class="app-version">V3.14v</div>', '<div class="app-version">V3.14w</div>', 1)
+s, appver_count = re.subn(r'(<div\s+class=["\']app-version["\']\s*>\s*)V3\.14[a-z](\s*</div>)', r'\1V3.14w\2', s, count=1, flags=re.I)
+if appver_count == 0 and 'V3.14w' not in s:
+    # Fallback used by older markup where the version is not in its own div.
+    s = s.replace('V3.14v', 'V3.14w', 1)
 
 old_download = '''    const blob=new Blob([header+gcode],{type:'text/x-gcode'}),a=document.createElement('a'),ratio=String(document.getElementById('print3d-scale')?.value||1).replace(/[^0-9._-]/g,'');a.href=URL.createObjectURL(blob);a.download=f.name.replace(/\\.[^.]+$/,'')+`_MK3S_WINDOWS_REPAIR_1-${ratio}.gcode`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2500);'''
 new_download = '''    const ratio=String(document.getElementById('print3d-scale')?.value||1).replace(/[^0-9._-]/g,'');
@@ -18,6 +22,11 @@ else:
 
 s = s.replace(
     "    const header=`; 20-20-TOOLBOX V3.14s\\n; slicer_engine = LOCAL ${ver}",
+    "    const header=`; 20-20-TOOLBOX V3.14w\\n; slicer_engine = LOCAL ${ver}",
+    1,
+)
+s = s.replace(
+    "    const header=`; 20-20-TOOLBOX V3.14v\\n; slicer_engine = LOCAL ${ver}",
     "    const header=`; 20-20-TOOLBOX V3.14w\\n; slicer_engine = LOCAL ${ver}",
     1,
 )
@@ -104,7 +113,7 @@ window.addEventListener('keydown',e=>{if(e.key==='Escape'&&print3dGcodePreviewOv
     s = s.replace(marker, helper + marker, 1)
 
 # Safety checks.
-if '<div class="app-version">V3.14w</div>' not in s:
+if not re.search(r'class=["\']app-version["\'][^>]*>\s*V3\.14w\s*<', s, flags=re.I):
     raise SystemExit('V3.14w app version not applied')
 if 'gcode_viewer_embedded.html?v=314w' not in s:
     raise SystemExit('G-code viewer iframe missing')
