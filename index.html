@@ -26,6 +26,19 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 .tile span{font-size:12px;color:var(--muted)}
 .menu-status{display:inline-block;margin-left:7px;padding:1px 5px;border:1px solid #d4d4d8;border-radius:999px;background:#f4f4f5;color:#71717a;font:500 9px/1.45 system-ui,Segoe UI,sans-serif;letter-spacing:.45px;vertical-align:2px;text-transform:uppercase}
 
+
+/* HLAVNI MENU — V3.14u: stabilni / beta + vyuziti dat */
+.menu-app-groups{display:flex;flex-direction:column;gap:16px}
+.menu-app-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.menu-section-divider{height:1px;background:var(--border);margin:1cm 0}
+.session-data-overview{margin-top:0!important;border-top:0!important;padding-top:0!important}
+.session-data-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+.session-data-card{min-height:92px;display:flex;flex-direction:column;justify-content:center}
+.session-data-card .session-data-mb{font-family:'Antarctican Mono',monospace;font-size:20px;line-height:1.15;color:var(--text);margin:1px 0 4px}
+.session-data-card .session-data-count{font-size:10px;color:var(--muted)}
+@media(max-width:900px){.menu-app-row,.session-data-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:580px){.menu-app-row,.session-data-grid{grid-template-columns:1fr}.menu-section-divider{margin:.7cm 0}}
+
 /* BASECAMP ODKAZ V HLAVNÍM MENU — V3.14s */
 .menu-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:0}
 .menu-title-copy{min-width:0}
@@ -454,7 +467,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
 <header>
   <div class="logo">20-20-TOOLBOX</div>
-  <div class="app-version" id="app-version">V3.14t</div>
+  <div class="app-version" id="app-version">V3.14u</div>
   <div style="font-family:'Antarctican Mono', monospace; font-size:12px; color:#18181b;">RYCHLÉ PŘÍPRAVY PREZENTACÍ A DOKUMENTACÍ</div>
 </header>
 
@@ -475,16 +488,21 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
         <span class="basecamp-tooltip">Přejít do Basecampu</span>
       </a>
     </div>
-    <div class="grid">
-      <div class="tile" onclick="openTool('pdfa')"><b>Konverze do PDF/A</b><span>Standardy 1b, 2b, 3b + hromadný ZIP</span></div>
-      <div class="tile" onclick="openPanelProjects()"><b>Prezentační nástroj</b><span>Vytvářejte prezentace v pár kliknutích</span></div>
-      <div class="tile" onclick="openTool('docs'); openDocsSection('preflight')"><b>Dokumentační nástroje <small class="menu-status">BETA</small></b><span>Pre-flight, seznam výkresů, přejmenování a porovnání PDF</span></div>
-      <div class="tile" onclick="openTool('designcheck')"><b>Kontrola návrhu <small class="menu-status">BETA</small></b><span>Audit výkresů, místností, schodišť a vzájemné konzistence PDF</span></div>
-      <div class="tile" onclick="openTool('3dprint')"><b>3D tisk <small class="menu-status">BETA</small></b><span>Prusa MK3S, slicerové vrstvy, odhad a export G-code</span></div>
-      <div class="tile" onclick="openTool('3dmodels')"><b>3D knihovna výrobků <small class="menu-status">BETA</small></b><span>Reálné produkty, BIM/CAD odkazy a živé 3D náhledy</span></div>
+    <div class="menu-app-groups">
+      <div class="menu-app-row">
+        <div class="tile" onclick="openTool('pdfa')"><b>Konverze do PDF/A</b><span>Standardy 1b, 2b, 3b + hromadný ZIP</span></div>
+        <div class="tile" onclick="openPanelProjects()"><b>Prezentační nástroj</b><span>Vytvářejte prezentace v pár kliknutích</span></div>
+        <div class="tile" onclick="openTool('3dprint')"><b>3D tisk</b><span>Prusa MK3S, slicerové vrstvy, odhad a export G-code</span></div>
+      </div>
+      <div class="menu-app-row">
+        <div class="tile" onclick="openTool('docs'); openDocsSection('preflight')"><b>Dokumentační nástroje <small class="menu-status">BETA</small></b><span>Pre-flight, seznam výkresů, přejmenování a porovnání PDF</span></div>
+        <div class="tile" onclick="openTool('designcheck')"><b>Kontrola návrhu <small class="menu-status">BETA</small></b><span>Audit výkresů, místností, schodišť a vzájemné konzistence PDF</span></div>
+        <div class="tile" onclick="openTool('3dmodels')"><b>3D knihovna výrobků <small class="menu-status">BETA</small></b><span>Reálné produkty, BIM/CAD odkazy a živé 3D náhledy</span></div>
+      </div>
     </div>
+    <div class="menu-section-divider" aria-hidden="true"></div>
     <div class="session-data-overview">
-      <div class="storage-overview-head"><b>NAČTENÁ DATA V TÉTO RELACI</b><span class="muted" style="margin:0;font-size:11px">Přehled toho, co je právě načtené v jednotlivých částech aplikace.</span></div>
+      <div class="storage-overview-head"><b>AKTUÁLNĚ VYUŽITÁ DATA APLIKACEMI</b><span class="muted" style="margin:0;font-size:11px">Kolik lokálně načtených souborových dat má právě každá část Toolboxu. Nejde o celkovou RAM prohlížeče.</span></div>
       <div id="session-data-overview" class="session-data-grid"></div>
     </div>
   </div>
@@ -732,7 +750,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 
   <div id="tool-3dprint" class="tool-view" data-p3mode="simple">
     <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
-    <h1>3D tisk <small class="menu-status">BETA</small></h1>
+    <h1>3D tisk</h1>
     <div class="muted">Lokální příprava modelu pro <b>Original Prusa i3 MK3S</b>. V3.14s už nepoužívá slabší CLI auto-repair jako hlavní opravu. PrusaBridge nejdřív spustí <b>nativní WinRT Printing3DModel.RepairAsync přes C++ helper</b> (bez PowerShell projekce WinRT), a teprve jeho výstup předá skutečnému PrusaSliceru pro slicing. Výsledný G-code před prvním tiskem vždy zkontroluj v PrusaSlicer G-code Vieweru.</div>
 
     <div id="drop-3dprint" class="drop" onclick="document.getElementById('f-3dprint').click()">
@@ -2478,20 +2496,21 @@ async function removeCompareSide(side){
   revokePreparedPrintUrl?.();refreshComparePageSelectors();renderCompareLoadedFiles();renderSessionDataOverview();document.getElementById('st-compare').textContent='Nahraj obě PDF.';const d=document.getElementById('compareVectorDiff');if(d)d.innerHTML='<div class="docs-empty">Nahraj obě PDF…</div>';
 }
 function sessionDataSections(){return [
-  {title:'PDF/A',files:filesData.pdfa||[],clear:'clearPdfaLoadedFiles()'},
-  {title:'Prezentační projekt',files:filesData.panel||[],clear:'removePanelSource()'},
-  {title:'Pre-flight',files:docsData.preflight||[],clear:"clearDocLoadedFiles('preflight')"},
-  {title:'Seznam výkresů',files:docsData.drawinglist||[],clear:"clearDocLoadedFiles('drawinglist')"},
-  {title:'Přejmenování',files:docsData.renamer||[],clear:"clearDocLoadedFiles('renamer')"},
-  {title:'Kontrola návrhu',files:designAuditState.file?[designAuditState.file]:[],clear:'clearDesignAudit()'},
-  {title:'3D tisk',files:print3dState.file?[print3dState.file]:[],clear:'clear3DPrintModel()'},
-  {title:'Porovnání PDF',files:[docsData.compareA,docsData.compareB].filter(Boolean),clear:"removeCompareSide('A');removeCompareSide('B')"}
+  {title:'Konverze do PDF/A',files:filesData.pdfa||[]},
+  {title:'Prezentační nástroj',files:filesData.panel||[]},
+  {title:'3D tisk',files:print3dState.file?[print3dState.file]:[]},
+  {title:'Dokumentační nástroje',files:[...(docsData.preflight||[]),...(docsData.drawinglist||[]),...(docsData.renamer||[]),docsData.compareA,docsData.compareB].filter(Boolean)},
+  {title:'Kontrola návrhu',files:designAuditState.file?[designAuditState.file]:[]},
+  {title:'3D knihovna výrobků',files:[]}
 ];}
+function uniqueSessionFiles(files){
+  const seen=new Set();return (files||[]).filter(f=>{if(!f)return false;const key=[f.name||'',f.size||0,f.lastModified||0].join('|');if(seen.has(key))return false;seen.add(key);return true});
+}
+function formatSessionMb(bytes){return ((Number(bytes)||0)/(1024*1024)).toFixed(2).replace('.',',')+' MB';}
 function renderSessionDataOverview(){
   const el=document.getElementById('session-data-overview');if(!el)return;const sections=sessionDataSections();
-  el.innerHTML=sections.map(x=>{const count=x.files.length,size=fileListSize(x.files),names=x.files.slice(0,5).map(f=>escapeHtml(drawingRelativePath(f)||f.name)).join('<br>')+(x.files.length>5?`<br>+ ${x.files.length-5} dalších`:``);return `<div class="session-data-card"><b>${x.title}</b><div>${count?`${count} souborů · ${formatBytes(size)}`:'Nic není načtené'}</div><div class="session-data-files">${names||'–'}</div>${count?`<button class="mini-remove" style="margin-top:7px" onclick="${x.clear}">Odstranit z této části</button>`:''}</div>`}).join('');
+  el.innerHTML=sections.map(x=>{const files=uniqueSessionFiles(x.files),count=files.length,size=fileListSize(files);return `<div class="session-data-card"><b>${escapeHtml(x.title)}</b><div class="session-data-mb">${formatSessionMb(size)}</div><div class="session-data-count">${count?`${count} ${count===1?'soubor':'souborů'} právě načteno`:'žádná lokální data'}</div></div>`}).join('');
 }
-
 function openTool(name) {
   document.getElementById('menu-view').style.display = 'none';
   document.querySelectorAll('.tool-view').forEach(el => el.classList.remove('active'));
@@ -6558,6 +6577,15 @@ function manual3DPrintSettingChanged(){print3dState.simplePrepared=false;const q
 function validate3DPrintSettings(){
   const nozzle=num3D('print3d-nozzle',.4),lh=num3D('print3d-layer-height',.15),max=nozzle*.8,st=document.getElementById('st-3dprint');
   if(lh>max+.0001&&st)st.textContent=`Pozor: ${lh.toFixed(2)} mm je pro trysku ${nozzle.toFixed(2)} mm příliš vysoká vrstva. Doporučené maximum je přibližně ${max.toFixed(2)} mm.`;
+}
+function analyze3DPrintRecommendationGeometry(){
+  const out=current3DPrintDims(),tri=get3DPrintTriangleCache(),over=get3DPrintOverhangInfo();
+  if(!out)return {ready:false,over};
+  const dims=[Math.max(.001,out.x),Math.max(.001,out.y),Math.max(.001,out.z)].sort((a,b)=>a-b),minDim=dims[0],maxDim=dims[2],foot=Math.max(1,out.x*out.y),bboxVol=Math.max(1,out.x*out.y*out.z),boxArea=Math.max(1,2*(out.x*out.y+out.x*out.z+out.y*out.z));
+  const complexity=tri?.area>0?tri.area/boxArea:1,stability=out.z/Math.max(1,Math.sqrt(foot)),aspect=maxDim/minDim;
+  const size=maxDim<20?'tiny':maxDim<45?'small':maxDim>130?'large':'medium';
+  const shape=complexity>2.6?'complex':complexity>1.55?'medium':'simple';
+  return {ready:true,out,tri,over,minDim,maxDim,foot,bboxVol,complexity,stability,aspect,size,shape};
 }
 function analyze3DPrintRecommendationGeometry(){
   const out=current3DPrintDims(),tri=get3DPrintTriangleCache(),over=get3DPrintOverhangInfo();
