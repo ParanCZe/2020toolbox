@@ -1,0 +1,50 @@
+name: Test V3.14v Portable PrusaSlicer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-portable-prusaslicer-v314v.yml'
+  workflow_dispatch:
+
+jobs:
+  test-portable-runtime:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Bridge without installed PrusaSlicer
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'toolbox-localappdata'
+          New-Item -ItemType Directory -Force -Path $env:LOCALAPPDATA | Out-Null
+          $exe = Join-Path $PWD 'PrusaBridge\20-20-PrusaBridge.exe'
+          if (-not (Test-Path $exe)) { throw 'Bridge EXE missing' }
+
+          $p = Start-Process -FilePath $exe -ArgumentList '--serve' -PassThru -WindowStyle Hidden
+          try {
+            $status = $null
+            for ($i=0; $i -lt 120; $i++) {
+              Start-Sleep -Seconds 3
+              try {
+                $status = Invoke-RestMethod -Uri 'http://127.0.0.1:8091/status' -TimeoutSec 3
+                Write-Host ("Bridge={0} ok={1} managed={2} bootstrap={3} status={4}" -f $status.bridgeVersion,$status.ok,$status.slicerManaged,$status.slicerBootstrapping,$status.slicerBootstrapStatus)
+                if ($status.ok) { break }
+                if ($status.slicerBootstrapError) { throw $status.slicerBootstrapError }
+              } catch {
+                if ($_.Exception.Message -notmatch 'actively refused|Unable to connect|timed out') { Write-Host $_.Exception.Message }
+              }
+            }
+            if (-not $status -or -not $status.ok) { throw 'Portable PrusaSlicer did not become ready in time.' }
+            if ($status.bridgeVersion -ne '3.14t') { throw "Unexpected Bridge version: $($status.bridgeVersion)" }
+            if (-not $status.slicerManaged) { throw "Bridge found a non-managed slicer instead of portable runtime: $($status.slicerPath)" }
+            if (-not (Test-Path $status.slicerPath)) { throw "Portable slicer path does not exist: $($status.slicerPath)" }
+            $expectedRoot = Join-Path $env:LOCALAPPDATA '20-20-TOOLBOX\PrusaBridge\Slicer'
+            if (-not $status.slicerPath.StartsWith($expectedRoot,[System.StringComparison]::OrdinalIgnoreCase)) { throw "Portable slicer is outside managed root: $($status.slicerPath)" }
+            $ver = & $status.slicerPath --version
+            if ($LASTEXITCODE -ne 0) { throw 'Portable prusa-slicer-console.exe --version failed.' }
+            Write-Host "PORTABLE_RUNTIME_OK: $ver"
+          } finally {
+            try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
+          }
