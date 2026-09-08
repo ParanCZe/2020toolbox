@@ -28,7 +28,6 @@ jobs:
           tar -xzf payload.tar.gz
           if ($LASTEXITCODE -ne 0) { throw "Source payload extraction failed: $LASTEXITCODE" }
           Remove-Item payload.tar.gz -Force
-          # This bootstrap compiles directly, so do not commit the extracted second workflow.
           Remove-Item '.github\workflows\build-prusabridge.yml' -Force -ErrorAction SilentlyContinue
 
       - name: Set up MSVC
@@ -45,7 +44,7 @@ jobs:
           if (-not $sdk) { throw 'Windows SDK include directory not found.' }
           $cppwinrt = Join-Path $sdk.FullName 'cppwinrt'
           if (-not (Test-Path $cppwinrt)) { throw "C++/WinRT headers not found: $cppwinrt" }
-          cl /nologo /std:c++17 /EHsc /O2 /DUNICODE /D_UNICODE /I"$cppwinrt" PrusaBridge\src\Win3DRepair.cpp /Fe:PrusaBridge\src\Win3DRepair.exe /link windowsapp.lib
+          cl /nologo /std:c++20 /EHsc /O2 /DUNICODE /D_UNICODE /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS /I"$cppwinrt" PrusaBridge\src\Win3DRepair.cpp /Fe:PrusaBridge\src\Win3DRepair.exe /link windowsapp.lib
           if ($LASTEXITCODE -ne 0) { throw "Win3DRepair build failed: $LASTEXITCODE" }
 
       - name: Set up Go
