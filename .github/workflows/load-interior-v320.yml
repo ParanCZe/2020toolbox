@@ -1,0 +1,40 @@
+name: Load Interior V3.20
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/load-interior-v320.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-loader:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add interior V3.20 loader
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('norms_ui_v315b.js')
+          s=p.read_text(encoding='utf-8')
+          old="loadScript('interior_extra_v319.js?v=319','__TOOLBOX_INTERIOR_EXTRA_319',done);"
+          new="loadScript('interior_extra_v319.js?v=319','__TOOLBOX_INTERIOR_EXTRA_319',()=>{\n            loadScript('interior_extra_v320.js?v=320','__TOOLBOX_INTERIOR_EXTRA_320',done);\n          });"
+          if old not in s:
+              raise SystemExit('V319 loader marker not found')
+          s=s.replace(old,new,1)
+          s=s.replace("const VERSION='V3.19';","const VERSION='V3.20';",1)
+          s=s.replace('Interiérové standardy — +168 dalších položek','Interiérové standardy — +224 dalších položek',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit loader update
+        run: |
+          git config user.name '20-20 Web Builder'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add norms_ui_v315b.js
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Load V3.20 expanded interior standards'
+          git push origin main
