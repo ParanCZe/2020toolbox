@@ -1,5 +1,5 @@
 (()=>{
-  const VERSION='V3.19';
+  const VERSION='V3.20';
   const WHATSNEW_KEY='20-20-toolbox-whatsnew-seen';
 
   function css(){
@@ -42,7 +42,9 @@
     loadScript('norms_extra_v316.js?v=316','__TOOLBOX_NORMS_EXTRA_316',()=>{
       loadScript('norms_extra_v317.js?v=317','__TOOLBOX_NORMS_EXTRA_317',()=>{
         loadScript('interior_extra_v318.js?v=318','__TOOLBOX_INTERIOR_EXTRA_318',()=>{
-          loadScript('interior_extra_v319.js?v=319','__TOOLBOX_INTERIOR_EXTRA_319',done);
+          loadScript('interior_extra_v319.js?v=319','__TOOLBOX_INTERIOR_EXTRA_319',()=>{
+            loadScript('interior_extra_v320.js?v=320','__TOOLBOX_INTERIOR_EXTRA_320',done);
+          });
         });
       });
     });
@@ -152,7 +154,7 @@
     if(ver) ver.textContent=VERSION;
     const body=modal.querySelector('.whatsnew-body');
     if(body) body.innerHTML=`
-      <div class="whatsnew-item"><strong>Interiérové standardy — +168 dalších položek</strong><span>Knihovna je výrazně hustší: další rozměry a ergonomie pro kuchyně, koupelny, šatny, předsíně, ložnice, obýváky, pracovny, jídelny, gastro, retail, hotely, děti, školy a obecné interiérové situace.</span></div>
+      <div class="whatsnew-item"><strong>Interiérové standardy — +224 dalších položek</strong><span>Knihovna je výrazně hustší: další rozměry a ergonomie pro kuchyně, koupelny, šatny, předsíně, ložnice, obýváky, pracovny, jídelny, gastro, retail, hotely, děti, školy a obecné interiérové situace.</span></div>
       <div class="whatsnew-item"><strong>Interiérové standardy — doporučení vs. předpis</strong><span>Nové ergonomické karty jsou jasně vedené jako doporučení nebo běžný rozměr, aby se nepletly se závaznými předpisy.</span></div>
       <div class="whatsnew-item"><strong>Normy — rozšířená databáze</strong><span>Projektantská databáze NORMY zůstává načtená současně.</span></div>`;
 
