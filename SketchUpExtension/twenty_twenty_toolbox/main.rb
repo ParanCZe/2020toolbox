@@ -78,6 +78,14 @@ module TwentyTwenty
       cmd.tooltip = 'Poslat model do 20-20-TOOLBOX · 3D tisk'
       cmd.status_bar_text = 'Exportuje model do STL a automaticky ho otevre v 20-20-TOOLBOXU.'
 
+      # SketchUp uses the large icon for the normal toolbar button. The RBZ build
+      # packages the official 20-20 Toolbox icon next to this file.
+      icon_path = File.join(__dir__, 'toolbox_icon.png')
+      if File.file?(icon_path)
+        cmd.small_icon = icon_path
+        cmd.large_icon = icon_path
+      end
+
       UI.menu('Extensions').add_item(cmd)
       toolbar = UI::Toolbar.new('20-20 TOOLBOX')
       toolbar.add_item(cmd)
