@@ -40,10 +40,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "V3.14t recommendation patch failed: $LASTEXITCODE" }
           python tools\patch_main_menu_v314u.py
           if ($LASTEXITCODE -ne 0) { throw "V3.14u main-menu patch failed: $LASTEXITCODE" }
-          python tools\patch_portable_prusaslicer_v314v.py
-          if ($LASTEXITCODE -ne 0) { throw "V3.14v portable PrusaSlicer patch failed: $LASTEXITCODE" }
-          python tools\patch_sketchup_bridge_v314w.py
-          if ($LASTEXITCODE -ne 0) { throw "V3.14w SketchUp bridge patch failed: $LASTEXITCODE" }
+
+          # The repository is already on Bridge 3.14w. Old migration patchers are
+          # intentionally skipped on current builds because they expect 3.14t/v input.
+          $bridgeNow = Get-Content -Raw -Encoding UTF8 $p
+          if (-not $bridgeNow.Contains('const bridgeVersion = "3.14w"')) {
+            python tools\patch_portable_prusaslicer_v314v.py
+            if ($LASTEXITCODE -ne 0) { throw "V3.14v portable PrusaSlicer patch failed: $LASTEXITCODE" }
+            python tools\patch_sketchup_bridge_v314w.py
+            if ($LASTEXITCODE -ne 0) { throw "V3.14w SketchUp bridge patch failed: $LASTEXITCODE" }
+          }
+
           python tools\patch_print3d_preserve_orientation_v329.py
           if ($LASTEXITCODE -ne 0) { throw "V3.29 orientation patch failed: $LASTEXITCODE" }
 
