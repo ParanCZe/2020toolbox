@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>3D MODELER · 20-20-TOOLBOX</title>
 <link rel="icon" type="image/png" href="../icon.png">
-<link rel="stylesheet" href="modeler.css?v=326">
+<link rel="stylesheet" href="modeler.css?v=327">
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
 </head>
 <body>
 <header>
-  <div class="logo">20-20-TOOLBOX</div><div class="version">V3.26 · 3D MODELER BETA</div>
+  <div class="logo">20-20-TOOLBOX</div><div class="version">V3.27 · 3D MODELER BETA</div>
   <div class="head-actions"><a href="../index.html">← TOOLBOX</a><button id="btnNew">NOVÝ MODEL</button><button id="btnOpen">OTEVŘÍT</button><input id="fileOpen" type="file" accept=".stl,.obj,.glb,.gltf" hidden><button id="btnDownload" class="dark">STÁHNOUT STL</button><button id="btnPrint" class="accent">POSLAT DO 3D TISKU</button></div>
 </header>
 <div class="app">
@@ -42,9 +42,11 @@
     <button id="btnUndo">↶ Zpět</button><button id="btnRedo">↷ Znovu</button>
   </aside>
   <main id="viewport">
-    <div id="hint">L čára · B obdélník · C kruh · P Push/Pull · M měření · Esc ukončí nástroj</div>
+    <div id="hint">L čára · B obdélník · C kruh · P Push/Pull · M měření · O ORTO · Enter přesná hodnota</div>
     <div id="toolBadge">VÝBĚR</div>
+    <div id="snapBadge">SNAP</div>
     <div id="measureOverlay"></div>
+    <div id="pushOverlay"><b>PUSH / PULL</b><span id="pushOverlayValue">0 mm</span></div>
   </main>
   <aside class="rightbar">
     <div class="panel-title">OBJEKT</div>
@@ -58,10 +60,20 @@
       <div id="faceTools" class="group" hidden><b>PLOCHA</b><label>Výška vytažení [mm]<input id="pushHeight" type="number" value="1000" step="10"></label><button id="btnPushExact" class="wide">Vytáhnout přesně</button></div>
     </div>
     <div class="sep"></div>
-    <div class="panel-title">KRESLENÍ</div>
+    <div class="panel-title">PŘESNÝ VSTUP</div>
+    <div id="exactPanel" class="exact-panel">
+      <div id="exactHint" class="muted">Vyber kreslicí nástroj.</div>
+      <div class="exact-row"><label id="exactLabelA">Hodnota [mm]<input id="exactA" type="number" step="1"></label><label id="exactLabelB" hidden>Druhá [mm]<input id="exactB" type="number" step="1"></label></div>
+      <button id="btnExactApply" class="wide">Použít přesnou hodnotu <kbd>Enter</kbd></button>
+    </div>
+    <div class="sep"></div>
+    <div class="panel-title">KRESLENÍ / SNAP</div>
     <label class="check"><input id="snapToggle" type="checkbox" checked> Snap na mřížku</label>
     <label>Rozteč snapu [mm]<input id="snapSize" type="number" value="10" min="1" step="1"></label>
-    <label class="check"><input id="endpointSnap" type="checkbox" checked> Snap na koncové body</label>
+    <label class="check"><input id="endpointSnap" type="checkbox" checked> Snap na vrcholy / body</label>
+    <label>Dosah bodového snapu [mm]<input id="endpointRadius" type="number" value="80" min="1" step="5"></label>
+    <label class="check ortho-check"><input id="orthoToggle" type="checkbox"> ORTO <kbd>O</kbd></label>
+    <label>ORTO úhel<select id="orthoAngle"><option value="90" selected>90° · X/Z</option><option value="45">45°</option></select></label>
     <div class="sep"></div>
     <div class="panel-title">SCÉNA</div>
     <button class="view" data-view="iso">Perspektiva</button><button class="view" data-view="top">Shora</button><button class="view" data-view="front">Zepředu</button><button class="view" data-view="right">Zprava</button>
@@ -72,6 +84,6 @@
 </div>
 <div id="statusbar"><span id="statusText">Připraveno</span><b id="statusValue">—</b></div>
 <div id="toast"></div>
-<script type="module" src="modeler.js?v=326"></script>
+<script type="module" src="modeler.js?v=327"></script>
 </body>
 </html>
