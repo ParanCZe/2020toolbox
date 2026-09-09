@@ -1,0 +1,38 @@
+name: Apply 3D Modeler V3.25
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'modeler/**'
+      - 'modeler_launcher_v325.js'
+      - 'tools/patch_modeler_v325.py'
+      - '.github/workflows/modeler-v325.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Apply safe V3.25 integration
+        run: python tools/patch_modeler_v325.py
+      - name: Commit integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html docs_upgrade_v321.js docs_textcheck_web_v323.js docs_textcheck_filter_v324.js norms_ui_v315b.js
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Load V3.25 3D Modeler"
+            git push
+          fi
