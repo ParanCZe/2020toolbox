@@ -27,6 +27,19 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 .menu-status{display:inline-block;margin-left:7px;padding:1px 5px;border:1px solid #d4d4d8;border-radius:999px;background:#f4f4f5;color:#71717a;font:500 9px/1.45 system-ui,Segoe UI,sans-serif;letter-spacing:.45px;vertical-align:2px;text-transform:uppercase}
 
 
+/* HLAVNI MENU — V3.14u: stabilni / beta + vyuziti dat */
+.menu-app-groups{display:flex;flex-direction:column;gap:16px}
+.menu-app-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.menu-section-divider{height:1px;background:var(--border);margin:1cm 0}
+.session-data-overview{margin-top:0!important;border-top:0!important;padding-top:0!important}
+.session-data-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+.session-data-card{min-height:92px;display:flex;flex-direction:column;justify-content:center}
+.session-data-card .session-data-mb{font-family:'Antarctican Mono',monospace;font-size:20px;line-height:1.15;color:var(--text);margin:1px 0 4px}
+.session-data-card .session-data-count{font-size:10px;color:var(--muted)}
+@media(max-width:900px){.menu-app-row,.session-data-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:580px){.menu-app-row,.session-data-grid{grid-template-columns:1fr}.menu-section-divider{margin:.7cm 0}}
+
+
 /* HLAVNI MENU — V3.14v: stabilni / beta + vyuziti dat */
 .menu-app-groups{display:flex;flex-direction:column;gap:16px}
 .menu-app-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
@@ -990,7 +1003,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
               <button class="back-btn" style="margin:0" onclick="recompute3DPrintNormals()">Přepočítat normály</button>
               <button class="back-btn" style="margin:0" onclick="remove3DPrintDegenerates()">Odstranit degenerované plochy</button>
             </div>
-            <div class="print3d-estimate-note">Při načtení se model zkusí automaticky srovnat podle dominantních rovin. Kdyby orientace neseděla, stále můžeš použít X/Y/Z +90° nebo reset natočení.</div>
+            <div class="print3d-estimate-note">Orientace modelu se při načtení ani při Nastavit pro tisk automaticky nemění. Ručně nastavené natočení zůstane zachované až do G-code. Automatické srovnání použij jen ručně, pokud ho opravdu chceš.</div>
           </div>
           <div class="print3d-box">
             <h3>PRUSASLICER ENGINE</h3>
@@ -6140,7 +6153,7 @@ async function load3DPrintFile(file){
     loaded.updateMatrixWorld(true);const rawBox=new THREE.Box3().setFromObject(loaded),rawSize=new THREE.Vector3();rawBox.getSize(rawSize);print3dState.sourceDims={x:rawSize.x,y:rawSize.y,z:rawSize.z};
     print3dState.analysis=await analyze3DPrintModel(loaded);
     wrapper.rotation.set(0,0,0);wrapper.position.set(0,0,0);
-    invalidate3DPrintSliceCache();update3DPrintTransform();await autoAlign3DPrintModel(true);fit3DPrintView(true);setTimeout(()=>fit3DPrintView(true),60);render3DPrintLoaded();document.getElementById('btn-3dprint-export').disabled=false;document.getElementById('btn-3dprint-stl-export')&&(document.getElementById('btn-3dprint-stl-export').disabled=false);
+    invalidate3DPrintSliceCache();update3DPrintTransform();place3DPrintOnBed();fit3DPrintView(true);setTimeout(()=>fit3DPrintView(true),60);render3DPrintLoaded();document.getElementById('btn-3dprint-export').disabled=false;document.getElementById('btn-3dprint-stl-export')&&(document.getElementById('btn-3dprint-stl-export').disabled=false);
     update3DPrintLayerControls();schedule3DPrintEstimate();sync3DPrintSimpleControlsFromAdvanced();update3DPrintSimpleUI();
     if(st)st.textContent='Načteno: '+file.name;renderSessionDataOverview();
   }catch(e){console.error(e);if(st)st.textContent='Chyba při načtení modelu.';alert('Model se nepodařilo načíst: '+e.message)}
@@ -6209,7 +6222,7 @@ function simple3DPrintSettingsSummary(){
 }
 async function prepare3DPrintSimple(){
   if(!print3dState.root){alert('Nejdřív nahraj 3D model.');return}if(print3dState.simplePreparing)return;print3dState.simplePreparing=true;const btn=document.getElementById('print3d-simple-prepare');if(btn){btn.disabled=true;btn.textContent='Nastavuji model…'}
-  try{await autoAlign3DPrintModel(true);apply3DPrintRecommendedSettings(false);print3dState.simplePrepared=true;sync3DPrintSimpleControlsFromAdvanced();const sum=document.getElementById('print3d-simple-summary');if(sum)sum.innerHTML=simple3DPrintSettingsSummary();update3DPrintSimpleUI();const st=document.getElementById('st-3dprint');if(st)st.textContent='Model a tiskové parametry byly automaticky nastaveny.'}
+  try{place3DPrintOnBed();apply3DPrintRecommendedSettings(false);print3dState.simplePrepared=true;sync3DPrintSimpleControlsFromAdvanced();const sum=document.getElementById('print3d-simple-summary');if(sum)sum.innerHTML=simple3DPrintSettingsSummary();update3DPrintSimpleUI();const st=document.getElementById('st-3dprint');if(st)st.textContent='Tiskové parametry byly nastaveny; ruční orientace modelu zůstala zachovaná.'}
   catch(e){console.error(e);alert('Automatické nastavení se nepodařilo: '+e.message)}finally{print3dState.simplePreparing=false;update3DPrintSimpleUI()}
 }
 async function repair3DPrintModelSimple(){
@@ -6654,6 +6667,15 @@ function manual3DPrintSettingChanged(){print3dState.simplePrepared=false;const q
 function validate3DPrintSettings(){
   const nozzle=num3D('print3d-nozzle',.4),lh=num3D('print3d-layer-height',.15),max=nozzle*.8,st=document.getElementById('st-3dprint');
   if(lh>max+.0001&&st)st.textContent=`Pozor: ${lh.toFixed(2)} mm je pro trysku ${nozzle.toFixed(2)} mm příliš vysoká vrstva. Doporučené maximum je přibližně ${max.toFixed(2)} mm.`;
+}
+function analyze3DPrintRecommendationGeometry(){
+  const out=current3DPrintDims(),tri=get3DPrintTriangleCache(),over=get3DPrintOverhangInfo();
+  if(!out)return {ready:false,over};
+  const dims=[Math.max(.001,out.x),Math.max(.001,out.y),Math.max(.001,out.z)].sort((a,b)=>a-b),minDim=dims[0],maxDim=dims[2],foot=Math.max(1,out.x*out.y),bboxVol=Math.max(1,out.x*out.y*out.z),boxArea=Math.max(1,2*(out.x*out.y+out.x*out.z+out.y*out.z));
+  const complexity=tri?.area>0?tri.area/boxArea:1,stability=out.z/Math.max(1,Math.sqrt(foot)),aspect=maxDim/minDim;
+  const size=maxDim<20?'tiny':maxDim<45?'small':maxDim>130?'large':'medium';
+  const shape=complexity>2.6?'complex':complexity>1.55?'medium':'simple';
+  return {ready:true,out,tri,over,minDim,maxDim,foot,bboxVol,complexity,stability,aspect,size,shape};
 }
 function analyze3DPrintRecommendationGeometry(){
   const out=current3DPrintDims(),tri=get3DPrintTriangleCache(),over=get3DPrintOverhangInfo();
