@@ -6731,6 +6731,15 @@ function analyze3DPrintRecommendationGeometry(){
   const shape=complexity>2.6?'complex':complexity>1.55?'medium':'simple';
   return {ready:true,out,tri,over,minDim,maxDim,foot,bboxVol,complexity,stability,aspect,size,shape};
 }
+function analyze3DPrintRecommendationGeometry(){
+  const out=current3DPrintDims(),tri=get3DPrintTriangleCache(),over=get3DPrintOverhangInfo();
+  if(!out)return {ready:false,over};
+  const dims=[Math.max(.001,out.x),Math.max(.001,out.y),Math.max(.001,out.z)].sort((a,b)=>a-b),minDim=dims[0],maxDim=dims[2],foot=Math.max(1,out.x*out.y),bboxVol=Math.max(1,out.x*out.y*out.z),boxArea=Math.max(1,2*(out.x*out.y+out.x*out.z+out.y*out.z));
+  const complexity=tri?.area>0?tri.area/boxArea:1,stability=out.z/Math.max(1,Math.sqrt(foot)),aspect=maxDim/minDim;
+  const size=maxDim<20?'tiny':maxDim<45?'small':maxDim>130?'large':'medium';
+  const shape=complexity>2.6?'complex':complexity>1.55?'medium':'simple';
+  return {ready:true,out,tri,over,minDim,maxDim,foot,bboxVol,complexity,stability,aspect,size,shape};
+}
 function apply3DPrintRecommendedSettings(show=true){
   print3dState.simplePrepared=true;
   const purpose=document.getElementById('print3d-purpose')?.value||'architecture',priority=document.getElementById('print3d-priority')?.value||'balanced',material=document.getElementById('print3d-material')?.value||'pla',g=analyze3DPrintRecommendationGeometry();
