@@ -1,0 +1,95 @@
+name: Build embedded ToubkalCAD V3.28
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'toubkal_toolbox_bridge_v328.tsx'
+      - '.github/workflows/toubkal-embedded-v328.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.0'
+          cache: 'npm'
+          cache-dependency-path: /tmp/none
+        continue-on-error: true
+
+      - name: Clone upstream ToubkalCAD
+        run: |
+          rm -rf /tmp/toubkal
+          git clone --depth 1 https://github.com/ToubkalCAD/ToubkalCAD.git /tmp/toubkal
+
+      - name: Add 20-20 integration
+        run: |
+          cp toubkal_toolbox_bridge_v328.tsx /tmp/toubkal/src/components/ToolboxBridge.tsx
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/toubkal/src/components/CADLayout.tsx')
+          s=p.read_text()
+          anchor="import { Icon }                 from './Icon';"
+          assert anchor in s
+          s=s.replace(anchor,anchor+"\nimport { ToolboxBridge }       from './ToolboxBridge';",1)
+          anchor2="sceneRef.current    = scene;"
+          assert anchor2 in s
+          s=s.replace(anchor2,anchor2+"\n    (window as any).__TOOLBOX_CAD_SCENE = scene;",1)
+          anchor3="<ThemeToggle />"
+          assert anchor3 in s
+          s=s.replace(anchor3,"<ToolboxBridge />\n            <ThemeToggle />",1)
+          p.write_text(s)
+          PY
+
+      - name: Install and build upstream
+        working-directory: /tmp/toubkal
+        run: |
+          npm ci
+          npm run build
+
+      - name: Prepare static GitHub Pages build
+        run: |
+          rm -rf cad
+          mkdir -p cad
+          cp -a /tmp/toubkal/dist/. cad/
+          curl -fsSL https://raw.githubusercontent.com/gzuidhof/coi-serviceworker/master/coi-serviceworker.js -o cad/coi-serviceworker.js
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('cad/index.html')
+          s=p.read_text()
+          marker='<head>'
+          assert marker in s
+          s=s.replace(marker,marker+'\n<script src="./coi-serviceworker.js"></script>',1)
+          # Toubkal upstream logo uses an absolute URL; make it work under /cad/.
+          s=s.replace('src="/toubkalcad-app-logo.png"','src="./toubkalcad-app-logo.png"')
+          p.write_text(s)
+          Path('cad/TOOLBOX_THIRD_PARTY.md').write_text('''# 3D Modeler third-party notices\n\nThis embedded build is based on ToubkalCAD (MIT License): https://github.com/ToubkalCAD/ToubkalCAD\n\nCross-origin isolation on static hosting uses coi-serviceworker by Guido Zuidhof (MIT License): https://github.com/gzuidhof/coi-serviceworker\n\nThe original upstream license and dependency notices remain applicable.\n''')
+          PY
+
+      - name: Point Modeler launcher to embedded build
+        run: |
+          cat > modeler/index.html <<'EOF'
+          <!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>3D MODELER · 20-20-TOOLBOX</title><script>location.replace('../cad/');</script></head><body><a href="../cad/">Spustit 3D Modeler</a></body></html>
+          EOF
+
+      - name: Commit generated CAD build
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add cad modeler/index.html
+          if git diff --cached --quiet; then
+            echo 'No changes'
+          else
+            git commit -m 'V3.28 embed ToubkalCAD with Toolbox export and 3D print bridge'
+            git push
+          fi
