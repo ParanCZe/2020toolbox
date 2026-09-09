@@ -15,6 +15,16 @@
       #tool-norms .ny-value{font-size:13px!important;line-height:1.45!important}
       #tool-norms .ny-entry::after,#tool-norms .ny-result::after{content:'Kliknutím otevřít přesný zdroj ↗';display:block;margin-top:9px;font-size:9px;color:#71717a}
       #tool-norms .ny-entry:focus-visible,#tool-norms .ny-result:focus-visible{outline:2px solid #18181b;outline-offset:2px}
+      #tool-norms .ny-sources{margin:12px 0 14px;padding:13px 14px;border:1px solid var(--border);border-radius:10px;background:#fafafa}
+      #tool-norms .ny-sources-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:9px;flex-wrap:wrap}
+      #tool-norms .ny-sources-title{font:normal 12px 'Antarctican Mono',monospace;letter-spacing:.2px}
+      #tool-norms .ny-sources-note{font-size:9px;color:var(--muted);line-height:1.45}
+      #tool-norms .ny-sources-links{display:flex;gap:7px;flex-wrap:wrap}
+      #tool-norms .ny-source-btn{display:inline-flex;align-items:center;gap:6px;text-decoration:none;border:1px solid #d4d4d8;background:#fff;color:var(--text);border-radius:7px;padding:8px 10px;font-size:10px;line-height:1.2;transition:.15s}
+      #tool-norms .ny-source-btn:hover{background:#fffef3;border-color:#d4cc5d;transform:translateY(-1px)}
+      #tool-norms .ny-source-btn strong{font-weight:600}
+      #tool-norms .ny-source-btn span{color:var(--muted);font-size:9px}
+      @media(max-width:620px){#tool-norms .ny-source-btn{width:100%;justify-content:space-between}}
     `;
     document.head.appendChild(st);
   }
@@ -84,11 +94,32 @@
     });
   }
 
+  function addNormSources(){
+    const host=document.getElementById('tool-norms');
+    if(!host||document.getElementById('ny-sources')) return;
+    const panel=document.createElement('div');
+    panel.id='ny-sources';
+    panel.className='ny-sources';
+    panel.innerHTML=`
+      <div class="ny-sources-head">
+        <div class="ny-sources-title">ZDROJE</div>
+        <div class="ny-sources-note">Jednotlivé karty níže otevírají konkrétní paragraf nebo odstavec, pokud je dostupný.</div>
+      </div>
+      <div class="ny-sources-links">
+        <a class="ny-source-btn" href="https://www.zakonyprolidi.cz/cs/2024-146" target="_blank" rel="noopener"><strong>Vyhláška 146/2024 Sb.</strong><span>Zákony pro lidi ↗</span></a>
+        <a class="ny-source-btn" href="https://www.zakonyprolidi.cz/cs/2024-131" target="_blank" rel="noopener"><strong>Vyhláška 131/2024 Sb.</strong><span>Zákony pro lidi ↗</span></a>
+        <a class="ny-source-btn" href="https://csnonline.agentura-cas.cz/" target="_blank" rel="noopener"><strong>ČSN Online</strong><span>Agentura ČAS ↗</span></a>
+      </div>`;
+    const anchor=host.querySelector('.ny-hero')||host.firstElementChild;
+    if(anchor) host.insertBefore(panel,anchor); else host.prepend(panel);
+  }
+
   function observeNorms(){
     const host=document.getElementById('tool-norms');
     if(!host) return;
+    addNormSources();
     enhanceCards(document);
-    const mo=new MutationObserver(()=>enhanceCards(host));
+    const mo=new MutationObserver(()=>{addNormSources();enhanceCards(host)});
     mo.observe(host,{childList:true,subtree:true});
   }
 
