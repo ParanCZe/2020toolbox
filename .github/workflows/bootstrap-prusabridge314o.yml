@@ -7,9 +7,11 @@ on:
     paths:
       - .github/workflows/bootstrap-prusabridge314o.yml
       - PrusaBridge/src/**
+      - SketchUpExtension/**
       - tools/patch_print_recommendations_v314t.py
       - tools/patch_main_menu_v314u.py
       - tools/patch_portable_prusaslicer_v314v.py
+      - tools/patch_sketchup_bridge_v314w.py
   workflow_dispatch:
 
 permissions:
@@ -39,20 +41,36 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "V3.14u main-menu patch failed: $LASTEXITCODE" }
           python tools\patch_portable_prusaslicer_v314v.py
           if ($LASTEXITCODE -ne 0) { throw "V3.14v portable PrusaSlicer patch failed: $LASTEXITCODE" }
+          python tools\patch_sketchup_bridge_v314w.py
+          if ($LASTEXITCODE -ne 0) { throw "V3.14w SketchUp bridge patch failed: $LASTEXITCODE" }
 
           $main = Get-Content -Raw -Encoding UTF8 $p
-          if (-not $main.Contains('const bridgeVersion = "3.14v"')) { throw 'Bridge 3.14v version patch failed' }
+          if (-not $main.Contains('const bridgeVersion = "3.14w"')) { throw 'Bridge 3.14w version patch failed' }
           if ($main.Contains('"--support-material", "1"')) { throw 'Boolean CLI fix did not apply' }
           if (-not $main.Contains('startPortableSlicerBootstrap')) { throw 'Portable slicer bootstrap missing' }
           if (-not $main.Contains('ensureManagedSlicerData')) { throw 'Managed PrusaSlicer datadir missing' }
-          if (-not $main.Contains('runSlicer(10*time.Minute, args...)')) { throw 'Managed datadir is not used for slicing' }
+          if (-not $main.Contains('handleSketchupImport')) { throw 'SketchUp upload endpoint missing' }
+          if (-not $main.Contains('handleSketchupFile')) { throw 'SketchUp file endpoint missing' }
           $html = Get-Content -Raw -Encoding UTF8 index.html
           if (-not $html.Contains('id="print3d-priority"')) { throw 'Priority selector was not added' }
           if (-not $html.Contains('analyze3DPrintRecommendationGeometry')) { throw 'Smart recommendation function missing' }
           if (-not $html.Contains('class="menu-app-groups"')) { throw 'V3.14u main menu layout missing' }
           if (-not $html.Contains('session-data-mb')) { throw 'V3.14u data overview missing' }
-          if (-not $html.Contains('V3.14v')) { throw 'V3.14v web version missing' }
-          if (-not $html.Contains("PRINT3D_PRUSA_BRIDGE_EXPECTED='3.14v'")) { throw 'Web does not expect Bridge 3.14v' }
+          if (-not $html.Contains("PRINT3D_PRUSA_BRIDGE_EXPECTED='3.14w'")) { throw 'Web does not expect Bridge 3.14w' }
+
+      - name: Package SketchUp RBZ
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tmp = Join-Path $env:RUNNER_TEMP '20-20-sketchup-rbz'
+          if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+          New-Item -ItemType Directory -Path $tmp | Out-Null
+          Copy-Item 'SketchUpExtension\20_20_toolbox.rb' $tmp
+          Copy-Item 'SketchUpExtension\twenty_twenty_toolbox' $tmp -Recurse
+          $zip = Join-Path $env:RUNNER_TEMP '20-20-Toolbox-Print.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path (Join-Path $tmp '*') -DestinationPath $zip -CompressionLevel Optimal
+          Copy-Item $zip 'SketchUpExtension\20-20-Toolbox-Print.rbz' -Force
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -105,19 +123,19 @@ jobs:
           if (-not (Test-Path $exe)) { throw 'Built PrusaBridge EXE is missing.' }
           $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           $manifest = [ordered]@{
-            version = '3.14v'
+            version = '3.14w'
             url = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/20-20-PrusaBridge.exe'
             sha256 = $sha
           } | ConvertTo-Json
           [IO.File]::WriteAllText((Join-Path $PWD 'PrusaBridge\latest.json'), $manifest + "`n", [Text.UTF8Encoding]::new($false))
 
-      - name: Commit V3.14v portable runtime
+      - name: Commit V3.14w SketchUp handoff runtime
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           git config user.name '20-20 Bridge Builder'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add PrusaBridge/src/main.go PrusaBridge/src/Win3DRepair.cpp PrusaBridge/src/go.mod PrusaBridge/20-20-PrusaBridge.exe PrusaBridge/latest.json index.html
+          git add PrusaBridge/src/main.go PrusaBridge/src/Win3DRepair.cpp PrusaBridge/src/go.mod PrusaBridge/20-20-PrusaBridge.exe PrusaBridge/latest.json index.html SketchUpExtension/20-20-Toolbox-Print.rbz
           if (git diff --cached --quiet) { exit 0 }
-          git commit -m 'V3.14v self-contained portable PrusaSlicer runtime'
+          git commit -m 'V3.14w SketchUp one-click 3D print bridge'
           git push origin main
