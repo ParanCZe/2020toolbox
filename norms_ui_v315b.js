@@ -1,5 +1,5 @@
 (()=>{
-  const VERSION='V3.16';
+  const VERSION='V3.17';
   const WHATSNEW_KEY='20-20-toolbox-whatsnew-seen';
 
   function css(){
@@ -29,14 +29,19 @@
     document.head.appendChild(st);
   }
 
-  function loadNormExtras(done){
-    if(window.__TOOLBOX_NORMS_EXTRA_316){done?.();return;}
-    window.__TOOLBOX_NORMS_EXTRA_316=true;
+  function loadScript(src,flag,done){
+    if(window[flag]){done?.();return;}
     const s=document.createElement('script');
-    s.src='norms_extra_v316.js?v=316';
+    s.src=src;
     s.onload=()=>done?.();
-    s.onerror=()=>{console.warn('Rozšířená databáze NORMY se nepodařila načíst.');done?.()};
+    s.onerror=()=>{console.warn('Databázový balík NORMY se nepodařilo načíst:',src);done?.()};
     document.head.appendChild(s);
+  }
+
+  function loadNormExtras(done){
+    loadScript('norms_extra_v316.js?v=316','__TOOLBOX_NORMS_EXTRA_316',()=>{
+      loadScript('norms_extra_v317.js?v=317','__TOOLBOX_NORMS_EXTRA_317',done);
+    });
   }
 
   function itemFromCard(card){
@@ -143,8 +148,8 @@
     if(ver) ver.textContent=VERSION;
     const body=modal.querySelector('.whatsnew-body');
     if(body) body.innerHTML=`
-      <div class="whatsnew-item"><strong>Normy — rozšířená databáze</strong><span>Doplněny další praktické požadavky: větrání, denní osvětlení, stínění, odpad, výtahy, protiskluz, hygienické vybavení, sociální stavby a další.</span></div>
-      <div class="whatsnew-item"><strong>Normy — aktualizace 2026</strong><span>Vybrané položky byly srovnány s konsolidovaným zněním vyhlášky č. 146/2024 Sb. účinným od 1. 7. 2026.</span></div>
+      <div class="whatsnew-item"><strong>Normy — +143 položek</strong><span>Výrazně rozšířená databáze požadavků z aktuálního znění vyhlášky č. 146/2024 Sb. včetně odstupů, přístupnosti, technických zařízení, parkování, povrchů, bytů, škol, sportu a dalších.</span></div>
+      <div class="whatsnew-item"><strong>Normy — zdroje</strong><span>Nahoře v aplikaci jsou přímé odkazy na hlavní právní a normové zdroje.</span></div>
       <div class="whatsnew-item"><strong>Knihovna materiálů V4</strong><span>Adaptivní hledání vrací více relevantních materiálových referencí bez zbytečně tvrdého filtrování.</span></div>`;
 
     window.closeToolboxWhatsNew=function(){modal.classList.remove('active');try{localStorage.setItem(WHATSNEW_KEY,VERSION)}catch(e){}};
