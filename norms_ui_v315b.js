@@ -1,5 +1,5 @@
 (()=>{
-  const VERSION='V3.18';
+  const VERSION='V3.19';
   const WHATSNEW_KEY='20-20-toolbox-whatsnew-seen';
 
   function css(){
@@ -33,7 +33,7 @@
     if(window[flag]){done?.();return;}
     const s=document.createElement('script');
     s.src=src;
-    s.onload=()=>done?.();
+    s.onload=()=>{window[flag]=true;done?.()};
     s.onerror=()=>{console.warn('Databázový balík se nepodařilo načíst:',src);done?.()};
     document.head.appendChild(s);
   }
@@ -41,7 +41,9 @@
   function loadNormExtras(done){
     loadScript('norms_extra_v316.js?v=316','__TOOLBOX_NORMS_EXTRA_316',()=>{
       loadScript('norms_extra_v317.js?v=317','__TOOLBOX_NORMS_EXTRA_317',()=>{
-        loadScript('interior_extra_v318.js?v=318','__TOOLBOX_INTERIOR_EXTRA_318',done);
+        loadScript('interior_extra_v318.js?v=318','__TOOLBOX_INTERIOR_EXTRA_318',()=>{
+          loadScript('interior_extra_v319.js?v=319','__TOOLBOX_INTERIOR_EXTRA_319',done);
+        });
       });
     });
   }
@@ -150,9 +152,9 @@
     if(ver) ver.textContent=VERSION;
     const body=modal.querySelector('.whatsnew-body');
     if(body) body.innerHTML=`
-      <div class="whatsnew-item"><strong>Interiérové standardy — velké rozšíření</strong><span>Doplněny další praktické rozměry a ergonomická doporučení pro kuchyně, koupelny, šatny, ložnice, obývací pokoje, jídelny, pracovny, gastro, retail, hotely, školy a dětské prostory.</span></div>
-      <div class="whatsnew-item"><strong>Interiérové standardy — předpisy</strong><span>Doplněny samostatně označené karty PŘEDPIS pro světlé výšky, dveře, chodby, větrání, denní osvětlení a vybrané typy staveb.</span></div>
-      <div class="whatsnew-item"><strong>Normy — +143 položek</strong><span>Rozšířená projektantská databáze zůstává součástí aplikace NORMY.</span></div>`;
+      <div class="whatsnew-item"><strong>Interiérové standardy — +168 dalších položek</strong><span>Knihovna je výrazně hustší: další rozměry a ergonomie pro kuchyně, koupelny, šatny, předsíně, ložnice, obýváky, pracovny, jídelny, gastro, retail, hotely, děti, školy a obecné interiérové situace.</span></div>
+      <div class="whatsnew-item"><strong>Interiérové standardy — doporučení vs. předpis</strong><span>Nové ergonomické karty jsou jasně vedené jako doporučení nebo běžný rozměr, aby se nepletly se závaznými předpisy.</span></div>
+      <div class="whatsnew-item"><strong>Normy — rozšířená databáze</strong><span>Projektantská databáze NORMY zůstává načtená současně.</span></div>`;
 
     window.closeToolboxWhatsNew=function(){modal.classList.remove('active');try{localStorage.setItem(WHATSNEW_KEY,VERSION)}catch(e){}};
     let seen='';try{seen=localStorage.getItem(WHATSNEW_KEY)||''}catch(e){}
