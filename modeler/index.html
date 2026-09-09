@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D MODELER · 20-20-TOOLBOX</title>
+<link rel="icon" type="image/png" href="../icon.png">
+<link rel="stylesheet" href="modeler.css?v=325">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
+</head>
+<body>
+<header>
+  <div class="logo">20-20-TOOLBOX</div><div class="version">V3.25 · 3D MODELER BETA</div>
+  <div class="head-actions"><a href="../index.html">← TOOLBOX</a><button id="btnNew">NOVÝ MODEL</button><button id="btnOpen">OTEVŘÍT</button><input id="fileOpen" type="file" accept=".stl,.obj,.glb,.gltf" hidden><button id="btnDownload" class="dark">STÁHNOUT STL</button><button id="btnPrint" class="accent">POSLAT DO 3D TISKU</button></div>
+</header>
+<div class="app">
+  <aside class="leftbar">
+    <div class="panel-title">VYTVOŘIT</div>
+    <button data-add="box"><span>▣</span>Kvádr</button>
+    <button data-add="cylinder"><span>○</span>Válec</button>
+    <button data-add="sphere"><span>●</span>Koule</button>
+    <button data-add="plane"><span>▱</span>Deska</button>
+    <div class="sep"></div>
+    <div class="panel-title">UPRAVIT</div>
+    <button data-mode="translate" class="active">Přesun <kbd>W</kbd></button>
+    <button data-mode="rotate">Rotace <kbd>E</kbd></button>
+    <button data-mode="scale">Měřítko <kbd>R</kbd></button>
+    <button id="btnDuplicate">Duplikovat <kbd>Ctrl+D</kbd></button>
+    <button id="btnDelete">Smazat <kbd>Del</kbd></button>
+    <div class="sep"></div>
+    <button id="btnUndo">↶ Zpět</button><button id="btnRedo">↷ Znovu</button>
+  </aside>
+  <main id="viewport"><div id="hint">Kliknutím vyber objekt · pravé tlačítko otáčí pohled · kolečko zoomuje · Shift + pravé tlačítko posouvá</div></main>
+  <aside class="rightbar">
+    <div class="panel-title">OBJEKT</div>
+    <div id="noSelection" class="muted">Není vybrán žádný objekt.</div>
+    <div id="objectPanel" hidden>
+      <label>Název<input id="objName" type="text"></label>
+      <div class="group"><b>ROZMĚRY [mm]</b><div class="triple"><label>X<input id="dimX" type="number" step="1"></label><label>Y<input id="dimY" type="number" step="1"></label><label>Z<input id="dimZ" type="number" step="1"></label></div></div>
+      <div class="group"><b>POZICE [mm]</b><div class="triple"><label>X<input id="posX" type="number" step="1"></label><label>Y<input id="posY" type="number" step="1"></label><label>Z<input id="posZ" type="number" step="1"></label></div></div>
+      <div class="group"><b>ROTACE [°]</b><div class="triple"><label>X<input id="rotX" type="number" step="1"></label><label>Y<input id="rotY" type="number" step="1"></label><label>Z<input id="rotZ" type="number" step="1"></label></div></div>
+      <label>Barva<input id="objColor" type="color" value="#c7c7c7"></label>
+    </div>
+    <div class="sep"></div>
+    <div class="panel-title">SCÉNA</div>
+    <button class="view" data-view="iso">Perspektiva</button><button class="view" data-view="top">Shora</button><button class="view" data-view="front">Zepředu</button><button class="view" data-view="right">Zprava</button>
+    <label class="check"><input id="snapToggle" type="checkbox" checked> Snap 10 mm</label>
+    <label class="check"><input id="gridToggle" type="checkbox" checked> Mřížka</label>
+    <div class="stats" id="stats">0 objektů</div>
+  </aside>
+</div>
+<div id="toast"></div>
+<script type="module" src="modeler.js?v=325"></script>
+</body>
+</html>
