@@ -93,7 +93,7 @@
     btn.className='tile';
     btn.type='button';
     btn.innerHTML='<b>Knihovna materiálů <span class="menu-status">ONLINE</span></b><span>Chytré hledání detailů, textur a materiálových referencí pro AI.</span>';
-    btn.addEventListener('click',()=>{window.location.href='material_library_v2.html'});
+    btn.addEventListener('click',()=>{window.location.href='material_library_v3.html'});
     const beta=menu.querySelector?.('.menu-app-row.beta');
     if(beta) beta.appendChild(btn); else menu.appendChild(btn);
   }
