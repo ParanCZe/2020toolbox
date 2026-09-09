@@ -29,6 +29,19 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 
 /* HLAVNI MENU — V3.14v: stabilni / beta + vyuziti dat */
 .menu-app-groups{display:flex;flex-direction:column;gap:16px}
+.menu-app-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.menu-section-divider{height:1px;background:var(--border);margin:1cm 0}
+.session-data-overview{margin-top:0!important;border-top:0!important;padding-top:0!important}
+.session-data-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+.session-data-card{min-height:92px;display:flex;flex-direction:column;justify-content:center}
+.session-data-card .session-data-mb{font-family:'Antarctican Mono',monospace;font-size:20px;line-height:1.15;color:var(--text);margin:1px 0 4px}
+.session-data-card .session-data-count{font-size:10px;color:var(--muted)}
+@media(max-width:900px){.menu-app-row,.session-data-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:580px){.menu-app-row,.session-data-grid{grid-template-columns:1fr}.menu-section-divider{margin:.7cm 0}}
+
+
+/* HLAVNI MENU — V3.14v: stabilni / beta + vyuziti dat */
+.menu-app-groups{display:flex;flex-direction:column;gap:16px}
 .menu-app-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.menu-app-row.beta{grid-template-columns:repeat(4,minmax(0,1fr))}
 .menu-section-divider{height:1px;background:var(--border);margin:1cm 0}
 .session-data-overview{margin-top:0!important;border-top:0!important;padding-top:0!important}
@@ -6678,6 +6691,15 @@ function analyze3DPrintRecommendationGeometry(){
   const shape=complexity>2.6?'complex':complexity>1.55?'medium':'simple';
   return {ready:true,out,tri,over,minDim,maxDim,foot,bboxVol,complexity,stability,aspect,size,shape};
 }
+function analyze3DPrintRecommendationGeometry(){
+  const out=current3DPrintDims(),tri=get3DPrintTriangleCache(),over=get3DPrintOverhangInfo();
+  if(!out)return {ready:false,over};
+  const dims=[Math.max(.001,out.x),Math.max(.001,out.y),Math.max(.001,out.z)].sort((a,b)=>a-b),minDim=dims[0],maxDim=dims[2],foot=Math.max(1,out.x*out.y),bboxVol=Math.max(1,out.x*out.y*out.z),boxArea=Math.max(1,2*(out.x*out.y+out.x*out.z+out.y*out.z));
+  const complexity=tri?.area>0?tri.area/boxArea:1,stability=out.z/Math.max(1,Math.sqrt(foot)),aspect=maxDim/minDim;
+  const size=maxDim<20?'tiny':maxDim<45?'small':maxDim>130?'large':'medium';
+  const shape=complexity>2.6?'complex':complexity>1.55?'medium':'simple';
+  return {ready:true,out,tri,over,minDim,maxDim,foot,bboxVol,complexity,stability,aspect,size,shape};
+}
 function apply3DPrintRecommendedSettings(show=true){
   print3dState.simplePrepared=true;
   const purpose=document.getElementById('print3d-purpose')?.value||'architecture',priority=document.getElementById('print3d-priority')?.value||'balanced',material=document.getElementById('print3d-material')?.value||'pla',g=analyze3DPrintRecommendationGeometry();
@@ -8012,7 +8034,7 @@ function printDesignAuditReport(){const f=designAuditState.file;if(!f)return;con
 // 3D TISK — V3.14t · SELF-CONTAINED PRUSASLICER BRIDGE
 // ============================================================
 const PRINT3D_PRUSA_BRIDGE_URL='http://127.0.0.1:8091';
-const PRINT3D_PRUSA_BRIDGE_EXPECTED='3.14v';
+const PRINT3D_PRUSA_BRIDGE_EXPECTED='3.14w';
 const PRINT3D_PRUSA_BRIDGE_DOWNLOAD='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/20-20-PrusaBridge.exe';
 function p3BridgeState(){
   if(!print3dState.prusaBridge)print3dState.prusaBridge={online:false,status:null,lastCheck:0,updating:false,autoTried:false};

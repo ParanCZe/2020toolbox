@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
@@ -24,7 +25,7 @@ import (
 	"time"
 )
 
-const bridgeVersion = "3.14v"
+const bridgeVersion = "3.14w"
 const latestJSONURL = "https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/latest.json"
 const prusaLatestReleaseAPI = "https://api.github.com/repos/prusa3d/PrusaSlicer/releases/latest"
 const prusaFallbackZipURL = "https://github.com/prusa3d/PrusaSlicer/releases/download/version_2.9.6/PrusaSlicer-2.9.6.zip"
@@ -679,12 +680,128 @@ func pathWithin(path, root string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
+func addSketchupCORS(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-File-Name, X-20-20-Source")
+	w.Header().Set("Access-Control-Expose-Headers", "X-File-Name")
+}
+
+func newSketchupToken() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func sketchupIncomingDir() string {
+	return filepath.Join(installDir, "SketchUpIncoming")
+}
+
+func handleSketchupImport(w http.ResponseWriter, r *http.Request) {
+	addSketchupCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 300<<20)
+	defer r.Body.Close()
+	name := filepath.Base(strings.TrimSpace(r.Header.Get("X-File-Name")))
+	if name == "." || name == "" {
+		name = "sketchup-model.stl"
+	}
+	if strings.ToLower(filepath.Ext(name)) != ".stl" {
+		http.Error(w, "only STL is accepted", http.StatusBadRequest)
+		return
+	}
+
+	token, err := newSketchupToken()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dir := sketchupIncomingDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	path := filepath.Join(dir, token+".stl")
+	f, err := os.Create(path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	n, copyErr := io.Copy(f, r.Body)
+	closeErr := f.Close()
+	if copyErr != nil || closeErr != nil || n <= 0 {
+		_ = os.Remove(path)
+		if copyErr != nil {
+			http.Error(w, copyErr.Error(), http.StatusBadRequest)
+		} else {
+			http.Error(w, "empty STL", http.StatusBadRequest)
+		}
+		return
+	}
+	_ = os.WriteFile(filepath.Join(dir, token+".name"), []byte(name), 0644)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "token": token, "name": name, "bytes": n})
+}
+
+func handleSketchupFile(w http.ResponseWriter, r *http.Request) {
+	addSketchupCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	token := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("token")))
+	if len(token) != 32 {
+		http.Error(w, "invalid token", http.StatusBadRequest)
+		return
+	}
+	for _, ch := range token {
+		if !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f')) {
+			http.Error(w, "invalid token", http.StatusBadRequest)
+			return
+		}
+	}
+	dir := sketchupIncomingDir()
+	path := filepath.Join(dir, token+".stl")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		http.Error(w, "model not found", http.StatusNotFound)
+		return
+	}
+	name := "sketchup-model.stl"
+	if nb, err := os.ReadFile(filepath.Join(dir, token+".name")); err == nil && strings.TrimSpace(string(nb)) != "" {
+		name = filepath.Base(strings.TrimSpace(string(nb)))
+	}
+	w.Header().Set("Content-Type", "model/stl")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, strings.ReplaceAll(name, `"`, "")))
+	w.Header().Set("X-File-Name", name)
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(b)
+	_ = os.Remove(path)
+	_ = os.Remove(filepath.Join(dir, token+".name"))
+}
+
 func serve() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
 	mux.HandleFunc("/status", handleStatus)
 	mux.HandleFunc("/repair", handleRepair)
 	mux.HandleFunc("/slice", handleSlice)
+	mux.HandleFunc("/sketchup-import", handleSketchupImport)
+	mux.HandleFunc("/sketchup-file", handleSketchupFile)
 	mux.HandleFunc("/open", handleOpen)
 	mux.HandleFunc("/update", handleUpdate)
 	srv := &http.Server{Addr: listenAddr, Handler: cors(mux), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 20 * time.Minute, WriteTimeout: 20 * time.Minute}
