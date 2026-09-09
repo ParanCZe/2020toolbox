@@ -16,7 +16,6 @@
       #tool-norms .ny-value{font-size:13px!important;line-height:1.45!important}
       #tool-norms .ny-entry::after,#tool-norms .ny-result::after{content:'Kliknutím otevřít přesný zdroj ↗';display:block;margin-top:9px;font-size:9px;color:#71717a}
       #tool-norms .ny-entry:focus-visible,#tool-norms .ny-result:focus-visible{outline:2px solid #18181b;outline-offset:2px}
-      #material-library-launcher .menu-status{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
     `;
     document.head.appendChild(st);
   }
@@ -87,17 +86,16 @@
   }
 
   function addMaterialLibraryLauncher(){
-    if(document.getElementById('material-library-launcher')) return;
-    const rows=[...document.querySelectorAll('.menu-app-row')];
-    const target=document.querySelector('.menu-app-row.beta')||rows[rows.length-1];
-    if(!target) return;
-    const tile=document.createElement('button');
-    tile.type='button';
-    tile.id='material-library-launcher';
-    tile.className='tile';
-    tile.innerHTML='<b>Knihovna materiálů <span class="menu-status">ONLINE</span></b><span>Vyhledá čisté textury a detaily materiálů pro AI reference.</span>';
-    tile.addEventListener('click',()=>{window.location.href='material_library.html'});
-    target.appendChild(tile);
+    const menu=document.querySelector('.menu-app-groups')||document.querySelector('.menu-app-row')||document.querySelector('.grid');
+    if(!menu||document.getElementById('material-library-launcher')) return;
+    const btn=document.createElement('button');
+    btn.id='material-library-launcher';
+    btn.className='tile';
+    btn.type='button';
+    btn.innerHTML='<b>Knihovna materiálů <span class="menu-status">ONLINE</span></b><span>Chytré hledání detailů, textur a materiálových referencí pro AI.</span>';
+    btn.addEventListener('click',()=>{window.location.href='material_library_v2.html'});
+    const beta=menu.querySelector?.('.menu-app-row.beta');
+    if(beta) beta.appendChild(btn); else menu.appendChild(btn);
   }
 
   function setupWhatsNew(){
@@ -109,15 +107,11 @@
     if(body) body.innerHTML=`
       <div class="whatsnew-item"><strong>Normy — přesné odkazy na zdroj</strong><span>Celá karta normy je nyní klikací. U právních předpisů se otevírá přímo konkrétní paragraf / odstavec, ne začátek celé vyhlášky.</span></div>
       <div class="whatsnew-item"><strong>Normy — čitelnější obsah</strong><span>Zvětšeno znění a vysvětlení pod jednotlivými normovými položkami.</span></div>
-      <div class="whatsnew-item"><strong>Interiérové standardy</strong><span>Rozšířená databáze a chytré vyhledávání rozměrů, odstupů, výšek a ergonomických doporučení.</span></div>
+      <div class="whatsnew-item"><strong>Knihovna materiálů</strong><span>Online hledání detailních materiálových referencí s přesnějším rozpoznáním materiálu, povrchu, barvy a rozměru.</span></div>
       <div class="whatsnew-item"><strong>Opravy aktualizací</strong><span>Opraveno zobrazování čísla verze a spouštění okna „Co je nového“ po nové aktualizaci.</span></div>`;
 
-    window.closeToolboxWhatsNew=function(){
-      modal.classList.remove('active');
-      try{localStorage.setItem(WHATSNEW_KEY,VERSION)}catch(e){}
-    };
-    let seen='';
-    try{seen=localStorage.getItem(WHATSNEW_KEY)||''}catch(e){}
+    window.closeToolboxWhatsNew=function(){modal.classList.remove('active');try{localStorage.setItem(WHATSNEW_KEY,VERSION)}catch(e){}};
+    let seen='';try{seen=localStorage.getItem(WHATSNEW_KEY)||''}catch(e){}
     if(seen!==VERSION){setTimeout(()=>modal.classList.add('active'),300)}
   }
 
