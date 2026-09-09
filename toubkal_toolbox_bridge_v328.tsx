@@ -26,8 +26,10 @@ function makeStlBlob(): Blob {
   const group=collectVisibleCadMeshes();
   const exporter=new STLExporter();
   const data=exporter.parse(group,{binary:true}) as DataView;
+  const bytes=new Uint8Array(data.byteLength);
+  bytes.set(new Uint8Array(data.buffer,data.byteOffset,data.byteLength));
   group.traverse((o:any)=>o.geometry?.dispose?.());
-  return new Blob([data],{type:'model/stl'});
+  return new Blob([bytes.buffer],{type:'model/stl'});
 }
 
 function downloadBlob(blob:Blob,name:string){
