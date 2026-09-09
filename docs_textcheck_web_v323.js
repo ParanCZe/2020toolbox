@@ -1,5 +1,5 @@
 (()=>{
-  const APP_VERSION='V3.23';
+  const APP_VERSION='V3.24';
   const webState={old:null,new:null};
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
