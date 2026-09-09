@@ -1,0 +1,38 @@
+name: Web V3.22 Text Checker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/web-textcheck-v322.yml
+      - tools/patch_textcheck_v322.py
+      - docs_textcheck_v322.js
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch text checker into Toolbox
+        run: |
+          python tools/patch_textcheck_v322.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert 'docs_textcheck_v322.js?v=322' in s
+          assert '<div class="app-version" id="app-version">V3.22</div>' in s
+          assert "version.textContent = 'V3.14s'" not in s
+          print('V3.22 checks OK')
+          PY
+      - name: Commit V3.22
+        run: |
+          git config user.name '20-20 Web Builder'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'V3.22 add text change checker and fix visible version'
+          git push origin main
