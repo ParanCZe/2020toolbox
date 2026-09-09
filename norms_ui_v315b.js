@@ -1,5 +1,5 @@
 (()=>{
-  const VERSION='V3.20';
+  const VERSION='V3.21';
   const WHATSNEW_KEY='20-20-toolbox-whatsnew-seen';
 
   function css(){
