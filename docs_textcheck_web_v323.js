@@ -1,7 +1,7 @@
 (()=>{
   const APP_VERSION='V3.24';
   const webState={old:null,new:null};
-  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
 
   function forceVersion(){const el=document.getElementById('app-version');if(el)el.textContent=APP_VERSION;}
   function cleanUrl(v){try{const u=new URL(String(v||'').trim());if(!/^https?:$/.test(u.protocol))return'';return u.href}catch(e){return''}}
@@ -55,6 +55,7 @@
     if(!results.length){host.innerHTML='<div class="docs-empty">Nebyly nalezeny významné rozdíly.</div>';return}
     const counts={};results.forEach(r=>counts[r.type]=(counts[r.type]||0)+1);
     host.innerHTML=`<div class="textcheck-summary">${Object.entries(counts).map(([k,v])=>`<span><b>${v}</b> ${esc(k)}</span>`).join('')}</div>`+results.map((r,i)=>`<article class="textcheck-card ${r.type==='ZMĚNA HODNOTY'?'error':/ZMĚNA|ODSTRAN|PŘIDÁNO/.test(r.type)?'warn':'ok'}" id="webcheck-${i}"><div class="textcheck-head"><span class="textcheck-type">${esc(r.type)}</span><span>podobnost ${Math.round((r.score||0)*100)} %</span></div><div class="textcheck-pages"><b>Stará:</b> web &nbsp;→&nbsp; <b>Nová:</b> web</div><div class="textcheck-cols"><div><b>STARÝ TEXT</b><p>${esc(r.old?.text||'—')}</p></div><div><b>NOVÝ TEXT</b><p>${esc(r.new?.text||'—')}</p></div></div>${r.old&&r.new&&valDiff(r.old.text,r.new.text)?`<div class="textcheck-values"><b>Hodnoty:</b> ${esc(vals(r.old.text).join(', ')||'—')} → ${esc(vals(r.new.text).join(', ')||'—')}</div>`:''}<div class="textcheck-actions"><button class="back-btn" onclick="window.webTextcheckRecheck(${i})">Projít znovu tento výsledek</button><a class="back-btn" href="${esc(webState.old?.url||'#')}" target="_blank" rel="noopener">Otevřít starý zdroj ↗</a><a class="back-btn" href="${esc(webState.new?.url||'#')}" target="_blank" rel="noopener">Otevřít nový zdroj ↗</a></div></article>`).join('');
+    setTimeout(()=>window.dispatchEvent(new CustomEvent('textcheck:rendered')),0);
   }
   window.webTextcheckRecheck=i=>{const r=window.__textcheckWebResults?.[i];if(!r||!webState.old||!webState.new)return;if(r.old){const m=best(r.old,splitSegments(webState.new.text));if(m){r.new=m.seg;r.score=m.score;r.type=valDiff(r.old.text,r.new.text)&&m.score>=.38?'ZMĚNA HODNOTY':m.score>=.5?'ZMĚNA FORMULACE':'SLABÁ SHODA';}}else if(r.new){const m=best(r.new,splitSegments(webState.old.text));if(m){r.old=m.seg;r.score=m.score;}}renderWebResults(window.__textcheckWebResults);setTimeout(()=>document.getElementById('webcheck-'+i)?.scrollIntoView({behavior:'smooth',block:'center'}),20)};
   async function runWeb(){
@@ -68,6 +69,7 @@
     files.parentNode.insertBefore(or,files.nextSibling);document.getElementById('textcheck-web-run').onclick=runWeb;
   }
   function css(){if(document.getElementById('textcheck-web-v323-style'))return;const s=document.createElement('style');s.id='textcheck-web-v323-style';s.textContent=`#tool-docs .textcheck-or{display:flex;align-items:center;gap:10px;margin:16px 0 10px;color:var(--muted);font-size:9px;letter-spacing:.45px}.textcheck-or:before,.textcheck-or:after{content:"";height:1px;background:var(--border);flex:1}.textcheck-web-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px}.textcheck-web-grid label{border:1px solid var(--border);border-radius:9px;background:#fafafa;padding:12px;display:flex;flex-direction:column;gap:8px}.textcheck-web-grid label b{font:normal 12px 'Antarctican Mono',monospace}.textcheck-web-grid input{width:100%}.textcheck-actions a.back-btn{text-decoration:none;display:inline-flex;align-items:center}@media(max-width:700px){.textcheck-web-grid{grid-template-columns:1fr}}`;document.head.appendChild(s)}
-  function init(){forceVersion();css();inject();setTimeout(()=>{forceVersion();inject()},400);setTimeout(forceVersion,1600)}
+  function loadFilter(){if(document.querySelector('script[data-textcheck-v324]'))return;const s=document.createElement('script');s.src='docs_textcheck_filter_v324.js?v=324';s.dataset.textcheckV324='1';document.head.appendChild(s);}
+  function init(){forceVersion();css();inject();loadFilter();setTimeout(()=>{forceVersion();inject();loadFilter()},400);setTimeout(forceVersion,1600)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
