@@ -1,5 +1,5 @@
 (()=>{
-  const VERSION='V3.17';
+  const VERSION='V3.18';
   const WHATSNEW_KEY='20-20-toolbox-whatsnew-seen';
 
   function css(){
@@ -34,13 +34,15 @@
     const s=document.createElement('script');
     s.src=src;
     s.onload=()=>done?.();
-    s.onerror=()=>{console.warn('Databázový balík NORMY se nepodařilo načíst:',src);done?.()};
+    s.onerror=()=>{console.warn('Databázový balík se nepodařilo načíst:',src);done?.()};
     document.head.appendChild(s);
   }
 
   function loadNormExtras(done){
     loadScript('norms_extra_v316.js?v=316','__TOOLBOX_NORMS_EXTRA_316',()=>{
-      loadScript('norms_extra_v317.js?v=317','__TOOLBOX_NORMS_EXTRA_317',done);
+      loadScript('norms_extra_v317.js?v=317','__TOOLBOX_NORMS_EXTRA_317',()=>{
+        loadScript('interior_extra_v318.js?v=318','__TOOLBOX_INTERIOR_EXTRA_318',done);
+      });
     });
   }
 
@@ -148,9 +150,9 @@
     if(ver) ver.textContent=VERSION;
     const body=modal.querySelector('.whatsnew-body');
     if(body) body.innerHTML=`
-      <div class="whatsnew-item"><strong>Normy — +143 položek</strong><span>Výrazně rozšířená databáze požadavků z aktuálního znění vyhlášky č. 146/2024 Sb. včetně odstupů, přístupnosti, technických zařízení, parkování, povrchů, bytů, škol, sportu a dalších.</span></div>
-      <div class="whatsnew-item"><strong>Normy — zdroje</strong><span>Nahoře v aplikaci jsou přímé odkazy na hlavní právní a normové zdroje.</span></div>
-      <div class="whatsnew-item"><strong>Knihovna materiálů V4</strong><span>Adaptivní hledání vrací více relevantních materiálových referencí bez zbytečně tvrdého filtrování.</span></div>`;
+      <div class="whatsnew-item"><strong>Interiérové standardy — velké rozšíření</strong><span>Doplněny další praktické rozměry a ergonomická doporučení pro kuchyně, koupelny, šatny, ložnice, obývací pokoje, jídelny, pracovny, gastro, retail, hotely, školy a dětské prostory.</span></div>
+      <div class="whatsnew-item"><strong>Interiérové standardy — předpisy</strong><span>Doplněny samostatně označené karty PŘEDPIS pro světlé výšky, dveře, chodby, větrání, denní osvětlení a vybrané typy staveb.</span></div>
+      <div class="whatsnew-item"><strong>Normy — +143 položek</strong><span>Rozšířená projektantská databáze zůstává součástí aplikace NORMY.</span></div>`;
 
     window.closeToolboxWhatsNew=function(){modal.classList.remove('active');try{localStorage.setItem(WHATSNEW_KEY,VERSION)}catch(e){}};
     let seen='';try{seen=localStorage.getItem(WHATSNEW_KEY)||''}catch(e){}
