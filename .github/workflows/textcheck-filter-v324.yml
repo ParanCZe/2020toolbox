@@ -1,0 +1,37 @@
+name: Apply text checker filter V3.24
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs_textcheck_filter_v324.js'
+      - 'tools/patch_textcheck_filter_v324.py'
+      - '.github/workflows/textcheck-filter-v324.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Apply V3.24 patch
+        run: python tools/patch_textcheck_filter_v324.py
+      - name: Commit generated integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html docs_upgrade_v321.js docs_textcheck_web_v323.js
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Load V3.24 text checker filter"
+            git push
+          fi
