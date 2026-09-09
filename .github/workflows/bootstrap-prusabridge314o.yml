@@ -8,11 +8,13 @@ on:
       - .github/workflows/bootstrap-prusabridge314o.yml
       - PrusaBridge/src/**
       - SketchUpExtension/**
+      - sketchup_extension_button_v330.js
       - tools/patch_print_recommendations_v314t.py
       - tools/patch_main_menu_v314u.py
       - tools/patch_portable_prusaslicer_v314v.py
       - tools/patch_sketchup_bridge_v314w.py
       - tools/patch_print3d_preserve_orientation_v329.py
+      - tools/patch_sketchup_extension_button_v330.py
   workflow_dispatch:
 
 permissions:
@@ -53,6 +55,8 @@ jobs:
 
           python tools\patch_print3d_preserve_orientation_v329.py
           if ($LASTEXITCODE -ne 0) { throw "V3.29 orientation patch failed: $LASTEXITCODE" }
+          python tools\patch_sketchup_extension_button_v330.py
+          if ($LASTEXITCODE -ne 0) { throw "V3.30 SketchUp extension button patch failed: $LASTEXITCODE" }
 
           $main = Get-Content -Raw -Encoding UTF8 $p
           if (-not $main.Contains('const bridgeVersion = "3.14w"')) { throw 'Bridge 3.14w version patch failed' }
@@ -69,6 +73,7 @@ jobs:
           if (-not $html.Contains("PRINT3D_PRUSA_BRIDGE_EXPECTED='3.14w'")) { throw 'Web does not expect Bridge 3.14w' }
           if ($html.Contains('await autoAlign3DPrintModel(true);apply3DPrintRecommendedSettings(false)')) { throw 'Simple prepare still auto-rotates model' }
           if ($html.Contains('update3DPrintTransform();await autoAlign3DPrintModel(true);fit3DPrintView(true)')) { throw 'Model load still auto-rotates model' }
+          if (-not $html.Contains('sketchup_extension_button_v330.js')) { throw 'SketchUp extension button loader missing' }
 
       - name: Package SketchUp RBZ
         shell: powershell
@@ -96,7 +101,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $sdkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Include'
           $sdk = Get-ChildItem $sdkRoot -Directory | Sort-Object Name -Descending | Select-Object -First 1
-          if (-not $sdk) { throw 'Windows SDK include directory not found.' }
+          if (-not $sdk) { throw "Windows SDK include directory not found." }
           $cppwinrt = Join-Path $sdk.FullName 'cppwinrt'
           if (-not (Test-Path $cppwinrt)) { throw "C++/WinRT headers not found: $cppwinrt" }
           cl /nologo /std:c++20 /EHsc /O2 /DUNICODE /D_UNICODE /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS /I"$cppwinrt" PrusaBridge\src\Win3DRepair.cpp /Fe:PrusaBridge\src\Win3DRepair.exe /link windowsapp.lib
@@ -150,5 +155,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add PrusaBridge/src/main.go PrusaBridge/src/Win3DRepair.cpp PrusaBridge/src/go.mod PrusaBridge/20-20-PrusaBridge.exe PrusaBridge/latest.json index.html SketchUpExtension/20-20-Toolbox-Print.rbz
           if (git diff --cached --quiet) { exit 0 }
-          git commit -m 'V3.29 preserve print orientation and refresh SketchUp icon'
+          git commit -m 'V3.30 add SketchUp extension download in 3D print'
           git push origin main
