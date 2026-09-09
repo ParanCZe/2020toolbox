@@ -1,5 +1,5 @@
 (()=>{
-  const APP_VERSION='V3.24';
+  const APP_VERSION='V3.25';
 
   function forceVersion(){
     const el=document.getElementById('app-version');

@@ -1,5 +1,5 @@
 (()=>{
-  const APP_VERSION='V3.24';
+  const APP_VERSION='V3.25';
   const normalize=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
   function forceVersion(){const el=document.getElementById('app-version');if(el)el.textContent=APP_VERSION;}
   function ensureFilter(){
