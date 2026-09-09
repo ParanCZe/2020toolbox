@@ -1,5 +1,5 @@
 (()=>{
-  const VERSION='V3.15b';
+  const VERSION='V3.16';
   const WHATSNEW_KEY='20-20-toolbox-whatsnew-seen';
 
   function css(){
@@ -7,7 +7,6 @@
     const st=document.createElement('style');
     st.id='norms-v315b-style';
     st.textContent=`
-      /* V3.15b — celé normové karty jsou odkazy na přesný zdroj */
       #tool-norms .ny-entry,#tool-norms .ny-result{cursor:pointer;position:relative;transition:.15s}
       #tool-norms .ny-entry:hover,#tool-norms .ny-result:hover{border-color:#a1a1aa;background:#fffef3;box-shadow:0 2px 7px rgba(0,0,0,.05)}
       #tool-norms .ny-link{display:none!important}
@@ -18,6 +17,16 @@
       #tool-norms .ny-entry:focus-visible,#tool-norms .ny-result:focus-visible{outline:2px solid #18181b;outline-offset:2px}
     `;
     document.head.appendChild(st);
+  }
+
+  function loadNormExtras(done){
+    if(window.__TOOLBOX_NORMS_EXTRA_316){done?.();return;}
+    window.__TOOLBOX_NORMS_EXTRA_316=true;
+    const s=document.createElement('script');
+    s.src='norms_extra_v316.js?v=316';
+    s.onload=()=>done?.();
+    s.onerror=()=>{console.warn('Rozšířená databáze NORMY se nepodařila načíst.');done?.()};
+    document.head.appendChild(s);
   }
 
   function itemFromCard(card){
@@ -51,8 +60,7 @@
       const target=sectionTarget(item.section);
       if(target){
         const base=url.split('#')[0];
-        const fragment=textFragment(target);
-        url=base+'#p'+target.paragraph+fragment;
+        url=base+'#p'+target.paragraph+textFragment(target);
       }
     }
     return url;
@@ -61,8 +69,7 @@
   function openCard(card){
     const item=itemFromCard(card);
     const url=exactSourceUrl(item);
-    if(!url) return;
-    window.open(url,'_blank','noopener');
+    if(url) window.open(url,'_blank','noopener');
   }
 
   function enhanceCards(root=document){
@@ -93,7 +100,7 @@
     btn.className='tile';
     btn.type='button';
     btn.innerHTML='<b>Knihovna materiálů <span class="menu-status">ONLINE</span></b><span>Chytré hledání detailů, textur a materiálových referencí pro AI.</span>';
-    btn.addEventListener('click',()=>{window.location.href='material_library_v3.html'});
+    btn.addEventListener('click',()=>{window.location.href='material_library_v4.html'});
     const beta=menu.querySelector?.('.menu-app-row.beta');
     if(beta) beta.appendChild(btn); else menu.appendChild(btn);
   }
@@ -105,16 +112,22 @@
     if(ver) ver.textContent=VERSION;
     const body=modal.querySelector('.whatsnew-body');
     if(body) body.innerHTML=`
-      <div class="whatsnew-item"><strong>Normy — přesné odkazy na zdroj</strong><span>Celá karta normy je nyní klikací. U právních předpisů se otevírá přímo konkrétní paragraf / odstavec, ne začátek celé vyhlášky.</span></div>
-      <div class="whatsnew-item"><strong>Normy — čitelnější obsah</strong><span>Zvětšeno znění a vysvětlení pod jednotlivými normovými položkami.</span></div>
-      <div class="whatsnew-item"><strong>Knihovna materiálů</strong><span>Online hledání detailních materiálových referencí s přesnějším rozpoznáním materiálu, povrchu, barvy a rozměru.</span></div>
-      <div class="whatsnew-item"><strong>Opravy aktualizací</strong><span>Opraveno zobrazování čísla verze a spouštění okna „Co je nového“ po nové aktualizaci.</span></div>`;
+      <div class="whatsnew-item"><strong>Normy — rozšířená databáze</strong><span>Doplněny další praktické požadavky: větrání, denní osvětlení, stínění, odpad, výtahy, protiskluz, hygienické vybavení, sociální stavby a další.</span></div>
+      <div class="whatsnew-item"><strong>Normy — aktualizace 2026</strong><span>Vybrané položky byly srovnány s konsolidovaným zněním vyhlášky č. 146/2024 Sb. účinným od 1. 7. 2026.</span></div>
+      <div class="whatsnew-item"><strong>Knihovna materiálů V4</strong><span>Adaptivní hledání vrací více relevantních materiálových referencí bez zbytečně tvrdého filtrování.</span></div>`;
 
     window.closeToolboxWhatsNew=function(){modal.classList.remove('active');try{localStorage.setItem(WHATSNEW_KEY,VERSION)}catch(e){}};
     let seen='';try{seen=localStorage.getItem(WHATSNEW_KEY)||''}catch(e){}
     if(seen!==VERSION){setTimeout(()=>modal.classList.add('active'),300)}
   }
 
-  function init(){css();observeNorms();addMaterialLibraryLauncher();setupWhatsNew();}
+  function afterExtras(){
+    css();
+    observeNorms();
+    addMaterialLibraryLauncher();
+    setupWhatsNew();
+  }
+
+  function init(){loadNormExtras(afterExtras)}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
 })();
