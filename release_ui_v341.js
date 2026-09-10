@@ -11,10 +11,12 @@
   function removeLegacyWhatsNew(){
     const buttons=[...document.querySelectorAll('button,input[type="button"],input[type="submit"]')];
     buttons.forEach(btn=>{
+      if(btn.closest('#toolbox-release-overlay'))return;
       const label=(btn.textContent||btn.value||'').trim().toLowerCase();
       if(label!=='rozumím'&&label!=='rozumim')return;
       let n=btn.parentElement;
       for(let i=0;i<7&&n&&n!==document.body;i++,n=n.parentElement){
+        if(n.id==='toolbox-release-overlay'||n.id==='toolbox-release-window')return;
         const t=(n.textContent||'');
         if(/co je nového/i.test(t)&&t.length<7000){n.remove();return}
       }
@@ -40,9 +42,18 @@
     if(localStorage.getItem(SEEN_KEY)==='1'||document.getElementById('toolbox-release-overlay'))return;
     const overlay=document.createElement('div');overlay.id='toolbox-release-overlay';overlay.dataset.noExport='1';
     overlay.innerHTML=`<div id="toolbox-release-window" role="dialog" aria-modal="true" aria-labelledby="toolbox-release-title"><h2 id="toolbox-release-title">Co je nového — ${RELEASE}</h2><p>Aktualizace 20-20 TOOLBOX.</p><ul><li>Opravené porovnání PDF ve vysoké kvalitě s nativním PDF náhledem.</li><li>Okno „Co je nového“ je oddělené od dokumentačních nástrojů a neexportuje se do PDF.</li><li>Opravené zobrazování aktuální verze aplikace.</li><li>Seznam výkresů umí volitelné sloupce exportu.</li></ul><button type="button" id="toolbox-release-ok">Rozumím</button></div>`;
-    overlay.addEventListener('click',e=>{if(e.target===overlay)closeWhatsNew()});overlay.querySelector('#toolbox-release-ok').addEventListener('click',closeWhatsNew);document.body.appendChild(overlay);
+    overlay.addEventListener('click',e=>{if(e.target===overlay)closeWhatsNew()});
+    overlay.querySelector('#toolbox-release-ok').addEventListener('click',closeWhatsNew);
+    document.body.appendChild(overlay);
   }
 
-  function init(){injectStyle();removeLegacyWhatsNew();setVersion();showWhatsNew();setTimeout(()=>{removeLegacyWhatsNew();setVersion()},300);setTimeout(()=>setVersion(),1200)}
+  function init(){
+    injectStyle();
+    removeLegacyWhatsNew();
+    setVersion();
+    showWhatsNew();
+    setTimeout(()=>setVersion(),300);
+    setTimeout(()=>setVersion(),1200);
+  }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
