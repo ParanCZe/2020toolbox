@@ -73,7 +73,7 @@
   function loadPresentationLineEndpoints(){loadScriptOnce('presentation_line_endpoints_v339.js?v=339','presentation-line-endpoints-v339')}
   function loadCompareVisual(){loadScriptOnce('docs_compare_visual_v340.js?v=341','docs-compare-visual-v340')}
   function loadReleaseUI(){loadScriptOnce('release_ui_v341.js?v=344','release-ui-v341')}
-  function loadDrawingColumns(){loadScriptOnce('docs_drawing_columns_v342.js?v=344','docs-drawing-columns-v342')}
+  function loadDrawingColumns(){loadScriptOnce('docs_drawing_columns_v342.js?v=445','docs-drawing-columns-v342')}
 
   function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar();loadPresentationZoomSync();loadPresentationLineEndpoints()}
 
