@@ -15,14 +15,8 @@
   }
   function updateEl(el,o,g){
     el.style.left=(g.left+o.x*g.w)+'px';el.style.top=(g.top+o.y*g.h)+'px';el.style.width=(o.w*g.w)+'px';el.style.height=(o.h*g.h)+'px';
-    const tools=el.querySelector('.pm-mini-tools');if(tools){
-      requestAnimationFrame(()=>{
-        const er=el.getBoundingClientRect(),mr=document.getElementById('preview-main')?.getBoundingClientRect();if(!mr)return;
-        tools.style.top=er.top-32<mr.top?'4px':'-29px';
-        const tr=tools.getBoundingClientRect();
-        if(tr.right>mr.right)tools.style.left=Math.max(4,er.width-tr.width-4)+'px';else if(tr.left<mr.left)tools.style.left=(mr.left-er.left+4)+'px';else tools.style.left='-1px';
-      });
-    }
+    const tools=el.querySelector('.pm-mini-tools');
+    if(tools){tools.style.left='4px';tools.style.top='4px';tools.style.right='auto';tools.style.bottom='auto';}
   }
   function wire(el){
     if(el.dataset.snapV335==='1')return;el.dataset.snapV335='1';const o=objFor(el),g=geom();if(!o||!g)return;
@@ -50,8 +44,7 @@
     updateEl(el,o,g);
   }
   function decorate(){document.querySelectorAll('.presentation-media-item').forEach(wire)}
-  function syncAll(){const g=geom();if(!g)return;document.querySelectorAll('.presentation-media-item').forEach(el=>{const o=objFor(el);if(o)updateEl(el,o,g)})}
-  function css(){if(document.getElementById('presentation-media-snap-v335-style'))return;const s=document.createElement('style');s.id='presentation-media-snap-v335-style';s.textContent=`#canvas-container{overflow:visible!important}.presentation-media-item{overflow:visible!important}.presentation-media-item .pm-mini-tools{z-index:180!important}.presentation-media-item.selected{z-index:90!important}`;document.head.appendChild(s)}
-  function init(){css();decorate();const obs=new MutationObserver(decorate);obs.observe(document.documentElement,{childList:true,subtree:true});document.addEventListener('presentation-canvas-fitted',()=>setTimeout(syncAll,0));document.addEventListener('presentation-zoom-resynced',()=>setTimeout(syncAll,0));setInterval(decorate,600)}
+  function css(){if(document.getElementById('presentation-media-snap-v335-style'))return;const s=document.createElement('style');s.id='presentation-media-snap-v335-style';s.textContent=`#canvas-container{overflow:visible!important}.presentation-media-item{overflow:visible!important}.presentation-media-item .pm-mini-tools{z-index:180!important;left:4px!important;top:4px!important;right:auto!important;bottom:auto!important}.presentation-media-item.selected{z-index:90!important}`;document.head.appendChild(s)}
+  function init(){css();decorate();const obs=new MutationObserver(decorate);obs.observe(document.documentElement,{childList:true,subtree:true});document.addEventListener('presentation-canvas-fitted',()=>setTimeout(decorate,0));setInterval(decorate,600)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
