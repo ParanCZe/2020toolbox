@@ -96,6 +96,15 @@
   function wrapRender(){const fn=window.renderCurrentPagePreview;if(typeof fn!=='function'||fn.__pmWrapped)return;const w=async function(){const r=await fn.apply(this,arguments);await hydrate();return r};w.__pmWrapped=true;window.renderCurrentPagePreview=w}
 
   async function dataUrlBuffer(data){return fetch(data).then(r=>r.arrayBuffer())}
+
+  function drawMediaWithCrop(pg,o,x,y,width,height,draw){
+    const pts=o?.cropPoints;
+    if(!pts||pts.length<3){draw();return}
+    const ops=[PDFLib.pushGraphicsState(),PDFLib.moveTo(x+pts[0].x*width,y+(1-pts[0].y)*height)];
+    for(let i=1;i<pts.length;i++)ops.push(PDFLib.lineTo(x+pts[i].x*width,y+(1-pts[i].y)*height));
+    ops.push(PDFLib.closePath(),PDFLib.clip(),PDFLib.endPath());
+    pg.pushOperators(...ops);draw();pg.pushOperators(PDFLib.popGraphicsState());
+  }
   async function decoratePdf(pdf){
     const pages=pdf.getPages?.()||[];if(!pages.length)return;const count=Math.min(pages.length,Number((typeof totalPreviewPages!=='undefined'&&totalPreviewPages)||pages.length));
     for(let i=0;i<count;i++)for(const o of (STATE.byPage[i+1]||[])){
@@ -103,10 +112,10 @@
       try{
         if(o.kind==='pdf'){
           let source=o.sourceData;if(!source&&o.sourceRef&&typeof window.loadImageFromProject==='function')source=await window.loadImageFromProject(o.sourceRef);
-          if(source){const bytes=await dataUrlBuffer(source),embedded=await pdf.embedPdf(bytes,[Math.max(0,(o.sourcePage||1)-1)]);if(embedded?.[0]){pg.drawPage(embedded[0],{x,y,width,height});continue}}
+          if(source){const bytes=await dataUrlBuffer(source),embedded=await pdf.embedPdf(bytes,[Math.max(0,(o.sourcePage||1)-1)]);if(embedded?.[0]){drawMediaWithCrop(pg,o,x,y,width,height,()=>pg.drawPage(embedded[0],{x,y,width,height}));continue}}
         }
         let data=o.dataUrl;if(!data&&o.imageRef&&typeof window.loadImageFromProject==='function')data=await window.loadImageFromProject(o.imageRef);if(!data)continue;
-        const bytes=await dataUrlBuffer(data),img=data.startsWith('data:image/png')?await pdf.embedPng(bytes):await pdf.embedJpg(bytes);pg.drawImage(img,{x,y,width,height});
+        const bytes=await dataUrlBuffer(data),img=data.startsWith('data:image/png')?await pdf.embedPng(bytes):await pdf.embedJpg(bytes);drawMediaWithCrop(pg,o,x,y,width,height,()=>pg.drawImage(img,{x,y,width,height}));
       }catch(e){console.warn('Export vloženého média',e)}
     }
   }
