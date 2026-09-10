@@ -83,7 +83,12 @@
     const s=document.createElement('script');s.src='presentation_cover_sidebar_v336.js?v=336';s.dataset.presentationCoverSidebarV336='1';document.head.appendChild(s);
   }
 
-  function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar()}
+  function loadPresentationZoomSync(){
+    if(document.querySelector('script[data-presentation-zoom-sync-v337]'))return;
+    const s=document.createElement('script');s.src='presentation_zoom_sync_v337.js?v=337';s.dataset.presentationZoomSyncV337='1';document.head.appendChild(s);
+  }
+
+  function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar();loadPresentationZoomSync()}
 
   function init(){lockVersion();injectCss();addOverview();removeLegacyOperations();improveLabels();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras()},300);setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras()},1500)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
