@@ -37,12 +37,15 @@
     cancelAnimationFrame(fitRaf);fitRaf=requestAnimationFrame(()=>{
       const main=document.getElementById('preview-main'),canvas=document.getElementById('preview-canvas'),container=document.getElementById('canvas-container');
       if(!main||!canvas||!container||!canvas.width||!canvas.height)return;
-      const mr=main.getBoundingClientRect(),cr=container.getBoundingClientRect();
-      let top=cr.top;
-      if(!Number.isFinite(top)||top<mr.top)top=mr.top;
-      const footerGap=8;
-      const availH=Math.max(120,mr.bottom-top-footerGap);
-      const availW=Math.max(220,mr.width-8);
+      const mr=main.getBoundingClientRect();
+      const tools=main.querySelector('.preview-tools');
+      const info=document.getElementById('info-bar-page-tools');
+      let contentTop=mr.top;
+      if(tools){const r=tools.getBoundingClientRect();if(r.height>0)contentTop=Math.max(contentTop,r.bottom)}
+      if(info){const r=info.getBoundingClientRect();if(r.height>0)contentTop=Math.max(contentTop,r.bottom)}
+      contentTop+=8;
+      const availH=Math.max(180,mr.bottom-contentTop-6);
+      const availW=Math.max(320,mr.width-16);
       const sourceW=Number(canvas.width)||1,sourceH=Number(canvas.height)||1;
       const scale=Math.min(availW/sourceW,availH/sourceH);
       const cssW=Math.max(1,Math.floor(sourceW*scale));
@@ -51,9 +54,7 @@
       canvas.style.width=cssW+'px';canvas.style.height=cssH+'px';
       container.style.width=cssW+'px';container.style.height=cssH+'px';
       container.style.maxWidth=cssW+'px';container.style.maxHeight=cssH+'px';
-      if(Math.abs(oldW-cssW)>1||Math.abs(oldH-cssH)>1){
-        document.dispatchEvent(new CustomEvent('presentation-canvas-fitted',{detail:{width:cssW,height:cssH}}));
-      }
+      if(Math.abs(oldW-cssW)>1||Math.abs(oldH-cssH)>1){document.dispatchEvent(new CustomEvent('presentation-canvas-fitted',{detail:{width:cssW,height:cssH}}))}
     });
   }
   window.fitPresentationCanvas=fitCanvas;
