@@ -68,6 +68,18 @@
     const s=document.createElement('script');s.src='presentation_controls_hotfix_v334.js?v=334';s.dataset.presentationControlsV334='1';document.head.appendChild(s);
   }
 
-  function init(){lockVersion();injectCss();addOverview();removeLegacyOperations();improveLabels();loadPresentationMedia();loadPresentationControlsHotfix();setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix()},300);setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix()},1500)}
+  function loadPresentationCropModes(){
+    if(document.querySelector('script[data-presentation-crop-modes-v334]'))return;
+    const s=document.createElement('script');s.src='presentation_crop_modes_v334.js?v=334';s.dataset.presentationCropModesV334='1';document.head.appendChild(s);
+  }
+
+  function loadPresentationMediaSnap(){
+    if(document.querySelector('script[data-presentation-media-snap-v335]'))return;
+    const s=document.createElement('script');s.src='presentation_media_snap_v335.js?v=335';s.dataset.presentationMediaSnapV335='1';document.head.appendChild(s);
+  }
+
+  function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap()}
+
+  function init(){lockVersion();injectCss();addOverview();removeLegacyOperations();improveLabels();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras()},300);setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras()},1500)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
