@@ -1,5 +1,5 @@
 (()=>{
-  const APP_VERSION='V3.42';
+  const APP_VERSION='V3.43';
 
   function forceVersion(){
     const el=document.getElementById('app-version');
@@ -72,7 +72,7 @@
   function loadPresentationCoverWysiwyg(){loadScriptOnce('presentation_cover_wysiwyg_v338.js?v=338','presentation-cover-wysiwyg-v338')}
   function loadPresentationLineEndpoints(){loadScriptOnce('presentation_line_endpoints_v339.js?v=339','presentation-line-endpoints-v339')}
   function loadCompareVisual(){loadScriptOnce('docs_compare_visual_v340.js?v=341','docs-compare-visual-v340')}
-  function loadReleaseUI(){loadScriptOnce('release_ui_v341.js?v=342','release-ui-v341')}
+  function loadReleaseUI(){loadScriptOnce('release_ui_v341.js?v=343','release-ui-v341')}
   function loadDrawingColumns(){loadScriptOnce('docs_drawing_columns_v342.js?v=342','docs-drawing-columns-v342')}
 
   function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar();loadPresentationZoomSync();loadPresentationCoverWysiwyg();loadPresentationLineEndpoints()}
