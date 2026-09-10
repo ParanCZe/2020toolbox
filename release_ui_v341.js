@@ -1,5 +1,5 @@
 (()=>{
-  const RELEASE='V3.42';
+  const RELEASE='V3.43';
   const SEEN_KEY='toolbox.whatsnew.seen.'+RELEASE;
 
   function setVersion(){
@@ -41,7 +41,7 @@
   function showWhatsNew(){
     if(localStorage.getItem(SEEN_KEY)==='1'||document.getElementById('toolbox-release-overlay'))return;
     const overlay=document.createElement('div');overlay.id='toolbox-release-overlay';overlay.dataset.noExport='1';
-    overlay.innerHTML=`<div id="toolbox-release-window" role="dialog" aria-modal="true" aria-labelledby="toolbox-release-title"><h2 id="toolbox-release-title">Co je nového — ${RELEASE}</h2><p>Aktualizace 20-20 TOOLBOX.</p><ul><li>Opravené porovnání PDF ve vysoké kvalitě s nativním PDF náhledem.</li><li>Okno „Co je nového“ je oddělené od dokumentačních nástrojů a neexportuje se do PDF.</li><li>Opravené zobrazování aktuální verze aplikace.</li><li>Seznam výkresů umí volitelné sloupce exportu.</li></ul><button type="button" id="toolbox-release-ok">Rozumím</button></div>`;
+    overlay.innerHTML=`<div id="toolbox-release-window" role="dialog" aria-modal="true" aria-labelledby="toolbox-release-title"><h2 id="toolbox-release-title">Co je nového — ${RELEASE}</h2><p>Aktualizace 20-20 TOOLBOX.</p><ul><li>Opravené porovnání PDF ve vysoké kvalitě s nativním PDF náhledem.</li><li>Okno „Co je nového“ je oddělené od dokumentačních nástrojů a neexportuje se do PDF.</li><li>Opravené zobrazování aktuální verze aplikace.</li><li>Seznam výkresů umí volitelné sloupce exportu.</li><li>Opravené samovolné zmizení obsahu okna „Co je nového“.</li></ul><button type="button" id="toolbox-release-ok">Rozumím</button></div>`;
     overlay.addEventListener('click',e=>{if(e.target===overlay)closeWhatsNew()});
     overlay.querySelector('#toolbox-release-ok').addEventListener('click',closeWhatsNew);
     document.body.appendChild(overlay);
