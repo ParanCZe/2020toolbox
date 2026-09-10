@@ -14,23 +14,22 @@
   function installPrintCss(){if(document.getElementById('drawing-columns-v342-style'))return;const st=document.createElement('style');st.id='drawing-columns-v342-style';st.textContent='@media print{#drawing-columns-v342,[data-no-export="1"]{display:none!important}}';document.head.appendChild(st)}
   function installPdfExport(){
     window.printDrawingList=function(){
-      const defs=[
-        ['Poř.',(x,n)=>n],['List',x=>x.pageCount>1?`${x.page}/${x.pageCount}`:'1'],['Číslo výkresu',x=>x.number],['Název výkresu',x=>x.title],['Měřítko',x=>x.scale],['Stupeň dokumentace',x=>x.documentationStage||''],['Formát',x=>x.format]
-      ].filter(([label])=>state[label]!==false);
+      const defs=[['Poř.',(x,n)=>n],['List',x=>x.pageCount>1?`${x.page}/${x.pageCount}`:'1'],['Číslo výkresu',x=>x.number],['Název výkresu',x=>x.title],['Měřítko',x=>x.scale],['Stupeň dokumentace',x=>x.documentationStage||''],['Formát',x=>x.format]].filter(([label])=>state[label]!==false);
       if(!defs.length){alert('Vyberte alespoň jeden sloupec pro PDF.');return}
-      let order=0,rows='';
-      const groups=typeof window.drawingGroupsWithIndices==='function'?window.drawingGroupsWithIndices():new Map();
-      for(const [group,entries] of groups){
-        rows+=`<tr class="section"><td colspan="${defs.length}">${esc(group)}</td></tr>`;
-        for(const {row:x} of entries){order++;rows+='<tr>'+defs.map(([,get])=>`<td>${esc(get(x,order))}</td>`).join('')+'</tr>'}
-      }
+      let order=0,rows='';const groups=typeof window.drawingGroupsWithIndices==='function'?window.drawingGroupsWithIndices():new Map();
+      for(const [group,entries] of groups){rows+=`<tr class="section"><td colspan="${defs.length}">${esc(group)}</td></tr>`;for(const {row:x} of entries){order++;rows+='<tr>'+defs.map(([,get])=>`<td>${esc(get(x,order))}</td>`).join('')+'</tr>'}}
       const w=window.open('','_blank');if(!w){alert('Prohlížeč zablokoval nové okno. Povolte vyskakovací okna pro tisk.');return}
       const head=defs.map(([label])=>`<th>${esc(label)}</th>`).join('');
-      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Seznam výkresů</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}.section td{background:#f3ef99;font-weight:bold;font-size:12px;padding-top:8px;padding-bottom:8px}@media print{body{margin:10mm}}</style></head><body><h1>Seznam výkresů</h1><table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);
-      w.document.close();
+      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Seznam výkresů</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}.section td{background:#f3ef99;font-weight:bold;font-size:12px;padding-top:8px;padding-bottom:8px}@media print{body{margin:10mm}}</style></head><body><h1>Seznam výkresů</h1><table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
     };
   }
   function sync(){installPrintCss();installUI();apply();installPdfExport()}
-  function init(){sync();setTimeout(sync,350);setTimeout(sync,1200);document.addEventListener('click',e=>{if(e.target.closest?.('[data-doc-tab="drawinglist"],[data-go="drawinglist"]'))setTimeout(sync,80)},true)}
+  function installRenderHook(){
+    const fn=window.renderDrawingList;
+    if(typeof fn!=='function'||fn.__drawingColumnsHooked)return;
+    const wrapped=function(...args){const result=fn.apply(this,args);setTimeout(sync,0);return result};
+    wrapped.__drawingColumnsHooked=true;window.renderDrawingList=wrapped;
+  }
+  function init(){sync();installRenderHook();setTimeout(()=>{sync();installRenderHook()},350);setTimeout(()=>{sync();installRenderHook()},1200);document.addEventListener('click',e=>{if(e.target.closest?.('[data-doc-tab="drawinglist"],[data-go="drawinglist"]'))setTimeout(sync,80)},true)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
