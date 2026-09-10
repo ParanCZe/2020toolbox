@@ -23,8 +23,22 @@ repl2="    if (renderToken !== window.__thumbRenderToken) return;\n    sidebar.a
 if needle2 in s:
     s=s.replace(needle2,repl2,1);changed=True
 
-if not changed:
-    print('V3.32 patch already applied or anchors not found')
-else:
+loader='<script src="presentation_editor_v332.js?v=332"></script>'
+anchor='<script src="sketchup_extension_button_v330.js?v=330"></script>'
+if loader not in s and anchor in s:
+    s=s.replace(anchor,anchor+'\n'+loader,1);changed=True
+
+checks=[
+    'window.getInfoBarNorthAngle?window.getInfoBarNorthAngle(pageNumber)',
+    'window.__thumbRenderToken',
+    'presentation_editor_v332.js?v=332'
+]
+missing=[x for x in checks if x not in s]
+if missing:
+    raise SystemExit('V3.32 patch incomplete: '+', '.join(missing))
+
+if changed:
     p.write_text(s,encoding='utf-8')
     print('V3.32 presentation editor patch applied')
+else:
+    print('V3.32 patch already applied')
