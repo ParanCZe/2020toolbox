@@ -58,38 +58,23 @@
     const cmp=document.querySelector('#docs-compare>.muted');if(cmp)cmp.textContent='Nahraj starší a novější revizi. Nástroj je zarovná do stejného měřítka a zobrazí rozdíly; vhodné pro rychlou kontrolu změn výkresu, ne jako náhrada autorské kontroly.';
   }
 
-  function loadPresentationMedia(){
-    if(document.querySelector('script[data-presentation-media-v331]'))return;
-    const s=document.createElement('script');s.src='presentation_media_v331.js?v=331';s.dataset.presentationMediaV331='1';document.head.appendChild(s);
+  function loadScriptOnce(src,key){
+    if(document.querySelector(`script[data-${key}]`))return;
+    const s=document.createElement('script');s.src=src;s.setAttribute(`data-${key}`,'1');document.head.appendChild(s);
   }
 
-  function loadPresentationControlsHotfix(){
-    if(document.querySelector('script[data-presentation-controls-v334]'))return;
-    const s=document.createElement('script');s.src='presentation_controls_hotfix_v334.js?v=334';s.dataset.presentationControlsV334='1';document.head.appendChild(s);
-  }
+  function loadPresentationMedia(){loadScriptOnce('presentation_media_v331.js?v=331','presentation-media-v331')}
+  function loadPresentationControlsHotfix(){loadScriptOnce('presentation_controls_hotfix_v334.js?v=334','presentation-controls-v334')}
+  function loadPresentationCropModes(){loadScriptOnce('presentation_crop_modes_v334.js?v=334','presentation-crop-modes-v334')}
+  function loadPresentationMediaSnap(){loadScriptOnce('presentation_media_snap_v335.js?v=335','presentation-media-snap-v335')}
+  function loadPresentationCoverSidebar(){loadScriptOnce('presentation_cover_sidebar_v336.js?v=336','presentation-cover-sidebar-v336')}
+  function loadPresentationZoomSync(){loadScriptOnce('presentation_zoom_sync_v337.js?v=337','presentation-zoom-sync-v337')}
+  function loadPresentationCoverWysiwyg(){loadScriptOnce('presentation_cover_wysiwyg_v338.js?v=338','presentation-cover-wysiwyg-v338')}
+  function loadPresentationLineEndpoints(){loadScriptOnce('presentation_line_endpoints_v339.js?v=339','presentation-line-endpoints-v339')}
+  function loadCompareVisual(){loadScriptOnce('docs_compare_visual_v340.js?v=340','docs-compare-visual-v340')}
 
-  function loadPresentationCropModes(){
-    if(document.querySelector('script[data-presentation-crop-modes-v334]'))return;
-    const s=document.createElement('script');s.src='presentation_crop_modes_v334.js?v=334';s.dataset.presentationCropModesV334='1';document.head.appendChild(s);
-  }
+  function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar();loadPresentationZoomSync();loadPresentationCoverWysiwyg();loadPresentationLineEndpoints()}
 
-  function loadPresentationMediaSnap(){
-    if(document.querySelector('script[data-presentation-media-snap-v335]'))return;
-    const s=document.createElement('script');s.src='presentation_media_snap_v335.js?v=335';s.dataset.presentationMediaSnapV335='1';document.head.appendChild(s);
-  }
-
-  function loadPresentationCoverSidebar(){
-    if(document.querySelector('script[data-presentation-cover-sidebar-v336]'))return;
-    const s=document.createElement('script');s.src='presentation_cover_sidebar_v336.js?v=336';s.dataset.presentationCoverSidebarV336='1';document.head.appendChild(s);
-  }
-
-  function loadPresentationZoomSync(){
-    if(document.querySelector('script[data-presentation-zoom-sync-v337]'))return;
-    const s=document.createElement('script');s.src='presentation_zoom_sync_v337.js?v=337';s.dataset.presentationZoomSyncV337='1';document.head.appendChild(s);
-  }
-
-  function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar();loadPresentationZoomSync()}
-
-  function init(){lockVersion();injectCss();addOverview();removeLegacyOperations();improveLabels();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras()},300);setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras()},1500)}
+  function init(){lockVersion();injectCss();addOverview();removeLegacyOperations();improveLabels();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadCompareVisual();setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadCompareVisual()},300);setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadCompareVisual()},1500)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
