@@ -58,6 +58,11 @@
     const cmp=document.querySelector('#docs-compare>.muted');if(cmp)cmp.textContent='Nahraj starší a novější revizi. Nástroj je zarovná do stejného měřítka a zobrazí rozdíly; vhodné pro rychlou kontrolu změn výkresu, ne jako náhrada autorské kontroly.';
   }
 
-  function init(){lockVersion();injectCss();addOverview();removeLegacyOperations();improveLabels();setTimeout(()=>{lockVersion();removeLegacyOperations()},300);setTimeout(()=>{lockVersion();removeLegacyOperations()},1500)}
+  function loadPresentationMedia(){
+    if(document.querySelector('script[data-presentation-media-v331]'))return;
+    const s=document.createElement('script');s.src='presentation_media_v331.js?v=331';s.dataset.presentationMediaV331='1';document.head.appendChild(s);
+  }
+
+  function init(){lockVersion();injectCss();addOverview();removeLegacyOperations();improveLabels();loadPresentationMedia();setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia()},300);setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia()},1500)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
