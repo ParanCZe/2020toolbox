@@ -71,7 +71,7 @@
   function loadPresentationZoomSync(){loadScriptOnce('presentation_zoom_sync_v337.js?v=337','presentation-zoom-sync-v337')}
   function loadPresentationCoverWysiwyg(){loadScriptOnce('presentation_cover_wysiwyg_v338.js?v=338','presentation-cover-wysiwyg-v338')}
   function loadPresentationLineEndpoints(){loadScriptOnce('presentation_line_endpoints_v339.js?v=339','presentation-line-endpoints-v339')}
-  function loadCompareVisual(){loadScriptOnce('docs_compare_visual_v340.js?v=340','docs-compare-visual-v340')}
+  function loadCompareVisual(){loadScriptOnce('docs_compare_visual_v340.js?v=341','docs-compare-visual-v340')}
 
   function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar();loadPresentationZoomSync();loadPresentationCoverWysiwyg();loadPresentationLineEndpoints()}
 
