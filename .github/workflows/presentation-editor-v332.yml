@@ -1,11 +1,14 @@
-name: Presentation Editor V3.32
+name: Presentation Editor V3.33
 
 on:
   push:
     branches: [main]
     paths:
       - presentation_editor_v332.js
+      - presentation_media_v331.js
+      - presentation_source_crop_v333.js
       - tools/patch_presentation_editor_v332.py
+      - tools/patch_presentation_sources_crop_v333.py
       - .github/workflows/presentation-editor-v332.yml
   workflow_dispatch:
 
@@ -17,18 +20,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch presentation editor
+      - name: Patch presentation editor base
         run: python tools/patch_presentation_editor_v332.py
+      - name: Patch sources and vector crop
+        run: python tools/patch_presentation_sources_crop_v333.py
       - name: Verify
         run: |
           grep -q 'presentation_editor_v332.js?v=332' index.html
+          grep -q 'presentation_source_crop_v333.js?v=333' index.html
           grep -q 'window.__thumbRenderToken' index.html
           grep -q 'getInfoBarNorthAngle(pageNumber)' index.html
-      - name: Commit generated index
+          grep -q 'drawMediaWithCrop' presentation_media_v331.js
+          grep -q 'cell.cropPoints && cell.cropPoints.length >= 3' index.html
+      - name: Commit generated presentation runtime
         run: |
           git config user.name '20-20 Presentation Builder'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html
+          git add index.html presentation_media_v331.js
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'V3.32 per-page north, stable thumbnails and fullscreen editor'
+          git commit -m 'V3.33 linked sources, reload, relink and vector crop'
           git push origin main
