@@ -37,7 +37,7 @@
   }
 
   function pick(){document.getElementById('presentation-media-input')?.click()}
-  function pageNo(){return Number(window.currentPreviewPage||1)}
+  function pageNo(){return Number((typeof currentPreviewPage!=='undefined'&&currentPreviewPage)||1)}
   function arr(p=pageNo()){return STATE.byPage[p]||(STATE.byPage[p]=[])}
 
   async function onFile(e){
@@ -64,7 +64,7 @@
   async function addMedia(dataUrl,w,h,name){
     const p=pageNo(),ratio=w/Math.max(1,h),ww=.42,hh=Math.min(.7,ww/ratio),finalW=hh*ratio;
     const obj={id:'pm_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),x:(1-finalW)/2,y:(1-hh)/2,w:finalW,h:hh,name:name||'vložený soubor',dataUrl,imageRef:null};
-    if(typeof window.saveImageToProject==='function'&&window.currentProjectName){try{obj.imageRef=await window.saveImageToProject(`presentation_media_${Date.now()}.png`,dataUrl)}catch(e){console.warn(e)}}
+    if(typeof window.saveImageToProject==='function'&&typeof currentProjectName!=='undefined'&&currentProjectName){try{obj.imageRef=await window.saveImageToProject(`presentation_media_${Date.now()}.png`,dataUrl)}catch(e){console.warn(e)}}
     arr(p).push(obj);await persist();render();
   }
 
@@ -91,7 +91,7 @@
   function wrapRender(){const fn=window.renderCurrentPagePreview;if(typeof fn!=='function'||fn.__pmWrapped)return;const w=async function(){const r=await fn.apply(this,arguments);await hydrate();return r};w.__pmWrapped=true;window.renderCurrentPagePreview=w}
 
   async function decoratePdf(pdf){
-    const pages=pdf.getPages?.()||[];if(!pages.length)return;const count=Math.min(pages.length,Number(window.totalPreviewPages||pages.length));
+    const pages=pdf.getPages?.()||[];if(!pages.length)return;const count=Math.min(pages.length,Number((typeof totalPreviewPages!=='undefined'&&totalPreviewPages)||pages.length));
     for(let i=0;i<count;i++)for(const o of (STATE.byPage[i+1]||[])){
       let data=o.dataUrl;if(!data&&o.imageRef&&typeof window.loadImageFromProject==='function')data=await window.loadImageFromProject(o.imageRef);if(!data)continue;
       try{const bytes=await fetch(data).then(r=>r.arrayBuffer()),img=data.startsWith('data:image/png')?await pdf.embedPng(bytes):await pdf.embedJpg(bytes),pg=pages[i],sz=pg.getSize();pg.drawImage(img,{x:o.x*sz.width,y:(1-o.y-o.h)*sz.height,width:o.w*sz.width,height:o.h*sz.height})}catch(e){console.warn('Export vloženého média',e)}
