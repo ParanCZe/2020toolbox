@@ -9,9 +9,7 @@
   function snap(v,target,tol){return Math.abs(v-target)<=tol?target:v}
   function snapMove(o,x,y,g){
     const tx=SNAP_PX/g.w,ty=SNAP_PX/g.h;
-    // left edge to page left/right, right edge to page left/right
     for(const t of [0,1,-o.w,1-o.w])x=snap(x,t,tx);
-    // top edge to page top/bottom, bottom edge to page top/bottom
     for(const t of [0,1,-o.h,1-o.h])y=snap(y,t,ty);
     return{x,y};
   }
@@ -42,9 +40,9 @@
         const tx=SNAP_PX/g.w,ty=SNAP_PX/g.h;
         const right=o.x+w,bottom=o.y+h;
         if(Math.abs(right-1)<=tx){w=1-o.x;h=(w*g.w/aspect)/g.h}
-        else if(Math.abs(right-0)<=tx){w=Math.max(.02,-o.x);h=(w*g.w/aspect)/g.h}
+        else if(Math.abs(right)<=tx){w=Math.max(.02,-o.x);h=(w*g.w/aspect)/g.h}
         if(Math.abs(bottom-1)<=ty){h=1-o.y;w=(h*g.h*aspect)/g.w}
-        else if(Math.abs(bottom-0)<=ty){h=Math.max(.02,-o.y);w=(h*g.h*aspect)/g.w}
+        else if(Math.abs(bottom)<=ty){h=Math.max(.02,-o.y);w=(h*g.h*aspect)/g.w}
         o.w=Math.max(.02,w);o.h=Math.max(.02,h);updateEl(el,o,g);
       };
       const end=()=>{rz.onpointermove=null;rz.onpointerup=null;rz.onpointercancel=null;persist()};rz.onpointerup=end;rz.onpointercancel=end;
@@ -52,7 +50,8 @@
     updateEl(el,o,g);
   }
   function decorate(){document.querySelectorAll('.presentation-media-item').forEach(wire)}
+  function syncAll(){const g=geom();if(!g)return;document.querySelectorAll('.presentation-media-item').forEach(el=>{const o=objFor(el);if(o)updateEl(el,o,g)})}
   function css(){if(document.getElementById('presentation-media-snap-v335-style'))return;const s=document.createElement('style');s.id='presentation-media-snap-v335-style';s.textContent=`#canvas-container{overflow:visible!important}.presentation-media-item{overflow:visible!important}.presentation-media-item .pm-mini-tools{z-index:180!important}.presentation-media-item.selected{z-index:90!important}`;document.head.appendChild(s)}
-  function init(){css();decorate();const obs=new MutationObserver(decorate);obs.observe(document.documentElement,{childList:true,subtree:true});document.addEventListener('presentation-canvas-fitted',()=>setTimeout(decorate,0));setInterval(decorate,600)}
+  function init(){css();decorate();const obs=new MutationObserver(decorate);obs.observe(document.documentElement,{childList:true,subtree:true});document.addEventListener('presentation-canvas-fitted',()=>setTimeout(syncAll,0));document.addEventListener('presentation-zoom-resynced',()=>setTimeout(syncAll,0));setInterval(decorate,600)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
