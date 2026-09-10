@@ -22,13 +22,14 @@
       const head=defs.map(([label])=>`<th>${esc(label)}</th>`).join('');
       w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Seznam výkresů</title><style>
         body{font-family:Arial,sans-serif;margin:24px;color:#111}
-        .sheet{width:88%;max-width:720px;margin:0 auto}
-        h1{font-size:20px;margin:0 0 12px}
-        table{width:100%;border-collapse:collapse;border-spacing:0;font-size:11px}
-        th,td{border:0!important;padding:4px 8px;text-align:left;vertical-align:top}
-        th{background:transparent!important;font-weight:700;padding-bottom:7px}
-        .section td{background:transparent!important;font-weight:700;font-size:12px;padding-top:11px;padding-bottom:5px}
-        @media print{body{margin:10mm}.sheet{width:88%;max-width:none}}
+        .sheet{width:74%;max-width:620px;margin:0 auto}
+        h1{font-size:20px;margin:0 0 14px}
+        table{width:100%;border:0!important;border-collapse:separate;border-spacing:0;font-size:11px}
+        table,thead,tbody,tr,th,td{border:none!important;outline:none!important;box-shadow:none!important;background:transparent!important}
+        th,td{padding:3px 7px;text-align:left;vertical-align:top}
+        th{font-weight:700;padding-bottom:8px}
+        .section td{font-weight:700;font-size:12px;padding-top:12px;padding-bottom:5px}
+        @media print{body{margin:10mm}.sheet{width:74%;max-width:none}}
       </style></head><body><div class="sheet"><h1>Seznam výkresů</h1><table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
     };
   }
