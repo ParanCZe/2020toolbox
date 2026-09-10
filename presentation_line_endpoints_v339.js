@@ -2,7 +2,15 @@
   function pageNo(){return Number((typeof currentPreviewPage!=='undefined'&&currentPreviewPage)||1)}
   function items(){const d=(typeof allPagesTexts!=='undefined'&&allPagesTexts[pageNo()])||[];return Array.isArray(d)?d:[]}
   function getLine(el){return items().find(x=>x.type==='line'&&String(x.id)===String(el.dataset.id))}
-  function save(){try{scheduleAutosave?.();persistProjectStructureNow?.()}catch(e){console.warn(e)}}
+  function persistLine(b){
+    try{
+      const list=items(),stored=list.find(x=>x.type==='line'&&String(x.id)===String(b.id));
+      if(stored&&stored!==b)Object.assign(stored,b);
+      if(typeof saveCurrentPageBoxes==='function')saveCurrentPageBoxes();
+      if(typeof scheduleAutosave==='function')scheduleAutosave();
+      if(typeof persistProjectStructureNow==='function')Promise.resolve(persistProjectStructureNow()).catch(e=>console.warn('Uložení délky čáry selhalo',e));
+    }catch(e){console.warn('Uložení délky čáry selhalo',e)}
+  }
   function css(){if(document.getElementById('presentation-line-endpoints-v339-style'))return;const s=document.createElement('style');s.id='presentation-line-endpoints-v339-style';s.textContent=`
     .line-end-handle-v339{position:absolute;width:12px;height:12px;border:2px solid #2563eb;background:#fff;border-radius:50%;z-index:45;display:none;box-sizing:border-box;touch-action:none}
     .custom-text-box.selected .line-end-handle-v339{display:block}
@@ -33,9 +41,15 @@
             el.style.height=(b.height*sy)+'px';
             el.style.top=((info.height-startY-b.height)*sy)+'px';
           }
-          const inp=el.querySelector('.tb-controls input');if(inp)inp.value=Math.round(b.height);
+          const inp=el.querySelector('.tb-controls input');if(inp)inp.value=String(Math.round(b.height));
+          if(typeof scheduleAutosave==='function')scheduleAutosave();
         };
-        const end=()=>{h.onpointermove=null;h.onpointerup=null;h.onpointercancel=null;save()};h.onpointerup=end;h.onpointercancel=end;
+        const end=()=>{
+          h.onpointermove=null;h.onpointerup=null;h.onpointercancel=null;
+          const inp=el.querySelector('.tb-controls input');if(inp)inp.value=String(Math.round(b.height));
+          persistLine(b);
+        };
+        h.onpointerup=end;h.onpointercancel=end;
       };
     })
   }
