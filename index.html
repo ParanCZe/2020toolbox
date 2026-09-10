@@ -4944,7 +4944,7 @@ function drawArchitectInfoBarCanvas(ctx, width, height, scale, pageNumber) {
   if ((cfg.text || '').trim()) fillVisualCenter(cfg.text,62*scale,(y+10)*scale);
   ctx.font=`${ARCH_DATE_TEXT_PT*scale}px "${editorFontFamily}"`;
   fillVisualCenter(formatArchitectDate(document.getElementById('panelDate').value),62*scale,(y+24)*scale);
-  if(cfg.rightMode==='scale') drawScaleNorthCanvas(ctx,width,y,barHeight,scale,cfg.scale,Number(document.getElementById('northAngle').value)||0,cfg.scaleStyle||'ticks',document.getElementById('northStyle').value||'circle');
+  if(cfg.rightMode==='scale') drawScaleNorthCanvas(ctx,width,y,barHeight,scale,cfg.scale,(window.getInfoBarNorthAngle?window.getInfoBarNorthAngle(pageNumber):(Number(document.getElementById('northAngle').value)||0)),cfg.scaleStyle||'ticks',document.getElementById('northStyle').value||'circle');
   else { ctx.textAlign='center'; ctx.font=`bold ${ARCH_OFFICE_TEXT_PT*scale}px "${editorFontFamily}"`; fillVisualCenter('20-20-ARCHITEKTI',(width-130)*scale,(y+barHeight/2)*scale); }
   ctx.restore();
 }
@@ -5329,6 +5329,7 @@ function rotateLine(b) {
 let dragSourcePage = null;
 
 async function renderThumbnails() {
+  const renderToken = (window.__thumbRenderToken = (window.__thumbRenderToken || 0) + 1);
   const sidebar = document.getElementById('thumbs-sidebar');
   if (!sidebar) return;
   if (!pdfJsDoc) { sidebar.innerHTML = ''; return; }
@@ -5468,6 +5469,7 @@ async function renderThumbnails() {
       await renderThumbnails();
     });
 
+    if (renderToken !== window.__thumbRenderToken) return;
     sidebar.appendChild(wrap);
   }
 }
@@ -5873,7 +5875,7 @@ async function runPanel(fromModal = false){
       if(northStyle!=='arrow') page.drawCircle({x:nx,y:ny,size:r,borderColor:textColor,borderWidth:.85});
       // Přímý výpočet vrcholů v PDF souřadnicích: 0° = sever, 90° = východ.
       // Nepoužívá SVG transformaci, takže nemůže dojít k zrcadlení osy X.
-      const arrowAngle=(Number(document.getElementById('northAngle').value)||0)*Math.PI/180;
+      const arrowAngle=(window.getInfoBarNorthAngle?window.getInfoBarNorthAngle(pageNumber):(Number(document.getElementById('northAngle').value)||0))*Math.PI/180;
       const dx=Math.sin(arrowAngle), dy=Math.cos(arrowAngle);
       const px=Math.cos(arrowAngle), py=-Math.sin(arrowAngle);
       const tip={x:nx+dx*(r-2),y:ny+dy*(r-2)};
@@ -8363,6 +8365,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>check3DPrintPrus
 <script src="docs_textcheck_web_v323.js?v=323"></script>
 <script src="modeler_launcher_v325.js?v=325"></script>
 <script src="sketchup_extension_button_v330.js?v=330"></script>
+<script src="presentation_editor_v332.js?v=332"></script>
 </body>
 </html>
 
