@@ -78,7 +78,12 @@
     const s=document.createElement('script');s.src='presentation_media_snap_v335.js?v=335';s.dataset.presentationMediaSnapV335='1';document.head.appendChild(s);
   }
 
-  function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap()}
+  function loadPresentationCoverSidebar(){
+    if(document.querySelector('script[data-presentation-cover-sidebar-v336]'))return;
+    const s=document.createElement('script');s.src='presentation_cover_sidebar_v336.js?v=336';s.dataset.presentationCoverSidebarV336='1';document.head.appendChild(s);
+  }
+
+  function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar()}
 
   function init(){lockVersion();injectCss();addOverview();removeLegacyOperations();improveLabels();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras()},300);setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras()},1500)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
