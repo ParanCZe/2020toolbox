@@ -20,16 +20,20 @@
       for(const [group,entries] of groups){rows+=`<tr class="section"><td colspan="${defs.length}">${esc(group)}</td></tr>`;for(const {row:x} of entries){order++;rows+='<tr>'+defs.map(([,get])=>`<td>${esc(get(x,order))}</td>`).join('')+'</tr>'}}
       const w=window.open('','_blank');if(!w){alert('Prohlížeč zablokoval nové okno. Povolte vyskakovací okna pro tisk.');return}
       const head=defs.map(([label])=>`<th>${esc(label)}</th>`).join('');
-      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Seznam výkresů</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:20px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}.section td{background:#f3ef99;font-weight:bold;font-size:12px;padding-top:8px;padding-bottom:8px}@media print{body{margin:10mm}}</style></head><body><h1>Seznam výkresů</h1><table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
+      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Seznam výkresů</title><style>
+        body{font-family:Arial,sans-serif;margin:24px;color:#111}
+        .sheet{width:88%;max-width:720px;margin:0 auto}
+        h1{font-size:20px;margin:0 0 12px}
+        table{width:100%;border-collapse:collapse;border-spacing:0;font-size:11px}
+        th,td{border:0!important;padding:4px 8px;text-align:left;vertical-align:top}
+        th{background:transparent!important;font-weight:700;padding-bottom:7px}
+        .section td{background:transparent!important;font-weight:700;font-size:12px;padding-top:11px;padding-bottom:5px}
+        @media print{body{margin:10mm}.sheet{width:88%;max-width:none}}
+      </style></head><body><div class="sheet"><h1>Seznam výkresů</h1><table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
     };
   }
   function sync(){installPrintCss();installUI();apply();installPdfExport()}
-  function installRenderHook(){
-    const fn=window.renderDrawingList;
-    if(typeof fn!=='function'||fn.__drawingColumnsHooked)return;
-    const wrapped=function(...args){const result=fn.apply(this,args);setTimeout(sync,0);return result};
-    wrapped.__drawingColumnsHooked=true;window.renderDrawingList=wrapped;
-  }
+  function installRenderHook(){const fn=window.renderDrawingList;if(typeof fn!=='function'||fn.__drawingColumnsHooked)return;const wrapped=function(...args){const result=fn.apply(this,args);setTimeout(sync,0);return result};wrapped.__drawingColumnsHooked=true;window.renderDrawingList=wrapped}
   function init(){sync();installRenderHook();setTimeout(()=>{sync();installRenderHook()},350);setTimeout(()=>{sync();installRenderHook()},1200);document.addEventListener('click',e=>{if(e.target.closest?.('[data-doc-tab="drawinglist"],[data-go="drawinglist"]'))setTimeout(sync,80)},true)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
