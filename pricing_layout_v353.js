@@ -4,8 +4,7 @@
     if(!root)return;
     if(!document.getElementById('pricing-layout-v353-style')){
       const s=document.createElement('style');s.id='pricing-layout-v353-style';s.textContent=`
-        #tool-pricing .pricing-settings{grid-template-columns:1.3fr 1fr .65fr .7fr!important}
-        #tool-pricing .pricing-settings label:has(#pr-default-rate){display:none!important}
+        #tool-pricing .pricing-settings{grid-template-columns:1.3fr 1fr .65fr .65fr .7fr!important}
         #tool-pricing .pricing-columns,#tool-pricing .pricing-row{grid-template-columns:34px 52px minmax(280px,1fr) 82px 112px 120px 64px 30px!important;gap:7px!important;align-items:center}
         #tool-pricing .pricing-row .pr-name{width:100%;min-width:0}
         #tool-pricing .pricing-row .pr-qty{width:100%;min-width:0}
