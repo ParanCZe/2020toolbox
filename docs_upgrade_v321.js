@@ -77,7 +77,7 @@
   function loadPricingOffer(){loadScriptOnce('pricing_offer_v345.js?v=349','pricing-offer-v349')}
   function loadPricingProfessionTemplate(){loadScriptOnce('pricing_profession_template_v349.js?v=349','pricing-profession-template-v349')}
   function loadPricingRowRates(){loadScriptOnce('pricing_row_rates_v352.js?v=352','pricing-row-rates-v352')}
-  function loadPricingLayout(){loadScriptOnce('pricing_layout_v353.js?v=353','pricing-layout-v353')}
+  function loadPricingLayout(){loadScriptOnce('pricing_layout_v353.js?v=356fix','pricing-layout-v353')}
   function loadPricingChoices(){loadScriptOnce('pricing_section_choices_v354.js?v=3542','pricing-section-choices-v354')}
   function loadPricingExport(){loadScriptOnce('pricing_export_v353.js?v=3542','pricing-export-v353')}
 
