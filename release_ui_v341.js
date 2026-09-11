@@ -1,5 +1,5 @@
 (()=>{
-  const RELEASE='V3.54';
+  const RELEASE='V3.55';
   const SEEN_KEY='toolbox.whatsnew.seen.'+RELEASE;
 
   function setVersion(){
@@ -41,7 +41,7 @@
   function showWhatsNew(){
     if(localStorage.getItem(SEEN_KEY)==='1'||document.getElementById('toolbox-release-overlay'))return;
     const overlay=document.createElement('div');overlay.id='toolbox-release-overlay';overlay.dataset.noExport='1';
-    overlay.innerHTML=`<div id="toolbox-release-window" role="dialog" aria-modal="true" aria-labelledby="toolbox-release-title"><h2 id="toolbox-release-title">Co je nového — ${RELEASE}</h2><p>Aktualizace 20-20 TOOLBOX.</p><ul><li>Cenová nabídka má nové tlačítko Přidat sekci s výběrem STUDIE, DSP, DPS, AD, PROFESE, INŽENÝRING nebo vlastní sekce.</li><li>Každý řádek má výběr přednastavených položek podle typu sekce a volbu Vlastní.</li><li>Sloupec Rozsah služby byl odstraněn a sazba/cena jsou srovnané do správných sloupců.</li><li>Export používá stejné zjednodušené členění a počítanou cenu bez DPH v samostatném sloupci.</li></ul><button type="button" id="toolbox-release-ok">Rozumím</button></div>`;
+    overlay.innerHTML=`<div id="toolbox-release-window" role="dialog" aria-modal="true" aria-labelledby="toolbox-release-title"><h2 id="toolbox-release-title">Co je nového — ${RELEASE}</h2><p>Aktualizace 20-20 TOOLBOX.</p><ul><li>Do výběru sekcí v Cenové nabídce přibyly ARCHITEKTONICKÉ PRÁCE.</li><li>Architektonické práce mají vlastní sadu přednastavených řádků z pracovních balíčků používaných v šablonách.</li><li>Každá sekce dál obsahuje vlastní choice položek a možnost Vlastní…</li><li>Výchozí hodinová sazba v horním nastavení zůstává zachovaná.</li></ul><button type="button" id="toolbox-release-ok">Rozumím</button></div>`;
     overlay.addEventListener('click',e=>{if(e.target===overlay)closeWhatsNew()});
     overlay.querySelector('#toolbox-release-ok').addEventListener('click',closeWhatsNew);
     document.body.appendChild(overlay);
