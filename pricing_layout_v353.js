@@ -4,6 +4,8 @@
     if(!root)return;
     if(!document.getElementById('pricing-layout-v353-style')){
       const s=document.createElement('style');s.id='pricing-layout-v353-style';s.textContent=`
+        #tool-pricing .pricing-settings{grid-template-columns:1.3fr 1fr .65fr .7fr!important}
+        #tool-pricing .pricing-settings label:has(#pr-default-rate){display:none!important}
         #tool-pricing .pricing-columns,#tool-pricing .pricing-row{grid-template-columns:34px 52px minmax(280px,1fr) 82px 112px 120px 64px 30px!important;gap:7px!important;align-items:center}
         #tool-pricing .pricing-row .pr-name{width:100%;min-width:0}
         #tool-pricing .pricing-row .pr-qty{width:100%;min-width:0}
@@ -11,7 +13,7 @@
         #tool-pricing .pricing-row .pr-row-rate-wrap{width:100%;min-width:0}
         #tool-pricing .pricing-row .pr-price{width:100%;min-width:0;text-align:right}
         #tool-pricing .pricing-row .pr-desc{display:none!important}
-        @media(max-width:1000px){#tool-pricing .pricing-row{grid-template-columns:28px 46px minmax(180px,1fr) 72px 96px 105px 58px 28px!important}}
+        @media(max-width:1000px){#tool-pricing .pricing-settings{grid-template-columns:1fr 1fr!important}#tool-pricing .pricing-row{grid-template-columns:28px 46px minmax(180px,1fr) 72px 96px 105px 58px 28px!important}}
       `;document.head.appendChild(s);
     }
     root.querySelectorAll('.pricing-group').forEach(sec=>{
