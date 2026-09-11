@@ -4,12 +4,15 @@
   const uid=p=>p+Date.now()+Math.random().toString(36).slice(2,6);
   const PRESETS={
     STUDIE:{mode:'hours',rate:1400,items:['zaměření, průzkumy, dokumentace, zadání','dispoziční řešení, varianty, zázemí a výdej, konzum.','vizualizace, tvorba modelu']},
+    DUR:{mode:'hours',rate:1200,items:['podklady a průzkumy','koordinační situace','zpracování dokumentace DUR','koordinace profesí','zapracování připomínek']},
     DSP:{mode:'hours',rate:1200,items:['gastro projekt, spolupráce na tvorbě','revize a zpracování návrhu technologií TZB','PBŘ a koordinace','tvorba dokumentace pro DSP, PDF…','koordinace profesí']},
     DPS:{mode:'hours',rate:1000,items:['řešení interiéru - materiály, barevnost, detaily, vzorky','povrchy','vývodový plán','rozkres prvků interiéru','výběr mobiliáře, uměleckých děl…','exteriér - označení, stínění']},
-    AD:{mode:'hours',rate:1600,items:['čas na kontrolních dnech po dobu realizace','čas na úpravě výkresů po dobu realizace']},
+    AD:{mode:'hours',rate:1600,items:['čas na kontrolních dnech po dobu realizace','čas na úpravě výkresů po dobu realizace','konzultace se zhotovitelem','kontrola vzorků a detailů','řešení změn během realizace']},
     PROFESE:{mode:'fixed',rate:0,items:['ZTI','VZT','CHL, VYTÁP','ELE SILNO','ELE SLABO','EPS','PBŘ','STATIKA','SHZ','GASTRO','TECHNOLOGICKÉ CHLAZENÍ']},
-    INŽENÝRING:{mode:'fixed',rate:0,items:['DSP','KOLAUDACE']}
+    INŽENÝRING:{mode:'fixed',rate:0,items:['DUR','DSP','KOLAUDACE','vyjádření DOSS','správci sítí','stavební úřad']}
   };
+  const GENERIC_HOURS=['zaměření a podklady','návrh a konzultace','koordinace','zpracování dokumentace','revize a úpravy','jednání / kontrolní den'];
+  const GENERIC_FIXED=['externí profese','správní poplatek','inženýring','autorský / technický dozor'];
   const read=()=>{try{return JSON.parse(localStorage.getItem(PROJECTS_STORE)||'[]')||[]}catch(_){return[]}};
   const write=x=>localStorage.setItem(PROJECTS_STORE,JSON.stringify(x));
   function active(){const id=localStorage.getItem(ACTIVE_STORE),ps=read();return{id,ps,p:ps.find(x=>x.id===id)||null}}
@@ -28,7 +31,7 @@
   function installSectionButton(){
     const actions=document.querySelector('#tool-pricing .pricing-actions');if(!actions||actions.querySelector('.pr-add-section-v354'))return;
     ['#pr-add-arch','#pr-add-prof','#pr-add-custom'].forEach(sel=>actions.querySelector(sel)?.remove());
-    const wrap=document.createElement('div');wrap.className='pr-add-section-wrap';wrap.innerHTML=`<button type="button" class="action pr-add-section-v354">+ Přidat sekci</button><div class="pr-section-menu" hidden>${['STUDIE','DSP','DPS','AD','PROFESE','INŽENÝRING'].map(x=>`<button type="button" data-section="${x}">${x}</button>`).join('')}<button type="button" data-section="CUSTOM">Vlastní…</button></div>`;
+    const wrap=document.createElement('div');wrap.className='pr-add-section-wrap';wrap.innerHTML=`<button type="button" class="action pr-add-section-v354">+ Přidat sekci</button><div class="pr-section-menu" hidden>${['STUDIE','DUR','DSP','DPS','AD','PROFESE','INŽENÝRING'].map(x=>`<button type="button" data-section="${x}">${x}</button>`).join('')}<button type="button" data-section="CUSTOM">Vlastní…</button></div>`;
     actions.prepend(wrap);
     const btn=wrap.querySelector('.pr-add-section-v354'),menu=wrap.querySelector('.pr-section-menu');
     btn.onclick=e=>{e.stopPropagation();menu.hidden=!menu.hidden};
@@ -40,7 +43,7 @@
     const {p}=active();if(!p)return;
     document.querySelectorAll('#tool-pricing .pricing-group').forEach(sec=>{
       const g=p.data?.groups?.find(x=>String(x.id)===String(sec.dataset.g));if(!g)return;
-      const preset=presetFor(g),opts=preset?.items||[];
+      const preset=presetFor(g),opts=preset?.items||(g.mode==='fixed'?GENERIC_FIXED:GENERIC_HOURS);
       sec.querySelectorAll('.pricing-row').forEach(row=>{
         if(row.querySelector('.pr-row-choice-v354'))return;
         const input=row.querySelector('.pr-name');if(!input)return;
