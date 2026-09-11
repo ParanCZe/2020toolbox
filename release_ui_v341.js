@@ -1,5 +1,5 @@
 (()=>{
-  const RELEASE='V3.45';
+  const RELEASE='V3.46';
   const SEEN_KEY='toolbox.whatsnew.seen.'+RELEASE;
 
   function setVersion(){
@@ -41,7 +41,7 @@
   function showWhatsNew(){
     if(localStorage.getItem(SEEN_KEY)==='1'||document.getElementById('toolbox-release-overlay'))return;
     const overlay=document.createElement('div');overlay.id='toolbox-release-overlay';overlay.dataset.noExport='1';
-    overlay.innerHTML=`<div id="toolbox-release-window" role="dialog" aria-modal="true" aria-labelledby="toolbox-release-title"><h2 id="toolbox-release-title">Co je nového — ${RELEASE}</h2><p>Aktualizace 20-20 TOOLBOX.</p><ul><li>Nová aplikace „Cenová nabídka“ podle zaslané šablony nacenění projektu.</li><li>Volitelné řádky, hodinové sazby pro fáze a pevné ceny profesí/inženýringu.</li><li>Automatické součty za fáze i celková suma a export přes Tisk / PDF.</li><li>Rozpracovaná nabídka se ukládá lokálně v prohlížeči.</li></ul><button type="button" id="toolbox-release-ok">Rozumím</button></div>`;
+    overlay.innerHTML=`<div id="toolbox-release-window" role="dialog" aria-modal="true" aria-labelledby="toolbox-release-title"><h2 id="toolbox-release-title">Co je nového — ${RELEASE}</h2><p>Aktualizace 20-20 TOOLBOX.</p><ul><li>Cenové nabídky teď fungují jako samostatné projekty.</li><li>Můžeš založit více nabídek a každá si uchovává vlastní položky, sazby, klienta i poznámku.</li><li>Přidaný přehled uložených projektů s cenou, datem úpravy, duplikací a smazáním.</li><li>Rozpracovaná nabídka z V3.45 se při prvním otevření automaticky převede do uloženého projektu.</li></ul><button type="button" id="toolbox-release-ok">Rozumím</button></div>`;
     overlay.addEventListener('click',e=>{if(e.target===overlay)closeWhatsNew()});
     overlay.querySelector('#toolbox-release-ok').addEventListener('click',closeWhatsNew);
     document.body.appendChild(overlay);
