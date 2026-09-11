@@ -3,21 +3,36 @@
   const ACTIVE_STORE='toolbox.pricingOffer.active.v346';
   const uid=p=>p+Date.now()+Math.random().toString(36).slice(2,6);
   const PRESETS={
+    'ARCHITEKTONICKÉ PRÁCE':{mode:'hours',rate:1400,items:[
+      'zaměření, průzkumy, dokumentace stávajícího stavu a zadání',
+      'architektonický koncept a dispoziční řešení',
+      'variantní řešení dispozice',
+      'materiálové a barevné řešení',
+      'návrh interiéru a prvků na míru',
+      'vizualizace a tvorba 3D modelu',
+      'výkresová dokumentace',
+      'rozkres prvků interiéru',
+      'výběr mobiliáře, svítidel a vybavení',
+      'koordinace profesí',
+      'jednání a konzultace s objednatelem',
+      'kontrolní dny / autorský dozor',
+      'úpravy dokumentace v průběhu realizace'
+    ]},
     STUDIE:{mode:'hours',rate:1400,items:['zaměření, průzkumy, dokumentace, zadání','dispoziční řešení, varianty, zázemí a výdej, konzum.','vizualizace, tvorba modelu']},
-    DUR:{mode:'hours',rate:1200,items:['podklady a průzkumy','koordinační situace','zpracování dokumentace DUR','koordinace profesí','zapracování připomínek']},
+    DUR:{mode:'hours',rate:1200,items:['koordinační situace','základní architektonické řešení','koordinace napojení na infrastrukturu','podklady pro dotčené orgány','zapracování požadavků stanovisek']},
     DSP:{mode:'hours',rate:1200,items:['gastro projekt, spolupráce na tvorbě','revize a zpracování návrhu technologií TZB','PBŘ a koordinace','tvorba dokumentace pro DSP, PDF…','koordinace profesí']},
     DPS:{mode:'hours',rate:1000,items:['řešení interiéru - materiály, barevnost, detaily, vzorky','povrchy','vývodový plán','rozkres prvků interiéru','výběr mobiliáře, uměleckých děl…','exteriér - označení, stínění']},
-    AD:{mode:'hours',rate:1600,items:['čas na kontrolních dnech po dobu realizace','čas na úpravě výkresů po dobu realizace','konzultace se zhotovitelem','kontrola vzorků a detailů','řešení změn během realizace']},
+    AD:{mode:'hours',rate:1600,items:['čas na kontrolních dnech po dobu realizace','čas na úpravě výkresů po dobu realizace']},
     PROFESE:{mode:'fixed',rate:0,items:['ZTI','VZT','CHL, VYTÁP','ELE SILNO','ELE SLABO','EPS','PBŘ','STATIKA','SHZ','GASTRO','TECHNOLOGICKÉ CHLAZENÍ']},
-    INŽENÝRING:{mode:'fixed',rate:0,items:['DUR','DSP','KOLAUDACE','vyjádření DOSS','správci sítí','stavební úřad']}
+    INŽENÝRING:{mode:'fixed',rate:0,items:['DUR','DSP','DPS','KOLAUDACE','vyjádření správců sítí','stanoviska dotčených orgánů','komunikace se stavebním úřadem']}
   };
-  const GENERIC_HOURS=['zaměření a podklady','návrh a konzultace','koordinace','zpracování dokumentace','revize a úpravy','jednání / kontrolní den'];
-  const GENERIC_FIXED=['externí profese','správní poplatek','inženýring','autorský / technický dozor'];
+  const CUSTOM_HOURS=['konzultace','koordinační práce','zpracování podkladů','výkresová dokumentace','úpravy dokumentace','jednání s klientem','kontrolní den'];
+  const CUSTOM_FIXED=['subdodávka','externí konzultant','posudek','průzkum','zaměření'];
   const read=()=>{try{return JSON.parse(localStorage.getItem(PROJECTS_STORE)||'[]')||[]}catch(_){return[]}};
   const write=x=>localStorage.setItem(PROJECTS_STORE,JSON.stringify(x));
   function active(){const id=localStorage.getItem(ACTIVE_STORE),ps=read();return{id,ps,p:ps.find(x=>x.id===id)||null}}
-  function normName(n){n=String(n||'').trim().toUpperCase();if(n==='PROVÁDĚČKA'||n==='PROVÁDĚCÍ DOKUMENTACE')return'DPS';if(n==='INZENYRING')return'INŽENÝRING';return n}
-  function presetFor(g){return PRESETS[normName(g?.name)]||null}
+  function normName(n){n=String(n||'').trim().toUpperCase();if(n==='PROVÁDĚČKA'||n==='PROVÁDĚCÍ DOKUMENTACE')return'DPS';if(n==='INZENYRING')return'INŽENÝRING';if(n==='ARCHITEKTONICKE PRACE')return'ARCHITEKTONICKÉ PRÁCE';return n}
+  function presetFor(g){const p=PRESETS[normName(g?.name)];if(p)return p;return {mode:g?.mode==='fixed'?'fixed':'hours',items:g?.mode==='fixed'?CUSTOM_FIXED:CUSTOM_HOURS}}
   function saveAndReopen(ps,id){write(ps);if(window.openPricingOffer){window.openPricingOffer();setTimeout(()=>{document.querySelector(`.pricing-project-card[data-id="${CSS.escape(id)}"] .pr-open`)?.click()},30)}}
   function addSection(type){
     const {id,ps,p}=active();if(!id||!p)return;
@@ -31,7 +46,8 @@
   function installSectionButton(){
     const actions=document.querySelector('#tool-pricing .pricing-actions');if(!actions||actions.querySelector('.pr-add-section-v354'))return;
     ['#pr-add-arch','#pr-add-prof','#pr-add-custom'].forEach(sel=>actions.querySelector(sel)?.remove());
-    const wrap=document.createElement('div');wrap.className='pr-add-section-wrap';wrap.innerHTML=`<button type="button" class="action pr-add-section-v354">+ Přidat sekci</button><div class="pr-section-menu" hidden>${['STUDIE','DUR','DSP','DPS','AD','PROFESE','INŽENÝRING'].map(x=>`<button type="button" data-section="${x}">${x}</button>`).join('')}<button type="button" data-section="CUSTOM">Vlastní…</button></div>`;
+    const sectionOptions=['ARCHITEKTONICKÉ PRÁCE','STUDIE','DUR','DSP','DPS','AD','PROFESE','INŽENÝRING'];
+    const wrap=document.createElement('div');wrap.className='pr-add-section-wrap';wrap.innerHTML=`<button type="button" class="action pr-add-section-v354">+ Přidat sekci</button><div class="pr-section-menu" hidden>${sectionOptions.map(x=>`<button type="button" data-section="${x}">${x}</button>`).join('')}<button type="button" data-section="CUSTOM">Vlastní…</button></div>`;
     actions.prepend(wrap);
     const btn=wrap.querySelector('.pr-add-section-v354'),menu=wrap.querySelector('.pr-section-menu');
     btn.onclick=e=>{e.stopPropagation();menu.hidden=!menu.hidden};
@@ -43,7 +59,7 @@
     const {p}=active();if(!p)return;
     document.querySelectorAll('#tool-pricing .pricing-group').forEach(sec=>{
       const g=p.data?.groups?.find(x=>String(x.id)===String(sec.dataset.g));if(!g)return;
-      const preset=presetFor(g),opts=preset?.items||(g.mode==='fixed'?GENERIC_FIXED:GENERIC_HOURS);
+      const preset=presetFor(g),opts=preset?.items||[];
       sec.querySelectorAll('.pricing-row').forEach(row=>{
         if(row.querySelector('.pr-row-choice-v354'))return;
         const input=row.querySelector('.pr-name');if(!input)return;
@@ -58,7 +74,7 @@
   }
   function style(){if(document.getElementById('pricing-section-choices-v354-style'))return;const s=document.createElement('style');s.id='pricing-section-choices-v354-style';s.textContent=`
     #tool-pricing .pr-add-section-wrap{position:relative;display:inline-flex}
-    #tool-pricing .pr-section-menu{position:absolute;left:0;bottom:calc(100% + 6px);z-index:1000;min-width:190px;background:#fff;border:1px solid var(--border);border-radius:9px;box-shadow:0 12px 30px rgba(0,0,0,.14);padding:6px}
+    #tool-pricing .pr-section-menu{position:absolute;left:0;bottom:calc(100% + 6px);z-index:1000;min-width:230px;background:#fff;border:1px solid var(--border);border-radius:9px;box-shadow:0 12px 30px rgba(0,0,0,.14);padding:6px}
     #tool-pricing .pr-section-menu button{display:block;width:100%;text-align:left;border:0;background:#fff;padding:8px 9px;border-radius:6px;cursor:pointer;font:inherit}
     #tool-pricing .pr-section-menu button:hover{background:#fffef3}
     #tool-pricing .pr-row-choice-wrap{display:flex;flex-direction:column;gap:5px;min-width:0;width:100%}
