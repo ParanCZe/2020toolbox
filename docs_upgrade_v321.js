@@ -71,6 +71,7 @@
   function loadPresentationCoverSidebar(){loadScriptOnce('presentation_cover_sidebar_v336.js?v=336','presentation-cover-sidebar-v336')}
   function loadPresentationZoomSync(){loadScriptOnce('presentation_zoom_sync_v337.js?v=337','presentation-zoom-sync-v337')}
   function loadPresentationLineEndpoints(){loadScriptOnce('presentation_line_endpoints_v339.js?v=339','presentation-line-endpoints-v339')}
+  function loadPresentationLayering(){loadScriptOnce('presentation_layering_v357.js?v=357','presentation-layering-v357')}
   function loadCompareVisual(){loadScriptOnce('docs_compare_visual_v340.js?v=341','docs-compare-visual-v340')}
   function loadReleaseUI(){loadScriptOnce('release_ui_v341.js?v=354','release-ui-v341')}
   function loadDrawingColumns(){loadScriptOnce('docs_drawing_columns_v342.js?v=447','docs-drawing-columns-v342')}
@@ -81,7 +82,7 @@
   function loadPricingChoices(){loadScriptOnce('pricing_section_choices_v354.js?v=3542','pricing-section-choices-v354')}
   function loadPricingExport(){loadScriptOnce('pricing_export_v353.js?v=3542','pricing-export-v353')}
 
-  function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar();loadPresentationZoomSync();loadPresentationLineEndpoints()}
+  function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar();loadPresentationZoomSync();loadPresentationLineEndpoints();loadPresentationLayering()}
   function loadPricingExtras(){loadPricingOffer();loadPricingProfessionTemplate();loadPricingRowRates();loadPricingLayout();loadPricingChoices();loadPricingExport()}
 
   function init(){lockVersion();injectCss();addOverview();removeLegacyOperations();improveLabels();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadCompareVisual();loadReleaseUI();loadDrawingColumns();loadPricingExtras();setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadCompareVisual();loadReleaseUI();loadDrawingColumns();loadPricingExtras()},300);setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadCompareVisual();loadReleaseUI();loadDrawingColumns();loadPricingExtras()},1500)}
