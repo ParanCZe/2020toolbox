@@ -1,5 +1,5 @@
 (()=>{
-  const RELEASE='V3.49';
+  const RELEASE='V3.50';
   const SEEN_KEY='toolbox.whatsnew.seen.'+RELEASE;
 
   function setVersion(){
@@ -41,7 +41,7 @@
   function showWhatsNew(){
     if(localStorage.getItem(SEEN_KEY)==='1'||document.getElementById('toolbox-release-overlay'))return;
     const overlay=document.createElement('div');overlay.id='toolbox-release-overlay';overlay.dataset.noExport='1';
-    overlay.innerHTML=`<div id="toolbox-release-window" role="dialog" aria-modal="true" aria-labelledby="toolbox-release-title"><h2 id="toolbox-release-title">Co je nového — ${RELEASE}</h2><p>Aktualizace 20-20 TOOLBOX.</p><ul><li>Nové cenové nabídky mají znovu předvyplněnou strukturu STUDIE, DSP, PROVÁDĚČKA, AD, PROFESE a INŽENÝRING.</li><li>Hodiny a pevné ceny jsou v nové šabloně vynulované, takže výsledná cena začíná na 0 Kč.</li><li>U řádků pevných profesí je nově výběr běžných profesí jako ZTI, VZT, elektro, PBŘ, statika, gastro a další.</li><li>Volba „Vlastní…“ umožní napsat libovolnou profesi ručně.</li></ul><button type="button" id="toolbox-release-ok">Rozumím</button></div>`;
+    overlay.innerHTML=`<div id="toolbox-release-window" role="dialog" aria-modal="true" aria-labelledby="toolbox-release-title"><h2 id="toolbox-release-title">Co je nového — ${RELEASE}</h2><p>Aktualizace 20-20 TOOLBOX.</p><ul><li>Cenová nabídka umí jednu výchozí hodinovou sazbu pro celou sekci a zároveň individuální sazbu pro každý řádek.</li><li>Jednotlivou sazbu můžeš přepsat třeba tam, kde konkrétní práce stojí méně nebo více za hodinu.</li><li>Součty v editoru se podle individuálních sazeb přepočítávají automaticky.</li><li>Export byl vizuálně přiblížen dodané šabloně Libertas a používá Antarctican Mono.</li></ul><button type="button" id="toolbox-release-ok">Rozumím</button></div>`;
     overlay.addEventListener('click',e=>{if(e.target===overlay)closeWhatsNew()});
     overlay.querySelector('#toolbox-release-ok').addEventListener('click',closeWhatsNew);
     document.body.appendChild(overlay);
