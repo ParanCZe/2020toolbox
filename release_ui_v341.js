@@ -1,5 +1,5 @@
 (()=>{
-  const RELEASE='V3.46';
+  const RELEASE='V3.47';
   const SEEN_KEY='toolbox.whatsnew.seen.'+RELEASE;
 
   function setVersion(){
@@ -41,7 +41,7 @@
   function showWhatsNew(){
     if(localStorage.getItem(SEEN_KEY)==='1'||document.getElementById('toolbox-release-overlay'))return;
     const overlay=document.createElement('div');overlay.id='toolbox-release-overlay';overlay.dataset.noExport='1';
-    overlay.innerHTML=`<div id="toolbox-release-window" role="dialog" aria-modal="true" aria-labelledby="toolbox-release-title"><h2 id="toolbox-release-title">Co je nového — ${RELEASE}</h2><p>Aktualizace 20-20 TOOLBOX.</p><ul><li>Cenové nabídky teď fungují jako samostatné projekty.</li><li>Můžeš založit více nabídek a každá si uchovává vlastní položky, sazby, klienta i poznámku.</li><li>Přidaný přehled uložených projektů s cenou, datem úpravy, duplikací a smazáním.</li><li>Rozpracovaná nabídka z V3.45 se při prvním otevření automaticky převede do uloženého projektu.</li></ul><button type="button" id="toolbox-release-ok">Rozumím</button></div>`;
+    overlay.innerHTML=`<div id="toolbox-release-window" role="dialog" aria-modal="true" aria-labelledby="toolbox-release-title"><h2 id="toolbox-release-title">Co je nového — ${RELEASE}</h2><p>Aktualizace 20-20 TOOLBOX.</p><ul><li>V Cenové nabídce přibylo tlačítko „Odhad“ u každého řádku.</li><li>U hodinových položek odhad využívá podobné položky, jejich hodiny a sazby z aktuální i dříve uložených nabídek.</li><li>U pevných cen se odhad opírá o podobné položky z ostatních profesí a projektů.</li><li>Po odhadu se rovnou doplní hodiny nebo cena a zobrazí se orientační spolehlivost výpočtu.</li></ul><button type="button" id="toolbox-release-ok">Rozumím</button></div>`;
     overlay.addEventListener('click',e=>{if(e.target===overlay)closeWhatsNew()});
     overlay.querySelector('#toolbox-release-ok').addEventListener('click',closeWhatsNew);
     document.body.appendChild(overlay);
