@@ -1,5 +1,5 @@
 (()=>{
-  const APP_VERSION='V3.52';
+  const APP_VERSION='V3.53';
 
   function forceVersion(){
     const el=document.getElementById('app-version');
@@ -46,7 +46,7 @@
       <button class="docs-v321-card" data-go="preflight"><b>1 · Pre-flight PDF</b><span>Formát, velikost, PDF/A deklarace, prázdné strany, duplicity, čísla výkresů a konzistence.</span><span class="docs-v321-badge">KONTROLA</span></button>
       <button class="docs-v321-card" data-go="drawinglist"><b>2 · Seznam výkresů</b><span>Čtení rozpisky, číslo, název, měřítko a stupeň dokumentace s ruční opravou.</span><span class="docs-v321-badge">EVIDENCE</span></button>
       <button class="docs-v321-card" data-go="renamer"><b>3 · Přejmenování</b><span>Bezpečné názvy kopií podle prefixu a čísla výkresu, originály zůstávají beze změny.</span><span class="docs-v321-badge">POŘÁDEK</span></button>
-      <button class="docs-v321-card" data-go="compare"><b>4 · Porovnání PDF</b><span>Kontrola změn mezi starou a novou revizí ve stejném měřítku.</span><span class="docs-v321-badge">REVIZE</span></button>
+      <button class="docs-v321-card" data-go="compare"><b>4 · Porovnání PDF</b><span>Kontrola změn mezi starou a novější revizí ve stejném měřítku.</span><span class="docs-v321-badge">REVIZE</span></button>
     </div>`;
     tabs.parentNode.insertBefore(box,tabs);
     box.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>window.openDocsSection?.(b.dataset.go));
@@ -72,15 +72,16 @@
   function loadPresentationZoomSync(){loadScriptOnce('presentation_zoom_sync_v337.js?v=337','presentation-zoom-sync-v337')}
   function loadPresentationLineEndpoints(){loadScriptOnce('presentation_line_endpoints_v339.js?v=339','presentation-line-endpoints-v339')}
   function loadCompareVisual(){loadScriptOnce('docs_compare_visual_v340.js?v=341','docs-compare-visual-v340')}
-  function loadReleaseUI(){loadScriptOnce('release_ui_v341.js?v=352','release-ui-v341')}
+  function loadReleaseUI(){loadScriptOnce('release_ui_v341.js?v=353','release-ui-v341')}
   function loadDrawingColumns(){loadScriptOnce('docs_drawing_columns_v342.js?v=447','docs-drawing-columns-v342')}
   function loadPricingOffer(){loadScriptOnce('pricing_offer_v345.js?v=349','pricing-offer-v349')}
   function loadPricingProfessionTemplate(){loadScriptOnce('pricing_profession_template_v349.js?v=349','pricing-profession-template-v349')}
   function loadPricingRowRates(){loadScriptOnce('pricing_row_rates_v352.js?v=352','pricing-row-rates-v352')}
-  function loadPricingExport(){loadScriptOnce('pricing_export_v352.js?v=352','pricing-export-v352')}
+  function loadPricingLayout(){loadScriptOnce('pricing_layout_v353.js?v=353','pricing-layout-v353')}
+  function loadPricingExport(){loadScriptOnce('pricing_export_v353.js?v=353','pricing-export-v353')}
 
   function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar();loadPresentationZoomSync();loadPresentationLineEndpoints()}
-  function loadPricingExtras(){loadPricingOffer();loadPricingProfessionTemplate();loadPricingRowRates();loadPricingExport()}
+  function loadPricingExtras(){loadPricingOffer();loadPricingProfessionTemplate();loadPricingRowRates();loadPricingLayout();loadPricingExport()}
 
   function init(){lockVersion();injectCss();addOverview();removeLegacyOperations();improveLabels();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadCompareVisual();loadReleaseUI();loadDrawingColumns();loadPricingExtras();setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadCompareVisual();loadReleaseUI();loadDrawingColumns();loadPricingExtras()},300);setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadCompareVisual();loadReleaseUI();loadDrawingColumns();loadPricingExtras()},1500)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
