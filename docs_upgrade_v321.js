@@ -79,7 +79,7 @@
   function loadPricingRowRates(){loadScriptOnce('pricing_row_rates_v352.js?v=352','pricing-row-rates-v352')}
   function loadPricingLayout(){loadScriptOnce('pricing_layout_v353.js?v=353','pricing-layout-v353')}
   function loadPricingChoices(){loadScriptOnce('pricing_section_choices_v354.js?v=354','pricing-section-choices-v354')}
-  function loadPricingExport(){loadScriptOnce('pricing_export_v353.js?v=353','pricing-export-v353')}
+  function loadPricingExport(){loadScriptOnce('pricing_export_v353.js?v=3541','pricing-export-v353')}
 
   function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar();loadPresentationZoomSync();loadPresentationLineEndpoints()}
   function loadPricingExtras(){loadPricingOffer();loadPricingProfessionTemplate();loadPricingRowRates();loadPricingLayout();loadPricingChoices();loadPricingExport()}
