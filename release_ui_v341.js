@@ -1,5 +1,5 @@
 (()=>{
-  const RELEASE='V3.50';
+  const RELEASE='V3.51';
   const SEEN_KEY='toolbox.whatsnew.seen.'+RELEASE;
 
   function setVersion(){
@@ -41,7 +41,7 @@
   function showWhatsNew(){
     if(localStorage.getItem(SEEN_KEY)==='1'||document.getElementById('toolbox-release-overlay'))return;
     const overlay=document.createElement('div');overlay.id='toolbox-release-overlay';overlay.dataset.noExport='1';
-    overlay.innerHTML=`<div id="toolbox-release-window" role="dialog" aria-modal="true" aria-labelledby="toolbox-release-title"><h2 id="toolbox-release-title">Co je nového — ${RELEASE}</h2><p>Aktualizace 20-20 TOOLBOX.</p><ul><li>Cenová nabídka umí jednu výchozí hodinovou sazbu pro celou sekci a zároveň individuální sazbu pro každý řádek.</li><li>Jednotlivou sazbu můžeš přepsat třeba tam, kde konkrétní práce stojí méně nebo více za hodinu.</li><li>Součty v editoru se podle individuálních sazeb přepočítávají automaticky.</li><li>Export byl vizuálně přiblížen dodané šabloně Libertas a používá Antarctican Mono.</li></ul><button type="button" id="toolbox-release-ok">Rozumím</button></div>`;
+    overlay.innerHTML=`<div id="toolbox-release-window" role="dialog" aria-modal="true" aria-labelledby="toolbox-release-title"><h2 id="toolbox-release-title">Co je nového — ${RELEASE}</h2><p>Aktualizace 20-20 TOOLBOX.</p><ul><li>Individuální hodinová sazba je teď přímo editovatelná u každého řádku.</li><li>Řádek může mít například 1 000 Kč/h, i když sekce má výchozí sazbu 1 400 Kč/h.</li><li>Individuální sazby se ukládají do projektu a používají se i ve výsledném exportu.</li><li>Export nyní načítá Antarctican Mono z absolutní cesty a čeká na načtení fontu před tiskem.</li></ul><button type="button" id="toolbox-release-ok">Rozumím</button></div>`;
     overlay.addEventListener('click',e=>{if(e.target===overlay)closeWhatsNew()});
     overlay.querySelector('#toolbox-release-ok').addEventListener('click',closeWhatsNew);
     document.body.appendChild(overlay);
