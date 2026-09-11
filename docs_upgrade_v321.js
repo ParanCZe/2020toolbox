@@ -1,5 +1,5 @@
 (()=>{
-  const APP_VERSION='V3.50';
+  const APP_VERSION='V3.51';
 
   function forceVersion(){
     const el=document.getElementById('app-version');
@@ -72,12 +72,12 @@
   function loadPresentationZoomSync(){loadScriptOnce('presentation_zoom_sync_v337.js?v=337','presentation-zoom-sync-v337')}
   function loadPresentationLineEndpoints(){loadScriptOnce('presentation_line_endpoints_v339.js?v=339','presentation-line-endpoints-v339')}
   function loadCompareVisual(){loadScriptOnce('docs_compare_visual_v340.js?v=341','docs-compare-visual-v340')}
-  function loadReleaseUI(){loadScriptOnce('release_ui_v341.js?v=350','release-ui-v341')}
+  function loadReleaseUI(){loadScriptOnce('release_ui_v341.js?v=351','release-ui-v341')}
   function loadDrawingColumns(){loadScriptOnce('docs_drawing_columns_v342.js?v=447','docs-drawing-columns-v342')}
   function loadPricingOffer(){loadScriptOnce('pricing_offer_v345.js?v=349','pricing-offer-v349')}
   function loadPricingProfessionTemplate(){loadScriptOnce('pricing_profession_template_v349.js?v=349','pricing-profession-template-v349')}
-  function loadPricingRowRates(){loadScriptOnce('pricing_row_rates_v350.js?v=350','pricing-row-rates-v350')}
-  function loadPricingExport(){loadScriptOnce('pricing_export_v350.js?v=350','pricing-export-v350')}
+  function loadPricingRowRates(){loadScriptOnce('pricing_row_rates_v351.js?v=351','pricing-row-rates-v351')}
+  function loadPricingExport(){loadScriptOnce('pricing_export_v351.js?v=351','pricing-export-v351')}
 
   function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar();loadPresentationZoomSync();loadPresentationLineEndpoints()}
   function loadPricingExtras(){loadPricingOffer();loadPricingProfessionTemplate();loadPricingRowRates();loadPricingExport()}
