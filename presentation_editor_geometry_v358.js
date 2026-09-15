@@ -58,6 +58,28 @@
     const page=allPagesTexts[pageNo()];if(!Array.isArray(page))return null;
     return page.find(b=>String(b.id)===String(el.dataset.id)&&b.type!=='line')||null;
   }
+
+  function applyTextVisualSize(el,b,size,sx,sy,info,fixedTopPt){
+    const textarea=el.querySelector('.tb-main');
+    b.size=size;
+    el.style.fontSize=(size*sx)+'px';
+    if(textarea) textarea.style.fontSize=(size*sx)+'px';
+
+    if(typeof measureTextBox==='function'){
+      const m=measureTextBox(b.text,size,sx);
+      el.style.width=m.width+'px';
+      el.style.height=m.height+'px';
+      if(textarea){textarea.style.width=m.width+'px';textarea.style.height=m.height+'px'}
+    }
+
+    const visualHeight=typeof getTextVisualHeightPts==='function'?getTextVisualHeightPts(b.text,size):size;
+    b.y=info.height-fixedTopPt-visualHeight;
+    el.style.top=(fixedTopPt*sy)+'px';
+
+    const sizeInput=el.querySelector('.tb-controls input[type="number"]');
+    if(sizeInput)sizeInput.value=String(Math.round(size*10)/10);
+  }
+
   function decorateText(el){
     const b=textBacking(el);if(!b||el.querySelector('.presentation-text-scale-v358'))return;
     const h=document.createElement('span');h.className='presentation-text-scale-v358';h.title='Změnit velikost textu';el.appendChild(h);
@@ -81,17 +103,14 @@
         ev.preventDefault();ev.stopPropagation();
         const dist=Math.max(4,Math.hypot(ev.clientX-rect.left,ev.clientY-rect.top));
         const core=CORE(),size=core?core.scaledFontSize(startSize,dist/startDist):Math.max(6,Math.min(144,startSize*(dist/startDist)));
-        const visualHeight=typeof getTextVisualHeightPts==='function'?getTextVisualHeightPts(b.text,size):size;
-        b.size=size;
-        b.y=core?.resizeTextKeepingTop?core.resizeTextKeepingTop({pageHeight:info.height,top:fixedTopPt,newVisualHeight:visualHeight}).y:info.height-fixedTopPt-visualHeight;
-        el.style.fontSize=(size*sx)+'px';
-        el.style.top=(fixedTopPt*sy)+'px';
+        applyTextVisualSize(el,b,size,sx,sy,info,fixedTopPt);
       };
       const end=ev=>{
         ev?.preventDefault?.();ev?.stopPropagation?.();
         h.removeEventListener('pointermove',move);
         h.removeEventListener('pointerup',end);
         h.removeEventListener('pointercancel',end);
+        try{saveCurrentPageBoxes?.()}catch(_){}
         try{scheduleAutosave?.()}catch(_){}
         try{window.persistProjectStructureNow?.()}catch(_){}
         try{updateUndoButton?.()}catch(_){}
