@@ -72,8 +72,8 @@
   function loadPresentationZoomSync(){loadScriptOnce('presentation_zoom_sync_v337.js?v=337','presentation-zoom-sync-v337')}
   function loadPresentationLineEndpoints(){loadScriptOnce('presentation_line_endpoints_v339.js?v=339','presentation-line-endpoints-v339')}
   function loadPresentationLayering(){loadScriptOnce('presentation_layering_v357.js?v=357','presentation-layering-v357')}
-  function loadPresentationGeometryCore(){loadScriptOnce('presentation_geometry_v358_core.js?v=358','presentation-geometry-v358-core')}
-  function loadPresentationGeometry(){loadScriptOnce('presentation_editor_geometry_v358.js?v=358','presentation-editor-geometry-v358')}
+  function loadPresentationGeometryCore(){loadScriptOnce('presentation_geometry_v358_core.js?v=3582','presentation-geometry-v358-core')}
+  function loadPresentationGeometry(){loadScriptOnce('presentation_editor_geometry_v358.js?v=3582','presentation-editor-geometry-v358')}
   function loadCompareVisual(){loadScriptOnce('docs_compare_visual_v340.js?v=341','docs-compare-visual-v340')}
   function loadReleaseUI(){loadScriptOnce('release_ui_v341.js?v=354','release-ui-v341')}
   function loadDrawingColumns(){loadScriptOnce('docs_drawing_columns_v342.js?v=447','docs-drawing-columns-v342')}
