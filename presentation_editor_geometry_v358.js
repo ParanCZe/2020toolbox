@@ -19,7 +19,7 @@
     if(document.getElementById('presentation-editor-geometry-v358-style'))return;
     const s=document.createElement('style');s.id='presentation-editor-geometry-v358-style';s.textContent=`
       #presentation-print-guide-v358{position:absolute;pointer-events:none;z-index:155;border:1px dashed rgba(24,24,27,.62);box-sizing:border-box;background:transparent}
-      .presentation-text-scale-v358{position:absolute;right:-8px;bottom:-8px;width:15px;height:15px;border:2px solid #18181b;background:#fff;border-radius:50%;cursor:nwse-resize;z-index:260;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+      .presentation-text-scale-v358{position:absolute;right:-8px;bottom:-8px;width:15px;height:15px;border:2px solid #18181b;background:#fff;border-radius:50%;cursor:nwse-resize;z-index:260;box-shadow:0 1px 3px rgba(0,0,0,.18);touch-action:none;user-select:none}
       .custom-text-box{z-index:220!important}
     `;document.head.appendChild(s);
   }
@@ -61,29 +61,45 @@
   function decorateText(el){
     const b=textBacking(el);if(!b||el.querySelector('.presentation-text-scale-v358'))return;
     const h=document.createElement('span');h.className='presentation-text-scale-v358';h.title='Změnit velikost textu';el.appendChild(h);
-    h.onpointerdown=e=>{
+
+    const stopMouse=e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation?.()};
+    ['mousedown','mouseup','click','dblclick','touchstart','touchmove','touchend'].forEach(type=>h.addEventListener(type,stopMouse,{capture:true,passive:false}));
+
+    h.addEventListener('pointerdown',e=>{
       e.preventDefault();e.stopPropagation();
       const info=window.__previewInfo,canvas=document.getElementById('preview-canvas');if(!info||!canvas)return;
-      const rect=el.getBoundingClientRect(),cr=canvas.getBoundingClientRect(),sx=cr.width/info.width;
+      const rect=el.getBoundingClientRect(),cr=canvas.getBoundingClientRect(),sx=cr.width/info.width,sy=cr.height/info.height;
       const startDist=Math.max(12,Math.hypot(e.clientX-rect.left,e.clientY-rect.top));
-      const startSize=Math.max(6,Number(b.size)||16);h.setPointerCapture(e.pointerId);
+      const startSize=Math.max(6,Number(b.size)||16);
+      const startVisualHeight=typeof getTextVisualHeightPts==='function'?getTextVisualHeightPts(b.text,startSize):startSize;
+      const fixedTopPt=info.height-(Number(b.y)||0)-startVisualHeight;
+
+      try{if(typeof pushTextHistory==='function')pushTextHistory()}catch(err){console.warn('Historie změny velikosti textu',err)}
+
+      h.setPointerCapture(e.pointerId);
       const move=ev=>{
+        ev.preventDefault();ev.stopPropagation();
         const dist=Math.max(4,Math.hypot(ev.clientX-rect.left,ev.clientY-rect.top));
         const core=CORE(),size=core?core.scaledFontSize(startSize,dist/startDist):Math.max(6,Math.min(144,startSize*(dist/startDist)));
-        b.size=size;el.style.fontSize=(size*sx)+'px';
-        if(typeof getTextVisualHeightPts==='function'){
-          const total=getTextVisualHeightPts(b.text,b.size);
-          el.style.top=((info.height-b.y-total)*(cr.height/info.height))+'px';
-        }
+        const visualHeight=typeof getTextVisualHeightPts==='function'?getTextVisualHeightPts(b.text,size):size;
+        b.size=size;
+        b.y=core?.resizeTextKeepingTop?core.resizeTextKeepingTop({pageHeight:info.height,top:fixedTopPt,newVisualHeight:visualHeight}).y:info.height-fixedTopPt-visualHeight;
+        el.style.fontSize=(size*sx)+'px';
+        el.style.top=(fixedTopPt*sy)+'px';
       };
-      const end=()=>{
-        h.onpointermove=null;h.onpointerup=null;h.onpointercancel=null;
-        try{saveCurrentPageBoxes?.()}catch(_){}
+      const end=ev=>{
+        ev?.preventDefault?.();ev?.stopPropagation?.();
+        h.removeEventListener('pointermove',move);
+        h.removeEventListener('pointerup',end);
+        h.removeEventListener('pointercancel',end);
         try{scheduleAutosave?.()}catch(_){}
         try{window.persistProjectStructureNow?.()}catch(_){}
+        try{updateUndoButton?.()}catch(_){}
       };
-      h.onpointermove=move;h.onpointerup=end;h.onpointercancel=end;
-    };
+      h.addEventListener('pointermove',move);
+      h.addEventListener('pointerup',end);
+      h.addEventListener('pointercancel',end);
+    });
   }
 
   function sync(){
