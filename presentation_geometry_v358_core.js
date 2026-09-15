@@ -18,5 +18,8 @@
     const pt=Number(pageWidthPt)||1,px=Number(renderedWidthPx)||0;
     return (Number(insetMm)||0)*PT_PER_MM*(px/pt);
   }
-  return {PT_PER_MM,clamp,resizeMediaFromWidth,scaledFontSize,guideInsetPx};
+  function resizeTextKeepingTop({pageHeight,top,newVisualHeight}){
+    return {y:(Number(pageHeight)||0)-(Number(top)||0)-(Number(newVisualHeight)||0)};
+  }
+  return {PT_PER_MM,clamp,resizeMediaFromWidth,scaledFontSize,guideInsetPx,resizeTextKeepingTop};
 });
