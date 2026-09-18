@@ -7,8 +7,8 @@
   const core=()=>window.upscalerV359Core||LOCAL_CORE;
 
   function css(){if($('#upscaler-v359-style'))return;const s=document.createElement('style');s.id='upscaler-v359-style';s.textContent=`
-    #tool-upscaler .ups-grid{display:grid;grid-template-columns:280px minmax(0,1fr) 250px;gap:14px;align-items:start}
-    #tool-upscaler .ups-panel{border:1px solid var(--border);border-radius:10px;background:#fafafa;padding:14px}
+    #tool-upscaler .ups-grid{display:grid;grid-template-columns:300px minmax(0,1fr) 280px;gap:16px;align-items:stretch;min-height:calc(100vh - 215px)}
+    #tool-upscaler .ups-panel{border:1px solid var(--border);border-radius:10px;background:#fafafa;padding:16px;height:100%}
     #tool-upscaler .ups-panel h2{font:normal 13px 'Antarctican Mono',monospace;margin:0 0 10px}
     #tool-upscaler .ups-drop{border:2px dashed #cbd5e1;border-radius:9px;background:#fff;padding:26px 14px;text-align:center;cursor:pointer;transition:.15s}
     #tool-upscaler .ups-drop.over{background:#fffef3;border-color:#a1a1aa}
@@ -16,7 +16,7 @@
     #tool-upscaler .ups-control{margin-top:12px}#tool-upscaler .ups-control>label{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted);margin-bottom:5px}
     #tool-upscaler .ups-control input[type=range],#tool-upscaler .ups-control select{width:100%}
     #tool-upscaler .ups-actions{display:grid;gap:7px;margin-top:14px}.ups-actions button{width:100%}
-    #tool-upscaler .ups-preview{position:relative;min-height:560px;background:#e4e4e7;border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+    #tool-upscaler .ups-preview{position:relative;min-height:calc(100vh - 250px);height:100%;background:#e4e4e7;border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}
     #tool-upscaler .ups-preview canvas{position:absolute;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.15)}
     #tool-upscaler #ups-after-wrap{position:absolute;inset:0;overflow:hidden;clip-path:inset(0 0 0 50%);display:flex;align-items:center;justify-content:center}
     #tool-upscaler #ups-before-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
@@ -27,7 +27,7 @@
     #tool-upscaler .ups-status{margin-top:12px;padding:10px;border-radius:7px;background:#fff;border:1px solid var(--border);font-size:10px;line-height:1.45;min-height:52px}
     #tool-upscaler .ups-badge{display:inline-flex;border:1px solid #d4d4d8;border-radius:999px;padding:2px 6px;font-size:8px;background:#f4f4f5;margin-left:6px}
     #tool-upscaler .ups-progress{height:7px;background:#e4e4e7;border-radius:4px;overflow:hidden;margin-top:8px}.ups-progress>i{display:block;height:100%;width:0;background:#18181b;transition:.15s}
-    @media(max-width:1050px){#tool-upscaler .ups-grid{grid-template-columns:1fr}#tool-upscaler .ups-preview{min-height:500px}}
+    body:has(#tool-upscaler.active) .wrap{max-width:none;padding:0 18px}body:has(#tool-upscaler.active) .wrap>.card{padding:18px}#tool-upscaler{width:100%;max-width:none;margin:0}#tool-upscaler .ups-grid>section:nth-child(2){min-width:0;display:flex;flex-direction:column}#tool-upscaler .ups-grid>section:nth-child(2) .ups-preview{flex:1}@media(max-width:1400px){#tool-upscaler .ups-grid{grid-template-columns:270px minmax(0,1fr) 245px}}@media(max-width:1050px){#tool-upscaler .ups-grid{grid-template-columns:1fr;min-height:auto}#tool-upscaler .ups-preview{min-height:560px}body:has(#tool-upscaler.active) .wrap{padding:0 12px}}
   `;document.head.appendChild(s)}
 
   function install(){css();
