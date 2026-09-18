@@ -1,0 +1,87 @@
+(()=>{
+  const ORT_URL='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.min.js';
+  const MODEL_URL='https://huggingface.co/bukuroo/RealESRGAN-ONNX/resolve/main/real-esrgan-x4plus-128.onnx?download=true';
+  const S={file:null,img:null,result:null,session:null,loadingModel:null,engine:'LOCAL',running:false};
+  const $=s=>document.querySelector(s);
+  const LOCAL_CORE={clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),clampByte:v=>Math.max(0,Math.min(255,Math.round(v))),tileStarts(size,tile=128,overlap=16){size=Math.max(1,Math.floor(size));if(size<=tile)return[0];const step=tile-overlap,out=[];for(let p=0;p<size-tile;p+=step)out.push(p);const last=size-tile;if(out[out.length-1]!==last)out.push(last);return out},outputScale:m=>m==='ai4'?4:m==='ai2'||m==='deblur2'?2:1,sharpenAmount(v,m){const n=Math.max(0,Math.min(100,Number(v)||0))/100;return(m==='sharp'?0.35:0.18)+n*1.2},modeLabel:m=>({sharp:'SHARP FIX',clean:'CLEAN PHOTO',ai2:'AI UPSCALE 2×',ai4:'AI UPSCALE 4×',deblur2:'DEBLUR + AI 2×'})[m]||m};
+  const core=()=>window.upscalerV359Core||LOCAL_CORE;
+
+  function css(){if($('#upscaler-v359-style'))return;const s=document.createElement('style');s.id='upscaler-v359-style';s.textContent=\`
+    #tool-upscaler .ups-grid{display:grid;grid-template-columns:280px minmax(0,1fr) 250px;gap:14px;align-items:start}
+    #tool-upscaler .ups-panel{border:1px solid var(--border);border-radius:10px;background:#fafafa;padding:14px}
+    #tool-upscaler .ups-panel h2{font:normal 13px 'Antarctican Mono',monospace;margin:0 0 10px}
+    #tool-upscaler .ups-drop{border:2px dashed #cbd5e1;border-radius:9px;background:#fff;padding:26px 14px;text-align:center;cursor:pointer;transition:.15s}
+    #tool-upscaler .ups-drop.over{background:#fffef3;border-color:#a1a1aa}
+    #tool-upscaler .ups-drop b{display:block;margin-bottom:4px;font-size:13px}#tool-upscaler .ups-drop span{font-size:10px;color:var(--muted)}
+    #tool-upscaler .ups-control{margin-top:12px}#tool-upscaler .ups-control>label{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted);margin-bottom:5px}
+    #tool-upscaler .ups-control input[type=range],#tool-upscaler .ups-control select{width:100%}
+    #tool-upscaler .ups-actions{display:grid;gap:7px;margin-top:14px}.ups-actions button{width:100%}
+    #tool-upscaler .ups-preview{position:relative;min-height:560px;background:#e4e4e7;border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+    #tool-upscaler .ups-preview canvas{position:absolute;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.15)}
+    #tool-upscaler #ups-after-wrap{position:absolute;inset:0;overflow:hidden;clip-path:inset(0 0 0 50%);display:flex;align-items:center;justify-content:center}
+    #tool-upscaler #ups-before-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+    #tool-upscaler .ups-divider{position:absolute;top:0;bottom:0;left:50%;width:2px;background:#f7f197;box-shadow:0 0 0 1px rgba(0,0,0,.15);z-index:6;pointer-events:none}
+    #tool-upscaler .ups-divider:after{content:'↔';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:#f7f197;display:flex;align-items:center;justify-content:center;font-weight:700;color:#18181b;border:1px solid #a1a1aa}
+    #tool-upscaler .ups-compare{margin-top:10px}#tool-upscaler .ups-compare input{width:100%}
+    #tool-upscaler .ups-stat{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px dashed #d4d4d8;font-size:10px}.ups-stat b{text-align:right;font-weight:600}
+    #tool-upscaler .ups-status{margin-top:12px;padding:10px;border-radius:7px;background:#fff;border:1px solid var(--border);font-size:10px;line-height:1.45;min-height:52px}
+    #tool-upscaler .ups-badge{display:inline-flex;border:1px solid #d4d4d8;border-radius:999px;padding:2px 6px;font-size:8px;background:#f4f4f5;margin-left:6px}
+    #tool-upscaler .ups-progress{height:7px;background:#e4e4e7;border-radius:4px;overflow:hidden;margin-top:8px}.ups-progress>i{display:block;height:100%;width:0;background:#18181b;transition:.15s}
+    @media(max-width:1050px){#tool-upscaler .ups-grid{grid-template-columns:1fr}#tool-upscaler .ups-preview{min-height:500px}}
+  \`;document.head.appendChild(s)}
+
+  function install(){css();
+    const beta=document.querySelector('#menu-view .menu-app-row.beta');
+    if(beta&&!$('#ups-menu-tile')){const d=document.createElement('div');d.id='ups-menu-tile';d.className='tile';d.innerHTML='<b>Upscaler <small class="menu-status">BETA</small></b><span>Lokální deblur, sharp fix a AI super-resolution 2× / 4×</span>';d.onclick=()=>{window.openTool?.('upscaler');init()};beta.appendChild(d)}
+    if(!$('#tool-upscaler')){const anchor=document.querySelector('.tool-view');if(!anchor)return;const v=document.createElement('div');v.id='tool-upscaler';v.className='tool-view';v.innerHTML=\`
+      <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
+      <h1>Upscaler <small class="menu-status">BETA</small></h1>
+      <div class="muted">Lokální zvýšení ostrosti a rozlišení. AI režimy používají Real-ESRGAN v browseru; obrázek se neposílá na server.</div>
+      <div class="ups-grid">
+        <section class="ups-panel"><h2>VSTUP A NASTAVENÍ</h2>
+          <div id="ups-drop" class="ups-drop"><b>Přetáhni obrázek</b><span>PNG / JPG / WEBP nebo klikni</span><input id="ups-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></div>
+          <div class="ups-control"><label><span>Režim</span><span id="ups-mode-label"></span></label><select id="ups-mode"><option value="sharp">Sharp Fix</option><option value="clean">Clean Photo</option><option value="ai2">AI Upscale 2×</option><option value="ai4">AI Upscale 4×</option><option value="deblur2">Deblur + AI 2×</option></select></div>
+          <div class="ups-control"><label><span>Ostrost</span><span id="ups-sharp-v">55</span></label><input id="ups-sharp" type="range" min="0" max="100" value="55"></div>
+          <div class="ups-control"><label><span>Obnova detailu</span><span id="ups-detail-v">55</span></label><input id="ups-detail" type="range" min="0" max="100" value="55"></div>
+          <div class="ups-control"><label><span>Odšumění</span><span id="ups-denoise-v">12</span></label><input id="ups-denoise" type="range" min="0" max="100" value="12"></div>
+          <div class="ups-actions"><button id="ups-run" class="action" disabled>Zpracovat</button><button id="ups-png" class="back-btn" disabled>Stáhnout PNG</button><button id="ups-jpg" class="back-btn" disabled>Stáhnout JPG</button></div>
+        </section>
+        <section><div id="ups-preview" class="ups-preview"><div id="ups-before-wrap"><canvas id="ups-before"></canvas></div><div id="ups-after-wrap"><canvas id="ups-after"></canvas></div><div id="ups-divider" class="ups-divider"></div></div><div class="ups-compare"><input id="ups-compare" type="range" min="0" max="100" value="50"></div></section>
+        <aside class="ups-panel"><h2>STAV</h2><div class="ups-stat"><span>Soubor</span><b id="ups-name">—</b></div><div class="ups-stat"><span>Vstup</span><b id="ups-in">—</b></div><div class="ups-stat"><span>Výstup</span><b id="ups-out">—</b></div><div class="ups-stat"><span>Engine</span><b id="ups-engine">LOCAL</b></div><div class="ups-stat"><span>Čas</span><b id="ups-time">—</b></div><div id="ups-status" class="ups-status">Nahraj obrázek.</div><div class="ups-progress"><i id="ups-progress"></i></div><div class="muted" style="font-size:9px;margin:10px 0 0">AI model má přibližně 67 MB a stáhne se až při prvním použití AI režimu. Potom ho prohlížeč může držet v cache.</div></aside>
+      </div>\`;anchor.parentNode.insertBefore(v,anchor)}
+  }
+
+  function init(){install();if($('#tool-upscaler')?.dataset.ready==='1')return;const root=$('#tool-upscaler');if(!root)return;root.dataset.ready='1';
+    const file=$('#ups-file'),drop=$('#ups-drop'),mode=$('#ups-mode'),compare=$('#ups-compare');
+    drop.onclick=()=>file.click();file.onchange=()=>file.files?.[0]&&loadFile(file.files[0]);
+    ['dragenter','dragover'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add('over')}));['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove('over')}));drop.addEventListener('drop',e=>e.dataTransfer.files?.[0]&&loadFile(e.dataTransfer.files[0]));
+    for(const id of ['sharp','detail','denoise'])$('#ups-'+id).oninput=e=>$('#ups-'+id+'-v').textContent=e.target.value;
+    mode.onchange=()=>$('#ups-mode-label').textContent=core()?.modeLabel(mode.value)||mode.value;mode.onchange();
+    compare.oninput=()=>{const v=Number(compare.value);$('#ups-after-wrap').style.clipPath=\`inset(0 0 0 \${v}%)\`;$('#ups-divider').style.left=v+'%'};compare.oninput();
+    $('#ups-run').onclick=run;$('#ups-png').onclick=()=>save('image/png',1,'upscaled.png');$('#ups-jpg').onclick=()=>save('image/jpeg',.95,'upscaled.jpg');
+  }
+
+  function status(t,p){$('#ups-status').textContent=t;if(Number.isFinite(p))$('#ups-progress').style.width=Math.max(0,Math.min(100,p))+'%'}
+  function imageFromFile(f){return new Promise((res,rej)=>{const u=URL.createObjectURL(f),i=new Image();i.onload=()=>{URL.revokeObjectURL(u);res(i)};i.onerror=rej;i.src=u})}
+  async function loadFile(f){if(!/^image\//.test(f.type)){status('Soubor není podporovaný obrázek.',0);return}try{const img=await imageFromFile(f);S.file=f;S.img=img;S.result=null;$('#ups-name').textContent=f.name;$('#ups-in').textContent=\`\${img.naturalWidth} × \${img.naturalHeight}\`;$('#ups-out').textContent='—';$('#ups-run').disabled=false;$('#ups-png').disabled=true;$('#ups-jpg').disabled=true;drawPreview(img,$('#ups-before'));drawPreview(img,$('#ups-after'));status('Připraveno.',0)}catch(e){status('Obrázek se nepodařilo načíst: '+e.message,0)}}
+  function drawPreview(src,target){const w=src.width||src.naturalWidth,h=src.height||src.naturalHeight;target.width=w;target.height=h;target.getContext('2d').drawImage(src,0,0,w,h)}
+  function canvasOf(img){const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;c.getContext('2d').drawImage(img,0,0);return c}
+  function resize(src,w,h){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(src,0,0,w,h);return c}
+  function blur(src,r){const c=document.createElement('canvas');c.width=src.width;c.height=src.height;const x=c.getContext('2d');x.filter=\`blur(\${r}px)\`;x.drawImage(src,0,0);x.filter='none';return c}
+  function unsharp(src,amount,radius){const b=blur(src,radius),a=src.getContext('2d').getImageData(0,0,src.width,src.height),bd=b.getContext('2d').getImageData(0,0,b.width,b.height).data,d=a.data,C=core();for(let i=0;i<d.length;i+=4)for(let k=0;k<3;k++)d[i+k]=C?C.clampByte(d[i+k]+amount*(d[i+k]-bd[i+k])):Math.max(0,Math.min(255,d[i+k]+amount*(d[i+k]-bd[i+k])));const c=document.createElement('canvas');c.width=src.width;c.height=src.height;c.getContext('2d').putImageData(a,0,0);return c}
+  function denoise(src,strength){if(strength<=.01)return src;const b=blur(src,.65+strength*1.7),a=src.getContext('2d').getImageData(0,0,src.width,src.height),bd=b.getContext('2d').getImageData(0,0,b.width,b.height).data,d=a.data;for(let i=0;i<d.length;i+=4)for(let k=0;k<3;k++)d[i+k]=d[i+k]*(1-strength*.35)+bd[i+k]*(strength*.35);const c=document.createElement('canvas');c.width=src.width;c.height=src.height;c.getContext('2d').putImageData(a,0,0);return c}
+  function localEnhance(src,mode,sharp,detail,noise){let w=denoise(src,noise);const amt=(core()?.sharpenAmount(sharp*100,mode)||(.3+sharp));w=unsharp(w,amt,.75+detail*.9);if(mode==='sharp'||mode==='deblur2')w=unsharp(w,.18+detail*.45,1.7);return w}
+
+  async function ensureOrt(){if(window.ort)return;status('Načítám ONNX Runtime…',4);await new Promise((res,rej)=>{const s=document.createElement('script');s.src=ORT_URL;s.onload=res;s.onerror=()=>rej(new Error('Nepodařilo se načíst ONNX Runtime'));document.head.appendChild(s)});ort.env.wasm.wasmPaths='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/'}
+  async function ensureSession(){if(S.session)return S.session;if(S.loadingModel)return S.loadingModel;S.loadingModel=(async()=>{await ensureOrt();status('Stahuju AI model (~67 MB)…',8);let sess;try{if(navigator.gpu){sess=await ort.InferenceSession.create(MODEL_URL,{executionProviders:['webgpu','wasm']});S.engine='AI · WebGPU'}}catch(e){console.warn('WebGPU Real-ESRGAN fallback',e)}if(!sess){sess=await ort.InferenceSession.create(MODEL_URL,{executionProviders:['wasm']});S.engine='AI · WASM'}S.session=sess;$('#ups-engine').textContent=S.engine;return sess})().finally(()=>S.loadingModel=null);return S.loadingModel}
+
+  function makeTile(src,x,y,tile){const c=document.createElement('canvas');c.width=tile;c.height=tile;const cx=c.getContext('2d');const sw=Math.min(tile,src.width-x),sh=Math.min(tile,src.height-y);cx.drawImage(src,x,y,sw,sh,0,0,sw,sh);if(sw<tile&&sw>0)cx.drawImage(c,sw-1,0,1,sh,sw,0,tile-sw,sh);if(sh<tile&&sh>0)cx.drawImage(c,0,sh-1,tile,1,0,sh,tile,tile-sh);return c}
+  function tensorFromCanvas(c){const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data,n=c.width*c.height,a=new Float32Array(n*3);for(let i=0;i<n;i++){a[i]=d[i*4]/255;a[n+i]=d[i*4+1]/255;a[n*2+i]=d[i*4+2]/255}return new ort.Tensor('float32',a,[1,3,c.height,c.width])}
+  function canvasFromTensor(t){const dims=t.dims,data=t.data,h=dims[dims.length-2],w=dims[dims.length-1],n=w*h,c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d'),im=x.createImageData(w,h),d=im.data,C=core();for(let i=0;i<n;i++){d[i*4]=C.clampByte(data[i]*255);d[i*4+1]=C.clampByte(data[n+i]*255);d[i*4+2]=C.clampByte(data[2*n+i]*255);d[i*4+3]=255}x.putImageData(im,0,0);return c}
+  async function aiX4(src){const sess=await ensureSession(),tile=128,overlap=16,C=core(),xs=C.tileStarts(src.width,tile,overlap),ys=C.tileStarts(src.height,tile,overlap),scale=4,out=document.createElement('canvas');out.width=src.width*scale;out.height=src.height*scale;const ox=out.getContext('2d'),input=sess.inputNames[0],output=sess.outputNames[0],total=xs.length*ys.length;let done=0;for(const y of ys)for(const x of xs){if(!S.running)throw new Error('Zpracování přerušeno');const tc=makeTile(src,x,y,tile),ten=tensorFromCanvas(tc),res=await sess.run({[input]:ten}),oc=canvasFromTensor(res[output]);const left=x===0?0:overlap/2,top=y===0?0:overlap/2,right=x===xs[xs.length-1]?0:overlap/2,bottom=y===ys[ys.length-1]?0:overlap/2,sw=(tile-left-right)*scale,sh=(tile-top-bottom)*scale;ox.drawImage(oc,left*scale,top*scale,sw,sh,(x+left)*scale,(y+top)*scale,sw,sh);done++;status(\`AI rekonstrukce: \${done}/\${total} dlaždic\`,10+80*done/total);await new Promise(r=>setTimeout(r,0))}return out}
+
+  async function run(){if(!S.img||S.running)return;S.running=true;$('#ups-run').disabled=true;$('#ups-png').disabled=true;$('#ups-jpg').disabled=true;const t0=performance.now(),mode=$('#ups-mode').value,sharp=Number($('#ups-sharp').value)/100,detail=Number($('#ups-detail').value)/100,noise=Number($('#ups-denoise').value)/100;try{let src=canvasOf(S.img);const scale=core().outputScale(mode),pred=src.width*src.height*scale*scale,maxPx=36000000;if(pred>maxPx){const f=Math.sqrt(maxPx/pred);src=resize(src,Math.max(128,Math.round(src.width*f)),Math.max(128,Math.round(src.height*f)));status('Velký obrázek: vstup byl bezpečně zmenšen kvůli paměti browseru.',3)}let result;if(mode==='sharp'||mode==='clean'){status('Lokální rekonstrukce hran…',25);result=localEnhance(src,mode,sharp,detail,noise);S.engine='LOCAL · EDGE';$('#ups-engine').textContent=S.engine}else{let prep=src;if(mode==='deblur2')prep=localEnhance(prep,'deblur2',Math.min(1,sharp*.75),detail*.75,noise);else prep=denoise(prep,noise*.5);result=await aiX4(prep);if(scale===2)result=resize(result,Math.round(result.width/2),Math.round(result.height/2));if(result.width*result.height<16000000)result=localEnhance(result,'clean',sharp*.22,detail*.18,0)}S.result=result;const before=resize(src,result.width,result.height);drawPreview(before,$('#ups-before'));drawPreview(result,$('#ups-after'));$('#ups-out').textContent=\`\${result.width} × \${result.height}\`;$('#ups-time').textContent=((performance.now()-t0)/1000).toFixed(1)+' s';$('#ups-png').disabled=false;$('#ups-jpg').disabled=false;status('Hotovo. Posuň slider a porovnej originál s výsledkem.',100)}catch(e){console.error(e);status('AI režim selhal: '+e.message+'. Zkus Sharp Fix nebo Clean Photo.',0)}finally{S.running=false;$('#ups-run').disabled=!S.img}}
+  function save(type,q,name){if(!S.result)return;S.result.toBlob(b=>{if(!b)return;const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)},type,q)}
+
+  window.initUpscalerApp=init;install();
+})();
