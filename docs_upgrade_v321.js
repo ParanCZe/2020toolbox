@@ -1,5 +1,5 @@
 (()=>{
-  const APP_VERSION='V3.58';
+  const APP_VERSION='V3.59';
 
   function forceVersion(){
     const el=document.getElementById('app-version');
@@ -74,6 +74,7 @@
   function loadPresentationLayering(){loadScriptOnce('presentation_layering_v357.js?v=357','presentation-layering-v357')}
   function loadPresentationGeometryCore(){loadScriptOnce('presentation_geometry_v358_core.js?v=3582','presentation-geometry-v358-core')}
   function loadPresentationGeometry(){loadScriptOnce('presentation_editor_geometry_v358.js?v=3583','presentation-editor-geometry-v358')}
+  function loadUpscaler(){loadScriptOnce('upscaler_v359.js?v=359','upscaler-v359')}
   function loadCompareVisual(){loadScriptOnce('docs_compare_visual_v340.js?v=341','docs-compare-visual-v340')}
   function loadReleaseUI(){loadScriptOnce('release_ui_v341.js?v=354','release-ui-v341')}
   function loadDrawingColumns(){loadScriptOnce('docs_drawing_columns_v342.js?v=447','docs-drawing-columns-v342')}
@@ -87,6 +88,6 @@
   function loadPresentationExtras(){loadPresentationCropModes();loadPresentationMediaSnap();loadPresentationCoverSidebar();loadPresentationZoomSync();loadPresentationLineEndpoints();loadPresentationLayering();loadPresentationGeometryCore();setTimeout(loadPresentationGeometry,20)}
   function loadPricingExtras(){loadPricingOffer();loadPricingProfessionTemplate();loadPricingRowRates();loadPricingLayout();loadPricingChoices();loadPricingExport()}
 
-  function init(){lockVersion();injectCss();addOverview();removeLegacyOperations();improveLabels();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadCompareVisual();loadReleaseUI();loadDrawingColumns();loadPricingExtras();setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadCompareVisual();loadReleaseUI();loadDrawingColumns();loadPricingExtras()},300);setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadCompareVisual();loadReleaseUI();loadDrawingColumns();loadPricingExtras()},1500)}
+  function init(){lockVersion();injectCss();addOverview();removeLegacyOperations();improveLabels();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadUpscaler();loadCompareVisual();loadReleaseUI();loadDrawingColumns();loadPricingExtras();setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadUpscaler();loadCompareVisual();loadReleaseUI();loadDrawingColumns();loadPricingExtras()},300);setTimeout(()=>{lockVersion();removeLegacyOperations();loadPresentationMedia();loadPresentationControlsHotfix();loadPresentationExtras();loadCompareVisual();loadReleaseUI();loadDrawingColumns();loadPricingExtras()},1500)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
