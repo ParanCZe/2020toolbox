@@ -55,7 +55,7 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 
 /* HLAVNI MENU — V3.14v: stabilni / beta + vyuziti dat */
 .menu-app-groups{display:flex;flex-direction:column;gap:16px}
-.menu-app-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.menu-app-row.beta{grid-template-columns:repeat(4,minmax(0,1fr))}
+.menu-app-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.menu-app-row.beta{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
 .menu-section-divider{height:1px;background:var(--border);margin:1cm 0}
 .session-data-overview{margin-top:0!important;border-top:0!important;padding-top:0!important}
 .session-data-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
@@ -546,6 +546,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
         <div class="tile" onclick="openTool('designcheck')"><b>Kontrola návrhu <small class="menu-status">BETA</small></b><span>Audit výkresů, místností, schodišť a vzájemné konzistence PDF</span></div>
         <div class="tile" onclick="openTool('3dmodels')"><b>3D knihovna výrobků <small class="menu-status">BETA</small></b><span>Reálné produkty, BIM/CAD odkazy a živé 3D náhledy</span></div>
         <div class="tile" onclick="openTool('norms'); initNormsApp()"><b>Normy <small class="menu-status">BETA</small></b><span>Interiér, urbanismus, projektování, dokumentace a stavební požadavky</span></div>
+        <div id="ups-menu-tile" class="tile" onclick="openTool('upscaler'); initUpscalerApp()"><b>Upscaler <small class="menu-status">BETA</small></b><span>Lokální deblur, sharp fix a AI upscale 2× / 4×</span></div>
       </div>
     </div>
     <div class="menu-section-divider" aria-hidden="true"></div>
@@ -8372,6 +8373,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>check3DPrintPrus
 </script>
 
 <script src="norms_ui_v315b.js?v=315b"></script>
+<script src="upscaler_v359.js?v=3591" data-upscaler-v359="1"></script>
 <script src="docs_upgrade_v321.js?v=359"></script>
 <script src="docs_textcheck_v322.js?v=322"></script>
 <script src="docs_textcheck_web_v323.js?v=323"></script>
