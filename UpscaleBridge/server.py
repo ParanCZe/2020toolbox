@@ -138,7 +138,7 @@ def health_payload() -> dict:
     tel = gpu_telemetry()
     return {
         "name": "20-20 Toolbox VOSR Bridge",
-        "version": "1.3.1",
+        "version": "1.3.2",
         "ready": bool(mready and gpu),
         "models_ready": mready,
         "gpu_detected": gpu,
@@ -153,7 +153,7 @@ def health_payload() -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ToolboxVOSR/1.3.1"
+    server_version = "ToolboxVOSR/1.3.2"
 
     def log_message(self, fmt: str, *args) -> None:
         print(f"[VOSR Bridge] {self.address_string()} - {fmt % args}")
@@ -269,23 +269,6 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"error": "Podporovaný scale je 2 nebo 4."})
             return
 
-        quality = str(query.get("quality", ["fast"])[0]).lower()
-        quality_presets = {
-            # 512 is the proven/detail-preserving VOSR path used by the original Toolbox bridge.
-            # Larger tiles expose more scene context, but are not a monotonic "quality" increase.
-            "detail": {"tile": 512, "overlap": 32},
-            "context": {"tile": 768, "overlap": 48},
-            "maxcontext": {"tile": 1024, "overlap": 64},
-            # Backward compatibility for already-open Toolbox tabs.
-            "fast": {"tile": 512, "overlap": 32},
-            "quality": {"tile": 768, "overlap": 48},
-            "max": {"tile": 1024, "overlap": 64},
-        }
-        if quality not in quality_presets:
-            self._json(400, {"error": "Neznámý VOSR quality preset."})
-            return
-        preset = quality_presets[quality]
-
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
@@ -331,16 +314,16 @@ class Handler(BaseHTTPRequestHandler):
                     "-u", str(scale),
                     "--force_rerun",
                 ]
-                if target_max > preset["tile"]:
-                    cmd += ["--tile_size", str(preset["tile"]), "--tile_overlap", str(preset["overlap"])]
+                # Original proven Toolbox VOSR path: fixed 512px DiT tiles.
+                if target_max > 512:
+                    cmd += ["--tile_size", "512", "--tile_overlap", "32"]
                 if target_max > 4096:
-                    vae_overlap = 32 if preset["tile"] == 512 else 48 if preset["tile"] == 768 else 64
-                    cmd += ["--vae_tile_size", "1024", "--vae_tile_overlap", str(vae_overlap)]
+                    cmd += ["--vae_tile_size", "1024", "--vae_tile_overlap", "32"]
 
                 env = os.environ.copy()
                 env["PYTHONUTF8"] = "1"
                 env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
-                print(f"[VOSR Bridge] Preset: {quality.upper()} · tile {preset['tile']} · overlap {preset['overlap']} · scale {scale}x")
+                print(f"[VOSR Bridge] Scene {scale}x · fixed tile 512 · overlap 32")
                 print("[VOSR Bridge] Spouštím:", " ".join(f'"{x}"' if " " in x else x for x in cmd))
 
                 CANCEL_REQUESTED.clear()
@@ -396,7 +379,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "image/png")
                 self.send_header("Content-Length", str(len(payload)))
                 self.send_header("X-Toolbox-Engine", "VOSR-2.0")
-                self.send_header("X-Toolbox-Quality", quality)
+                self.send_header("X-Toolbox-Scale", str(scale))
                 self.end_headers()
                 self.wfile.write(payload)
         except BrokenPipeError:
