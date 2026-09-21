@@ -62,8 +62,8 @@
           <div id="ups-drop" class="ups-drop"><b>Přetáhni obrázek</b><span>PNG / JPG / WEBP nebo klikni</span><input id="ups-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></div>
           <div class="ups-control"><label><span>Režim</span><span id="ups-mode-label"></span></label><select id="ups-mode"><option value="safe4">Safe Upscale 4× — Real-ESRGAN</option><option value="invsr4">AI Upscale 4× — InvSR</option><option value="supirf">AI Restore Fidelity — SUPIR v0F (Archviz Safe)</option><option value="ai2">Local AI Upscale 2×</option><option value="deblur2">Deblur + Local AI 2×</option><option value="sharp">Sharp Fix</option><option value="clean">Clean Photo</option><option value="vosr2">VOSR 2.0 Scene 2×</option><option value="vosr4">VOSR 2.0 Scene 4×</option></select></div>
           <div id="ups-cloud-note" class="ups-vosr-note" hidden></div>
-          <div id="ups-vosr-note" class="ups-vosr-note" hidden><b>VOSR 2.0 · generativní rekonstrukce celé scény</b><br>Obnovuje objekty, lidi, hrany, materiály a textury v jednom passu.<br><br><b>Jak funguje:</b> VOSR běží lokálně na tvém PC přes NVIDIA CUDA bridge. Obrázek se nikam neodesílá a neopouští počítač.<br><b>Místo na disku:</b> po instalaci počítej přibližně <b>14–18 GB</b>. Během první instalace může dočasně potřebovat i <b>20+ GB</b> kvůli staženým balíčkům a cache. Modely se stahují jen jednou.<br><b>Požadavky:</b> NVIDIA GPU + lokální VOSR Bridge.<br><a class="back-btn" style="display:inline-flex;margin-top:7px;text-decoration:none" href="UpscaleBridge/install.bat?v=20260921bridgefastupdate1" download="20-20-TOOLBOX_VOSR_INSTALL.bat">↓ Stáhnout / aktualizovat VOSR Bridge</a></div>
-          <div id="ups-vosr-quality-wrap" class="ups-control" hidden><label><span>VOSR kvalita</span><span id="ups-vosr-quality-label">QUALITY</span></label><select id="ups-vosr-quality"><option value="fast">Fast / Fidelity — 512 tile</option><option value="quality" selected>Quality — 768 tile</option><option value="max">Max Quality — 1024 tile</option></select><div id="ups-vosr-quality-hint" class="muted ups-quality-hint">Quality: větší kontext pro lidi, materiály a návaznost textur.</div></div>
+          <div id="ups-vosr-note" class="ups-vosr-note" hidden><b>VOSR 2.0 · generativní rekonstrukce celé scény</b><br>Obnovuje objekty, lidi, hrany, materiály a textury v jednom passu.<br><br><b>Jak funguje:</b> VOSR běží lokálně na tvém PC přes NVIDIA CUDA bridge. Obrázek se nikam neodesílá a neopouští počítač.<br><b>Místo na disku:</b> po instalaci počítej přibližně <b>14–18 GB</b>. Během první instalace může dočasně potřebovat i <b>20+ GB</b> kvůli staženým balíčkům a cache. Modely se stahují jen jednou.<br><b>Požadavky:</b> NVIDIA GPU + lokální VOSR Bridge.<br><a class="back-btn" style="display:inline-flex;margin-top:7px;text-decoration:none" href="UpscaleBridge/install.bat?v=20260921detailpreset131" download="20-20-TOOLBOX_VOSR_INSTALL.bat">↓ Stáhnout / aktualizovat VOSR Bridge</a></div>
+          <div id="ups-vosr-quality-wrap" class="ups-control" hidden><label><span>VOSR kvalita</span><span id="ups-vosr-quality-label">MAX DETAIL</span></label><select id="ups-vosr-quality"><option value="detail" selected>Max Detail / Recommended — 512 tile</option><option value="context">More Context — 768 tile</option><option value="maxcontext">Max Context / Experimental — 1024 tile</option></select><div id="ups-vosr-quality-hint" class="muted ups-quality-hint">Max Detail: původní osvědčený 512 tile režim s nejostřejšími mikrodetaily.</div></div>
           <div class="ups-control"><label><span>Ostrost</span><span id="ups-sharp-v">55</span></label><input id="ups-sharp" type="range" min="0" max="100" value="55"></div>
           <div class="ups-control"><label><span>Obnova detailu</span><span id="ups-detail-v">55</span></label><input id="ups-detail" type="range" min="0" max="100" value="55"></div>
           <div class="ups-control"><label><span>Odšumění</span><span id="ups-denoise-v">12</span></label><input id="ups-denoise" type="range" min="0" max="100" value="12"></div>
@@ -86,7 +86,7 @@
     for(const id of ['sharp','detail','denoise'])$('#ups-'+id).oninput=e=>$('#ups-'+id+'-v').textContent=e.target.value;
     $('#ups-scene-strength').oninput=e=>$('#ups-scene-v').textContent=e.target.value;
     $('#ups-face-strength').oninput=e=>$('#ups-face-v').textContent=e.target.value;
-    const quality=$('#ups-vosr-quality');try{const saved=localStorage.getItem('toolbox-vosr-quality');if(saved&&['fast','quality','max'].includes(saved))quality.value=saved}catch(_){}
+    const quality=$('#ups-vosr-quality');try{let saved=localStorage.getItem('toolbox-vosr-quality');if(saved==='fast')saved='detail';else if(saved==='quality'||saved==='max')saved='detail';if(saved&&['detail','context','maxcontext'].includes(saved))quality.value=saved}catch(_){}
     quality.onchange=()=>{try{localStorage.setItem('toolbox-vosr-quality',quality.value)}catch(_){}syncVosrQualityUi()};
     mode.onchange=()=>{const m=mode.value;$('#ups-mode-label').textContent=core()?.modeLabel(m)||m;syncModeUi(m)};mode.onchange();syncVosrQualityUi();checkVosrBridge(true).then(()=>refreshAiStorage());
     compare.oninput=()=>{const v=Number(compare.value);$('#ups-after-wrap').style.clipPath=`inset(0 0 0 ${v}%)`;$('#ups-divider').style.left=v+'%'};compare.oninput();
@@ -97,16 +97,16 @@
   function isCloudMode(mode){return mode==='invsr4'||mode==='supirf'}
   function isFidelitySafeMode(mode){return mode==='safe4'||isCloudMode(mode)||isVosrMode(mode)}
   function versionAtLeast(v,min){const a=String(v||'0').split('.').map(x=>parseInt(x,10)||0),b=String(min||'0').split('.').map(x=>parseInt(x,10)||0);for(let i=0;i<Math.max(a.length,b.length);i++){const x=a[i]||0,y=b[i]||0;if(x>y)return true;if(x<y)return false}return true}
-  function vosrQuality(){return $('#ups-vosr-quality')?.value||'quality'}
-  function vosrQualityLabel(q){return({fast:'FAST / FIDELITY',quality:'QUALITY',max:'MAX QUALITY'})[q]||String(q||'').toUpperCase()}
+  function vosrQuality(){return $('#ups-vosr-quality')?.value||'detail'}
+  function vosrQualityLabel(q){return({detail:'MAX DETAIL',context:'MORE CONTEXT',maxcontext:'MAX CONTEXT · EXP'})[q]||String(q||'').toUpperCase()}
   function syncVosrQualityUi(){
     const q=vosrQuality(),label=$('#ups-vosr-quality-label'),hint=$('#ups-vosr-quality-hint'),mode=$('#ups-mode')?.value;
     if(label)label.textContent=vosrQualityLabel(q);
     if(hint){
-      if(!S.vosrQualitySupported&&S.vosrHealth)hint.textContent='Bridge '+(S.vosrHealth.version||'')+' je starší. Pro quality presety stáhni aktualizovaný VOSR Bridge.';
-      else if(q==='fast')hint.textContent='Fast / Fidelity: 512 tile · nejnižší VRAM a nejbezpečnější běh.';
-      else if(q==='quality')hint.textContent='Quality: 768 tile · větší kontext pro lidi, materiály a návaznost textur.';
-      else hint.textContent='Max Quality: 1024 tile · maximum kontextu, bez dalšího resamplingu; vyšší VRAM nároky.';
+      if(!S.vosrQualitySupported&&S.vosrHealth)hint.textContent='Bridge '+(S.vosrHealth.version||'')+' je starší. Pro nové presety stáhni rychlou aktualizaci VOSR Bridge.';
+      else if(q==='detail')hint.textContent='Max Detail / Recommended: původní osvědčený 512 tile režim. Nejlepší volba pro ostré lidi a mikrotextury.';
+      else if(q==='context')hint.textContent='More Context: 768 tile · model vidí větší kus scény najednou, ale detail nemusí být ostřejší.';
+      else hint.textContent='Max Context / Experimental: 1024 tile · největší kontext, ale u některých renderů může být měkčí.';
     }
   }
   function formatBytesAi(n){n=Number(n)||0;if(n<=0)return'0 B';const u=['B','KB','MB','GB','TB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return(n>=100||i===0?n.toFixed(0):n>=10?n.toFixed(1):n.toFixed(2))+' '+u[i]}
@@ -275,7 +275,7 @@
     try{
       const r=await fetch(VOSR_BRIDGE_URL+'/health',{cache:'no-store',signal:ctrl.signal});
       if(!r.ok)throw new Error('HTTP '+r.status);
-      const h=await r.json();S.vosrHealth=h;S.vosrOnline=!!h.ready;S.vosrQualitySupported=versionAtLeast(h.version,'1.3.0');
+      const h=await r.json();S.vosrHealth=h;S.vosrOnline=!!h.ready;S.vosrQualitySupported=versionAtLeast(h.version,'1.3.1');
       const qs=$('#ups-vosr-quality');if(qs)qs.disabled=!S.vosrQualitySupported;syncVosrQualityUi();
       if(badge){
         const bridgeState=h.ready?(S.vosrQualitySupported?'online · GPU připraveno':'online · aktualizuj Bridge pro Quality presety'):(!h.models_ready?'online · chybí modely':(!h.gpu_detected?'online · NVIDIA GPU nenalezena':'online · není připraveno'));
@@ -300,7 +300,7 @@
   async function runVosrBridge(src,scale){
     const h=await checkVosrBridge(true);
     if(!h||!h.ready)throw new Error('VOSR Bridge není připravený. Spusť UpscaleBridge\\setup.bat a run_bridge.bat');
-    const q=S.vosrQualitySupported?vosrQuality():'fast',renderScale=vosrRenderScale(scale,q),eta=estimateVosrSeconds(src,scale,q),started=performance.now();
+    const q=S.vosrQualitySupported?vosrQuality():'detail',renderScale=vosrRenderScale(scale,q),eta=estimateVosrSeconds(src,scale,q),started=performance.now();
     status('VOSR 2.0 · připravuju obraz pro lokální GPU…',8);
     const blob=await canvasToBlob(src);
     status('VOSR 2.0 · '+vosrQualityLabel(q)+' · rekonstruuju scénu na GPU…',22);
