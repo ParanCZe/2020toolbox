@@ -19,7 +19,7 @@ echo.
 if not exist "%TARGET%" mkdir "%TARGET%"
 if errorlevel 1 goto :fail
 
-for %%F in (setup.bat run_bridge.bat server.py download_models.py) do (
+for %%F in (setup.bat run_bridge.bat cleanup_ai.bat server.py download_models.py) do (
   echo Stahuji %%F...
   where curl.exe >nul 2>nul
   if not errorlevel 1 (
