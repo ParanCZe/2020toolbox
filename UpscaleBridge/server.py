@@ -136,7 +136,7 @@ def health_payload() -> dict:
     tel = gpu_telemetry()
     return {
         "name": "20-20 Toolbox VOSR Bridge",
-        "version": "1.2.0",
+        "version": "1.2.1",
         "ready": bool(mready and gpu),
         "models_ready": mready,
         "gpu_detected": gpu,
@@ -151,7 +151,7 @@ def health_payload() -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ToolboxVOSR/1.2"
+    server_version = "ToolboxVOSR/1.2.1"
 
     def log_message(self, fmt: str, *args) -> None:
         print(f"[VOSR Bridge] {self.address_string()} - {fmt % args}")
@@ -362,7 +362,9 @@ class Handler(BaseHTTPRequestHandler):
 
                 result = out / "input.png"
                 if p.returncode != 0 or not result.is_file():
-                    tail = "\n".join(((stderr or "") + "\n" + (stdout or "")).splitlines()[-24:])
+                    tail = "\n".join(((stderr or "") + "\n" + (stdout or "")).splitlines()[-40:])
+                    print("[VOSR Bridge] Inference selhala. Poslední výstup:")
+                    print(tail or "(bez výstupu)")
                     self._json(500, {"error": "VOSR inference selhala.", "detail": tail})
                     return
 
