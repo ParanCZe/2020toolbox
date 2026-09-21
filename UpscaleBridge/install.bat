@@ -2,7 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 set "TARGET=%LOCALAPPDATA%\20-20-TOOLBOX\UpscaleBridge"
 set "BASE=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/UpscaleBridge"
-set "SERVER_REF=f5ae07f980d2335680185815f8f8b7f7891c3e56"
+set "SERVER_REF=a681a506eaa6535f302c3a5bbe605700c7bde01c"
 set "SERVER_URL=https://raw.githubusercontent.com/ParanCZe/2020toolbox/%SERVER_REF%/UpscaleBridge/server.py"
 
 echo ================================================================
@@ -85,9 +85,9 @@ start "20-20 TOOLBOX VOSR Bridge" "%TARGET%\run_bridge.bat"
 
 echo.
 echo ================================================================
-echo HOTOVO - VOSR Bridge 1.3.3 je aktualizovany a spousti se.
+echo HOTOVO - VOSR Bridge 1.3.4 je aktualizovany a spousti se.
 echo Existujici AI modely zustaly beze zmeny.
-echo Scene 512 zustava vychozi. Navic jsou dostupne testovaci 384 / 256 / 128 tile varianty pro Scene 4x.
+echo V Toolboxu jsou pouze ciste VOSR Scene 2x / Scene 4x. Interni tile: 512, VAE tile: 1024.
 echo ================================================================
 pause
 exit /b 0
