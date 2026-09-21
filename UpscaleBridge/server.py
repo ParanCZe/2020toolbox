@@ -153,7 +153,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             from PIL import Image
 
-            with tempfile.TemporaryDirectory(prefix="toolbox-vوسr-") as td:
+            with tempfile.TemporaryDirectory(prefix="toolbox-vosr-") as td:
                 work = Path(td)
                 inp = work / "input.png"
                 out = work / "out"
