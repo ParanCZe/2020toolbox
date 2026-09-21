@@ -9,7 +9,7 @@
   const VOSR_BRIDGE_URL='http://127.0.0.1:8092';
   const GRADIO_CLIENT_URL='https://cdn.jsdelivr.net/npm/@gradio/client@2.7.0/dist/index.min.js';
   const INVSR_SPACE='OAOA/InvSR';
-  const SUPIR_SPACE='Fabrice-TIERCELIN/SUPIR';
+  const SUPIR_SPACES=['NotSky/supir-demo','Fabrice-TIERCELIN/SUPIR'];
   const S={file:null,img:null,result:null,session:null,loadingModel:null,faceSession:null,loadingFaceModel:null,faceDetector:null,loadingFaceDetector:null,objectDetector:null,loadingObjectDetector:null,engine:'LOCAL',running:false,vosrOnline:false,vosrHealth:null,gradioModule:null,cloudClients:{},cloudApi:{}};
   const $=s=>document.querySelector(s);
   const LOCAL_CORE={clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),clampByte:v=>Math.max(0,Math.min(255,Math.round(v))),tileStarts(size,tile=128,overlap=16){size=Math.max(1,Math.floor(size));if(size<=tile)return[0];const step=tile-overlap,out=[];for(let p=0;p<size-tile;p+=step)out.push(p);const last=size-tile;if(out[out.length-1]!==last)out.push(last);return out},outputScale:m=>m==='safe4'||m==='invsr4'||m==='ai4'||m==='vosr4'?4:m==='supirf'||m==='ai2'||m==='deblur2'||m==='vosr2'?2:1,sharpenAmount(v,m){const n=Math.max(0,Math.min(100,Number(v)||0))/100;return(m==='sharp'?0.35:0.18)+n*1.2},modeLabel:m=>({safe4:'SAFE UPSCALE 4× · REAL-ESRGAN',invsr4:'AI UPSCALE 4× · INVSR',supirf:'AI RESTORE FIDELITY · SUPIR v0F',sharp:'SHARP FIX',clean:'CLEAN PHOTO',ai2:'AI UPSCALE 2× · LOCAL',ai4:'AI UPSCALE 4× · LOCAL',deblur2:'DEBLUR + AI 2×',vosr2:'VOSR 2.0 SCENE 2×',vosr4:'VOSR 2.0 SCENE 4×'})[m]||m};
@@ -91,7 +91,7 @@
     if(cloudNote){
       cloudNote.hidden=!cloudOn;
       if(mode==='invsr4')cloudNote.innerHTML='<b>InvSR 4× · online / konzervativní AI</b><br>Oficiální OAOA/InvSR Space. Obrázek se odešle na veřejný Hugging Face ZeroGPU server a výsledek se vrátí přímo sem. Používáme 1-step režim a pevný seed pro konzistentnější výsledek. Služba může mít frontu nebo bezplatný denní limit.';
-      else if(mode==='supirf')cloudNote.innerHTML='<b>SUPIR v0F · Fidelity / online</b><br>Režim v0-F je nastavený na vyšší věrnost originálu a konzervativní 2× obnovu. Obrázek se odešle na veřejný Hugging Face Space. Je pomalejší a může mít frontu nebo bezplatný denní limit; jde o research / non-commercial službu.';
+      else if(mode==='supirf')cloudNote.innerHTML='<b>SUPIR v0F · Fidelity / online</b><br>Režim v0-F je nastavený na vyšší věrnost originálu a konzervativní 2× obnovu. Toolbox zkusí dostupné veřejné SUPIR servery automaticky; pokud jsou všechny mimo provoz, použije jako bezpečný fallback InvSR. Obrázek se odešle na veřejný Hugging Face Space. Je pomalejší a může mít frontu nebo bezplatný denní limit; jde o research / non-commercial službu.';
     }
     for(const id of ['ups-generative','ups-scene','ups-scene-strength','ups-face','ups-face-strength']){
       const el=$('#'+id);if(el)el.disabled=protectedOn;
@@ -148,29 +148,47 @@
     const out=await canvasFromCloudValue(res?.data?.[0]??res?.data??res,true);
     S.engine='InvSR 4× · HF ZeroGPU';$('#ups-engine').textContent=S.engine;return out;
   }
-  async function runSupirFidelityCloud(src){
-    const {handle_file}=await ensureGradioClient(),app=await getCloudClient(SUPIR_SPACE),blob=await canvasToBlob(src);
+  async function runSupirOnSpace(space,src,blob,handle_file){
+    status('SUPIR Fidelity · připojuju '+space+'…',8);
+    const app=await getCloudClient(space);
     status('SUPIR Fidelity · načítám v0-F parametry…',10);
     const resetEp=await resolveCloudEndpoint(app,'load_and_reset','/load_and_reset');
     const stageEp=await resolveCloudEndpoint(app,'stage2_process','/stage2_process');
-    let defaults;
-    try{const d=await app.predict(resetEp,['Fidelity']);defaults=d?.data}
-    catch(e){throw new Error('SUPIR API změnilo parametry Fidelity nebo není dostupné. '+(e?.message||e))}
-    if(!Array.isArray(defaults)||defaults.length<14)throw new Error('SUPIR nevrátilo Fidelity nastavení.');
-    const [edmSteps,sCfg,sStage2,sStage1,sChurn,sNoise,aPrompt,nPrompt,colorFix,linearCfg,sptLinearCfg,linearStage2,sptLinearStage2,modelSelect]=defaults;
+    const d=await app.predict(resetEp,['Fidelity']),defaults=d?.data;
+    if(!Array.isArray(defaults)||defaults.length<14)throw new Error('Server nevrátil kompletní Fidelity nastavení.');
+    const [edmSteps,sCfg,sStage2,sStage1,sChurn,sNoise,aPrompt,nPrompt,colorFix,linearCfg,linearStage2,sptLinearCfg,sptLinearStage2,modelSelect]=defaults;
     status('SUPIR v0F · odesílám obrázek a čekám na GPU…',16);
     const payload=[
       handle_file(blob),0,null,'',aPrompt,nPrompt,1,1024,1,2,
       edmSteps,sStage1,sStage2,sCfg,false,12345,sChurn,sNoise,colorFix,
-      'fp16','bf16',1.0,linearCfg,sptLinearCfg,linearStage2,sptLinearStage2,
+      'fp16','bf16',1.0,linearCfg,linearStage2,sptLinearCfg,sptLinearStage2,
       modelSelect||'v0-F','png',180
     ];
-    let res;
-    try{res=await app.predict(stageEp,payload)}
-    catch(e){throw new Error('SUPIR Fidelity není právě dostupné nebo byl vyčerpán bezplatný GPU limit. '+(e?.message||e))}
+    const res=await app.predict(stageEp,payload);
     status('SUPIR Fidelity · stahuju výsledek…',94);
     const out=await canvasFromCloudValue(res?.data?.[0]??res?.data??res,true);
-    S.engine='SUPIR v0F · FIDELITY · HF ZeroGPU';$('#ups-engine').textContent=S.engine;return out;
+    S.engine='SUPIR v0F · FIDELITY · '+space;$('#ups-engine').textContent=S.engine;return out;
+  }
+  async function runSupirFidelityCloud(src){
+    const {handle_file}=await ensureGradioClient(),blob=await canvasToBlob(src);
+    const errors=[];
+    for(const space of SUPIR_SPACES){
+      try{return await runSupirOnSpace(space,src,blob,handle_file)}
+      catch(e){
+        console.warn('SUPIR mirror failed',space,e);
+        errors.push(space+': '+(e?.message||e));
+        delete S.cloudClients[space];
+        for(const k of Object.keys(S.cloudApi))if(k.includes(space))delete S.cloudApi[k];
+      }
+    }
+    status('SUPIR servery jsou teď nedostupné · přepínám na InvSR 4×…',18);
+    try{
+      const out=await runInvsrCloud(src);
+      S.engine='InvSR 4× · SUPIR FALLBACK';$('#ups-engine').textContent=S.engine;
+      return out;
+    }catch(e){
+      throw new Error('SUPIR veřejné servery jsou nedostupné a selhal i InvSR fallback. '+errors.join(' | ')+' | InvSR: '+(e?.message||e));
+    }
   }
 
   async function checkVosrBridge(silent=true){
