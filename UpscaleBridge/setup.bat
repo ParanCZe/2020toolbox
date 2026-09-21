@@ -77,17 +77,27 @@ if not exist "%VOSR_DIR%\inference_vosr_onestep.py" (
 )
 
 echo [5/7] Instaluji PyTorch CUDA a VOSR zavislosti...
-findstr /V /B /C:"triton==" "%VOSR_DIR%\requirements.txt" > "%RUNTIME%\requirements-toolbox-windows.txt"
+
+rem PyTorch CUDA index nesmi byt extra-index pro cely requirements soubor:
+rem uv by pak mohl hledat bezne balicky (napr. tqdm) pouze na PyTorch indexu.
+rem Proto nainstalujeme CUDA PyTorch oddelene a zbytek ciste z PyPI.
+echo       - PyTorch 2.5.1 + CUDA 12.1...
+"%UV%" pip install --python "%PY%" torch==2.5.1+cu121 torchvision==0.20.1+cu121 torchaudio==2.5.1+cu121 --index-url https://download.pytorch.org/whl/cu121
 if errorlevel 1 goto :fail
 
-"%UV%" pip install --python "%PY%" -r "%RUNTIME%\requirements-toolbox-windows.txt"
+echo       - Ostatni VOSR knihovny z PyPI...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Get-Content -LiteralPath '%VOSR_DIR%\requirements.txt' | Where-Object { $_ -notmatch '^\s*--extra-index-url' -and $_ -notmatch '^\s*torch==' -and $_ -notmatch '^\s*torchvision==' -and $_ -notmatch '^\s*torchaudio==' -and $_ -notmatch '^\s*triton==' } | Set-Content -LiteralPath '%RUNTIME%\requirements-toolbox-windows.txt' -Encoding utf8"
+if errorlevel 1 goto :fail
+
+"%UV%" pip install --python "%PY%" -r "%RUNTIME%\requirements-toolbox-windows.txt" --index-url https://pypi.org/simple
 if errorlevel 1 goto :fail
 
 rem Oficialni VOSR pinuje Triton 3.1. Na Windows pouzijeme kompatibilni triton-windows 3.1.x.
-"%UV%" pip install --python "%PY%" "triton-windows>=3.1,<3.2"
+echo       - Triton Windows 3.1...
+"%UV%" pip install --python "%PY%" "triton-windows>=3.1,<3.2" --index-url https://pypi.org/simple
 if errorlevel 1 goto :fail
 
-"%UV%" pip install --python "%PY%" -U "huggingface_hub[hf_xet]"
+"%UV%" pip install --python "%PY%" -U "huggingface_hub[hf_xet]" --index-url https://pypi.org/simple
 if errorlevel 1 goto :fail
 
 echo [6/7] Stahuji VOSR2 checkpoint, Qwen VAE a DINO cache...
