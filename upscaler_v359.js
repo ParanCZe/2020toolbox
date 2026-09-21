@@ -426,6 +426,7 @@
         result=await runSupirFidelityCloud(src);
       }else if(isVosr){
         result=await runVosrBridge(src,scale);
+        if(result.width*result.height<24000000)result=localEnhance(result,'clean',sharp*.08,detail*.10,0);
       }else{
         let prep=src;if(mode==='deblur2')prep=localEnhance(prep,'deblur2',Math.min(1,sharp*.75),detail*.75,noise);else prep=denoise(prep,noise*.5);
         result=await aiX4(prep);if(scale===2)result=resize(result,Math.round(result.width/2),Math.round(result.height/2));
