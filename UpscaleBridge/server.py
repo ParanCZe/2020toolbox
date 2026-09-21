@@ -66,7 +66,7 @@ def health_payload() -> dict:
     mready = models_ready()
     return {
         "name": "20-20 Toolbox VOSR Bridge",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "ready": bool(mready and gpu),
         "models_ready": mready,
         "gpu_detected": gpu,
@@ -79,7 +79,7 @@ def health_payload() -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ToolboxVOSR/1.0"
+    server_version = "ToolboxVOSR/1.1"
 
     def log_message(self, fmt: str, *args) -> None:
         print(f"[VOSR Bridge] {self.address_string()} - {fmt % args}")
@@ -114,6 +114,31 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+
+        if parsed.path == "/cleanup":
+            if JOB_LOCK.locked():
+                self._json(409, {"error": "VOSR právě zpracovává obrázek. Cleanup spusť až po dokončení."})
+                return
+            script = ROOT / "cleanup_ai.bat"
+            if not script.is_file():
+                self._json(500, {"error": "Cleanup skript nebyl nalezen. Aktualizuj VOSR Bridge instalátor."})
+                return
+            try:
+                flags = 0
+                if os.name == "nt":
+                    flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+                subprocess.Popen(
+                    ["cmd.exe", "/c", "start", "", "/min", str(script), "--wait-pid", str(os.getpid())],
+                    cwd=str(ROOT),
+                    creationflags=flags,
+                    close_fds=True,
+                )
+                self._json(202, {"ok": True, "message": "Cleanup spuštěn. Bridge se ukončí a AI data se smažou."})
+                threading.Thread(target=self.server.shutdown, daemon=True).start()
+            except Exception as exc:
+                self._json(500, {"error": f"Cleanup se nepodařilo spustit: {exc}"})
+            return
+
         if parsed.path != "/upscale":
             self._json(404, {"error": "Not found"})
             return
