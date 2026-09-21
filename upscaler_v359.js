@@ -12,7 +12,7 @@
   const SUPIR_SPACES=['NotSky/supir-demo','Fabrice-TIERCELIN/SUPIR'];
   const S={file:null,img:null,result:null,session:null,loadingModel:null,faceSession:null,loadingFaceModel:null,faceDetector:null,loadingFaceDetector:null,objectDetector:null,loadingObjectDetector:null,engine:'LOCAL',running:false,vosrOnline:false,vosrHealth:null,gradioModule:null,cloudClients:{},cloudApi:{}};
   const $=s=>document.querySelector(s);
-  const LOCAL_CORE={clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),clampByte:v=>Math.max(0,Math.min(255,Math.round(v))),tileStarts(size,tile=128,overlap=16){size=Math.max(1,Math.floor(size));if(size<=tile)return[0];const step=tile-overlap,out=[];for(let p=0;p<size-tile;p+=step)out.push(p);const last=size-tile;if(out[out.length-1]!==last)out.push(last);return out},outputScale:m=>m==='safe4'||m==='invsr4'||m==='ai4'||m==='vosr4'?4:m==='supirf'||m==='ai2'||m==='deblur2'||m==='vosr2'?2:1,sharpenAmount(v,m){const n=Math.max(0,Math.min(100,Number(v)||0))/100;return(m==='sharp'?0.35:0.18)+n*1.2},modeLabel:m=>({safe4:'SAFE UPSCALE 4× · REAL-ESRGAN',invsr4:'AI UPSCALE 4× · INVSR',supirf:'AI RESTORE FIDELITY · SUPIR v0F',sharp:'SHARP FIX',clean:'CLEAN PHOTO',ai2:'AI UPSCALE 2× · LOCAL',ai4:'AI UPSCALE 4× · LOCAL',deblur2:'DEBLUR + AI 2×',vosr2:'VOSR 2.0 SCENE 2×',vosr4:'VOSR 2.0 SCENE 4×'})[m]||m};
+  const LOCAL_CORE={clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),clampByte:v=>Math.max(0,Math.min(255,Math.round(v))),tileStarts(size,tile=128,overlap=16){size=Math.max(1,Math.floor(size));if(size<=tile)return[0];const step=tile-overlap,out=[];for(let p=0;p<size-tile;p+=step)out.push(p);const last=size-tile;if(out[out.length-1]!==last)out.push(last);return out},outputScale:m=>m==='safe4'||m==='invsr4'||m==='ai4'||m==='vosr4'?4:m==='supirf'||m==='ai2'||m==='deblur2'||m==='vosr2'?2:1,sharpenAmount(v,m){const n=Math.max(0,Math.min(100,Number(v)||0))/100;return(m==='sharp'?0.35:0.18)+n*1.2},modeLabel:m=>({safe4:'SAFE UPSCALE 4× · REAL-ESRGAN',invsr4:'AI UPSCALE 4× · INVSR',supirf:'AI RESTORE FIDELITY · SUPIR v0F · ARCHVIZ',sharp:'SHARP FIX',clean:'CLEAN PHOTO',ai2:'AI UPSCALE 2× · LOCAL',ai4:'AI UPSCALE 4× · LOCAL',deblur2:'DEBLUR + AI 2×',vosr2:'VOSR 2.0 SCENE 2×',vosr4:'VOSR 2.0 SCENE 4×'})[m]||m};
   const core=()=>window.upscalerV359Core||LOCAL_CORE;
 
   function css(){if($('#upscaler-v359-style'))return;const s=document.createElement('style');s.id='upscaler-v359-style';s.textContent=`
@@ -52,7 +52,7 @@
       <div class="ups-grid">
         <section class="ups-panel"><h2>VSTUP A NASTAVENÍ</h2>
           <div id="ups-drop" class="ups-drop"><b>Přetáhni obrázek</b><span>PNG / JPG / WEBP nebo klikni</span><input id="ups-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></div>
-          <div class="ups-control"><label><span>Režim</span><span id="ups-mode-label"></span></label><select id="ups-mode"><option value="safe4">Safe Upscale 4× — Real-ESRGAN</option><option value="invsr4">AI Upscale 4× — InvSR</option><option value="supirf">AI Restore Fidelity — SUPIR v0F</option><option value="ai2">Local AI Upscale 2×</option><option value="deblur2">Deblur + Local AI 2×</option><option value="sharp">Sharp Fix</option><option value="clean">Clean Photo</option><option value="vosr2">VOSR 2.0 Scene 2×</option><option value="vosr4">VOSR 2.0 Scene 4×</option></select></div>
+          <div class="ups-control"><label><span>Režim</span><span id="ups-mode-label"></span></label><select id="ups-mode"><option value="safe4">Safe Upscale 4× — Real-ESRGAN</option><option value="invsr4">AI Upscale 4× — InvSR</option><option value="supirf">AI Restore Fidelity — SUPIR v0F (Archviz Safe)</option><option value="ai2">Local AI Upscale 2×</option><option value="deblur2">Deblur + Local AI 2×</option><option value="sharp">Sharp Fix</option><option value="clean">Clean Photo</option><option value="vosr2">VOSR 2.0 Scene 2×</option><option value="vosr4">VOSR 2.0 Scene 4×</option></select></div>
           <div id="ups-cloud-note" class="ups-vosr-note" hidden></div>
           <div id="ups-vosr-note" class="ups-vosr-note" hidden><b>VOSR 2.0 · generativní rekonstrukce celé scény</b><br>Obnovuje objekty, lidi, hrany, materiály a textury v jednom passu.<br><br><b>Jak funguje:</b> VOSR běží lokálně na tvém PC přes NVIDIA CUDA bridge. Obrázek se nikam neodesílá a neopouští počítač.<br><b>Místo na disku:</b> po instalaci počítej přibližně <b>14–18 GB</b>. Během první instalace může dočasně potřebovat i <b>20+ GB</b> kvůli staženým balíčkům a cache. Modely se stahují jen jednou.<br><b>Požadavky:</b> NVIDIA GPU + lokální VOSR Bridge.<br><a class="back-btn" style="display:inline-flex;margin-top:7px;text-decoration:none" href="UpscaleBridge/install.bat" download>↓ Stáhnout VOSR Bridge instalátor</a></div>
           <div class="ups-control"><label><span>Ostrost</span><span id="ups-sharp-v">55</span></label><input id="ups-sharp" type="range" min="0" max="100" value="55"></div>
@@ -91,7 +91,7 @@
     if(cloudNote){
       cloudNote.hidden=!cloudOn;
       if(mode==='invsr4')cloudNote.innerHTML='<b>InvSR 4× · online / konzervativní AI</b><br>Oficiální OAOA/InvSR Space. Obrázek se odešle na veřejný Hugging Face ZeroGPU server a výsledek se vrátí přímo sem. Používáme 1-step režim a pevný seed pro konzistentnější výsledek. Služba může mít frontu nebo bezplatný denní limit.';
-      else if(mode==='supirf')cloudNote.innerHTML='<b>SUPIR v0F · Fidelity / online</b><br>Režim v0-F je nastavený na vyšší věrnost originálu a konzervativní 2× obnovu. Toolbox zkusí dostupné veřejné SUPIR servery automaticky; pokud jsou všechny mimo provoz, použije jako bezpečný fallback InvSR. Obrázek se odešle na veřejný Hugging Face Space. Je pomalejší a může mít frontu nebo bezplatný denní limit; jde o research / non-commercial službu.';
+      else if(mode==='supirf')cloudNote.innerHTML='<b>SUPIR v0F · Archviz Fidelity / online</b><br>Režim v0-F je nastavený na vyšší věrnost originálu a konzervativní 2× obnovu. Toolbox zkusí dostupné veřejné SUPIR servery automaticky; pokud jsou všechny mimo provoz, použije jako bezpečný fallback InvSR. Obrázek se odešle na veřejný Hugging Face Space. Je pomalejší a může mít frontu nebo bezplatný denní limit; jde o research / non-commercial službu.';
     }
     for(const id of ['ups-generative','ups-scene','ups-scene-strength','ups-face','ups-face-strength']){
       const el=$('#'+id);if(el)el.disabled=protectedOn;
@@ -156,13 +156,21 @@
     const stageEp=await resolveCloudEndpoint(app,'stage2_process','/stage2_process');
     const d=await app.predict(resetEp,['Fidelity']),defaults=d?.data;
     if(!Array.isArray(defaults)||defaults.length<14)throw new Error('Server nevrátil kompletní Fidelity nastavení.');
-    const [edmSteps,sCfg,sStage2,sStage1,sChurn,sNoise,aPrompt,nPrompt,colorFix,linearCfg,linearStage2,sptLinearCfg,sptLinearStage2,modelSelect]=defaults;
-    status('SUPIR v0F · odesílám obrázek a čekám na GPU…',16);
+    const [edmSteps]=defaults;
+    // Archviz-safe Fidelity preset. The public demo's default positive prompt is strongly
+    // photographic and its negative prompt penalizes "3D render", which can cause
+    // architecture to be re-imagined. Override those defaults and use SUPIR's
+    // documented fidelity-oriented guidance values.
+    const sCfg=4.0,sStage2=1.0,sStage1=-1.0,sChurn=5,sNoise=1.01;
+    const aPrompt='high fidelity restoration, preserve original composition, preserve original architecture, preserve exact geometry, preserve window and door layout, preserve object positions, preserve people positions, preserve materials and colors, preserve original 3D render style, natural fine detail';
+    const nPrompt='changed composition, altered architecture, warped geometry, bent straight lines, added windows, removed windows, added doors, removed doors, extra objects, missing objects, duplicated people, deformed people, distorted faces, changed signage, hallucinated text, artifacts';
+    const colorFix='Wavelet',linearCfg=true,linearStage2=false,sptLinearCfg=1.0,sptLinearStage2=0.0,modelSelect='v0-F';
+    status('SUPIR v0F · ARCHVIZ FIDELITY · čekám na GPU…',16);
     const payload=[
       handle_file(blob),0,null,'',aPrompt,nPrompt,1,1024,1,2,
       edmSteps,sStage1,sStage2,sCfg,false,12345,sChurn,sNoise,colorFix,
       'fp16','bf16',1.0,linearCfg,linearStage2,sptLinearCfg,sptLinearStage2,
-      modelSelect||'v0-F','png',180
+      modelSelect,'png',180
     ];
     const res=await app.predict(stageEp,payload);
     status('SUPIR Fidelity · stahuju výsledek…',94);
