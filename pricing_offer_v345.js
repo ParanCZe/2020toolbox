@@ -24,6 +24,9 @@
   const groupHours=g=>g.mode==='hours'?(g.items||[]).reduce((s,it)=>s+(it.on===false?0:Number(it.qty)||0),0):0;
   function summary(s=state){const groups=s?.groups||[];const arch=groups.filter(g=>g.mode==='hours').reduce((a,g)=>a+groupTotal(g),0);const prof=groups.filter(g=>g.mode==='fixed').reduce((a,g)=>a+groupTotal(g),0);const hours=groups.reduce((a,g)=>a+groupHours(g),0);const net=arch+prof,vat=net*(Number(s?.vat)||0)/100;return {arch,prof,hours,net,vat,gross:net+vat}}
   function css(){if(document.getElementById('pricing-v348-style'))return;const s=document.createElement('style');s.id='pricing-v348-style';s.textContent=`
+    @font-face{font-family:'Antarctican Mono';src:url("font/Dunwich Type Founders - Antarctican Mono Book.otf") format("opentype");font-weight:400;font-style:normal;font-display:swap}
+    @font-face{font-family:'Antarctican Mono';src:url("font/Dunwich Type Founders - Antarctican Mono Bold.otf") format("opentype");font-weight:700;font-style:normal;font-display:swap}
+    #tool-pricing,#tool-pricing input,#tool-pricing textarea,#tool-pricing select,#tool-pricing button{font-family:'Antarctican Mono',monospace}
     #tool-pricing .pricing-project-toolbar{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:14px 0}
     #tool-pricing .pricing-project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:14px}
     #tool-pricing .pricing-project-card{border:1px solid var(--border);border-radius:10px;background:#fff;padding:14px;cursor:pointer;transition:.15s}.pricing-project-card:hover{border-color:#d4cc5d;background:#fffef3;transform:translateY(-1px)}
