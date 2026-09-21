@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 set "TARGET=%LOCALAPPDATA%\20-20-TOOLBOX\UpscaleBridge"
 set "BASE=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/UpscaleBridge"
 
@@ -21,11 +21,12 @@ if errorlevel 1 goto :fail
 
 for %%F in (setup.bat run_bridge.bat cleanup_ai.bat server.py download_models.py) do (
   echo Stahuji %%F...
+  set "CACHEBUST=%RANDOM%%RANDOM%%RANDOM%"
   where curl.exe >nul 2>nul
   if not errorlevel 1 (
-    curl.exe -fL "%BASE%/%%F" -o "%TARGET%\%%F"
+    curl.exe -fL -H "Cache-Control: no-cache" "%BASE%/%%F?cb=!CACHEBUST!" -o "%TARGET%\%%F"
   ) else (
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri '%BASE%/%%F' -OutFile '%TARGET%\%%F'"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference='SilentlyContinue'; Invoke-WebRequest -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} -Uri '%BASE%/%%F?cb=!CACHEBUST!' -OutFile '%TARGET%\%%F'"
   )
   if errorlevel 1 goto :fail
 )
@@ -34,6 +35,23 @@ echo.
 echo Spoustim automatickou instalaci VOSR 2.0...
 call "%TARGET%\setup.bat"
 if errorlevel 1 goto :fail
+
+echo.
+echo Kontroluji syntax VOSR Bridge...
+"%TARGET%\.venv\Scripts\python.exe" -m py_compile "%TARGET%\server.py"
+if errorlevel 1 (
+  echo [VAROVANI] server.py neprosel syntax kontrolou. Stahuji ho znovu bez cache...
+  set "CACHEBUST=%RANDOM%%RANDOM%%RANDOM%"
+  where curl.exe >nul 2>nul
+  if not errorlevel 1 (
+    curl.exe -fL -H "Cache-Control: no-cache" "%BASE%/server.py?cb=!CACHEBUST!" -o "%TARGET%\server.py"
+  ) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference='SilentlyContinue'; Invoke-WebRequest -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} -Uri '%BASE%/server.py?cb=!CACHEBUST!' -OutFile '%TARGET%\server.py'"
+  )
+  if errorlevel 1 goto :fail
+  "%TARGET%\.venv\Scripts\python.exe" -m py_compile "%TARGET%\server.py"
+  if errorlevel 1 goto :fail
+)
 
 echo.
 echo Spoustim VOSR Bridge...
