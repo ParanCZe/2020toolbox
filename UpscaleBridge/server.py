@@ -113,6 +113,7 @@ def storage_payload() -> dict:
     runtime = ROOT / "runtime"
     venv_bytes = _dir_size(venv)
     runtime_bytes = _dir_size(runtime)
+    models_bytes = _dir_size(CKPT_DIR)
     total = venv_bytes + runtime_bytes
     try:
         usage = shutil.disk_usage(ROOT)
@@ -124,6 +125,7 @@ def storage_payload() -> dict:
     return {
         "venv_bytes": venv_bytes,
         "runtime_bytes": runtime_bytes,
+        "models_bytes": models_bytes,
         "total_bytes": total,
         "disk_free_bytes": free,
         "disk_total_bytes": disk_total,
@@ -136,7 +138,7 @@ def health_payload() -> dict:
     tel = gpu_telemetry()
     return {
         "name": "20-20 Toolbox VOSR Bridge",
-        "version": "1.2.1",
+        "version": "1.3.0",
         "ready": bool(mready and gpu),
         "models_ready": mready,
         "gpu_detected": gpu,
@@ -151,7 +153,7 @@ def health_payload() -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ToolboxVOSR/1.2.1"
+    server_version = "ToolboxVOSR/1.3.0"
 
     def log_message(self, fmt: str, *args) -> None:
         print(f"[VOSR Bridge] {self.address_string()} - {fmt % args}")
@@ -258,13 +260,25 @@ class Handler(BaseHTTPRequestHandler):
             self._json(503, {"error": "Nebyla nalezena NVIDIA GPU / nvidia-smi."})
             return
 
+        query = parse_qs(parsed.query)
         try:
-            scale = int(parse_qs(parsed.query).get("scale", ["4"])[0])
+            scale = int(query.get("scale", ["4"])[0])
         except ValueError:
             scale = 4
         if scale not in (2, 4):
             self._json(400, {"error": "Podporovaný scale je 2 nebo 4."})
             return
+
+        quality = str(query.get("quality", ["fast"])[0]).lower()
+        quality_presets = {
+            "fast": {"tile": 512, "overlap": 32},
+            "quality": {"tile": 768, "overlap": 48},
+            "max": {"tile": 1024, "overlap": 64},
+        }
+        if quality not in quality_presets:
+            self._json(400, {"error": "Neznámý VOSR quality preset."})
+            return
+        preset = quality_presets[quality]
 
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -311,14 +325,16 @@ class Handler(BaseHTTPRequestHandler):
                     "-u", str(scale),
                     "--force_rerun",
                 ]
-                if target_max > 512:
-                    cmd += ["--tile_size", "512", "--tile_overlap", "32"]
+                if target_max > preset["tile"]:
+                    cmd += ["--tile_size", str(preset["tile"]), "--tile_overlap", str(preset["overlap"])]
                 if target_max > 4096:
-                    cmd += ["--vae_tile_size", "1024", "--vae_tile_overlap", "32"]
+                    vae_overlap = 32 if quality == "fast" else 48 if quality == "quality" else 64
+                    cmd += ["--vae_tile_size", "1024", "--vae_tile_overlap", str(vae_overlap)]
 
                 env = os.environ.copy()
                 env["PYTHONUTF8"] = "1"
                 env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+                print(f"[VOSR Bridge] Preset: {quality.upper()} · tile {preset['tile']} · overlap {preset['overlap']} · scale {scale}x")
                 print("[VOSR Bridge] Spouštím:", " ".join(f'"{x}"' if " " in x else x for x in cmd))
 
                 CANCEL_REQUESTED.clear()
@@ -374,6 +390,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "image/png")
                 self.send_header("Content-Length", str(len(payload)))
                 self.send_header("X-Toolbox-Engine", "VOSR-2.0")
+                self.send_header("X-Toolbox-Quality", quality)
                 self.end_headers()
                 self.wfile.write(payload)
         except BrokenPipeError:
