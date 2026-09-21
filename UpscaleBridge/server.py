@@ -138,7 +138,7 @@ def health_payload() -> dict:
     tel = gpu_telemetry()
     return {
         "name": "20-20 Toolbox VOSR Bridge",
-        "version": "1.3.2",
+        "version": "1.3.3",
         "ready": bool(mready and gpu),
         "models_ready": mready,
         "gpu_detected": gpu,
@@ -153,7 +153,7 @@ def health_payload() -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ToolboxVOSR/1.3.2"
+    server_version = "ToolboxVOSR/1.3.3"
 
     def log_message(self, fmt: str, *args) -> None:
         print(f"[VOSR Bridge] {self.address_string()} - {fmt % args}")
@@ -270,6 +270,16 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         try:
+            tile_size = int(query.get("tile", ["512"])[0])
+        except ValueError:
+            tile_size = 512
+        tile_overlaps = {128: 8, 256: 16, 384: 24, 512: 32}
+        if tile_size not in tile_overlaps:
+            self._json(400, {"error": "Podporované VOSR tile jsou 128, 256, 384 nebo 512."})
+            return
+        tile_overlap = tile_overlaps[tile_size]
+
+        try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
             length = 0
@@ -314,16 +324,16 @@ class Handler(BaseHTTPRequestHandler):
                     "-u", str(scale),
                     "--force_rerun",
                 ]
-                # Original proven Toolbox VOSR path: fixed 512px DiT tiles.
-                if target_max > 512:
-                    cmd += ["--tile_size", "512", "--tile_overlap", "32"]
+                # 512 remains the proven default; smaller tiles are explicit experimental modes.
+                if target_max > tile_size:
+                    cmd += ["--tile_size", str(tile_size), "--tile_overlap", str(tile_overlap)]
                 if target_max > 4096:
                     cmd += ["--vae_tile_size", "1024", "--vae_tile_overlap", "32"]
 
                 env = os.environ.copy()
                 env["PYTHONUTF8"] = "1"
                 env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
-                print(f"[VOSR Bridge] Scene {scale}x · fixed tile 512 · overlap 32")
+                print(f"[VOSR Bridge] Scene {scale}x · tile {tile_size} · overlap {tile_overlap}")
                 print("[VOSR Bridge] Spouštím:", " ".join(f'"{x}"' if " " in x else x for x in cmd))
 
                 CANCEL_REQUESTED.clear()
@@ -380,6 +390,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(payload)))
                 self.send_header("X-Toolbox-Engine", "VOSR-2.0")
                 self.send_header("X-Toolbox-Scale", str(scale))
+                self.send_header("X-Toolbox-Tile", str(tile_size))
                 self.end_headers()
                 self.wfile.write(payload)
         except BrokenPipeError:
