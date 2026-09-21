@@ -94,10 +94,15 @@
       if(!r.ok)throw new Error('HTTP '+r.status);
       const h=await r.json();S.vosrHealth=h;S.vosrOnline=!!h.ready;
       if(badge){
+        const bridgeState=h.ready?'online · GPU připraveno':(!h.models_ready?'online · chybí modely':(!h.gpu_detected?'online · NVIDIA GPU nenalezena':'online · není připraveno'));
         badge.className='ups-bridge '+(h.ready?'ok':'warn');
-        badge.innerHTML='<b>VOSR Bridge:</b> '+(h.ready?'online · '+(h.gpu_detected?'GPU nalezeno':'GPU neověřeno'):'online, ale modely nejsou připravené');
+        badge.innerHTML='<b>VOSR Bridge:</b> '+bridgeState;
       }
-      if(!silent&&!h.ready)status('VOSR Bridge běží, ale modely nejsou nainstalované. Spusť UpscaleBridge\\\\setup.bat.',0);
+      if(!silent&&!h.ready){
+        if(!h.models_ready)status('VOSR Bridge běží, ale modely nejsou nainstalované. Spusť UpscaleBridge\\\\setup.bat.',0);
+        else if(!h.gpu_detected)status('VOSR Bridge běží, ale NVIDIA GPU nebyla nalezena.',0);
+        else status('VOSR Bridge zatím není připravený.',0);
+      }
       return h;
     }catch(e){
       S.vosrOnline=false;S.vosrHealth=null;
