@@ -13,7 +13,7 @@
   const AI_MODEL_CACHE='toolbox-ai-models-v1';
   const S={file:null,img:null,result:null,session:null,loadingModel:null,faceSession:null,loadingFaceModel:null,faceDetector:null,loadingFaceDetector:null,objectDetector:null,loadingObjectDetector:null,engine:'LOCAL',running:false,vosrOnline:false,vosrHealth:null,vosrTelemetryTimer:null,vosrRunStarted:0,vosrEtaSec:0,vosrStopPending:false,gradioModule:null,cloudClients:{},cloudApi:{}};
   const $=s=>document.querySelector(s);
-  const LOCAL_CORE={clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),clampByte:v=>Math.max(0,Math.min(255,Math.round(v))),tileStarts(size,tile=128,overlap=16){size=Math.max(1,Math.floor(size));if(size<=tile)return[0];const step=tile-overlap,out=[];for(let p=0;p<size-tile;p+=step)out.push(p);const last=size-tile;if(out[out.length-1]!==last)out.push(last);return out},outputScale:m=>m==='safe4'||m==='invsr4'||m==='ai4'||m==='vosr4'?4:m==='supirf'||m==='ai2'||m==='deblur2'||m==='vosr2'?2:1,sharpenAmount(v,m){const n=Math.max(0,Math.min(100,Number(v)||0))/100;return(m==='sharp'?0.35:0.18)+n*1.2},modeLabel:m=>({safe4:'SAFE UPSCALE 4× · REAL-ESRGAN',invsr4:'AI UPSCALE 4× · INVSR',supirf:'AI RESTORE FIDELITY · SUPIR v0F · ARCHVIZ',sharp:'SHARP FIX',clean:'CLEAN PHOTO',ai2:'AI UPSCALE 2× · LOCAL',ai4:'AI UPSCALE 4× · LOCAL',deblur2:'DEBLUR + AI 2×',vosr2:'VOSR 2.0 SCENE 2×',vosr4:'VOSR 2.0 SCENE 4×'})[m]||m};
+  const LOCAL_CORE={clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),clampByte:v=>Math.max(0,Math.min(255,Math.round(v))),tileStarts(size,tile=128,overlap=16){size=Math.max(1,Math.floor(size));if(size<=tile)return[0];const step=tile-overlap,out=[];for(let p=0;p<size-tile;p+=step)out.push(p);const last=size-tile;if(out[out.length-1]!==last)out.push(last);return out},outputScale:m=>m==='safe4'||m==='invsr4'||m==='ai4'||m==='vosr4'||m==='vosr4t384'||m==='vosr4t256'||m==='vosr4t128'?4:m==='supirf'||m==='ai2'||m==='deblur2'||m==='vosr2'?2:1,sharpenAmount(v,m){const n=Math.max(0,Math.min(100,Number(v)||0))/100;return(m==='sharp'?0.35:0.18)+n*1.2},modeLabel:m=>({safe4:'SAFE UPSCALE 4× · REAL-ESRGAN',invsr4:'AI UPSCALE 4× · INVSR',supirf:'AI RESTORE FIDELITY · SUPIR v0F · ARCHVIZ',sharp:'SHARP FIX',clean:'CLEAN PHOTO',ai2:'AI UPSCALE 2× · LOCAL',ai4:'AI UPSCALE 4× · LOCAL',deblur2:'DEBLUR + AI 2×',vosr2:'VOSR 2.0 SCENE 2×',vosr4:'VOSR 2.0 SCENE 4× · 512 TILE',vosr4t384:'VOSR 2.0 SCENE 4× · 384 TILE · TEST',vosr4t256:'VOSR 2.0 SCENE 4× · 256 TILE · TEST',vosr4t128:'VOSR 2.0 SCENE 4× · 128 TILE · TEST'})[m]||m};
   const core=()=>window.upscalerV359Core||LOCAL_CORE;
 
   function css(){if($('#upscaler-v359-style'))return;const s=document.createElement('style');s.id='upscaler-v359-style';s.textContent=`
@@ -59,9 +59,9 @@
       <div class="ups-grid">
         <section class="ups-panel"><h2>VSTUP A NASTAVENÍ</h2>
           <div id="ups-drop" class="ups-drop"><b>Přetáhni obrázek</b><span>PNG / JPG / WEBP nebo klikni</span><input id="ups-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></div>
-          <div class="ups-control"><label><span>Režim</span><span id="ups-mode-label"></span></label><select id="ups-mode"><option value="safe4">Safe Upscale 4× — Real-ESRGAN</option><option value="invsr4">AI Upscale 4× — InvSR</option><option value="supirf">AI Restore Fidelity — SUPIR v0F (Archviz Safe)</option><option value="ai2">Local AI Upscale 2×</option><option value="deblur2">Deblur + Local AI 2×</option><option value="sharp">Sharp Fix</option><option value="clean">Clean Photo</option><option value="vosr2">VOSR 2.0 Scene 2×</option><option value="vosr4">VOSR 2.0 Scene 4×</option></select></div>
+          <div class="ups-control"><label><span>Režim</span><span id="ups-mode-label"></span></label><select id="ups-mode"><option value="safe4">Safe Upscale 4× — Real-ESRGAN</option><option value="invsr4">AI Upscale 4× — InvSR</option><option value="supirf">AI Restore Fidelity — SUPIR v0F (Archviz Safe)</option><option value="ai2">Local AI Upscale 2×</option><option value="deblur2">Deblur + Local AI 2×</option><option value="sharp">Sharp Fix</option><option value="clean">Clean Photo</option><option value="vosr2">VOSR 2.0 Scene 2×</option><option value="vosr4">VOSR 2.0 Scene 4× — 512 tile</option><option value="vosr4t384">VOSR 2.0 Scene 4× — 384 tile TEST</option><option value="vosr4t256">VOSR 2.0 Scene 4× — 256 tile TEST</option><option value="vosr4t128">VOSR 2.0 Scene 4× — 128 tile TEST</option></select></div>
           <div id="ups-cloud-note" class="ups-vosr-note" hidden></div>
-          <div id="ups-vosr-note" class="ups-vosr-note" hidden><b>VOSR 2.0 · generativní rekonstrukce celé scény</b><br>Obnovuje objekty, lidi, hrany, materiály a textury v jednom passu.<br><br><b>Jak funguje:</b> VOSR běží lokálně na tvém PC přes NVIDIA CUDA bridge. Obrázek se nikam neodesílá a neopouští počítač.<br><b>Místo na disku:</b> po instalaci počítej přibližně <b>14–18 GB</b>. Během první instalace může dočasně potřebovat i <b>20+ GB</b> kvůli staženým balíčkům a cache. Modely se stahují jen jednou.<br><b>Požadavky:</b> NVIDIA GPU + lokální VOSR Bridge.<br><a class="back-btn" style="display:inline-flex;margin-top:7px;text-decoration:none" href="UpscaleBridge/install.bat?v=20260921fixed512telemetry" download="20-20-TOOLBOX_VOSR_INSTALL.bat">↓ Stáhnout / aktualizovat VOSR Bridge</a></div>
+          <div id="ups-vosr-note" class="ups-vosr-note" hidden><b>VOSR 2.0 · generativní rekonstrukce celé scény</b><br>Obnovuje objekty, lidi, hrany, materiály a textury v jednom passu.<br><br><b>Jak funguje:</b> VOSR běží lokálně na tvém PC přes NVIDIA CUDA bridge. Obrázek se nikam neodesílá a neopouští počítač.<br><b>Místo na disku:</b> po instalaci počítej přibližně <b>14–18 GB</b>. Během první instalace může dočasně potřebovat i <b>20+ GB</b> kvůli staženým balíčkům a cache. Modely se stahují jen jednou.<br><b>Požadavky:</b> NVIDIA GPU + lokální VOSR Bridge.<br><a class="back-btn" style="display:inline-flex;margin-top:7px;text-decoration:none" href="UpscaleBridge/install.bat?v=20260921smalltiles133" download="20-20-TOOLBOX_VOSR_INSTALL.bat">↓ Stáhnout / aktualizovat VOSR Bridge</a></div>
           <div class="ups-control"><label><span>Ostrost</span><span id="ups-sharp-v">55</span></label><input id="ups-sharp" type="range" min="0" max="100" value="55"></div>
           <div class="ups-control"><label><span>Obnova detailu</span><span id="ups-detail-v">55</span></label><input id="ups-detail" type="range" min="0" max="100" value="55"></div>
           <div class="ups-control"><label><span>Odšumění</span><span id="ups-denoise-v">12</span></label><input id="ups-denoise" type="range" min="0" max="100" value="12"></div>
@@ -89,20 +89,21 @@
     $('#ups-run').onclick=run;$('#ups-png').onclick=()=>save('image/png',1,'upscaled.png');$('#ups-jpg').onclick=()=>save('image/jpeg',.95,'upscaled.jpg');$('#ups-ai-clean').onclick=cleanupAiStorage;$('#ups-vosr-stop').onclick=stopVosrJob;
   }
 
-  function isVosrMode(mode){return mode==='vosr2'||mode==='vosr4'}
+  function isVosrMode(mode){return mode==='vosr2'||mode==='vosr4'||mode==='vosr4t384'||mode==='vosr4t256'||mode==='vosr4t128'}
+  function vosrTileForMode(mode){return mode==='vosr4t384'?384:mode==='vosr4t256'?256:mode==='vosr4t128'?128:512}
   function isCloudMode(mode){return mode==='invsr4'||mode==='supirf'}
   function isFidelitySafeMode(mode){return mode==='safe4'||isCloudMode(mode)||isVosrMode(mode)}
   function formatBytesAi(n){n=Number(n)||0;if(n<=0)return'0 B';const u=['B','KB','MB','GB','TB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return(n>=100||i===0?n.toFixed(0):n>=10?n.toFixed(1):n.toFixed(2))+' '+u[i]}
   function formatDuration(sec){sec=Math.max(0,Math.round(Number(sec)||0));if(sec<60)return sec+' s';const m=Math.floor(sec/60),s=sec%60;return m+' min '+String(s).padStart(2,'0')+' s'}
-  function vosrRateKey(scale){return'toolbox-vosr-rate-fixed512-v1-'+scale}
-  function estimateVosrSeconds(src,scale){
+  function vosrRateKey(scale,tile){return'toolbox-vosr-rate-v2-'+scale+'-'+tile}
+  function estimateVosrSeconds(src,scale,tile){
     const mp=Math.max(.1,src.width*src.height*scale*scale/1e6);let rate=5.0;
-    try{const v=Number(localStorage.getItem(vosrRateKey(scale)));if(v>0&&v<120)rate=v}catch(_){}
+    try{const v=Number(localStorage.getItem(vosrRateKey(scale,tile)));if(v>0&&v<240)rate=v}catch(_){}
     return Math.max(15,10+mp*rate)
   }
-  function rememberVosrRate(src,scale,elapsed){
-    const mp=Math.max(.1,src.width*src.height*scale*scale/1e6),rate=Math.max(.2,Math.min(120,elapsed/mp));
-    try{const k=vosrRateKey(scale),old=Number(localStorage.getItem(k));localStorage.setItem(k,String(old>0?old*.65+rate*.35:rate))}catch(_){}
+  function rememberVosrRate(src,scale,tile,elapsed){
+    const mp=Math.max(.1,src.width*src.height*scale*scale/1e6),rate=Math.max(.2,Math.min(240,elapsed/mp));
+    try{const k=vosrRateKey(scale,tile),old=Number(localStorage.getItem(k));localStorage.setItem(k,String(old>0?old*.65+rate*.35:rate))}catch(_){}
   }
   function updateVosrClock(){
     if(!S.vosrRunStarted)return;const elapsed=(performance.now()-S.vosrRunStarted)/1000,eta=S.vosrEtaSec||0;
@@ -118,9 +119,9 @@
       if(Number.isFinite(t.temperature_c))$('#ups-vosr-temp').textContent=Math.round(t.temperature_c)+' °C';
     }catch(_){}
   }
-  function startVosrTelemetry(eta,scale){
+  function startVosrTelemetry(eta,scale,tile){
     if(S.vosrTelemetryTimer)clearInterval(S.vosrTelemetryTimer);S.vosrEtaSec=eta;S.vosrRunStarted=performance.now();S.vosrStopPending=false;
-    const box=$('#ups-vosr-live'),btn=$('#ups-vosr-stop');if(box)box.hidden=false;if(btn){btn.disabled=false;btn.textContent='■ STOP VOSR'}const modeEl=$('#ups-vosr-live-mode');if(modeEl)modeEl.textContent='SCENE '+scale+'× · 512 TILE';
+    const box=$('#ups-vosr-live'),btn=$('#ups-vosr-stop');if(box)box.hidden=false;if(btn){btn.disabled=false;btn.textContent='■ STOP VOSR'}const modeEl=$('#ups-vosr-live-mode');if(modeEl)modeEl.textContent='SCENE '+scale+'× · '+tile+' TILE'+(tile===512?'':' · TEST');
     pollVosrTelemetry();S.vosrTelemetryTimer=setInterval(pollVosrTelemetry,1200)
   }
   function stopVosrTelemetry(){
@@ -279,16 +280,16 @@
   }
   function canvasToBlob(canvas,type='image/png',quality=1){return new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error('Nepodařilo se připravit obrázek pro VOSR.')),type,quality))}
   function imageFromBlob(blob){return new Promise((res,rej)=>{const u=URL.createObjectURL(blob),i=new Image();i.onload=()=>{URL.revokeObjectURL(u);res(i)};i.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('VOSR vrátil neplatný obrázek.'))};i.src=u})}
-  async function runVosrBridge(src,scale){
+  async function runVosrBridge(src,scale,tile=512){
     const h=await checkVosrBridge(true);
     if(!h||!h.ready)throw new Error('VOSR Bridge není připravený. Spusť UpscaleBridge\\setup.bat a run_bridge.bat');
-    const eta=estimateVosrSeconds(src,scale),started=performance.now();
+    const eta=estimateVosrSeconds(src,scale,tile),started=performance.now();
     status('VOSR 2.0 · připravuju obraz pro lokální GPU…',8);
     const blob=await canvasToBlob(src);
-    status('VOSR 2.0 · Scene '+scale+'× · rekonstruuju scénu na GPU…',22);
-    startVosrTelemetry(eta,scale);
+    status('VOSR 2.0 · Scene '+scale+'× · '+tile+' tile · rekonstruuju scénu na GPU…',22);
+    startVosrTelemetry(eta,scale,tile);
     try{
-      const r=await fetch(VOSR_BRIDGE_URL+'/upscale?scale='+encodeURIComponent(scale),{method:'POST',headers:{'Content-Type':'image/png'},body:blob});
+      const r=await fetch(VOSR_BRIDGE_URL+'/upscale?scale='+encodeURIComponent(scale)+'&tile='+encodeURIComponent(tile),{method:'POST',headers:{'Content-Type':'image/png'},body:blob});
       if(!r.ok){
         let msg='HTTP '+r.status;
         try{
@@ -305,8 +306,8 @@
       }
       const out=await r.blob();status('VOSR 2.0 · načítám výsledek…',94);
       const img=await imageFromBlob(out),result=document.createElement('canvas');result.width=img.naturalWidth;result.height=img.naturalHeight;result.getContext('2d').drawImage(img,0,0);
-      rememberVosrRate(src,scale,(performance.now()-started)/1000);
-      S.engine='VOSR 2.0 · SCENE '+scale+'× · LOCAL CUDA';$('#ups-engine').textContent=S.engine;
+      rememberVosrRate(src,scale,tile,(performance.now()-started)/1000);
+      S.engine='VOSR 2.0 · SCENE '+scale+'× · '+tile+' TILE · LOCAL CUDA';$('#ups-engine').textContent=S.engine;
       return result;
     }finally{stopVosrTelemetry()}
   }
@@ -424,7 +425,8 @@
       }else if(mode==='supirf'){
         result=await runSupirFidelityCloud(src);
       }else if(isVosr){
-        result=await runVosrBridge(src,scale);
+        const vosrTile=vosrTileForMode(mode);
+        result=await runVosrBridge(src,scale,vosrTile);
         if(result.width*result.height<24000000)result=localEnhance(result,'clean',sharp*.08,detail*.10,0);
       }else{
         let prep=src;if(mode==='deblur2')prep=localEnhance(prep,'deblur2',Math.min(1,sharp*.75),detail*.75,noise);else prep=denoise(prep,noise*.5);
@@ -443,7 +445,7 @@
       }
       S.result=result;const before=resize(src,result.width,result.height);drawPreview(before,$('#ups-before'));drawPreview(result,$('#ups-after'));
       $('#ups-out').textContent=`${result.width} × ${result.height}`;$('#ups-time').textContent=((performance.now()-t0)/1000).toFixed(1)+' s';$('#ups-png').disabled=false;$('#ups-jpg').disabled=false;
-      const parts=[];if(mode==='safe4')parts.push('Safe Real-ESRGAN 4×');if(mode==='invsr4')parts.push('InvSR 4×');if(mode==='supirf')parts.push('SUPIR v0F Fidelity 2×');if(isVosr)parts.push('VOSR 2.0 · celá scéna');if(sceneInfo.count)parts.push(`${sceneInfo.count} objektů (${sceneInfo.labels.slice(0,5).join(', ')})`);if(restored)parts.push(`${restored} obličejů`);
+      const parts=[];if(mode==='safe4')parts.push('Safe Real-ESRGAN 4×');if(mode==='invsr4')parts.push('InvSR 4×');if(mode==='supirf')parts.push('SUPIR v0F Fidelity 2×');if(isVosr)parts.push('VOSR 2.0 · celá scéna · '+vosrTileForMode(mode)+' tile');if(sceneInfo.count)parts.push(`${sceneInfo.count} objektů (${sceneInfo.labels.slice(0,5).join(', ')})`);if(restored)parts.push(`${restored} obličejů`);
       status(parts.length?`Hotovo · ${parts.join(' + ')}. Posuň slider a porovnej.`:'Hotovo. Posuň slider a porovnej originál s výsledkem.',100);
     }catch(e){
       console.error(e);status(((isVosr?'VOSR 2.0':isCloud?'Online AI':'AI režim')+' selhal: ')+e.message+(isVosr||isCloud?'':' . Zkus Safe Upscale 4×, Sharp Fix nebo Clean Photo.'),0);
