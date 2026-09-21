@@ -16,10 +16,14 @@ Oficiální VOSR requirements používají PyTorch 2.5.1 + CUDA 12.1 a Triton 3.
 
 ## Instalace
 
-1. Spusť `setup.bat`.
+Nejjednodušší cesta z webového Toolboxu je tlačítko **Stáhnout VOSR Bridge instalátor**. Soubor `install.bat` nainstaluje bridge do `%LOCALAPPDATA%\\20-20-TOOLBOX\\UpscaleBridge`, spustí `setup.bat` a po dokončení i lokální bridge.
+
+Při práci přímo z repozitáře můžeš také ručně:
+
+1. Spustit `setup.bat`.
 2. Setup stáhne oficiální VOSR zdrojáky, CUDA Python balíčky a pouze checkpointy potřebné pro VOSR 2.0.
-3. Po dokončení spusť `run_bridge.bat` a nech okno otevřené.
-4. Otevři Toolbox → Upscaler → **VOSR 2.0 Scene 2×** nebo **VOSR 2.0 Scene 4×**.
+3. Po dokončení spustit `run_bridge.bat` a nechat okno otevřené.
+4. Otevřít Toolbox → Upscaler → **VOSR 2.0 Scene 2×** nebo **VOSR 2.0 Scene 4×**.
 
 Modelová data mají přibližně 7,7 GB: VOSR2 (~5,58 GB), Qwen Image VAE 2D (~178 MB) a DINO/torch cache (~1,92 GB).
 
