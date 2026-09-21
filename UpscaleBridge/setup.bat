@@ -1,6 +1,7 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
+set "VOSR_COMMIT=516f292b99cf23c76fdc33351e86dc4f97711fe8"
 
 echo ================================================================
 echo 20-20 TOOLBOX - VOSR 2.0 SETUP
@@ -47,11 +48,15 @@ if errorlevel 1 (
 if not exist "runtime\VOSR\.git" (
   echo [3/6] Stahuji oficialni VOSR zdrojaky...
   if not exist "runtime" mkdir "runtime"
-  git clone --depth 1 https://github.com/cswry/VOSR.git "runtime\VOSR"
+  git clone https://github.com/cswry/VOSR.git "runtime\VOSR"
   if errorlevel 1 goto :fail
 ) else (
-  echo [3/6] VOSR zdrojaky uz existuji.
+  echo [3/6] VOSR zdrojaky uz existuji - overuji verzi...
 )
+git -C "runtime\VOSR" fetch origin "%VOSR_COMMIT%" --depth 1
+if errorlevel 1 goto :fail
+git -C "runtime\VOSR" checkout --detach "%VOSR_COMMIT%"
+if errorlevel 1 goto :fail
 
 echo [4/6] Instaluji VOSR CUDA zavislosti...
 findstr /V /B /C:"triton==" "runtime\VOSR\requirements.txt" > "runtime\requirements-toolbox-windows.txt"
