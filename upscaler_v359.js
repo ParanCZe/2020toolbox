@@ -64,7 +64,7 @@
           <div class="ups-control"><label><span>Režim</span><span id="ups-mode-label"></span></label><select id="ups-mode"><option value="safe4">Safe Upscale 4× — Real-ESRGAN</option><option value="invsr4">AI Upscale 4× — InvSR</option><option value="supirf">AI Restore Fidelity — SUPIR v0F (Archviz Safe)</option><option value="ai2">Local AI Upscale 2×</option><option value="deblur2">Deblur + Local AI 2×</option><option value="sharp">Sharp Fix</option><option value="clean">Clean Photo</option><option value="vosr2">VOSR 2.0 Scene 2×</option><option value="vosr4">VOSR 2.0 Scene 4× — 512 tile</option><option value="vosr4t384">VOSR 2.0 Scene 4× — 384 tile TEST</option><option value="vosr4t256">VOSR 2.0 Scene 4× — 256 tile TEST</option><option value="vosr4t128">VOSR 2.0 Scene 4× — 128 tile TEST</option></select></div>
           <div id="ups-cloud-note" class="ups-vosr-note" hidden></div>
           <div id="ups-vosr-note" class="ups-vosr-note" hidden><b>VOSR 2.0 · generativní rekonstrukce celé scény</b><br>Obnovuje objekty, lidi, hrany, materiály a textury v jednom passu.<br><br><b>Jak funguje:</b> VOSR běží lokálně na tvém PC přes NVIDIA CUDA bridge. Obrázek se nikam neodesílá a neopouští počítač.<br><b>Místo na disku:</b> po instalaci počítej přibližně <b>14–18 GB</b>. Během první instalace může dočasně potřebovat i <b>20+ GB</b> kvůli staženým balíčkům a cache. Modely se stahují jen jednou.<br><b>Požadavky:</b> NVIDIA GPU + lokální VOSR Bridge.<br><a class="back-btn" style="display:inline-flex;margin-top:7px;text-decoration:none" href="UpscaleBridge/install.bat?v=20260921smalltiles133" download="20-20-TOOLBOX_VOSR_INSTALL.bat">↓ Stáhnout / aktualizovat VOSR Bridge</a></div>
-          <div id="ups-archviz-auto" class="ups-archviz-auto" hidden><b>ARCHVIZ AUTO</b><div class="ups-auto-flow">1 · VOSR rekonstrukce → 2 · Edge Lock z originálu → 3 · Crisp finish proti měkkým hranám / ghostingu</div><label class="ups-check" style="margin-top:0"><input id="ups-archviz-crisp" type="checkbox" checked><span>Zachovat tvrdé architektonické hrany</span></label><div class="ups-control"><label><span>Síla Edge Lock</span><span id="ups-archviz-strength-v">45</span></label><input id="ups-archviz-strength" type="range" min="0" max="100" value="45"></div></div>
+          <div id="ups-archviz-auto" class="ups-archviz-auto" hidden><b>ARCHVIZ AUTO</b><div class="ups-auto-flow">1 · VOSR rekonstrukce → 2 · Anti-Bloom / Dehalo → 3 · High-pass Edge Lock → 4 · Crisp finish</div><label class="ups-check" style="margin-top:0"><input id="ups-archviz-crisp" type="checkbox" checked><span>Zachovat tvrdé architektonické hrany</span></label><div class="ups-control"><label><span>Síla Edge Lock</span><span id="ups-archviz-strength-v">32</span></label><input id="ups-archviz-strength" type="range" min="0" max="100" value="32"></div></div>
           <div class="ups-control"><label><span>Ostrost</span><span id="ups-sharp-v">55</span></label><input id="ups-sharp" type="range" min="0" max="100" value="55"></div>
           <div class="ups-control"><label><span>Obnova detailu</span><span id="ups-detail-v">55</span></label><input id="ups-detail" type="range" min="0" max="100" value="55"></div>
           <div class="ups-control"><label><span>Odšumění</span><span id="ups-denoise-v">12</span></label><input id="ups-denoise" type="range" min="0" max="100" value="12"></div>
@@ -327,34 +327,69 @@
   function blur(src,r){const c=document.createElement('canvas');c.width=src.width;c.height=src.height;const x=c.getContext('2d');x.filter=`blur(${r}px)`;x.drawImage(src,0,0);x.filter='none';return c}
   function unsharp(src,amount,radius){const b=blur(src,radius),a=src.getContext('2d').getImageData(0,0,src.width,src.height),bd=b.getContext('2d').getImageData(0,0,b.width,b.height).data,d=a.data,C=core();for(let i=0;i<d.length;i+=4)for(let k=0;k<3;k++)d[i+k]=C?C.clampByte(d[i+k]+amount*(d[i+k]-bd[i+k])):Math.max(0,Math.min(255,d[i+k]+amount*(d[i+k]-bd[i+k])));const c=document.createElement('canvas');c.width=src.width;c.height=src.height;c.getContext('2d').putImageData(a,0,0);return c}
   function denoise(src,strength){if(strength<=.01)return src;const b=blur(src,.65+strength*1.5),a=src.getContext('2d').getImageData(0,0,src.width,src.height),bd=b.getContext('2d').getImageData(0,0,b.width,b.height).data,d=a.data;const threshold=8+(1-strength)*22;for(let i=0;i<d.length;i+=4){const l0=.299*d[i]+.587*d[i+1]+.114*d[i+2],l1=.299*bd[i]+.587*bd[i+1]+.114*bd[i+2],edge=Math.abs(l0-l1),mix=strength*.42*Math.max(0,1-edge/threshold);for(let k=0;k<3;k++)d[i+k]=d[i+k]*(1-mix)+bd[i+k]*mix}const c=document.createElement('canvas');c.width=src.width;c.height=src.height;c.getContext('2d').putImageData(a,0,0);return c}
-  function buildArchvizEdgeMask(src,strength=.45){
+  function buildArchvizEdgeMask(src,strength=.32){
     const w=src.width,h=src.height,x=src.getContext('2d'),im=x.getImageData(0,0,w,h),d=im.data,lum=new Float32Array(w*h);
     for(let i=0,p=0;i<d.length;i+=4,p++)lum[p]=.299*d[i]+.587*d[i+1]+.114*d[i+2];
     const raw=document.createElement('canvas');raw.width=w;raw.height=h;const rx=raw.getContext('2d'),out=rx.createImageData(w,h),od=out.data;
-    const lo=14-4*strength,hi=58-10*strength,span=Math.max(12,hi-lo);
+    const lo=16-3*strength,hi=52-8*strength,span=Math.max(10,hi-lo);
     for(let y=1;y<h-1;y++)for(let xx=1;xx<w-1;xx++){
       const p=y*w+xx,gx=Math.abs(lum[p+1]-lum[p-1]),gy=Math.abs(lum[p+w]-lum[p-w]),g=Math.max(gx,gy)+Math.min(gx,gy)*.35;
       let a=(g-lo)/span;a=Math.max(0,Math.min(1,a));a=a*a*(3-2*a);
       const q=p*4;od[q]=od[q+1]=od[q+2]=255;od[q+3]=Math.round(a*255);
     }
     rx.putImageData(out,0,0);
-    const soft=document.createElement('canvas');soft.width=w;soft.height=h;const sx=soft.getContext('2d');sx.filter='blur(.65px)';sx.drawImage(raw,0,0);sx.filter='none';sx.globalAlpha=.72;sx.drawImage(raw,0,0);sx.globalAlpha=1;
+    const soft=document.createElement('canvas');soft.width=w;soft.height=h;const sx=soft.getContext('2d');sx.filter='blur(.8px)';sx.drawImage(raw,0,0);sx.filter='none';sx.globalAlpha=.7;sx.drawImage(raw,0,0);sx.globalAlpha=1;
     return soft;
   }
-  async function archvizAutoFinish(src,result,strength=.45){
-    strength=Math.max(0,Math.min(1,Number(strength)||0));
-    status('Krok 2/3 · Edge Lock · vracím přesné tvrdé hrany z originálu…',95);
-    await new Promise(r=>setTimeout(r,0));
-    const mask=buildArchvizEdgeMask(src,strength);
-    const sharpSrc=unsharp(src,.32+.48*strength,.72);
-    status('Krok 3/3 · Crisp finish · čistím měkké kontury a ghosting…',98);
-    await new Promise(r=>setTimeout(r,0));
-    const overlay=document.createElement('canvas');overlay.width=result.width;overlay.height=result.height;const ox=overlay.getContext('2d');
-    ox.imageSmoothingEnabled=true;ox.imageSmoothingQuality='high';ox.drawImage(sharpSrc,0,0,result.width,result.height);
-    ox.globalCompositeOperation='destination-in';ox.drawImage(mask,0,0,result.width,result.height);ox.globalCompositeOperation='source-over';
-    const dx=result.getContext('2d');dx.save();dx.globalAlpha=.28+.42*strength;dx.drawImage(overlay,0,0);dx.restore();
-    return result;
+  function buildHighlightProtectionMask(src){
+    const w=src.width,h=src.height,x=src.getContext('2d'),im=x.getImageData(0,0,w,h),d=im.data,outCanvas=document.createElement('canvas');
+    outCanvas.width=w;outCanvas.height=h;const ox=outCanvas.getContext('2d'),out=ox.createImageData(w,h),od=out.data;
+    for(let i=0;i<d.length;i+=4){
+      const l=.299*d[i]+.587*d[i+1]+.114*d[i+2];let keep=1;
+      if(l>170){keep=1-(l-170)/85;keep=Math.max(0,Math.min(1,keep))}
+      const a=Math.round(keep*255);od[i]=od[i+1]=od[i+2]=255;od[i+3]=a;
+    }
+    ox.putImageData(out,0,0);
+    const soft=document.createElement('canvas');soft.width=w;soft.height=h;const sx=soft.getContext('2d');sx.filter='blur(1.2px)';sx.drawImage(outCanvas,0,0);sx.filter='none';
+    return soft;
   }
+  function buildHighPassLayer(src,amount=.5){
+    const w=src.width,h=src.height,blurred=document.createElement('canvas');blurred.width=w;blurred.height=h;const bx=blurred.getContext('2d');
+    bx.filter='blur(1.1px)';bx.drawImage(src,0,0);bx.filter='none';
+    const srcIm=src.getContext('2d').getImageData(0,0,w,h),blurIm=bx.getImageData(0,0,w,h),outCanvas=document.createElement('canvas');
+    outCanvas.width=w;outCanvas.height=h;const ox=outCanvas.getContext('2d'),out=ox.createImageData(w,h);
+    for(let i=0;i<srcIm.data.length;i+=4){
+      for(let ch=0;ch<3;ch++){const diff=srcIm.data[i+ch]-blurIm.data[i+ch],v=128+diff*(1.15+amount*.85);out.data[i+ch]=Math.max(0,Math.min(255,Math.round(v)))}
+      out.data[i+3]=255;
+    }
+    ox.putImageData(out,0,0);return outCanvas;
+  }
+  async function dehaloVosrResult(src,result,strength=.32){
+    const w=result.width,h=result.height;
+    status('Krok 2/4 · Anti-Bloom / Dehalo · stahuju glow kolem hran…',94);await new Promise(r=>setTimeout(r,0));
+    const srcUp=document.createElement('canvas');srcUp.width=w;srcUp.height=h;const su=srcUp.getContext('2d');su.imageSmoothingEnabled=true;su.imageSmoothingQuality='high';su.drawImage(src,0,0,w,h);
+    const rCtx=result.getContext('2d'),rIm=rCtx.getImageData(0,0,w,h),sIm=su.getImageData(0,0,w,h);
+    for(let i=0;i<rIm.data.length;i+=4)for(let ch=0;ch<3;ch++){
+      const rv=rIm.data[i+ch],sv=sIm.data[i+ch],diff=rv-sv;
+      if(diff>6)rIm.data[i+ch]=Math.round(rv-diff*(.18+strength*.22));
+    }
+    rCtx.putImageData(rIm,0,0);return result;
+  }
+  async function archvizAutoFinish(src,result,strength=.32){
+    strength=Math.max(0,Math.min(1,Number(strength)||0));
+    await dehaloVosrResult(src,result,strength);
+    status('Krok 3/4 · Edge Lock · vracím přesné tvrdé hrany z originálu…',97);await new Promise(r=>setTimeout(r,0));
+    const edgeMask=buildArchvizEdgeMask(src,strength),highlightMask=buildHighlightProtectionMask(src),mask=document.createElement('canvas');
+    mask.width=src.width;mask.height=src.height;const mx=mask.getContext('2d');mx.drawImage(edgeMask,0,0);mx.globalCompositeOperation='destination-in';mx.drawImage(highlightMask,0,0);mx.globalCompositeOperation='source-over';
+    const hp=buildHighPassLayer(src,strength),hpUp=document.createElement('canvas');hpUp.width=result.width;hpUp.height=result.height;const hpx=hpUp.getContext('2d');
+    hpx.imageSmoothingEnabled=true;hpx.imageSmoothingQuality='high';hpx.drawImage(hp,0,0,result.width,result.height);
+    const maskUp=document.createElement('canvas');maskUp.width=result.width;maskUp.height=result.height;const mux=maskUp.getContext('2d');mux.imageSmoothingEnabled=true;mux.imageSmoothingQuality='high';mux.drawImage(mask,0,0,result.width,result.height);
+    hpx.globalCompositeOperation='destination-in';hpx.drawImage(maskUp,0,0);hpx.globalCompositeOperation='source-over';
+    status('Krok 4/4 · Crisp finish · vracím mikrodetail bez glow…',99);await new Promise(r=>setTimeout(r,0));
+    const dx=result.getContext('2d');dx.save();dx.globalCompositeOperation='overlay';dx.globalAlpha=.16+strength*.18;dx.drawImage(hpUp,0,0);dx.restore();
+    return unsharp(result,.12+strength*.18,.85);
+  }
+
 
   function localEnhance(src,mode,sharp,detail,noise){let w=denoise(src,noise);const amt=(core()?.sharpenAmount(sharp*100,mode)||(.3+sharp));w=unsharp(w,amt,.75+detail*.9);if(mode==='sharp'||mode==='deblur2')w=unsharp(w,.18+detail*.45,1.7);return w}
 
@@ -441,7 +476,7 @@
   async function run(){
     if(!S.img||S.running)return;
     S.running=true;$('#ups-run').disabled=true;$('#ups-png').disabled=true;$('#ups-jpg').disabled=true;$('#ups-mode').disabled=true;
-    const t0=performance.now(),mode=$('#ups-mode').value,isVosr=isVosrMode(mode),isCloud=isCloudMode(mode),isProtected=isFidelitySafeMode(mode),sharp=Number($('#ups-sharp').value)/100,detail=Number($('#ups-detail').value)/100,noise=Number($('#ups-denoise').value)/100,generative=$('#ups-generative')?.checked!==false,sceneRestore=$('#ups-scene')?.checked,sceneStrength=Number($('#ups-scene-strength')?.value||72)/100,faceRestore=$('#ups-face')?.checked,faceStrength=Number($('#ups-face-strength')?.value||82)/100,archvizAuto=isVosr&&$('#ups-archviz-crisp')?.checked!==false,archvizStrength=Number($('#ups-archviz-strength')?.value||45)/100;
+    const t0=performance.now(),mode=$('#ups-mode').value,isVosr=isVosrMode(mode),isCloud=isCloudMode(mode),isProtected=isFidelitySafeMode(mode),sharp=Number($('#ups-sharp').value)/100,detail=Number($('#ups-detail').value)/100,noise=Number($('#ups-denoise').value)/100,generative=$('#ups-generative')?.checked!==false,sceneRestore=$('#ups-scene')?.checked,sceneStrength=Number($('#ups-scene-strength')?.value||72)/100,faceRestore=$('#ups-face')?.checked,faceStrength=Number($('#ups-face-strength')?.value||82)/100,archvizAuto=isVosr&&$('#ups-archviz-crisp')?.checked!==false,archvizStrength=Number($('#ups-archviz-strength')?.value||32)/100;
     try{
       let src=canvasOf(S.img),scale=core().outputScale(mode),pred=src.width*src.height*scale*scale,maxPx=isVosr?64000000:36000000;
       if(pred>maxPx){
