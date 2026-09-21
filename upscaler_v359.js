@@ -10,6 +10,7 @@
   const GRADIO_CLIENT_URL='https://cdn.jsdelivr.net/npm/@gradio/client@2.7.0/dist/index.min.js';
   const INVSR_SPACE='OAOA/InvSR';
   const SUPIR_SPACES=['NotSky/supir-demo','Fabrice-TIERCELIN/SUPIR'];
+  const AI_MODEL_CACHE='toolbox-ai-models-v1';
   const S={file:null,img:null,result:null,session:null,loadingModel:null,faceSession:null,loadingFaceModel:null,faceDetector:null,loadingFaceDetector:null,objectDetector:null,loadingObjectDetector:null,engine:'LOCAL',running:false,vosrOnline:false,vosrHealth:null,gradioModule:null,cloudClients:{},cloudApi:{}};
   const $=s=>document.querySelector(s);
   const LOCAL_CORE={clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),clampByte:v=>Math.max(0,Math.min(255,Math.round(v))),tileStarts(size,tile=128,overlap=16){size=Math.max(1,Math.floor(size));if(size<=tile)return[0];const step=tile-overlap,out=[];for(let p=0;p<size-tile;p+=step)out.push(p);const last=size-tile;if(out[out.length-1]!==last)out.push(last);return out},outputScale:m=>m==='safe4'||m==='invsr4'||m==='ai4'||m==='vosr4'?4:m==='supirf'||m==='ai2'||m==='deblur2'||m==='vosr2'?2:1,sharpenAmount(v,m){const n=Math.max(0,Math.min(100,Number(v)||0))/100;return(m==='sharp'?0.35:0.18)+n*1.2},modeLabel:m=>({safe4:'SAFE UPSCALE 4× · REAL-ESRGAN',invsr4:'AI UPSCALE 4× · INVSR',supirf:'AI RESTORE FIDELITY · SUPIR v0F · ARCHVIZ',sharp:'SHARP FIX',clean:'CLEAN PHOTO',ai2:'AI UPSCALE 2× · LOCAL',ai4:'AI UPSCALE 4× · LOCAL',deblur2:'DEBLUR + AI 2×',vosr2:'VOSR 2.0 SCENE 2×',vosr4:'VOSR 2.0 SCENE 4×'})[m]||m};
@@ -39,6 +40,7 @@
     #tool-upscaler .ups-progress{height:7px;background:#e4e4e7;border-radius:4px;overflow:hidden;margin-top:8px}.ups-progress>i{display:block;height:100%;width:0;background:#18181b;transition:.15s}
     #tool-upscaler .ups-vosr-note{margin-top:10px;padding:9px 10px;border:1px solid #d4d4d8;border-radius:7px;background:#fffef3;font-size:9px;line-height:1.5;color:#52525b}#tool-upscaler .ups-vosr-note b{color:#18181b}
     #tool-upscaler .ups-bridge{margin-top:10px;padding:8px 9px;border:1px solid #d4d4d8;border-radius:7px;background:#fff;font-size:9px;line-height:1.4}.ups-bridge.ok{border-color:#86b98b;background:#f2fbf3}.ups-bridge.warn{border-color:#d8c76b;background:#fffdf0}.ups-bridge.bad{border-color:#d99a9a;background:#fff5f5}
+    #tool-upscaler .ups-storage{margin-top:12px;padding-top:12px;border-top:1px dashed #d4d4d8}.ups-storage-title{font:normal 11px 'Antarctican Mono',monospace;margin-bottom:6px}.ups-storage p{font-size:9px;line-height:1.45;color:var(--muted);margin:0 0 8px}.ups-storage button{width:100%}
     body:has(#tool-upscaler.active) .wrap{max-width:none;padding:0 18px}body:has(#tool-upscaler.active) .wrap>.card{padding:18px}#tool-upscaler{width:100%;max-width:none;margin:0}#tool-upscaler .ups-grid>section:nth-child(2){min-width:0;display:flex;flex-direction:column}#tool-upscaler .ups-grid>section:nth-child(2) .ups-preview{flex:1}@media(max-width:1400px){#tool-upscaler .ups-grid{grid-template-columns:270px minmax(0,1fr) 245px}}@media(max-width:1050px){#tool-upscaler .ups-grid{grid-template-columns:1fr;min-height:auto}#tool-upscaler .ups-preview{min-height:560px}body:has(#tool-upscaler.active) .wrap{padding:0 12px}}
   `;document.head.appendChild(s)}
 
@@ -66,7 +68,7 @@
           <div class="ups-actions"><button id="ups-run" class="action" disabled>Zpracovat</button><button id="ups-png" class="back-btn" disabled>Stáhnout PNG</button><button id="ups-jpg" class="back-btn" disabled>Stáhnout JPG</button></div>
         </section>
         <section><div id="ups-preview" class="ups-preview"><div id="ups-before-wrap"><canvas id="ups-before"></canvas></div><div id="ups-after-wrap"><canvas id="ups-after"></canvas></div><div id="ups-divider" class="ups-divider"></div></div><div class="ups-compare"><input id="ups-compare" type="range" min="0" max="100" value="50"></div></section>
-        <aside class="ups-panel"><h2>STAV</h2><div class="ups-stat"><span>Soubor</span><b id="ups-name">—</b></div><div class="ups-stat"><span>Vstup</span><b id="ups-in">—</b></div><div class="ups-stat"><span>Výstup</span><b id="ups-out">—</b></div><div class="ups-stat"><span>Engine</span><b id="ups-engine">LOCAL</b></div><div class="ups-stat"><span>Čas</span><b id="ups-time">—</b></div><div id="ups-status" class="ups-status">Nahraj obrázek.</div><div class="ups-progress"><i id="ups-progress"></i></div><div id="ups-vosr-bridge" class="ups-bridge warn"><b>VOSR Bridge:</b> kontroluji…</div><div class="muted" style="font-size:9px;margin:10px 0 0"><b>Safe 4×:</b> Real-ESRGAN lokálně, bez odesílání obrázku. <b>InvSR / SUPIR:</b> zdarma přes veřejné Hugging Face GPU Space — může být fronta nebo denní limit a obrázek je odeslán externí službě. <b>VOSR 2.0:</b> volitelně lokálně; cca 14–18 GB (při instalaci dočasně 20+ GB).</div></aside>
+        <aside class="ups-panel"><h2>STAV</h2><div class="ups-stat"><span>Soubor</span><b id="ups-name">—</b></div><div class="ups-stat"><span>Vstup</span><b id="ups-in">—</b></div><div class="ups-stat"><span>Výstup</span><b id="ups-out">—</b></div><div class="ups-stat"><span>Engine</span><b id="ups-engine">LOCAL</b></div><div class="ups-stat"><span>Čas</span><b id="ups-time">—</b></div><div id="ups-status" class="ups-status">Nahraj obrázek.</div><div class="ups-progress"><i id="ups-progress"></i></div><div id="ups-vosr-bridge" class="ups-bridge warn"><b>VOSR Bridge:</b> kontroluji…</div><div class="muted" style="font-size:9px;margin:10px 0 0"><b>Safe 4×:</b> Real-ESRGAN lokálně, bez odesílání obrázku. <b>InvSR / SUPIR:</b> zdarma přes veřejné Hugging Face GPU Space — může být fronta nebo denní limit a obrázek je odeslán externí službě. <b>VOSR 2.0:</b> volitelně lokálně; cca 14–18 GB (při instalaci dočasně 20+ GB).</div><div class="ups-storage"><div class="ups-storage-title">AI STORAGE / CLEANUP</div><p>Smaže Toolbox AI modely a cache. Pokud běží VOSR Bridge, odstraní i jeho modely, Python runtime a knihovny. Online InvSR/SUPIR nic lokálně neukládají.</p><button type="button" class="back-btn" id="ups-ai-clean" style="margin:0;color:#b91c1c">Smazat stažená AI data</button></div></aside>
       </div>`;anchor.parentNode.insertBefore(v,anchor)}
   }
 
@@ -79,7 +81,7 @@
     $('#ups-face-strength').oninput=e=>$('#ups-face-v').textContent=e.target.value;
     mode.onchange=()=>{const m=mode.value;$('#ups-mode-label').textContent=core()?.modeLabel(m)||m;syncModeUi(m)};mode.onchange();checkVosrBridge(true);
     compare.oninput=()=>{const v=Number(compare.value);$('#ups-after-wrap').style.clipPath=`inset(0 0 0 ${v}%)`;$('#ups-divider').style.left=v+'%'};compare.oninput();
-    $('#ups-run').onclick=run;$('#ups-png').onclick=()=>save('image/png',1,'upscaled.png');$('#ups-jpg').onclick=()=>save('image/jpeg',.95,'upscaled.jpg');
+    $('#ups-run').onclick=run;$('#ups-png').onclick=()=>save('image/png',1,'upscaled.png');$('#ups-jpg').onclick=()=>save('image/jpeg',.95,'upscaled.jpg');$('#ups-ai-clean').onclick=cleanupAiStorage;
   }
 
   function isVosrMode(mode){return mode==='vosr2'||mode==='vosr4'}
@@ -252,8 +254,66 @@
   function denoise(src,strength){if(strength<=.01)return src;const b=blur(src,.65+strength*1.5),a=src.getContext('2d').getImageData(0,0,src.width,src.height),bd=b.getContext('2d').getImageData(0,0,b.width,b.height).data,d=a.data;const threshold=8+(1-strength)*22;for(let i=0;i<d.length;i+=4){const l0=.299*d[i]+.587*d[i+1]+.114*d[i+2],l1=.299*bd[i]+.587*bd[i+1]+.114*bd[i+2],edge=Math.abs(l0-l1),mix=strength*.42*Math.max(0,1-edge/threshold);for(let k=0;k<3;k++)d[i+k]=d[i+k]*(1-mix)+bd[i+k]*mix}const c=document.createElement('canvas');c.width=src.width;c.height=src.height;c.getContext('2d').putImageData(a,0,0);return c}
   function localEnhance(src,mode,sharp,detail,noise){let w=denoise(src,noise);const amt=(core()?.sharpenAmount(sharp*100,mode)||(.3+sharp));w=unsharp(w,amt,.75+detail*.9);if(mode==='sharp'||mode==='deblur2')w=unsharp(w,.18+detail*.45,1.7);return w}
 
+  async function fetchAiModel(url,label){
+    if(!('caches' in window))return url;
+    try{
+      const cache=await caches.open(AI_MODEL_CACHE);
+      let r=await cache.match(url);
+      if(!r){
+        status('Stahuju '+label+'…',8);
+        r=await fetch(url,{cache:'no-store'});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        await cache.put(url,r.clone());
+      }
+      return new Uint8Array(await r.arrayBuffer());
+    }catch(e){
+      console.warn('Toolbox AI cache fallback',e);
+      return url;
+    }
+  }
+  async function deleteMatchingIndexedDb(){
+    if(!indexedDB?.databases)return 0;
+    let n=0;
+    try{
+      const dbs=await indexedDB.databases();
+      for(const d of dbs){
+        const name=d?.name||'';
+        if(!/upscal|onnx|ai[-_. ]?model|huggingface|transformers/i.test(name))continue;
+        await new Promise(resolve=>{const q=indexedDB.deleteDatabase(name);q.onsuccess=q.onerror=q.onblocked=()=>resolve()});n++;
+      }
+    }catch(e){console.warn('IndexedDB cleanup',e)}
+    return n;
+  }
+  function downloadCleanupFallback(){
+    const a=document.createElement('a');a.href='UpscaleBridge/cleanup_ai.bat';a.download='20-20-TOOLBOX_AI_CLEANUP.bat';document.body.appendChild(a);a.click();a.remove();
+  }
+  async function cleanupAiStorage(){
+    if(S.running)return alert('Nejdřív nech doběhnout aktuální upscale.');
+    const ok=confirm('Smazat stažená AI data Toolboxu?\n\n• Real-ESRGAN / GFPGAN Toolbox cache\n• VOSR modely + Python runtime + knihovny (pokud jsou nainstalované)\n\nVOSR pak bude při dalším použití potřeba znovu nainstalovat.');
+    if(!ok)return;
+    status('Čistím AI data…',10);
+    try{await S.session?.release?.()}catch(_){}
+    try{await S.faceSession?.release?.()}catch(_){}
+    S.session=null;S.faceSession=null;S.loadingModel=null;S.loadingFaceModel=null;
+    let cacheDeleted=false,idbDeleted=0;
+    try{if('caches' in window)cacheDeleted=await caches.delete(AI_MODEL_CACHE)}catch(e){console.warn('Cache cleanup',e)}
+    idbDeleted=await deleteMatchingIndexedDb();
+    for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i)||'';if(/toolbox\.(ai|upscal)|onnx|model.?cache/i.test(k))localStorage.removeItem(k)}
+    let vosr='nenainstalován / bridge offline';
+    try{
+      const r=await fetch(VOSR_BRIDGE_URL+'/cleanup',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      if(r.ok){vosr='mazání spuštěno';S.vosrOnline=false;S.vosrHealth=null}
+      else throw new Error('HTTP '+r.status);
+    }catch(e){
+      vosr='bridge offline — stáhl jsem cleanup skript';
+      try{downloadCleanupFallback()}catch(_){}
+    }
+    const badge=$('#ups-vosr-bridge');if(badge){badge.className='ups-bridge warn';badge.innerHTML='<b>VOSR Bridge:</b> po cleanupu bude potřeba znovu nainstalovat';}
+    status('AI cleanup: browser cache '+(cacheDeleted?'smazána':'vyčištěna / nebyla nalezena')+', IndexedDB '+idbDeleted+' · VOSR: '+vosr+'.',100);
+  }
+
   async function ensureOrt(){if(window.ort)return;status('Načítám ONNX Runtime…',4);await new Promise((res,rej)=>{const s=document.createElement('script');s.src=ORT_URL;s.onload=res;s.onerror=()=>rej(new Error('Nepodařilo se načíst ONNX Runtime'));document.head.appendChild(s)});ort.env.wasm.wasmPaths='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/'}
-  async function ensureSession(){if(S.session)return S.session;if(S.loadingModel)return S.loadingModel;S.loadingModel=(async()=>{await ensureOrt();status('Stahuju AI model (~67 MB)…',8);let sess;try{if(navigator.gpu){sess=await ort.InferenceSession.create(MODEL_URL,{executionProviders:['webgpu','wasm']});S.engine='AI · WebGPU'}}catch(e){console.warn('WebGPU Real-ESRGAN fallback',e)}if(!sess){sess=await ort.InferenceSession.create(MODEL_URL,{executionProviders:['wasm']});S.engine='AI · WASM'}S.session=sess;$('#ups-engine').textContent=S.engine;return sess})().finally(()=>S.loadingModel=null);return S.loadingModel}
+  async function ensureSession(){if(S.session)return S.session;if(S.loadingModel)return S.loadingModel;S.loadingModel=(async()=>{await ensureOrt();const model=await fetchAiModel(MODEL_URL,'Real-ESRGAN model (~67 MB)');let sess;try{if(navigator.gpu){sess=await ort.InferenceSession.create(model,{executionProviders:['webgpu','wasm']});S.engine='AI · WebGPU'}}catch(e){console.warn('WebGPU Real-ESRGAN fallback',e)}if(!sess){sess=await ort.InferenceSession.create(model,{executionProviders:['wasm']});S.engine='AI · WASM'}S.session=sess;$('#ups-engine').textContent=S.engine;return sess})().finally(()=>S.loadingModel=null);return S.loadingModel}
 
   async function ensureObjectDetector(){if(S.objectDetector)return S.objectDetector;if(S.loadingObjectDetector)return S.loadingObjectDetector;S.loadingObjectDetector=(async()=>{status('Analyzuju objekty ve scéně…',86);const mp=await import(MEDIAPIPE_URL);const vision=await mp.FilesetResolver.forVisionTasks(MEDIAPIPE_WASM);S.objectDetector=await mp.ObjectDetector.createFromOptions(vision,{baseOptions:{modelAssetPath:OBJECT_DETECTOR_MODEL},runningMode:'IMAGE',scoreThreshold:.22,maxResults:30});return S.objectDetector})().finally(()=>S.loadingObjectDetector=null);return S.loadingObjectDetector}
   function cropRect(src,x,y,w,h,maxSide=224){const sx=Math.max(0,Math.floor(x)),sy=Math.max(0,Math.floor(y)),sw=Math.max(2,Math.min(src.width-sx,Math.ceil(w))),sh=Math.max(2,Math.min(src.height-sy,Math.ceil(h))),scale=Math.min(1,maxSide/Math.max(sw,sh)),c=document.createElement('canvas');c.width=Math.max(16,Math.round(sw*scale));c.height=Math.max(16,Math.round(sh*scale));const cx=c.getContext('2d');cx.imageSmoothingEnabled=true;cx.imageSmoothingQuality='high';cx.drawImage(src,sx,sy,sw,sh,0,0,c.width,c.height);return{canvas:c,x:sx,y:sy,w:sw,h:sh}}
@@ -261,7 +321,7 @@
   function objectPriority(label,score,box,imgW,imgH){const hot=/sandwich|pizza|cake|donut|hot dog|bottle|cup|wine glass|fork|knife|spoon|bowl|banana|apple|orange|broccoli|carrot|book|cell phone|laptop|keyboard|mouse|tv|clock|vase|potted plant|chair|backpack|handbag/i.test(label||'');const area=(box.width*box.height)/(imgW*imgH);return score+(hot?.42:0)+(area<.03?.22:area<.09?.1:0)}
   async function restoreObjects(sourceForDetection,result,strength,generative=true){const detector=await ensureObjectDetector(),det=detector.detect(sourceForDetection),rx=result.width/sourceForDetection.width,ry=result.height/sourceForDetection.height;let items=(det?.detections||[]).map(d=>{const cat=d.categories?.[0]||{},b=d.boundingBox;return b?{label:cat.categoryName||cat.displayName||'objekt',score:Number(cat.score)||0,box:b}:null}).filter(Boolean).filter(o=>!/person/i.test(o.label)).filter(o=>o.box.width>=8&&o.box.height>=8).map(o=>({...o,priority:objectPriority(o.label,o.score,o.box,sourceForDetection.width,sourceForDetection.height)})).sort((a,b)=>b.priority-a.priority).slice(0,10);if(!items.length){status('Objektová analýza nenašla vhodné regiony.',90);return{count:0,labels:[]}}await ensureSession();let done=0;const labels=[];for(const o of items){const b=o.box,cx=(b.originX+b.width/2)*rx,cy=(b.originY+b.height/2)*ry,pad=1.42,w=Math.max(40,b.width*rx*pad),h=Math.max(40,b.height*ry*pad),x=cx-w/2,y=cy-h/2,cr=cropRect(result,x,y,w,h,208);if(cr.w<18||cr.h<18)continue;status(`Rekonstruuju objekt: ${o.label} (${done+1}/${items.length})`,88+5*(done/items.length));let hi=await aiX4(cr.canvas);hi=localEnhance(hi,'clean',generative?.32+.28*strength:.16+.18*strength,generative?.38+.34*strength:.18+.22*strength,0);if(generative)hi=localEnhance(hi,'sharp',.28+.24*strength,.42+.28*strength,0);const restored=resize(hi,cr.w,cr.h);compositeObject(result,restored,cr,strength,generative);done++;labels.push(o.label);await new Promise(r=>setTimeout(r,0))}return{count:done,labels:[...new Set(labels)]}}
   async function ensureFaceDetector(){if(S.faceDetector)return S.faceDetector;if(S.loadingFaceDetector)return S.loadingFaceDetector;S.loadingFaceDetector=(async()=>{status('Načítám detekci obličejů…',90);const mp=await import(MEDIAPIPE_URL);const vision=await mp.FilesetResolver.forVisionTasks(MEDIAPIPE_WASM);S.faceDetector=await mp.FaceDetector.createFromOptions(vision,{baseOptions:{modelAssetPath:FACE_DETECTOR_MODEL},runningMode:'IMAGE',minDetectionConfidence:.35,minSuppressionThreshold:.3});return S.faceDetector})().finally(()=>S.loadingFaceDetector=null);return S.loadingFaceDetector}
-  async function ensureFaceSession(){if(S.faceSession)return S.faceSession;if(S.loadingFaceModel)return S.loadingFaceModel;S.loadingFaceModel=(async()=>{await ensureOrt();status('Stahuju model pro rekonstrukci obličejů (~340 MB)…',91);let sess;try{if(navigator.gpu)sess=await ort.InferenceSession.create(GFPGAN_URL,{executionProviders:['webgpu','wasm']})}catch(e){console.warn('GFPGAN WebGPU fallback',e)}if(!sess)sess=await ort.InferenceSession.create(GFPGAN_URL,{executionProviders:['wasm']});S.faceSession=sess;return sess})().finally(()=>S.loadingFaceModel=null);return S.loadingFaceModel}
+  async function ensureFaceSession(){if(S.faceSession)return S.faceSession;if(S.loadingFaceModel)return S.loadingFaceModel;S.loadingFaceModel=(async()=>{await ensureOrt();const model=await fetchAiModel(GFPGAN_URL,'GFPGAN model (~340 MB)');let sess;try{if(navigator.gpu)sess=await ort.InferenceSession.create(model,{executionProviders:['webgpu','wasm']})}catch(e){console.warn('GFPGAN WebGPU fallback',e)}if(!sess)sess=await ort.InferenceSession.create(model,{executionProviders:['wasm']});S.faceSession=sess;return sess})().finally(()=>S.loadingFaceModel=null);return S.loadingFaceModel}
   function faceTensorFromCanvas(c){const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data,n=c.width*c.height,a=new Float32Array(n*3);for(let i=0;i<n;i++){a[i]=d[i*4]/127.5-1;a[n+i]=d[i*4+1]/127.5-1;a[n*2+i]=d[i*4+2]/127.5-1}return new ort.Tensor('float32',a,[1,3,c.height,c.width])}
   function faceCanvasFromTensor(t){const dims=t.dims,data=t.data,h=dims[dims.length-2],w=dims[dims.length-1],n=w*h,c=document.createElement('canvas'),x=c.getContext('2d'),im=x.createImageData(w,h),d=im.data,C=core();c.width=w;c.height=h;for(let i=0;i<n;i++){d[i*4]=C.clampByte((data[i]+1)*127.5);d[i*4+1]=C.clampByte((data[n+i]+1)*127.5);d[i*4+2]=C.clampByte((data[2*n+i]+1)*127.5);d[i*4+3]=255}x.putImageData(im,0,0);return c}
   function cropSquare(src,cx,cy,side,size=512){const c=document.createElement('canvas');c.width=size;c.height=size;const x=c.getContext('2d');x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(src,cx-side/2,cy-side/2,side,side,0,0,size,size);return c}
