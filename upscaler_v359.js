@@ -46,6 +46,8 @@
     #tool-upscaler .ups-live-title{font:normal 10px 'Antarctican Mono',monospace;margin-bottom:7px}
     #tool-upscaler .ups-live-grid{display:grid;grid-template-columns:1fr auto;gap:4px 8px;font-size:9px;line-height:1.35}#tool-upscaler .ups-live-grid b{text-align:right}
     #tool-upscaler .ups-stop{width:100%;margin-top:9px!important;color:#b91c1c!important;border-color:#efb4b4!important;background:#fff7f7!important}
+    #tool-upscaler .ups-archviz-auto{margin-top:10px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff}
+    #tool-upscaler .ups-archviz-auto[hidden]{display:none}.ups-archviz-auto .ups-auto-flow{font-size:9px;line-height:1.5;color:var(--muted);margin:4px 0 8px}
     body:has(#tool-upscaler.active) .wrap{max-width:none;padding:0 18px}body:has(#tool-upscaler.active) .wrap>.card{padding:18px}#tool-upscaler{width:100%;max-width:none;margin:0}#tool-upscaler .ups-grid>section:nth-child(2){min-width:0;display:flex;flex-direction:column}#tool-upscaler .ups-grid>section:nth-child(2) .ups-preview{flex:1}@media(max-width:1400px){#tool-upscaler .ups-grid{grid-template-columns:270px minmax(0,1fr) 245px}}@media(max-width:1050px){#tool-upscaler .ups-grid{grid-template-columns:1fr;min-height:auto}#tool-upscaler .ups-preview{min-height:560px}body:has(#tool-upscaler.active) .wrap{padding:0 12px}}
   `;document.head.appendChild(s)}
 
@@ -62,6 +64,7 @@
           <div class="ups-control"><label><span>Režim</span><span id="ups-mode-label"></span></label><select id="ups-mode"><option value="safe4">Safe Upscale 4× — Real-ESRGAN</option><option value="invsr4">AI Upscale 4× — InvSR</option><option value="supirf">AI Restore Fidelity — SUPIR v0F (Archviz Safe)</option><option value="ai2">Local AI Upscale 2×</option><option value="deblur2">Deblur + Local AI 2×</option><option value="sharp">Sharp Fix</option><option value="clean">Clean Photo</option><option value="vosr2">VOSR 2.0 Scene 2×</option><option value="vosr4">VOSR 2.0 Scene 4× — 512 tile</option><option value="vosr4t384">VOSR 2.0 Scene 4× — 384 tile TEST</option><option value="vosr4t256">VOSR 2.0 Scene 4× — 256 tile TEST</option><option value="vosr4t128">VOSR 2.0 Scene 4× — 128 tile TEST</option></select></div>
           <div id="ups-cloud-note" class="ups-vosr-note" hidden></div>
           <div id="ups-vosr-note" class="ups-vosr-note" hidden><b>VOSR 2.0 · generativní rekonstrukce celé scény</b><br>Obnovuje objekty, lidi, hrany, materiály a textury v jednom passu.<br><br><b>Jak funguje:</b> VOSR běží lokálně na tvém PC přes NVIDIA CUDA bridge. Obrázek se nikam neodesílá a neopouští počítač.<br><b>Místo na disku:</b> po instalaci počítej přibližně <b>14–18 GB</b>. Během první instalace může dočasně potřebovat i <b>20+ GB</b> kvůli staženým balíčkům a cache. Modely se stahují jen jednou.<br><b>Požadavky:</b> NVIDIA GPU + lokální VOSR Bridge.<br><a class="back-btn" style="display:inline-flex;margin-top:7px;text-decoration:none" href="UpscaleBridge/install.bat?v=20260921smalltiles133" download="20-20-TOOLBOX_VOSR_INSTALL.bat">↓ Stáhnout / aktualizovat VOSR Bridge</a></div>
+          <div id="ups-archviz-auto" class="ups-archviz-auto" hidden><b>ARCHVIZ AUTO</b><div class="ups-auto-flow">1 · VOSR rekonstrukce → 2 · Edge Lock z originálu → 3 · Crisp finish proti měkkým hranám / ghostingu</div><label class="ups-check" style="margin-top:0"><input id="ups-archviz-crisp" type="checkbox" checked><span>Zachovat tvrdé architektonické hrany</span></label><div class="ups-control"><label><span>Síla Edge Lock</span><span id="ups-archviz-strength-v">45</span></label><input id="ups-archviz-strength" type="range" min="0" max="100" value="45"></div></div>
           <div class="ups-control"><label><span>Ostrost</span><span id="ups-sharp-v">55</span></label><input id="ups-sharp" type="range" min="0" max="100" value="55"></div>
           <div class="ups-control"><label><span>Obnova detailu</span><span id="ups-detail-v">55</span></label><input id="ups-detail" type="range" min="0" max="100" value="55"></div>
           <div class="ups-control"><label><span>Odšumění</span><span id="ups-denoise-v">12</span></label><input id="ups-denoise" type="range" min="0" max="100" value="12"></div>
@@ -84,6 +87,8 @@
     for(const id of ['sharp','detail','denoise'])$('#ups-'+id).oninput=e=>$('#ups-'+id+'-v').textContent=e.target.value;
     $('#ups-scene-strength').oninput=e=>$('#ups-scene-v').textContent=e.target.value;
     $('#ups-face-strength').oninput=e=>$('#ups-face-v').textContent=e.target.value;
+    $('#ups-archviz-strength').oninput=e=>$('#ups-archviz-strength-v').textContent=e.target.value;
+    $('#ups-archviz-crisp').onchange=()=>syncModeUi(mode.value);
     mode.onchange=()=>{const m=mode.value;$('#ups-mode-label').textContent=core()?.modeLabel(m)||m;syncModeUi(m)};mode.onchange();checkVosrBridge(true).then(()=>refreshAiStorage());
     compare.oninput=()=>{const v=Number(compare.value);$('#ups-after-wrap').style.clipPath=`inset(0 0 0 ${v}%)`;$('#ups-divider').style.left=v+'%'};compare.oninput();
     $('#ups-run').onclick=run;$('#ups-png').onclick=()=>save('image/png',1,'upscaled.png');$('#ups-jpg').onclick=()=>save('image/jpeg',.95,'upscaled.jpg');$('#ups-ai-clean').onclick=cleanupAiStorage;$('#ups-vosr-stop').onclick=stopVosrJob;
@@ -141,8 +146,9 @@
     if(ev)ev.textContent=vosr==null?'— (Bridge offline)':formatBytesAi(vosr);if(et)et.textContent=vosr==null?formatBytesAi(browser):formatBytesAi(browser+vosr)
   }
   function syncModeUi(mode){
-    const vosrOn=isVosrMode(mode),cloudOn=isCloudMode(mode),protectedOn=isFidelitySafeMode(mode),note=$('#ups-vosr-note'),cloudNote=$('#ups-cloud-note');
-    if(note)note.hidden=!vosrOn;
+    const vosrOn=isVosrMode(mode),cloudOn=isCloudMode(mode),protectedOn=isFidelitySafeMode(mode),note=$('#ups-vosr-note'),cloudNote=$('#ups-cloud-note'),autoBox=$('#ups-archviz-auto'),runBtn=$('#ups-run');
+    if(note)note.hidden=!vosrOn;if(autoBox)autoBox.hidden=!vosrOn;
+    if(runBtn)runBtn.textContent=vosrOn&&$('#ups-archviz-crisp')?.checked!==false?'VOSR ARCHVIZ AUTO':'Zpracovat';
     if(cloudNote){
       cloudNote.hidden=!cloudOn;
       if(mode==='invsr4')cloudNote.innerHTML='<b>InvSR 4× · online / konzervativní AI</b><br>Oficiální OAOA/InvSR Space. Obrázek se odešle na veřejný Hugging Face ZeroGPU server a výsledek se vrátí přímo sem. Používáme 1-step režim a pevný seed pro konzistentnější výsledek. Služba může mít frontu nebo bezplatný denní limit.';
@@ -280,13 +286,13 @@
   }
   function canvasToBlob(canvas,type='image/png',quality=1){return new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error('Nepodařilo se připravit obrázek pro VOSR.')),type,quality))}
   function imageFromBlob(blob){return new Promise((res,rej)=>{const u=URL.createObjectURL(blob),i=new Image();i.onload=()=>{URL.revokeObjectURL(u);res(i)};i.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('VOSR vrátil neplatný obrázek.'))};i.src=u})}
-  async function runVosrBridge(src,scale,tile=512){
+  async function runVosrBridge(src,scale,tile=512,archvizAuto=false){
     const h=await checkVosrBridge(true);
     if(!h||!h.ready)throw new Error('VOSR Bridge není připravený. Spusť UpscaleBridge\\setup.bat a run_bridge.bat');
     const eta=estimateVosrSeconds(src,scale,tile),started=performance.now();
-    status('VOSR 2.0 · připravuju obraz pro lokální GPU…',8);
+    status((archvizAuto?'Krok 1/3 · ':'')+'VOSR 2.0 · připravuju obraz pro lokální GPU…',8);
     const blob=await canvasToBlob(src);
-    status('VOSR 2.0 · Scene '+scale+'× · '+tile+' tile · rekonstruuju scénu na GPU…',22);
+    status((archvizAuto?'Krok 1/3 · ':'')+'VOSR 2.0 · Scene '+scale+'× · '+tile+' tile · rekonstruuju scénu na GPU…',22);
     startVosrTelemetry(eta,scale,tile);
     try{
       const r=await fetch(VOSR_BRIDGE_URL+'/upscale?scale='+encodeURIComponent(scale)+'&tile='+encodeURIComponent(tile),{method:'POST',headers:{'Content-Type':'image/png'},body:blob});
@@ -321,6 +327,35 @@
   function blur(src,r){const c=document.createElement('canvas');c.width=src.width;c.height=src.height;const x=c.getContext('2d');x.filter=`blur(${r}px)`;x.drawImage(src,0,0);x.filter='none';return c}
   function unsharp(src,amount,radius){const b=blur(src,radius),a=src.getContext('2d').getImageData(0,0,src.width,src.height),bd=b.getContext('2d').getImageData(0,0,b.width,b.height).data,d=a.data,C=core();for(let i=0;i<d.length;i+=4)for(let k=0;k<3;k++)d[i+k]=C?C.clampByte(d[i+k]+amount*(d[i+k]-bd[i+k])):Math.max(0,Math.min(255,d[i+k]+amount*(d[i+k]-bd[i+k])));const c=document.createElement('canvas');c.width=src.width;c.height=src.height;c.getContext('2d').putImageData(a,0,0);return c}
   function denoise(src,strength){if(strength<=.01)return src;const b=blur(src,.65+strength*1.5),a=src.getContext('2d').getImageData(0,0,src.width,src.height),bd=b.getContext('2d').getImageData(0,0,b.width,b.height).data,d=a.data;const threshold=8+(1-strength)*22;for(let i=0;i<d.length;i+=4){const l0=.299*d[i]+.587*d[i+1]+.114*d[i+2],l1=.299*bd[i]+.587*bd[i+1]+.114*bd[i+2],edge=Math.abs(l0-l1),mix=strength*.42*Math.max(0,1-edge/threshold);for(let k=0;k<3;k++)d[i+k]=d[i+k]*(1-mix)+bd[i+k]*mix}const c=document.createElement('canvas');c.width=src.width;c.height=src.height;c.getContext('2d').putImageData(a,0,0);return c}
+  function buildArchvizEdgeMask(src,strength=.45){
+    const w=src.width,h=src.height,x=src.getContext('2d'),im=x.getImageData(0,0,w,h),d=im.data,lum=new Float32Array(w*h);
+    for(let i=0,p=0;i<d.length;i+=4,p++)lum[p]=.299*d[i]+.587*d[i+1]+.114*d[i+2];
+    const raw=document.createElement('canvas');raw.width=w;raw.height=h;const rx=raw.getContext('2d'),out=rx.createImageData(w,h),od=out.data;
+    const lo=14-4*strength,hi=58-10*strength,span=Math.max(12,hi-lo);
+    for(let y=1;y<h-1;y++)for(let xx=1;xx<w-1;xx++){
+      const p=y*w+xx,gx=Math.abs(lum[p+1]-lum[p-1]),gy=Math.abs(lum[p+w]-lum[p-w]),g=Math.max(gx,gy)+Math.min(gx,gy)*.35;
+      let a=(g-lo)/span;a=Math.max(0,Math.min(1,a));a=a*a*(3-2*a);
+      const q=p*4;od[q]=od[q+1]=od[q+2]=255;od[q+3]=Math.round(a*255);
+    }
+    rx.putImageData(out,0,0);
+    const soft=document.createElement('canvas');soft.width=w;soft.height=h;const sx=soft.getContext('2d');sx.filter='blur(.65px)';sx.drawImage(raw,0,0);sx.filter='none';sx.globalAlpha=.72;sx.drawImage(raw,0,0);sx.globalAlpha=1;
+    return soft;
+  }
+  async function archvizAutoFinish(src,result,strength=.45){
+    strength=Math.max(0,Math.min(1,Number(strength)||0));
+    status('Krok 2/3 · Edge Lock · vracím přesné tvrdé hrany z originálu…',95);
+    await new Promise(r=>setTimeout(r,0));
+    const mask=buildArchvizEdgeMask(src,strength);
+    const sharpSrc=unsharp(src,.32+.48*strength,.72);
+    status('Krok 3/3 · Crisp finish · čistím měkké kontury a ghosting…',98);
+    await new Promise(r=>setTimeout(r,0));
+    const overlay=document.createElement('canvas');overlay.width=result.width;overlay.height=result.height;const ox=overlay.getContext('2d');
+    ox.imageSmoothingEnabled=true;ox.imageSmoothingQuality='high';ox.drawImage(sharpSrc,0,0,result.width,result.height);
+    ox.globalCompositeOperation='destination-in';ox.drawImage(mask,0,0,result.width,result.height);ox.globalCompositeOperation='source-over';
+    const dx=result.getContext('2d');dx.save();dx.globalAlpha=.28+.42*strength;dx.drawImage(overlay,0,0);dx.restore();
+    return result;
+  }
+
   function localEnhance(src,mode,sharp,detail,noise){let w=denoise(src,noise);const amt=(core()?.sharpenAmount(sharp*100,mode)||(.3+sharp));w=unsharp(w,amt,.75+detail*.9);if(mode==='sharp'||mode==='deblur2')w=unsharp(w,.18+detail*.45,1.7);return w}
 
   async function fetchAiModel(url,label){
@@ -406,7 +441,7 @@
   async function run(){
     if(!S.img||S.running)return;
     S.running=true;$('#ups-run').disabled=true;$('#ups-png').disabled=true;$('#ups-jpg').disabled=true;$('#ups-mode').disabled=true;
-    const t0=performance.now(),mode=$('#ups-mode').value,isVosr=isVosrMode(mode),isCloud=isCloudMode(mode),isProtected=isFidelitySafeMode(mode),sharp=Number($('#ups-sharp').value)/100,detail=Number($('#ups-detail').value)/100,noise=Number($('#ups-denoise').value)/100,generative=$('#ups-generative')?.checked!==false,sceneRestore=$('#ups-scene')?.checked,sceneStrength=Number($('#ups-scene-strength')?.value||72)/100,faceRestore=$('#ups-face')?.checked,faceStrength=Number($('#ups-face-strength')?.value||82)/100;
+    const t0=performance.now(),mode=$('#ups-mode').value,isVosr=isVosrMode(mode),isCloud=isCloudMode(mode),isProtected=isFidelitySafeMode(mode),sharp=Number($('#ups-sharp').value)/100,detail=Number($('#ups-detail').value)/100,noise=Number($('#ups-denoise').value)/100,generative=$('#ups-generative')?.checked!==false,sceneRestore=$('#ups-scene')?.checked,sceneStrength=Number($('#ups-scene-strength')?.value||72)/100,faceRestore=$('#ups-face')?.checked,faceStrength=Number($('#ups-face-strength')?.value||82)/100,archvizAuto=isVosr&&$('#ups-archviz-crisp')?.checked!==false,archvizStrength=Number($('#ups-archviz-strength')?.value||45)/100;
     try{
       let src=canvasOf(S.img),scale=core().outputScale(mode),pred=src.width*src.height*scale*scale,maxPx=isVosr?64000000:36000000;
       if(pred>maxPx){
@@ -426,8 +461,9 @@
         result=await runSupirFidelityCloud(src);
       }else if(isVosr){
         const vosrTile=vosrTileForMode(mode);
-        result=await runVosrBridge(src,scale,vosrTile);
-        if(result.width*result.height<24000000)result=localEnhance(result,'clean',sharp*.08,detail*.10,0);
+        result=await runVosrBridge(src,scale,vosrTile,archvizAuto);
+        if(archvizAuto){result=await archvizAutoFinish(src,result,archvizStrength);S.engine+=' + ARCHVIZ EDGE LOCK';$('#ups-engine').textContent=S.engine}
+        else if(result.width*result.height<24000000)result=localEnhance(result,'clean',sharp*.08,detail*.10,0);
       }else{
         let prep=src;if(mode==='deblur2')prep=localEnhance(prep,'deblur2',Math.min(1,sharp*.75),detail*.75,noise);else prep=denoise(prep,noise*.5);
         result=await aiX4(prep);if(scale===2)result=resize(result,Math.round(result.width/2),Math.round(result.height/2));
@@ -445,7 +481,7 @@
       }
       S.result=result;const before=resize(src,result.width,result.height);drawPreview(before,$('#ups-before'));drawPreview(result,$('#ups-after'));
       $('#ups-out').textContent=`${result.width} × ${result.height}`;$('#ups-time').textContent=((performance.now()-t0)/1000).toFixed(1)+' s';$('#ups-png').disabled=false;$('#ups-jpg').disabled=false;
-      const parts=[];if(mode==='safe4')parts.push('Safe Real-ESRGAN 4×');if(mode==='invsr4')parts.push('InvSR 4×');if(mode==='supirf')parts.push('SUPIR v0F Fidelity 2×');if(isVosr)parts.push('VOSR 2.0 · celá scéna · '+vosrTileForMode(mode)+' tile');if(sceneInfo.count)parts.push(`${sceneInfo.count} objektů (${sceneInfo.labels.slice(0,5).join(', ')})`);if(restored)parts.push(`${restored} obličejů`);
+      const parts=[];if(mode==='safe4')parts.push('Safe Real-ESRGAN 4×');if(mode==='invsr4')parts.push('InvSR 4×');if(mode==='supirf')parts.push('SUPIR v0F Fidelity 2×');if(isVosr)parts.push('VOSR 2.0 · celá scéna · '+vosrTileForMode(mode)+' tile'+(archvizAuto?' + Archviz Edge Lock':''));if(sceneInfo.count)parts.push(`${sceneInfo.count} objektů (${sceneInfo.labels.slice(0,5).join(', ')})`);if(restored)parts.push(`${restored} obličejů`);
       status(parts.length?`Hotovo · ${parts.join(' + ')}. Posuň slider a porovnej.`:'Hotovo. Posuň slider a porovnej originál s výsledkem.',100);
     }catch(e){
       console.error(e);status(((isVosr?'VOSR 2.0':isCloud?'Online AI':'AI režim')+' selhal: ')+e.message+(isVosr||isCloud?'':' . Zkus Safe Upscale 4×, Sharp Fix nebo Clean Photo.'),0);
