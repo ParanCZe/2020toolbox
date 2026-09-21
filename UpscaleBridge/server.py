@@ -195,6 +195,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json(404, {"error": "Not found"})
 
     def do_POST(self) -> None:
+        global CURRENT_PROCESS
         parsed = urlparse(self.path)
 
         if parsed.path == "/cancel":
@@ -320,7 +321,6 @@ class Handler(BaseHTTPRequestHandler):
                 env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
                 print("[VOSR Bridge] Spouštím:", " ".join(f'"{x}"' if " " in x else x for x in cmd))
 
-                global CURRENT_PROCESS
                 CANCEL_REQUESTED.clear()
                 stdout = ""
                 stderr = ""
