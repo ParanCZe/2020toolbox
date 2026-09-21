@@ -21,6 +21,13 @@ snapshot_download(
         "Qwen-Image-vae-2d/**",
         "torch_cache/**",
     ],
+    # DINOv2 is bundled as a torch.hub repository. Its GitHub Actions files
+    # are irrelevant for inference and can exceed Windows path limits inside
+    # Hugging Face's temporary ".cache/huggingface/download" tree.
+    ignore_patterns=[
+        "torch_cache/**/.github/**",
+        "torch_cache/**/.git/**",
+    ],
     max_workers=4,
 )
 
