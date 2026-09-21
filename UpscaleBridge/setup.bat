@@ -97,7 +97,14 @@ echo       - Triton Windows 3.1...
 "%UV%" pip install --python "%PY%" "triton-windows>=3.1,<3.2" --index-url https://pypi.org/simple
 if errorlevel 1 goto :fail
 
-"%UV%" pip install --python "%PY%" -U "huggingface_hub[hf_xet]" --index-url https://pypi.org/simple
+rem Zachovej VOSR-compatible Hugging Face Hub. Neupgraduj transitive balicky
+rem nad verze, se kterymi byl tento pinned VOSR release testovany.
+echo       - Hugging Face Xet podpora bez upgradu VOSR dependency setu...
+"%UV%" pip install --python "%PY%" "huggingface_hub[hf_xet]==0.36.2" --index-url https://pypi.org/simple
+if errorlevel 1 goto :fail
+
+echo       - Overuji runtime importy...
+"%PY%" -c "import torch, diffusers, transformers, accelerate, safetensors, huggingface_hub; print('torch', torch.__version__); print('diffusers', diffusers.__version__); print('transformers', transformers.__version__); print('huggingface_hub', huggingface_hub.__version__)"
 if errorlevel 1 goto :fail
 
 echo [6/7] Stahuji VOSR2 checkpoint, Qwen VAE a DINO cache...
