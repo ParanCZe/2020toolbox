@@ -43,9 +43,25 @@ if not errorlevel 1 (
 if errorlevel 1 goto :fail
 
 echo.
-echo Spoustim automatickou instalaci VOSR 2.0...
-call "%TARGET%\setup.bat"
-if errorlevel 1 goto :fail
+set "EXISTING_READY=0"
+if exist "%TARGET%\.portable_runtime_v1" if exist "%TARGET%\.venv\Scripts\python.exe" if exist "%TARGET%\runtime\VOSR\preset\ckpts\VOSR2\args.json" if exist "%TARGET%\runtime\VOSR\preset\ckpts\Qwen-Image-vae-2d\config.json" set "EXISTING_READY=1"
+
+if "%EXISTING_READY%"=="1" (
+  echo ================================================================
+  echo EXISTUJICI VOSR INSTALACE NALEZENA.
+  echo Modely, Python ani knihovny se znovu stahovat NEBUDOU.
+  echo Provadim pouze rychly update Bridge skriptu.
+  echo ================================================================
+) else (
+  echo Spoustim automatickou instalaci VOSR 2.0...
+  call "%TARGET%\setup.bat"
+  if errorlevel 1 goto :fail
+)
+
+echo.
+echo Ukoncuji pripadny stary VOSR Bridge...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$target=[IO.Path]::GetFullPath('%TARGET%\server.py'); Get-CimInstance Win32_Process -Filter \"Name='python.exe' OR Name='pythonw.exe'\" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine -like ('*'+$target+'*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+timeout /t 1 /nobreak >nul
 
 echo.
 echo Kontroluji syntax VOSR Bridge...
@@ -69,8 +85,9 @@ start "20-20 TOOLBOX VOSR Bridge" "%TARGET%\run_bridge.bat"
 
 echo.
 echo ================================================================
-echo HOTOVO - VOSR Bridge je nainstalovany a spousti se.
-echo V Toolboxu muzes zvolit VOSR 2.0 Scene 2x nebo 4x.
+echo HOTOVO - VOSR Bridge 1.3.0 je aktualizovany a spousti se.
+echo Existujici AI modely zustaly beze zmeny.
+echo V Toolboxu jsou dostupne VOSR Fast / Quality / Max Quality presety.
 echo ================================================================
 pause
 exit /b 0
