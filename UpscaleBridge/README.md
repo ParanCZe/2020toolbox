@@ -61,3 +61,10 @@ POST tělo je PNG; odpověď je PNG.
 - https://huggingface.co/CSWRY/VOSR
 
 VOSR repo uvádí Apache-2.0 licenci pro svůj kód, není-li uvedeno jinak. Externí modelové assety mohou mít vlastní podmínky.
+
+
+## Cleanup
+
+Toolbox Upscaler má blok **AI STORAGE / CLEANUP**. Při běžícím bridge tlačítko po potvrzení ukončí VOSR Bridge a odstraní pouze Toolbox-owned AI data: `.venv`, `runtime`, VOSR checkpointy, portable Python/PyTorch knihovny a vyhrazené AI cache složky pod `%LOCALAPPDATA%\\20-20-TOOLBOX`. Ostatní uživatelská Hugging Face/Python data mimo Toolbox se nemažou.
+
+Pokud bridge neběží nebo je starší verze bez `/cleanup`, Toolbox stáhne `cleanup_ai.bat` jako bezpečný fallback k ručnímu spuštění.
