@@ -106,12 +106,12 @@
       if(!S.vosrQualitySupported&&S.vosrHealth)hint.textContent='Bridge '+(S.vosrHealth.version||'')+' je starší. Pro quality presety stáhni aktualizovaný VOSR Bridge.';
       else if(q==='fast')hint.textContent='Fast / Fidelity: 512 tile · nejnižší VRAM a nejbezpečnější běh.';
       else if(q==='quality')hint.textContent='Quality: 768 tile · větší kontext pro lidi, materiály a návaznost textur.';
-      else hint.textContent=(mode==='vosr2'?'Max Quality: 1024 tile + interní 4× supersampling a výstup zpět na 2×.':'Max Quality: 1024 tile · maximum kontextu, vyšší VRAM nároky.');
+      else hint.textContent='Max Quality: 1024 tile · maximum kontextu, bez dalšího resamplingu; vyšší VRAM nároky.';
     }
   }
   function formatBytesAi(n){n=Number(n)||0;if(n<=0)return'0 B';const u=['B','KB','MB','GB','TB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return(n>=100||i===0?n.toFixed(0):n>=10?n.toFixed(1):n.toFixed(2))+' '+u[i]}
   function formatDuration(sec){sec=Math.max(0,Math.round(Number(sec)||0));if(sec<60)return sec+' s';const m=Math.floor(sec/60),s=sec%60;return m+' min '+String(s).padStart(2,'0')+' s'}
-  function vosrRenderScale(outputScale,q=vosrQuality()){return q==='max'&&Number(outputScale)===2?4:Number(outputScale)}
+  function vosrRenderScale(outputScale,q=vosrQuality()){return Number(outputScale)}
   function vosrRateKey(q,renderScale){return'toolbox-vosr-rate-v1-'+q+'-'+renderScale}
   function estimateVosrSeconds(src,outputScale,q=vosrQuality()){
     const rs=vosrRenderScale(outputScale,q),mp=Math.max(.1,src.width*src.height*rs*rs/1e6),fallback={fast:5.0,quality:5.6,max:6.3}[q]||5.6;
@@ -323,8 +323,7 @@
       }
       const out=await r.blob();status('VOSR 2.0 · načítám výsledek…',94);
       const img=await imageFromBlob(out),raw=document.createElement('canvas');raw.width=img.naturalWidth;raw.height=img.naturalHeight;raw.getContext('2d').drawImage(img,0,0);
-      let result=raw;
-      if(renderScale!==scale){status('VOSR Max Quality · supersampling → finální '+scale+'×…',97);result=resize(raw,Math.max(1,Math.round(src.width*scale)),Math.max(1,Math.round(src.height*scale)))}
+      const result=raw;
       const elapsed=(performance.now()-started)/1000;rememberVosrRate(src,scale,q,elapsed);
       S.engine='VOSR 2.0 · '+vosrQualityLabel(q)+' · LOCAL CUDA';$('#ups-engine').textContent=S.engine;
       return result;
