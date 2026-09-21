@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 if not exist ".venv\Scripts\python.exe" (
   echo VOSR 2.0 neni nainstalovany.
-  echo Nejdřív spust setup.bat.
+  echo Spust znovu hlavni install.bat - Python se nainstaluje automaticky.
   pause
   exit /b 1
 )
