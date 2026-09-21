@@ -138,7 +138,7 @@ def health_payload() -> dict:
     tel = gpu_telemetry()
     return {
         "name": "20-20 Toolbox VOSR Bridge",
-        "version": "1.3.0",
+        "version": "1.3.1",
         "ready": bool(mready and gpu),
         "models_ready": mready,
         "gpu_detected": gpu,
@@ -153,7 +153,7 @@ def health_payload() -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ToolboxVOSR/1.3.0"
+    server_version = "ToolboxVOSR/1.3.1"
 
     def log_message(self, fmt: str, *args) -> None:
         print(f"[VOSR Bridge] {self.address_string()} - {fmt % args}")
@@ -271,6 +271,12 @@ class Handler(BaseHTTPRequestHandler):
 
         quality = str(query.get("quality", ["fast"])[0]).lower()
         quality_presets = {
+            # 512 is the proven/detail-preserving VOSR path used by the original Toolbox bridge.
+            # Larger tiles expose more scene context, but are not a monotonic "quality" increase.
+            "detail": {"tile": 512, "overlap": 32},
+            "context": {"tile": 768, "overlap": 48},
+            "maxcontext": {"tile": 1024, "overlap": 64},
+            # Backward compatibility for already-open Toolbox tabs.
             "fast": {"tile": 512, "overlap": 32},
             "quality": {"tile": 768, "overlap": 48},
             "max": {"tile": 1024, "overlap": 64},
@@ -328,7 +334,7 @@ class Handler(BaseHTTPRequestHandler):
                 if target_max > preset["tile"]:
                     cmd += ["--tile_size", str(preset["tile"]), "--tile_overlap", str(preset["overlap"])]
                 if target_max > 4096:
-                    vae_overlap = 32 if quality == "fast" else 48 if quality == "quality" else 64
+                    vae_overlap = 32 if preset["tile"] == 512 else 48 if preset["tile"] == 768 else 64
                     cmd += ["--vae_tile_size", "1024", "--vae_tile_overlap", str(vae_overlap)]
 
                 env = os.environ.copy()
