@@ -25,6 +25,9 @@ TORCH_CACHE = CKPT_DIR / "torch_cache"
 INFERENCE = VOSR_DIR / "inference_vosr_onestep.py"
 
 JOB_LOCK = threading.Lock()
+PROCESS_LOCK = threading.Lock()
+CURRENT_PROCESS: subprocess.Popen | None = None
+CANCEL_REQUESTED = threading.Event()
 
 
 def _glob_any(path: Path, patterns: tuple[str, ...]) -> bool:
@@ -43,35 +46,104 @@ def models_ready() -> bool:
     )
 
 
-def gpu_info() -> tuple[bool, str]:
+def gpu_telemetry() -> dict:
     exe = shutil.which("nvidia-smi")
     if not exe:
-        return False, "nvidia-smi nebylo nalezeno"
+        return {"detected": False, "error": "nvidia-smi nebylo nalezeno"}
     try:
         p = subprocess.run(
-            [exe, "--query-gpu=name,memory.total", "--format=csv,noheader"],
+            [
+                exe,
+                "--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw",
+                "--format=csv,noheader,nounits",
+            ],
             capture_output=True,
             text=True,
             timeout=8,
             check=False,
         )
-        info = (p.stdout or p.stderr or "").strip()
-        return p.returncode == 0, info
+        line = (p.stdout or "").strip().splitlines()[0] if p.stdout else ""
+        if p.returncode != 0 or not line:
+            return {"detected": False, "error": (p.stderr or "nvidia-smi selhalo").strip()}
+        parts = [x.strip() for x in line.split(",")]
+        if len(parts) < 6:
+            return {"detected": True, "name": line}
+        name, util, mem_used, mem_total, temp, power = parts[:6]
+        return {
+            "detected": True,
+            "name": name,
+            "utilization_gpu": float(util or 0),
+            "memory_used_mb": float(mem_used or 0),
+            "memory_total_mb": float(mem_total or 0),
+            "temperature_c": float(temp or 0),
+            "power_w": float(power or 0),
+        }
     except Exception as exc:
-        return False, str(exc)
+        return {"detected": False, "error": str(exc)}
+
+
+def gpu_info() -> tuple[bool, str]:
+    g = gpu_telemetry()
+    if not g.get("detected"):
+        return False, str(g.get("error") or "GPU nenalezena")
+    name = g.get("name") or "NVIDIA GPU"
+    total = g.get("memory_total_mb")
+    suffix = f", {int(total)} MiB" if isinstance(total, (int, float)) and total else ""
+    return True, f"{name}{suffix}"
+
+
+def _dir_size(path: Path) -> int:
+    if not path.exists():
+        return 0
+    total = 0
+    try:
+        for p in path.rglob("*"):
+            try:
+                if p.is_file():
+                    total += p.stat().st_size
+            except OSError:
+                pass
+    except OSError:
+        pass
+    return total
+
+
+def storage_payload() -> dict:
+    venv = ROOT / ".venv"
+    runtime = ROOT / "runtime"
+    venv_bytes = _dir_size(venv)
+    runtime_bytes = _dir_size(runtime)
+    total = venv_bytes + runtime_bytes
+    try:
+        usage = shutil.disk_usage(ROOT)
+        free = usage.free
+        disk_total = usage.total
+    except OSError:
+        free = 0
+        disk_total = 0
+    return {
+        "venv_bytes": venv_bytes,
+        "runtime_bytes": runtime_bytes,
+        "total_bytes": total,
+        "disk_free_bytes": free,
+        "disk_total_bytes": disk_total,
+    }
 
 
 def health_payload() -> dict:
     gpu, info = gpu_info()
     mready = models_ready()
+    tel = gpu_telemetry()
     return {
         "name": "20-20 Toolbox VOSR Bridge",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "ready": bool(mready and gpu),
         "models_ready": mready,
         "gpu_detected": gpu,
         "gpu": info,
+        "gpu_telemetry": tel,
         "busy": JOB_LOCK.locked(),
+        "cancel_requested": CANCEL_REQUESTED.is_set(),
         "port": PORT,
         "vosr_dir": str(VOSR_DIR),
         "checkpoint": str(VOSR2_DIR),
@@ -79,7 +151,7 @@ def health_payload() -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ToolboxVOSR/1.1"
+    server_version = "ToolboxVOSR/1.2"
 
     def log_message(self, fmt: str, *args) -> None:
         print(f"[VOSR Bridge] {self.address_string()} - {fmt % args}")
@@ -107,13 +179,47 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
-        if urlparse(self.path).path != "/health":
-            self._json(404, {"error": "Not found"})
+        path = urlparse(self.path).path
+        if path == "/health":
+            self._json(200, health_payload())
             return
-        self._json(200, health_payload())
+        if path == "/telemetry":
+            payload = gpu_telemetry()
+            payload["busy"] = JOB_LOCK.locked()
+            payload["cancel_requested"] = CANCEL_REQUESTED.is_set()
+            self._json(200, payload)
+            return
+        if path == "/storage":
+            self._json(200, storage_payload())
+            return
+        self._json(404, {"error": "Not found"})
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+
+        if parsed.path == "/cancel":
+            with PROCESS_LOCK:
+                proc = CURRENT_PROCESS
+            if proc is None or proc.poll() is not None:
+                CANCEL_REQUESTED.clear()
+                self._json(200, {"ok": True, "message": "Žádný VOSR proces právě neběží."})
+                return
+            CANCEL_REQUESTED.set()
+            try:
+                if os.name == "nt":
+                    subprocess.run(
+                        ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                        capture_output=True,
+                        text=True,
+                        timeout=12,
+                        check=False,
+                    )
+                else:
+                    proc.terminate()
+                self._json(202, {"ok": True, "message": "STOP odeslán VOSR procesu."})
+            except Exception as exc:
+                self._json(500, {"error": f"VOSR se nepodařilo zastavit: {exc}"})
+            return
 
         if parsed.path == "/cleanup":
             if JOB_LOCK.locked():
@@ -214,23 +320,49 @@ class Handler(BaseHTTPRequestHandler):
                 env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
                 print("[VOSR Bridge] Spouštím:", " ".join(f'"{x}"' if " " in x else x for x in cmd))
 
+                global CURRENT_PROCESS
+                CANCEL_REQUESTED.clear()
+                stdout = ""
+                stderr = ""
                 try:
-                    p = subprocess.run(
+                    p = subprocess.Popen(
                         cmd,
                         cwd=str(VOSR_DIR),
                         env=env,
-                        capture_output=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
                         text=True,
-                        timeout=MAX_JOB_SECONDS,
-                        check=False,
                     )
-                except subprocess.TimeoutExpired:
-                    self._json(504, {"error": "VOSR inference překročila časový limit."})
+                    with PROCESS_LOCK:
+                        CURRENT_PROCESS = p
+                    try:
+                        stdout, stderr = p.communicate(timeout=MAX_JOB_SECONDS)
+                    except subprocess.TimeoutExpired:
+                        if os.name == "nt":
+                            subprocess.run(
+                                ["taskkill", "/PID", str(p.pid), "/T", "/F"],
+                                capture_output=True,
+                                text=True,
+                                timeout=12,
+                                check=False,
+                            )
+                        else:
+                            p.kill()
+                        stdout, stderr = p.communicate()
+                        self._json(504, {"error": "VOSR inference překročila časový limit."})
+                        return
+                finally:
+                    with PROCESS_LOCK:
+                        CURRENT_PROCESS = None
+
+                if CANCEL_REQUESTED.is_set():
+                    CANCEL_REQUESTED.clear()
+                    self._json(499, {"error": "VOSR byl zastaven uživatelem.", "cancelled": True})
                     return
 
                 result = out / "input.png"
                 if p.returncode != 0 or not result.is_file():
-                    tail = "\n".join(((p.stderr or "") + "\n" + (p.stdout or "")).splitlines()[-24:])
+                    tail = "\n".join(((stderr or "") + "\n" + (stdout or "")).splitlines()[-24:])
                     self._json(500, {"error": "VOSR inference selhala.", "detail": tail})
                     return
 
