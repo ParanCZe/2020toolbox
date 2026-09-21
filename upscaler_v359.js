@@ -11,7 +11,7 @@
   const INVSR_SPACE='OAOA/InvSR';
   const SUPIR_SPACES=['NotSky/supir-demo','Fabrice-TIERCELIN/SUPIR'];
   const AI_MODEL_CACHE='toolbox-ai-models-v1';
-  const S={file:null,img:null,result:null,session:null,loadingModel:null,faceSession:null,loadingFaceModel:null,faceDetector:null,loadingFaceDetector:null,objectDetector:null,loadingObjectDetector:null,engine:'LOCAL',running:false,vosrOnline:false,vosrHealth:null,gradioModule:null,cloudClients:{},cloudApi:{}};
+  const S={file:null,img:null,result:null,session:null,loadingModel:null,faceSession:null,loadingFaceModel:null,faceDetector:null,loadingFaceDetector:null,objectDetector:null,loadingObjectDetector:null,engine:'LOCAL',running:false,vosrOnline:false,vosrHealth:null,vosrQualitySupported:false,vosrTelemetryTimer:null,vosrRunStarted:0,vosrEtaSec:0,vosrRenderScale:0,vosrStopPending:false,gradioModule:null,cloudClients:{},cloudApi:{}};
   const $=s=>document.querySelector(s);
   const LOCAL_CORE={clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),clampByte:v=>Math.max(0,Math.min(255,Math.round(v))),tileStarts(size,tile=128,overlap=16){size=Math.max(1,Math.floor(size));if(size<=tile)return[0];const step=tile-overlap,out=[];for(let p=0;p<size-tile;p+=step)out.push(p);const last=size-tile;if(out[out.length-1]!==last)out.push(last);return out},outputScale:m=>m==='safe4'||m==='invsr4'||m==='ai4'||m==='vosr4'?4:m==='supirf'||m==='ai2'||m==='deblur2'||m==='vosr2'?2:1,sharpenAmount(v,m){const n=Math.max(0,Math.min(100,Number(v)||0))/100;return(m==='sharp'?0.35:0.18)+n*1.2},modeLabel:m=>({safe4:'SAFE UPSCALE 4× · REAL-ESRGAN',invsr4:'AI UPSCALE 4× · INVSR',supirf:'AI RESTORE FIDELITY · SUPIR v0F · ARCHVIZ',sharp:'SHARP FIX',clean:'CLEAN PHOTO',ai2:'AI UPSCALE 2× · LOCAL',ai4:'AI UPSCALE 4× · LOCAL',deblur2:'DEBLUR + AI 2×',vosr2:'VOSR 2.0 SCENE 2×',vosr4:'VOSR 2.0 SCENE 4×'})[m]||m};
   const core=()=>window.upscalerV359Core||LOCAL_CORE;
@@ -41,6 +41,12 @@
     #tool-upscaler .ups-vosr-note{margin-top:10px;padding:9px 10px;border:1px solid #d4d4d8;border-radius:7px;background:#fffef3;font-size:9px;line-height:1.5;color:#52525b}#tool-upscaler .ups-vosr-note b{color:#18181b}
     #tool-upscaler .ups-bridge{margin-top:10px;padding:8px 9px;border:1px solid #d4d4d8;border-radius:7px;background:#fff;font-size:9px;line-height:1.4}.ups-bridge.ok{border-color:#86b98b;background:#f2fbf3}.ups-bridge.warn{border-color:#d8c76b;background:#fffdf0}.ups-bridge.bad{border-color:#d99a9a;background:#fff5f5}
     #tool-upscaler .ups-storage{margin-top:12px;padding-top:12px;border-top:1px dashed #d4d4d8}.ups-storage-title{font:normal 11px 'Antarctican Mono',monospace;margin-bottom:6px}.ups-storage p{font-size:9px;line-height:1.45;color:var(--muted);margin:0 0 8px}.ups-storage button{width:100%}
+    #tool-upscaler .ups-storage-stats{display:grid;grid-template-columns:1fr auto;gap:4px 8px;margin:7px 0 9px;font-size:9px;line-height:1.35}#tool-upscaler .ups-storage-stats b{text-align:right}
+    #tool-upscaler .ups-vosr-live{margin-top:10px;padding:10px;border:1px solid #d4d4d8;border-radius:8px;background:#fff}#tool-upscaler .ups-vosr-live[hidden]{display:none}
+    #tool-upscaler .ups-live-title{font:normal 10px 'Antarctican Mono',monospace;margin-bottom:7px}
+    #tool-upscaler .ups-live-grid{display:grid;grid-template-columns:1fr auto;gap:4px 8px;font-size:9px;line-height:1.35}#tool-upscaler .ups-live-grid b{text-align:right}
+    #tool-upscaler .ups-stop{width:100%;margin-top:9px!important;color:#b91c1c!important;border-color:#efb4b4!important;background:#fff7f7!important}
+    #tool-upscaler .ups-quality-hint{font-size:8.5px;line-height:1.4;margin-top:5px}
     body:has(#tool-upscaler.active) .wrap{max-width:none;padding:0 18px}body:has(#tool-upscaler.active) .wrap>.card{padding:18px}#tool-upscaler{width:100%;max-width:none;margin:0}#tool-upscaler .ups-grid>section:nth-child(2){min-width:0;display:flex;flex-direction:column}#tool-upscaler .ups-grid>section:nth-child(2) .ups-preview{flex:1}@media(max-width:1400px){#tool-upscaler .ups-grid{grid-template-columns:270px minmax(0,1fr) 245px}}@media(max-width:1050px){#tool-upscaler .ups-grid{grid-template-columns:1fr;min-height:auto}#tool-upscaler .ups-preview{min-height:560px}body:has(#tool-upscaler.active) .wrap{padding:0 12px}}
   `;document.head.appendChild(s)}
 
@@ -56,7 +62,8 @@
           <div id="ups-drop" class="ups-drop"><b>Přetáhni obrázek</b><span>PNG / JPG / WEBP nebo klikni</span><input id="ups-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></div>
           <div class="ups-control"><label><span>Režim</span><span id="ups-mode-label"></span></label><select id="ups-mode"><option value="safe4">Safe Upscale 4× — Real-ESRGAN</option><option value="invsr4">AI Upscale 4× — InvSR</option><option value="supirf">AI Restore Fidelity — SUPIR v0F (Archviz Safe)</option><option value="ai2">Local AI Upscale 2×</option><option value="deblur2">Deblur + Local AI 2×</option><option value="sharp">Sharp Fix</option><option value="clean">Clean Photo</option><option value="vosr2">VOSR 2.0 Scene 2×</option><option value="vosr4">VOSR 2.0 Scene 4×</option></select></div>
           <div id="ups-cloud-note" class="ups-vosr-note" hidden></div>
-          <div id="ups-vosr-note" class="ups-vosr-note" hidden><b>VOSR 2.0 · generativní rekonstrukce celé scény</b><br>Obnovuje objekty, lidi, hrany, materiály a textury v jednom passu.<br><br><b>Jak funguje:</b> VOSR běží lokálně na tvém PC přes NVIDIA CUDA bridge. Obrázek se nikam neodesílá a neopouští počítač.<br><b>Místo na disku:</b> po instalaci počítej přibližně <b>14–18 GB</b>. Během první instalace může dočasně potřebovat i <b>20+ GB</b> kvůli staženým balíčkům a cache. Modely se stahují jen jednou.<br><b>Požadavky:</b> NVIDIA GPU + lokální VOSR Bridge.<br><a class="back-btn" style="display:inline-flex;margin-top:7px;text-decoration:none" href="UpscaleBridge/install.bat?v=20260921vosrdiag2" download="20-20-TOOLBOX_VOSR_INSTALL.bat">↓ Stáhnout VOSR Bridge instalátor</a></div>
+          <div id="ups-vosr-note" class="ups-vosr-note" hidden><b>VOSR 2.0 · generativní rekonstrukce celé scény</b><br>Obnovuje objekty, lidi, hrany, materiály a textury v jednom passu.<br><br><b>Jak funguje:</b> VOSR běží lokálně na tvém PC přes NVIDIA CUDA bridge. Obrázek se nikam neodesílá a neopouští počítač.<br><b>Místo na disku:</b> po instalaci počítej přibližně <b>14–18 GB</b>. Během první instalace může dočasně potřebovat i <b>20+ GB</b> kvůli staženým balíčkům a cache. Modely se stahují jen jednou.<br><b>Požadavky:</b> NVIDIA GPU + lokální VOSR Bridge.<br><a class="back-btn" style="display:inline-flex;margin-top:7px;text-decoration:none" href="UpscaleBridge/install.bat?v=20260921quality130" download="20-20-TOOLBOX_VOSR_INSTALL.bat">↓ Stáhnout / aktualizovat VOSR Bridge</a></div>
+          <div id="ups-vosr-quality-wrap" class="ups-control" hidden><label><span>VOSR kvalita</span><span id="ups-vosr-quality-label">QUALITY</span></label><select id="ups-vosr-quality"><option value="fast">Fast / Fidelity — 512 tile</option><option value="quality" selected>Quality — 768 tile</option><option value="max">Max Quality — 1024 tile</option></select><div id="ups-vosr-quality-hint" class="muted ups-quality-hint">Quality: větší kontext pro lidi, materiály a návaznost textur.</div></div>
           <div class="ups-control"><label><span>Ostrost</span><span id="ups-sharp-v">55</span></label><input id="ups-sharp" type="range" min="0" max="100" value="55"></div>
           <div class="ups-control"><label><span>Obnova detailu</span><span id="ups-detail-v">55</span></label><input id="ups-detail" type="range" min="0" max="100" value="55"></div>
           <div class="ups-control"><label><span>Odšumění</span><span id="ups-denoise-v">12</span></label><input id="ups-denoise" type="range" min="0" max="100" value="12"></div>
@@ -68,7 +75,7 @@
           <div class="ups-actions"><button id="ups-run" class="action" disabled>Zpracovat</button><button id="ups-png" class="back-btn" disabled>Stáhnout PNG</button><button id="ups-jpg" class="back-btn" disabled>Stáhnout JPG</button></div>
         </section>
         <section><div id="ups-preview" class="ups-preview"><div id="ups-before-wrap"><canvas id="ups-before"></canvas></div><div id="ups-after-wrap"><canvas id="ups-after"></canvas></div><div id="ups-divider" class="ups-divider"></div></div><div class="ups-compare"><input id="ups-compare" type="range" min="0" max="100" value="50"></div></section>
-        <aside class="ups-panel"><h2>STAV</h2><div class="ups-stat"><span>Soubor</span><b id="ups-name">—</b></div><div class="ups-stat"><span>Vstup</span><b id="ups-in">—</b></div><div class="ups-stat"><span>Výstup</span><b id="ups-out">—</b></div><div class="ups-stat"><span>Engine</span><b id="ups-engine">LOCAL</b></div><div class="ups-stat"><span>Čas</span><b id="ups-time">—</b></div><div id="ups-status" class="ups-status">Nahraj obrázek.</div><div class="ups-progress"><i id="ups-progress"></i></div><div id="ups-vosr-bridge" class="ups-bridge warn"><b>VOSR Bridge:</b> kontroluji…</div><div class="muted" style="font-size:9px;margin:10px 0 0"><b>Safe 4×:</b> Real-ESRGAN lokálně, bez odesílání obrázku. <b>InvSR / SUPIR:</b> zdarma přes veřejné Hugging Face GPU Space — může být fronta nebo denní limit a obrázek je odeslán externí službě. <b>VOSR 2.0:</b> volitelně lokálně; cca 14–18 GB (při instalaci dočasně 20+ GB).</div><div class="ups-storage"><div class="ups-storage-title">AI STORAGE / CLEANUP</div><p>Smaže Toolbox AI modely a cache. Pokud běží VOSR Bridge, odstraní i jeho modely, Python runtime a knihovny. Online InvSR/SUPIR nic lokálně neukládají.</p><button type="button" class="back-btn" id="ups-ai-clean" style="margin:0;color:#b91c1c">Smazat stažená AI data</button></div></aside>
+        <aside class="ups-panel"><h2>STAV</h2><div class="ups-stat"><span>Soubor</span><b id="ups-name">—</b></div><div class="ups-stat"><span>Vstup</span><b id="ups-in">—</b></div><div class="ups-stat"><span>Výstup</span><b id="ups-out">—</b></div><div class="ups-stat"><span>Engine</span><b id="ups-engine">LOCAL</b></div><div class="ups-stat"><span>Čas</span><b id="ups-time">—</b></div><div id="ups-status" class="ups-status">Nahraj obrázek.</div><div class="ups-progress"><i id="ups-progress"></i></div><div id="ups-vosr-bridge" class="ups-bridge warn"><b>VOSR Bridge:</b> kontroluji…</div><div id="ups-vosr-live" class="ups-vosr-live" hidden><div class="ups-live-title">VOSR LIVE</div><div class="ups-live-grid"><span>GPU</span><b id="ups-vosr-gpu">—</b><span>Vytížení GPU</span><b id="ups-vosr-util">—</b><span>VRAM</span><b id="ups-vosr-vram">—</b><span>Teplota</span><b id="ups-vosr-temp">—</b><span>Kvalita</span><b id="ups-vosr-live-quality">—</b><span>Uplynulo</span><b id="ups-vosr-elapsed">—</b><span>ETA</span><b id="ups-vosr-eta">—</b></div><button type="button" class="back-btn ups-stop" id="ups-vosr-stop" disabled>■ STOP VOSR</button></div><div class="muted" style="font-size:9px;margin:10px 0 0"><b>Safe 4×:</b> Real-ESRGAN lokálně, bez odesílání obrázku. <b>InvSR / SUPIR:</b> zdarma přes veřejné Hugging Face GPU Space — může být fronta nebo denní limit a obrázek je odeslán externí službě. <b>VOSR 2.0:</b> volitelně lokálně; cca 14–18 GB (při instalaci dočasně 20+ GB).</div><div class="ups-storage"><div class="ups-storage-title">AI STORAGE / CLEANUP</div><p>Skutečné lokální místo zabrané Toolbox AI daty. VOSR hodnotu lze načíst, když běží Bridge.</p><div class="ups-storage-stats"><span>Browser AI cache</span><b id="ups-ai-storage-browser">měřím…</b><span>VOSR runtime + modely</span><b id="ups-ai-storage-vosr">měřím…</b><span>Celkem AI data</span><b id="ups-ai-storage-total">měřím…</b></div><button type="button" class="back-btn" id="ups-ai-clean" style="margin:0;color:#b91c1c">Smazat stažená AI data</button></div></aside>
       </div>`;anchor.parentNode.insertBefore(v,anchor)}
   }
 
@@ -79,17 +86,79 @@
     for(const id of ['sharp','detail','denoise'])$('#ups-'+id).oninput=e=>$('#ups-'+id+'-v').textContent=e.target.value;
     $('#ups-scene-strength').oninput=e=>$('#ups-scene-v').textContent=e.target.value;
     $('#ups-face-strength').oninput=e=>$('#ups-face-v').textContent=e.target.value;
-    mode.onchange=()=>{const m=mode.value;$('#ups-mode-label').textContent=core()?.modeLabel(m)||m;syncModeUi(m)};mode.onchange();checkVosrBridge(true);
+    const quality=$('#ups-vosr-quality');try{const saved=localStorage.getItem('toolbox-vosr-quality');if(saved&&['fast','quality','max'].includes(saved))quality.value=saved}catch(_){}
+    quality.onchange=()=>{try{localStorage.setItem('toolbox-vosr-quality',quality.value)}catch(_){}syncVosrQualityUi()};
+    mode.onchange=()=>{const m=mode.value;$('#ups-mode-label').textContent=core()?.modeLabel(m)||m;syncModeUi(m)};mode.onchange();syncVosrQualityUi();checkVosrBridge(true).then(()=>refreshAiStorage());
     compare.oninput=()=>{const v=Number(compare.value);$('#ups-after-wrap').style.clipPath=`inset(0 0 0 ${v}%)`;$('#ups-divider').style.left=v+'%'};compare.oninput();
-    $('#ups-run').onclick=run;$('#ups-png').onclick=()=>save('image/png',1,'upscaled.png');$('#ups-jpg').onclick=()=>save('image/jpeg',.95,'upscaled.jpg');$('#ups-ai-clean').onclick=cleanupAiStorage;
+    $('#ups-run').onclick=run;$('#ups-png').onclick=()=>save('image/png',1,'upscaled.png');$('#ups-jpg').onclick=()=>save('image/jpeg',.95,'upscaled.jpg');$('#ups-ai-clean').onclick=cleanupAiStorage;$('#ups-vosr-stop').onclick=stopVosrJob;
   }
 
   function isVosrMode(mode){return mode==='vosr2'||mode==='vosr4'}
   function isCloudMode(mode){return mode==='invsr4'||mode==='supirf'}
   function isFidelitySafeMode(mode){return mode==='safe4'||isCloudMode(mode)||isVosrMode(mode)}
+  function versionAtLeast(v,min){const a=String(v||'0').split('.').map(x=>parseInt(x,10)||0),b=String(min||'0').split('.').map(x=>parseInt(x,10)||0);for(let i=0;i<Math.max(a.length,b.length);i++){const x=a[i]||0,y=b[i]||0;if(x>y)return true;if(x<y)return false}return true}
+  function vosrQuality(){return $('#ups-vosr-quality')?.value||'quality'}
+  function vosrQualityLabel(q){return({fast:'FAST / FIDELITY',quality:'QUALITY',max:'MAX QUALITY'})[q]||String(q||'').toUpperCase()}
+  function syncVosrQualityUi(){
+    const q=vosrQuality(),label=$('#ups-vosr-quality-label'),hint=$('#ups-vosr-quality-hint'),mode=$('#ups-mode')?.value;
+    if(label)label.textContent=vosrQualityLabel(q);
+    if(hint){
+      if(!S.vosrQualitySupported&&S.vosrHealth)hint.textContent='Bridge '+(S.vosrHealth.version||'')+' je starší. Pro quality presety stáhni aktualizovaný VOSR Bridge.';
+      else if(q==='fast')hint.textContent='Fast / Fidelity: 512 tile · nejnižší VRAM a nejbezpečnější běh.';
+      else if(q==='quality')hint.textContent='Quality: 768 tile · větší kontext pro lidi, materiály a návaznost textur.';
+      else hint.textContent=(mode==='vosr2'?'Max Quality: 1024 tile + interní 4× supersampling a výstup zpět na 2×.':'Max Quality: 1024 tile · maximum kontextu, vyšší VRAM nároky.');
+    }
+  }
+  function formatBytesAi(n){n=Number(n)||0;if(n<=0)return'0 B';const u=['B','KB','MB','GB','TB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return(n>=100||i===0?n.toFixed(0):n>=10?n.toFixed(1):n.toFixed(2))+' '+u[i]}
+  function formatDuration(sec){sec=Math.max(0,Math.round(Number(sec)||0));if(sec<60)return sec+' s';const m=Math.floor(sec/60),s=sec%60;return m+' min '+String(s).padStart(2,'0')+' s'}
+  function vosrRenderScale(outputScale,q=vosrQuality()){return q==='max'&&Number(outputScale)===2?4:Number(outputScale)}
+  function vosrRateKey(q,renderScale){return'toolbox-vosr-rate-v1-'+q+'-'+renderScale}
+  function estimateVosrSeconds(src,outputScale,q=vosrQuality()){
+    const rs=vosrRenderScale(outputScale,q),mp=Math.max(.1,src.width*src.height*rs*rs/1e6),fallback={fast:5.0,quality:5.6,max:6.3}[q]||5.6;
+    let rate=fallback;try{const v=Number(localStorage.getItem(vosrRateKey(q,rs)));if(v>0&&v<120)rate=v}catch(_){}
+    return Math.max(15,10+mp*rate)
+  }
+  function rememberVosrRate(src,outputScale,q,elapsed){
+    const rs=vosrRenderScale(outputScale,q),mp=Math.max(.1,src.width*src.height*rs*rs/1e6),rate=Math.max(.2,Math.min(120,elapsed/mp));try{const k=vosrRateKey(q,rs),old=Number(localStorage.getItem(k));localStorage.setItem(k,String(old>0?old*.65+rate*.35:rate))}catch(_){}
+  }
+  function updateVosrClock(){
+    if(!S.vosrRunStarted)return;const elapsed=(performance.now()-S.vosrRunStarted)/1000,eta=S.vosrEtaSec||0;
+    const ee=$('#ups-vosr-elapsed'),et=$('#ups-vosr-eta');if(ee)ee.textContent=formatDuration(elapsed);if(et)et.textContent=eta?(elapsed<eta?'~ '+formatDuration(eta-elapsed):'dokončuje…'):'měřím…';
+    if(S.running&&eta){const p=Math.min(90,22+68*Math.min(1,elapsed/eta));$('#ups-progress').style.width=p.toFixed(1)+'%'}
+  }
+  async function pollVosrTelemetry(){
+    updateVosrClock();
+    try{
+      const ctrl=new AbortController(),tm=setTimeout(()=>ctrl.abort(),1400),r=await fetch(VOSR_BRIDGE_URL+'/telemetry',{cache:'no-store',signal:ctrl.signal});clearTimeout(tm);if(!r.ok)return;
+      const t=await r.json();if(t.name)$('#ups-vosr-gpu').textContent=t.name;if(Number.isFinite(t.utilization_gpu))$('#ups-vosr-util').textContent=Math.round(t.utilization_gpu)+' %';
+      if(Number.isFinite(t.memory_used_mb)&&Number.isFinite(t.memory_total_mb))$('#ups-vosr-vram').textContent=(t.memory_used_mb/1024).toFixed(1)+' / '+(t.memory_total_mb/1024).toFixed(1)+' GB';
+      if(Number.isFinite(t.temperature_c))$('#ups-vosr-temp').textContent=Math.round(t.temperature_c)+' °C';
+    }catch(_){}
+  }
+  function startVosrTelemetry(eta,q,renderScale){
+    if(S.vosrTelemetryTimer)clearInterval(S.vosrTelemetryTimer);S.vosrEtaSec=eta;S.vosrRunStarted=performance.now();S.vosrRenderScale=renderScale;S.vosrStopPending=false;
+    const box=$('#ups-vosr-live'),btn=$('#ups-vosr-stop');if(box)box.hidden=false;if(btn){btn.disabled=false;btn.textContent='■ STOP VOSR'}$('#ups-vosr-live-quality').textContent=vosrQualityLabel(q)+(renderScale!==core().outputScale($('#ups-mode').value)?' · '+renderScale+'×→'+core().outputScale($('#ups-mode').value)+'×':'');
+    pollVosrTelemetry();S.vosrTelemetryTimer=setInterval(pollVosrTelemetry,1200)
+  }
+  function stopVosrTelemetry(){
+    if(S.vosrTelemetryTimer){clearInterval(S.vosrTelemetryTimer);S.vosrTelemetryTimer=null}updateVosrClock();const btn=$('#ups-vosr-stop');if(btn){btn.disabled=true;btn.textContent=S.vosrStopPending?'Zastaveno / čekám…':'■ STOP VOSR'}
+  }
+  async function stopVosrJob(){
+    if(!S.running||S.vosrStopPending)return;S.vosrStopPending=true;const btn=$('#ups-vosr-stop');if(btn){btn.disabled=true;btn.textContent='Zastavuju VOSR…'}status('Zastavuju VOSR proces…',Number.parseFloat($('#ups-progress')?.style.width)||0);
+    try{const r=await fetch(VOSR_BRIDGE_URL+'/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!r.ok)throw new Error('HTTP '+r.status)}catch(e){S.vosrStopPending=false;if(btn){btn.disabled=false;btn.textContent='■ STOP VOSR'}status('STOP se nepodařilo odeslat: '+e.message,0)}
+  }
+  async function browserAiCacheBytes(){
+    if(!('caches' in window))return 0;let total=0;try{const cache=await caches.open(AI_MODEL_CACHE),keys=await cache.keys();for(const req of keys){const r=await cache.match(req);if(!r)continue;const h=Number(r.headers.get('content-length'));if(h>0){total+=h;continue}try{total+=(await r.clone().arrayBuffer()).byteLength}catch(_){}}}catch(_){}return total
+  }
+  async function refreshAiStorage(){
+    const eb=$('#ups-ai-storage-browser'),ev=$('#ups-ai-storage-vosr'),et=$('#ups-ai-storage-total');if(eb)eb.textContent='měřím…';if(ev)ev.textContent='měřím…';if(et)et.textContent='měřím…';
+    const browser=await browserAiCacheBytes();if(eb)eb.textContent=formatBytesAi(browser);let vosr=null;
+    try{const ctrl=new AbortController(),tm=setTimeout(()=>ctrl.abort(),6000),r=await fetch(VOSR_BRIDGE_URL+'/storage',{cache:'no-store',signal:ctrl.signal});clearTimeout(tm);if(r.ok){const j=await r.json();vosr=Number(j.total_bytes)||0}}catch(_){}
+    if(ev)ev.textContent=vosr==null?'— (Bridge offline)':formatBytesAi(vosr);if(et)et.textContent=vosr==null?formatBytesAi(browser):formatBytesAi(browser+vosr)
+  }
   function syncModeUi(mode){
-    const vosrOn=isVosrMode(mode),cloudOn=isCloudMode(mode),protectedOn=isFidelitySafeMode(mode),note=$('#ups-vosr-note'),cloudNote=$('#ups-cloud-note');
-    if(note)note.hidden=!vosrOn;
+    const vosrOn=isVosrMode(mode),cloudOn=isCloudMode(mode),protectedOn=isFidelitySafeMode(mode),note=$('#ups-vosr-note'),cloudNote=$('#ups-cloud-note'),qualityWrap=$('#ups-vosr-quality-wrap');
+    if(note)note.hidden=!vosrOn;if(qualityWrap)qualityWrap.hidden=!vosrOn;syncVosrQualityUi();
     if(cloudNote){
       cloudNote.hidden=!cloudOn;
       if(mode==='invsr4')cloudNote.innerHTML='<b>InvSR 4× · online / konzervativní AI</b><br>Oficiální OAOA/InvSR Space. Obrázek se odešle na veřejný Hugging Face ZeroGPU server a výsledek se vrátí přímo sem. Používáme 1-step režim a pevný seed pro konzistentnější výsledek. Služba může mít frontu nebo bezplatný denní limit.';
@@ -206,9 +275,10 @@
     try{
       const r=await fetch(VOSR_BRIDGE_URL+'/health',{cache:'no-store',signal:ctrl.signal});
       if(!r.ok)throw new Error('HTTP '+r.status);
-      const h=await r.json();S.vosrHealth=h;S.vosrOnline=!!h.ready;
+      const h=await r.json();S.vosrHealth=h;S.vosrOnline=!!h.ready;S.vosrQualitySupported=versionAtLeast(h.version,'1.3.0');
+      const qs=$('#ups-vosr-quality');if(qs)qs.disabled=!S.vosrQualitySupported;syncVosrQualityUi();
       if(badge){
-        const bridgeState=h.ready?'online · GPU připraveno':(!h.models_ready?'online · chybí modely':(!h.gpu_detected?'online · NVIDIA GPU nenalezena':'online · není připraveno'));
+        const bridgeState=h.ready?(S.vosrQualitySupported?'online · GPU připraveno':'online · aktualizuj Bridge pro Quality presety'):(!h.models_ready?'online · chybí modely':(!h.gpu_detected?'online · NVIDIA GPU nenalezena':'online · není připraveno'));
         badge.className='ups-bridge '+(h.ready?'ok':'warn');
         badge.innerHTML='<b>VOSR Bridge:</b> '+bridgeState;
       }
@@ -229,28 +299,36 @@
   function imageFromBlob(blob){return new Promise((res,rej)=>{const u=URL.createObjectURL(blob),i=new Image();i.onload=()=>{URL.revokeObjectURL(u);res(i)};i.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('VOSR vrátil neplatný obrázek.'))};i.src=u})}
   async function runVosrBridge(src,scale){
     const h=await checkVosrBridge(true);
-    if(!h||!h.ready)throw new Error('VOSR Bridge není připravený. Spusť UpscaleBridge\\\\setup.bat a run_bridge.bat');
+    if(!h||!h.ready)throw new Error('VOSR Bridge není připravený. Spusť UpscaleBridge\\setup.bat a run_bridge.bat');
+    const q=S.vosrQualitySupported?vosrQuality():'fast',renderScale=vosrRenderScale(scale,q),eta=estimateVosrSeconds(src,scale,q),started=performance.now();
     status('VOSR 2.0 · připravuju obraz pro lokální GPU…',8);
     const blob=await canvasToBlob(src);
-    status('VOSR 2.0 · rekonstruuju celou scénu na GPU…',22);
-    const r=await fetch(VOSR_BRIDGE_URL+'/upscale?scale='+encodeURIComponent(scale),{method:'POST',headers:{'Content-Type':'image/png'},body:blob});
-    if(!r.ok){
-      let msg='HTTP '+r.status;
-      try{
-        const j=await r.json();
-        if(j?.error)msg=j.error;
-        const detail=String(j?.detail||'').trim();
-        if(detail){
-          console.error('VOSR inference detail:',detail);
-          const lines=detail.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
-          msg+=' · '+lines.slice(-4).join(' | ');
-        }
-      }catch(e){}
-      throw new Error(msg);
-    }
-    const out=await r.blob();status('VOSR 2.0 · načítám výsledek…',92);
-    const img=await imageFromBlob(out),c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;c.getContext('2d').drawImage(img,0,0);
-    S.engine='VOSR 2.0 · LOCAL CUDA';$('#ups-engine').textContent=S.engine;return c;
+    status('VOSR 2.0 · '+vosrQualityLabel(q)+' · rekonstruuju scénu na GPU…',22);
+    startVosrTelemetry(eta,q,renderScale);
+    try{
+      const r=await fetch(VOSR_BRIDGE_URL+'/upscale?scale='+encodeURIComponent(renderScale)+'&quality='+encodeURIComponent(q),{method:'POST',headers:{'Content-Type':'image/png'},body:blob});
+      if(!r.ok){
+        let msg='HTTP '+r.status;
+        try{
+          const j=await r.json();
+          if(j?.error)msg=j.error;
+          const detail=String(j?.detail||'').trim();
+          if(detail){
+            console.error('VOSR inference detail:',detail);
+            const lines=detail.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+            msg+=' · '+lines.slice(-4).join(' | ');
+          }
+        }catch(e){}
+        throw new Error(msg);
+      }
+      const out=await r.blob();status('VOSR 2.0 · načítám výsledek…',94);
+      const img=await imageFromBlob(out),raw=document.createElement('canvas');raw.width=img.naturalWidth;raw.height=img.naturalHeight;raw.getContext('2d').drawImage(img,0,0);
+      let result=raw;
+      if(renderScale!==scale){status('VOSR Max Quality · supersampling → finální '+scale+'×…',97);result=resize(raw,Math.max(1,Math.round(src.width*scale)),Math.max(1,Math.round(src.height*scale)))}
+      const elapsed=(performance.now()-started)/1000;rememberVosrRate(src,scale,q,elapsed);
+      S.engine='VOSR 2.0 · '+vosrQualityLabel(q)+' · LOCAL CUDA';$('#ups-engine').textContent=S.engine;
+      return result;
+    }finally{stopVosrTelemetry()}
   }
 
   function status(t,p){$('#ups-status').textContent=t;if(Number.isFinite(p))$('#ups-progress').style.width=Math.max(0,Math.min(100,p))+'%'}
@@ -319,6 +397,7 @@
       try{downloadCleanupFallback()}catch(_){}
     }
     const badge=$('#ups-vosr-bridge');if(badge){badge.className='ups-bridge warn';badge.innerHTML='<b>VOSR Bridge:</b> po cleanupu bude potřeba znovu nainstalovat';}
+    const eb=$('#ups-ai-storage-browser'),ev=$('#ups-ai-storage-vosr'),et=$('#ups-ai-storage-total');if(eb)eb.textContent='0 B';if(ev)ev.textContent=vosr==='mazání spuštěno'?'mazání…':'—';if(et)et.textContent=vosr==='mazání spuštěno'?'mazání…':'0 B';
     status('AI cleanup: browser cache '+(cacheDeleted?'smazána':'vyčištěna / nebyla nalezena')+', IndexedDB '+idbDeleted+' · VOSR: '+vosr+'.',100);
   }
 
@@ -345,10 +424,11 @@
 
   async function run(){
     if(!S.img||S.running)return;
-    S.running=true;$('#ups-run').disabled=true;$('#ups-png').disabled=true;$('#ups-jpg').disabled=true;
+    S.running=true;$('#ups-run').disabled=true;$('#ups-png').disabled=true;$('#ups-jpg').disabled=true;$('#ups-mode').disabled=true;
     const t0=performance.now(),mode=$('#ups-mode').value,isVosr=isVosrMode(mode),isCloud=isCloudMode(mode),isProtected=isFidelitySafeMode(mode),sharp=Number($('#ups-sharp').value)/100,detail=Number($('#ups-detail').value)/100,noise=Number($('#ups-denoise').value)/100,generative=$('#ups-generative')?.checked!==false,sceneRestore=$('#ups-scene')?.checked,sceneStrength=Number($('#ups-scene-strength')?.value||72)/100,faceRestore=$('#ups-face')?.checked,faceStrength=Number($('#ups-face-strength')?.value||82)/100;
+    if(isVosr&&$('#ups-vosr-quality'))$('#ups-vosr-quality').disabled=true;
     try{
-      let src=canvasOf(S.img),scale=core().outputScale(mode),pred=src.width*src.height*scale*scale,maxPx=isVosr?64000000:36000000;
+      let src=canvasOf(S.img),scale=core().outputScale(mode),renderScale=isVosr?vosrRenderScale(scale,vosrQuality()):scale,pred=src.width*src.height*renderScale*renderScale,maxPx=isVosr?64000000:36000000;
       if(pred>maxPx){
         const f=Math.sqrt(maxPx/pred);src=resize(src,Math.max(128,Math.round(src.width*f)),Math.max(128,Math.round(src.height*f)));
         status('Velký obrázek: vstup byl bezpečně zmenšen kvůli paměti.',3);
@@ -388,7 +468,7 @@
       status(parts.length?`Hotovo · ${parts.join(' + ')}. Posuň slider a porovnej.`:'Hotovo. Posuň slider a porovnej originál s výsledkem.',100);
     }catch(e){
       console.error(e);status(((isVosr?'VOSR 2.0':isCloud?'Online AI':'AI režim')+' selhal: ')+e.message+(isVosr||isCloud?'':' . Zkus Safe Upscale 4×, Sharp Fix nebo Clean Photo.'),0);
-    }finally{S.running=false;$('#ups-run').disabled=!S.img}
+    }finally{S.running=false;stopVosrTelemetry();$('#ups-run').disabled=!S.img;$('#ups-mode').disabled=false;if($('#ups-vosr-quality'))$('#ups-vosr-quality').disabled=!S.vosrQualitySupported}
   }
   function save(type,q,name){if(!S.result)return;S.result.toBlob(b=>{if(!b)return;const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)},type,q)}
 
