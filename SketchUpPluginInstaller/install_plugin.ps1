@@ -18,11 +18,18 @@ function Fail([string]$Message) {
 }
 
 try {
-    if ($ProtocolUrl -notmatch '^twentytwentytoolbox://install\?file=([^&]+)') {
-        Fail 'Neplatný instalační odkaz.'
+    if ([string]::IsNullOrWhiteSpace($ProtocolUrl) -or $ProtocolUrl -notmatch '^(?i)twentytwentytoolbox:') {
+        Fail ('Neplatný instalační odkaz: ' + $ProtocolUrl)
     }
 
-    $fileName = [Uri]::UnescapeDataString($Matches[1])
+    # Windows / Chrome mohou custom URL normalizovat např. na
+    # twentytwentytoolbox://install/?file=... místo //install?file=...
+    $fileMatch = [regex]::Match($ProtocolUrl, '(?i)(?:\?|&)file=([^&]+)')
+    if (-not $fileMatch.Success) {
+        Fail ('Neplatný instalační odkaz: ' + $ProtocolUrl)
+    }
+
+    $fileName = [Uri]::UnescapeDataString($fileMatch.Groups[1].Value)
     if ($fileName -notmatch '^[A-Za-z0-9._-]+\.rbz$') {
         Fail 'Neplatný název RBZ souboru.'
     }
