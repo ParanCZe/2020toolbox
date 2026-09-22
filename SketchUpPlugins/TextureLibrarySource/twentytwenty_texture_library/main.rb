@@ -8,8 +8,8 @@ require 'uri'
 module TwentyTwenty
   module TextureLibrary
     extend self
-    VERSION='0.1.2'.freeze
-    PREF_KEY='twentytwenty_texture_library_v012'.freeze
+    VERSION='0.1.3'.freeze
+    PREF_KEY='twentytwenty_texture_library_v013'.freeze
     LIB_ROOT=File.join((ENV['APPDATA'] || Dir.home),'2020toolbox','TextureLibrary').freeze
     TEX_ROOT=File.join(LIB_ROOT,'textures').freeze
     LIB_JSON=File.join(LIB_ROOT,'library.json').freeze
@@ -83,7 +83,7 @@ module TwentyTwenty
       raise 'Příliš mnoho přesměrování.' if limit<=0
       uri=URI.parse(url.to_s)
       raise 'Neplatná adresa obrázku.' unless uri.is_a?(URI::HTTPS)
-      req=Net::HTTP::Get.new(uri.request_uri,{'User-Agent'=>'20-20 Texture Library/0.1.2'})
+      req=Net::HTTP::Get.new(uri.request_uri,{'User-Agent'=>'20-20 Texture Library/0.1.3'})
       response=Net::HTTP.start(uri.host,uri.port,use_ssl:true,open_timeout:8,read_timeout:25){|http|http.request(req)}
       case response
       when Net::HTTPSuccess
@@ -139,6 +139,27 @@ module TwentyTwenty
       nil
     end
 
+    def normalize_texture_image(source,id)
+      ext=File.extname(source.to_s).downcase
+      return source if %w[.jpg .jpeg .png].include?(ext)
+
+      # Chromium can preview WebP/BMP even when SketchUp's material decoder cannot.
+      # Convert through SketchUp ImageRep whenever possible so the material receives a real PNG.
+      if defined?(Sketchup::ImageRep)
+        begin
+          rep=Sketchup::ImageRep.new
+          rep.load_file(source)
+          target=File.join(TEX_ROOT,"#{id}.png")
+          rep.save_file(target)
+          return target if File.file?(target) && File.size(target)>0
+        rescue StandardError
+          nil
+        end
+      end
+
+      raise "Formát #{ext.empty? ? 'obrázku' : ext} lze zobrazit v náhledu, ale SketchUp ho neumí spolehlivě použít jako texturu. Ulož obrázek jako PNG nebo JPG."
+    end
+
     def add_custom_texture
       path=UI.openpanel('Vyber texturu',nil,'Obrázky|*.png;*.jpg;*.jpeg;*.webp;*.bmp||')
       return unless path && File.file?(path)
@@ -147,8 +168,14 @@ module TwentyTwenty
       return unless values
       name=values[0].to_s.strip; name=base if name.empty?
       width_mm=[values[1].to_f,1.0].max; height_mm=[values[2].to_f,1.0].max
-      id=SecureRandom.hex(6); ext=File.extname(path).downcase; target=File.join(TEX_ROOT,"#{id}#{ext}")
-      FileUtils.cp(path,target)
+      id=SecureRandom.hex(6)
+      ext=File.extname(path).downcase
+      copied=File.join(TEX_ROOT,"#{id}#{ext}")
+      FileUtils.cp(path,copied)
+      target=normalize_texture_image(copied,id)
+      if target!=copied && File.file?(copied)
+        File.delete(copied) rescue nil
+      end
       data=read_library
       data['textures'] << {'id'=>id,'name'=>name,'path'=>target,'width_mm'=>width_mm,'height_mm'=>height_mm}
       write_library(data); push_library_to_dialog
@@ -175,13 +202,25 @@ module TwentyTwenty
     def material_from_payload(data)
       model=Sketchup.active_model; kind=data['kind'].to_s
       if kind=='custom'
-        rec=read_library['textures'].find{|t|t['id'].to_s==data['id'].to_s}
+        lib=read_library
+        rec=lib['textures'].find{|t|t['id'].to_s==data['id'].to_s}
         return UI.messagebox('Textura už není v knihovně.') unless rec && File.file?(rec['path'].to_s)
-        mat_name="20-20 TEX | #{rec['name']}"; mat=model.materials[mat_name] || model.materials.add(mat_name)
-        mat.texture=rec['path'].to_s
-        if mat.texture
-          begin; mat.texture.size=[rec['width_mm'].to_f.mm,rec['height_mm'].to_f.mm]; rescue StandardError; end
+        path=rec['path'].to_s
+        begin
+          normalized=normalize_texture_image(path,rec['id'].to_s)
+          if normalized!=path
+            rec['path']=normalized
+            write_library(lib)
+            push_library_to_dialog
+            path=normalized
+          end
+        rescue StandardError => e
+          return UI.messagebox("Texturu se nepodařilo připravit pro SketchUp:\n#{e.message}")
         end
+        mat_name="20-20 TEX | #{rec['name']}"; mat=model.materials[mat_name] || model.materials.add(mat_name)
+        mat.texture=path
+        return UI.messagebox('SketchUp obrázek nenačetl jako texturu. Použij PNG nebo JPG.') unless mat.texture
+        begin; mat.texture.size=[rec['width_mm'].to_f.mm,rec['height_mm'].to_f.mm]; rescue StandardError; end
         mat
       elsif kind=='siko'
         rec=siko_record(data['code'])
@@ -189,10 +228,9 @@ module TwentyTwenty
         path=siko_texture_path(rec)
         mat_name="20-20 SIKO | #{rec['name']}"; mat=model.materials[mat_name] || model.materials.add(mat_name)
         mat.texture=path
-        if mat.texture
-          w=rec['width_cm'].to_f; h=rec['height_cm'].to_f
-          begin; mat.texture.size=[(w*10.0).mm,(h*10.0).mm] if w>0 && h>0; rescue StandardError; end
-        end
+        return UI.messagebox('Obrázek SIKO se nepodařilo načíst jako SketchUp texturu.') unless mat.texture
+        w=rec['width_cm'].to_f; h=rec['height_cm'].to_f
+        begin; mat.texture.size=[(w*10.0).mm,(h*10.0).mm] if w>0 && h>0; rescue StandardError; end
         begin
           mat.set_attribute('20-20 Texture Library','source','SIKO')
           mat.set_attribute('20-20 Texture Library','product_url',rec['product_url'].to_s)
@@ -237,12 +275,13 @@ module TwentyTwenty
       ral_json=JSON.generate(RAL); ncs_json=JSON.generate(NCS_PRESETS)
       <<~HTML
 <!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
-:root{--bg:#f5f5f5;--card:#fff;--line:#dedede;--text:#18181b;--muted:#71717a;--yellow:#f7f197}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px system-ui,Segoe UI,sans-serif}.head{position:sticky;top:0;z-index:10;background:var(--yellow);border-bottom:1px solid #d8d16d;padding:13px 16px;display:flex;align-items:center;justify-content:space-between}.head b{font-size:17px}.wrap{padding:14px}.tabs{display:flex;gap:7px;flex-wrap:wrap}.tab{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}.tab.active{background:#18181b;color:#fff;border-color:#18181b}.toolbar{display:flex;gap:8px;margin:12px 0;align-items:center;flex-wrap:wrap}.search{flex:1;min-width:220px;border:1px solid var(--line);border-radius:8px;padding:9px}.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 11px;cursor:pointer}.primary{background:#18181b;color:#fff;border-color:#18181b}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.card{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;text-align:left}.card:hover{border-color:#999}.preview{height:92px;background:#eee;background-size:cover;background-position:center;border-bottom:1px solid var(--line);overflow:hidden}.preview img{width:100%;height:100%;object-fit:cover;display:block}.source-link{float:right;border:0;background:transparent;color:#52525b;text-decoration:underline;cursor:pointer;font-size:10px;padding:0}.swatch{height:92px;border-bottom:1px solid var(--line)}.copy{padding:9px}.name{font-weight:700}.meta{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.35}.delete{float:right;border:0;background:transparent;color:#991b1b;cursor:pointer;font-size:11px}.empty{border:1px dashed #ccc;border-radius:10px;padding:28px;text-align:center;color:var(--muted);grid-column:1/-1}.ncsbox{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.ncsbox input{flex:1;min-width:230px;border:1px solid var(--line);border-radius:8px;padding:9px}.hint{font-size:10px;color:var(--muted);line-height:1.4;margin:8px 0 12px}.footer{margin-top:14px;font-size:10px;color:var(--muted);line-height:1.45}</style></head><body>
+:root{--bg:#f5f5f5;--card:#fff;--line:#dedede;--text:#18181b;--muted:#71717a;--yellow:#f7f197}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px system-ui,Segoe UI,sans-serif}.head{position:sticky;top:0;z-index:10;background:var(--yellow);border-bottom:1px solid #d8d16d;padding:13px 16px;display:flex;align-items:center;justify-content:space-between}.head b{font-size:17px}.wrap{padding:14px}.tabs{display:flex;gap:7px;flex-wrap:wrap}.tab{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}.tab.active{background:#18181b;color:#fff;border-color:#18181b}.toolbar{display:flex;gap:8px;margin:12px 0;align-items:center;flex-wrap:wrap}.search{flex:1;min-width:220px;border:1px solid var(--line);border-radius:8px;padding:9px}.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 11px;cursor:pointer}.primary{background:#18181b;color:#fff;border-color:#18181b}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.grid.list{display:flex;flex-direction:column;gap:8px}.card{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;text-align:left;color:inherit}.card:hover{border-color:#999}.grid.list .card{display:grid;grid-template-columns:132px minmax(0,1fr);width:100%;min-height:96px}.preview{height:92px;background:#eee;background-size:cover;background-position:center;border-bottom:1px solid var(--line);overflow:hidden}.grid.list .preview{height:100%;min-height:96px;border-bottom:0;border-right:1px solid var(--line)}.preview img{width:100%;height:100%;object-fit:cover;display:block}.source-link{float:right;border:0;background:transparent;color:#52525b;text-decoration:underline;cursor:pointer;font-size:10px;padding:0}.swatch{height:92px;border-bottom:1px solid var(--line)}.copy{padding:9px}.name{font-weight:700}.meta{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.35}.delete{float:right;border:0;background:transparent;color:#991b1b;cursor:pointer;font-size:11px}.empty{border:1px dashed #ccc;border-radius:10px;padding:28px;text-align:center;color:var(--muted);grid-column:1/-1}.ncsbox{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.ncsbox input{flex:1;min-width:230px;border:1px solid var(--line);border-radius:8px;padding:9px}.hint{font-size:10px;color:var(--muted);line-height:1.4;margin:8px 0 12px}.footer{margin-top:14px;font-size:10px;color:var(--muted);line-height:1.45}</style></head><body>
 <div class="head"><div><b>20-20 TEXTURE LIBRARY</b><div style="font-size:10px;margin-top:2px">vyber materiál → klikáním mapuj plochy</div></div><button class="btn" onclick="sketchup.close_dialog()">Zavřít</button></div><div class="wrap"><div class="tabs"><button class="tab active" data-tab="custom">Vlastní textury</button><button class="tab" data-tab="siko">Betonové obklady</button><button class="tab" data-tab="ral">RAL</button><button class="tab" data-tab="ncs">NCS</button></div><div class="toolbar"><input id="search" class="search" placeholder="Hledat…" oninput="render()"><button id="addBtn" class="btn primary" onclick="sketchup.add_texture()">+ Přidat texturu</button></div><div id="ncsControls" class="ncsbox" style="display:none"><input id="ncsInput" value="NCS S 2050-B90G" placeholder="např. NCS S 2050-B90G"><button class="btn primary" onclick="useTypedNcs()">Použít NCS kód</button></div><div id="ncsHint" class="hint" style="display:none">NCS náhled je převod pro obrazovku, ne náhrada fyzického vzorníku. Můžeš zadat i vlastní platný NCS/NCS S kód.</div><div id="grid" class="grid"></div><div class="footer">Kliknutí na kartu aktivuje štětec. Potom klikáš na libovolné plochy ve SketchUpu; <b>Esc</b> režim ukončí. Vlastní textury se ukládají do <code>%APPDATA%\\2020toolbox\\TextureLibrary</code> a zůstanou dostupné i v dalších projektech. RAL/NCS hodnoty jsou pouze aproximace pro zobrazení na monitoru. <b>Betonové obklady:</b> data a obrázky SIKO.</div></div>
 <script>
 const RAL=#{ral_json};const NCS_PRESETS=#{ncs_json};let CUSTOM=[],SIKO=[],tab='custom';window.setCustomTextures=items=>{CUSTOM=items||[];render()};window.setSikoTiles=items=>{SIKO=items||[];render()};document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));document.getElementById('addBtn').style.display=tab==='custom'?'':'none';document.getElementById('ncsControls').style.display=tab==='ncs'?'flex':'none';document.getElementById('ncsHint').style.display=tab==='ncs'?'block':'none';document.getElementById('search').value='';render()});
-function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}function fileUrl(path){return 'file:///'+String(path).split(String.fromCharCode(92)).join('/').split('/').map(encodeURIComponent).join('/')}function paint(o){sketchup.paint(JSON.stringify(o))}function del(id,e){e.stopPropagation();if(confirm('Odebrat texturu z knihovny?'))sketchup.delete_texture(id)}function openSiko(url,e){e.stopPropagation();sketchup.open_url(url)}function colorCard(code,name,hex,kind){const data=JSON.stringify({kind,name:code,hex}).replace(/'/g,'&#39;');return `<button class="card" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="swatch" style="background:${hex}"></div><div class="copy"><div class="name">${esc(code)}</div><div class="meta">${esc(name||hex)} · ${esc(hex)}</div></div></button>`}function sikoCard(x){const data=JSON.stringify({kind:'siko',code:x.code}).replace(/'/g,'&#39;');const img=x.image_url?`<img loading="lazy" src="${esc(x.image_url)}" alt="">`:'';return `<div class="card" role="button" tabindex="0" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview">${img}</div><div class="copy"><button class="source-link" onclick="openSiko('${esc(x.product_url)}',event)">SIKO ↗</button><div class="name">${esc(x.name)}</div><div class="meta">${esc(x.size_cm||'rozměr neuveden')} cm · ${esc(x.code||'')}</div></div></div>`}
-function render(){const q=document.getElementById('search').value.trim().toLowerCase(),g=document.getElementById('grid');if(tab==='custom'){const a=CUSTOM.filter(x=>(x.name+' '+x.width_mm+' '+x.height_mm).toLowerCase().includes(q));g.innerHTML=a.length?a.map(x=>{const data=JSON.stringify({kind:'custom',id:x.id}).replace(/'/g,'&#39;');return `<button class="card" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview" style="background-image:url('${fileUrl(x.path)}')"></div><div class="copy"><button class="delete" onclick="del('${x.id}',event)">Smazat</button><div class="name">${esc(x.name)}</div><div class="meta">${Math.round(x.width_mm)} × ${Math.round(x.height_mm)} mm</div></div></button>`}).join(''):`<div class="empty">Zatím žádné vlastní textury.<br><br>Klikni na <b>+ Přidat texturu</b>.</div>`}else if(tab==='siko'){const a=SIKO.filter(x=>([x.name,x.code,x.brand,x.series,x.size_cm].join(' ').toLowerCase().includes(q)));g.innerHTML=a.length?a.map(sikoCard).join(''):`<div class="empty">Katalog betonových obkladů není dostupný.</div>`}else if(tab==='ral'){const a=RAL.filter(x=>(x.code+' '+x.name+' '+x.hex).toLowerCase().includes(q));g.innerHTML=a.map(x=>colorCard(x.code,x.name,x.hex,'ral')).join('')}else{const a=NCS_PRESETS.map(code=>({code,hex:ncsHex(code)})).filter(x=>x.hex&&(x.code+' '+x.hex).toLowerCase().includes(q));g.innerHTML=a.map(x=>colorCard(x.code,'NCS screen preview',x.hex,'ncs')).join('')}}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}function fileUrl(path){const p=String(path).split(String.fromCharCode(92)).join('/');return 'file:///'+p.split('/').map((x,i)=>(i===0&&/^[A-Za-z]:$/.test(x))?x:encodeURIComponent(x)).join('/')}function paint(o){sketchup.paint(JSON.stringify(o))}function del(id,e){e.stopPropagation();if(confirm('Odebrat texturu z knihovny?'))sketchup.delete_texture(id)}function openSiko(url,e){e.stopPropagation();sketchup.open_url(url)}function colorCard(code,name,hex,kind){const data=JSON.stringify({kind,name:code,hex}).replace(/'/g,'&#39;');return `<button class="card" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="swatch" style="background:${hex}"></div><div class="copy"><div class="name">${esc(code)}</div><div class="meta">${esc(name||hex)} · ${esc(hex)}</div></div></button>`}function sikoCard(x){const data=JSON.stringify({kind:'siko',code:x.code}).replace(/'/g,'&#39;');const img=x.image_url?`<img loading="lazy" src="${esc(x.image_url)}" alt="">`:'';return `<div class="card" role="button" tabindex="0" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview">${img}</div><div class="copy"><button class="source-link" onclick="openSiko('${esc(x.product_url)}',event)">SIKO ↗</button><div class="name">${esc(x.name)}</div><div class="meta">${esc(x.size_cm||'rozměr neuveden')} cm · ${esc(x.code||'')}</div></div></div>`}
+function render(){const q=document.getElementById('search').value.trim().toLowerCase(),g=document.getElementById('grid');g.classList.toggle('list',tab==='custom'||tab==='siko');if(tab==='custom'){const a=CUSTOM.filter(x=>(x.name+' '+x.width_mm+' '+x.height_mm).toLowerCase().includes(q));g.innerHTML=a.length?a.map(x=>{const data=JSON.stringify({kind:'custom',id:x.id}).replace(/'/g,'&#39;');return `<div class="card" role="button" tabindex="0" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview" style="background-image:url('${fileUrl(x.path)}')"></div><div class="copy"><button class="delete" onclick="del('${x.id}',event)">Smazat</button><div class="name">${esc(x.name)}</div><div class="meta">${Math.round(x.width_mm)} × ${Math.round(x.height_mm)} mm</div></div></div>`}).join(''):`<div class="empty">Zatím žádné vlastní textury.<br><br>Klikni na <b>+ Přidat texturu</b>.</div>`}else if(tab==='siko'){const a=SIKO.filter(x=>([x.name,x.code,x.brand,x.series,x.size_cm].join(' ').toLowerCase().includes(q)));g.innerHTML=a.length?a.map(sikoCard).join(''):`<div class="empty">Katalog betonových obkladů není dostupný.</div>`}else if(tab==='ral'){const a=RAL.filter(x=>(x.code+' '+x.name+' '+x.hex).toLowerCase().includes(q));g.innerHTML=a.map(x=>colorCard(x.code,x.name,x.hex,'ral')).join('')}else{const a=NCS_PRESETS.map(code=>({code,hex:ncsHex(code)})).filter(x=>x.hex&&(x.code+' '+x.hex).toLowerCase().includes(q));g.innerHTML=a.map(x=>colorCard(x.code,'NCS screen preview',x.hex,'ncs')).join('')}}
+
 function useTypedNcs(){let code=document.getElementById('ncsInput').value.trim().toUpperCase();if(!/^NCS/.test(code))code='NCS S '+code.replace(/^S\s+/,'');const hex=ncsHex(code);if(!hex){alert('Neplatný NCS kód. Příklad: NCS S 2050-B90G');return}paint({kind:'ncs',name:code,hex})}
 function ncsHex(value){const m=String(value).trim().toUpperCase().match(/^(?:NCS|NCS\sS)\s(\d{2})(\d{2})-(N|R|G|B|Y)(\d{2})?(R|G|B|Y)?$/);if(!m)return null;const Sn=parseInt(m[1],10),Cn=parseInt(m[2],10),C1=m[3],N=parseInt(m[4]||'0',10);let R,G,B;if(C1==='N'){R=G=B=parseInt((1-Sn/100)*255,10)}else{const S=1.05*Sn-5.25,C=Cn;let Ra,Ba,Ga,x;if(C1==='Y'&&N<=60)Ra=1;else if((C1==='Y'&&N>60)||(C1==='R'&&N<=80)){x=C1==='Y'?N-60:N+40;Ra=(Math.sqrt(14884-x*x)-22)/100}else if((C1==='R'&&N>80)||C1==='B')Ra=0;else if(C1==='G'){x=N-170;Ra=(Math.sqrt(33800-x*x)-70)/100}if(C1==='Y'&&N<=80)Ba=0;else if((C1==='Y'&&N>80)||(C1==='R'&&N<=60)){x=C1==='Y'?(N-80)+20.5:(N+20)+20.5;Ba=(104-Math.sqrt(11236-x*x))/100}else if((C1==='R'&&N>60)||(C1==='B'&&N<=80)){x=C1==='R'?(N-60)-60:(N+40)-60;Ba=(Math.sqrt(10000-x*x)-10)/100}else if((C1==='B'&&N>80)||(C1==='G'&&N<=40)){x=C1==='B'?(N-80)-131:(N+20)-131;Ba=(122-Math.sqrt(19881-x*x))/100}else if(C1==='G'&&N>40)Ba=0;if(C1==='Y')Ga=(85-17/20*N)/100;else if(C1==='R'&&N<=60)Ga=0;else if(C1==='R'&&N>60){x=(N-60)+35;Ga=(67.5-Math.sqrt(5776-x*x))/100}else if(C1==='B'&&N<=60){x=N-68.5;Ga=(6.5+Math.sqrt(7044.5-x*x))/100}else if((C1==='B'&&N>60)||(C1==='G'&&N<=60))Ga=.9;else if(C1==='G'&&N>60){x=N-60;Ga=(90-x/8)/100}if([Ra,Ga,Ba].some(v=>!Number.isFinite(v)))return null;const avg=(Ra+Ga+Ba)/3,Rc=((avg-Ra)*(100-C)/100)+Ra,Gc=((avg-Ga)*(100-C)/100)+Ga,Bc=((avg-Ba)*(100-C)/100)+Ba,top=Math.max(Rc,Gc,Bc);if(!top)return null;const ss=1/top;R=Math.floor(Rc*ss*(100-S)/100*255);G=Math.floor(Gc*ss*(100-S)/100*255);B=Math.floor(Bc*ss*(100-S)/100*255)}const cl=v=>Math.max(0,Math.min(255,v|0)),h=v=>cl(v).toString(16).padStart(2,'0');return '#'+h(R)+h(G)+h(B)}
 render();setTimeout(()=>sketchup.ready(),50);
