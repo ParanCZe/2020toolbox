@@ -27,7 +27,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          VER="$(grep -oE "EXTENSION\.version[[:space:]]*=[[:space:]]*'[0-9.]+'" SketchUpPlugins/TextureLibrarySource/twentytwenty_texture_library.rb | grep -oE '[0-9.]+' | head -n1)"
+          VER="$(grep -m1 "EXTENSION.version" SketchUpPlugins/TextureLibrarySource/twentytwenty_texture_library.rb | cut -d"'" -f2)"
           test -n "$VER"
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
           echo "Building Texture Library v$VER"
