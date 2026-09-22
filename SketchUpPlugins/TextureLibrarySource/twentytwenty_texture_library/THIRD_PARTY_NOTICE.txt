@@ -1,0 +1,1 @@
+NCS screen conversion is derived from the MIT-licensed ncs-color project by Frederik Ring (github.com/m90/ncs-color). RAL/NCS screen swatches are approximate and do not replace official physical samples.
