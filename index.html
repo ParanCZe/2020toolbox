@@ -6762,6 +6762,15 @@ function analyze3DPrintRecommendationGeometry(){
   const shape=complexity>2.6?'complex':complexity>1.55?'medium':'simple';
   return {ready:true,out,tri,over,minDim,maxDim,foot,bboxVol,complexity,stability,aspect,size,shape};
 }
+function analyze3DPrintRecommendationGeometry(){
+  const out=current3DPrintDims(),tri=get3DPrintTriangleCache(),over=get3DPrintOverhangInfo();
+  if(!out)return {ready:false,over};
+  const dims=[Math.max(.001,out.x),Math.max(.001,out.y),Math.max(.001,out.z)].sort((a,b)=>a-b),minDim=dims[0],maxDim=dims[2],foot=Math.max(1,out.x*out.y),bboxVol=Math.max(1,out.x*out.y*out.z),boxArea=Math.max(1,2*(out.x*out.y+out.x*out.z+out.y*out.z));
+  const complexity=tri?.area>0?tri.area/boxArea:1,stability=out.z/Math.max(1,Math.sqrt(foot)),aspect=maxDim/minDim;
+  const size=maxDim<20?'tiny':maxDim<45?'small':maxDim>130?'large':'medium';
+  const shape=complexity>2.6?'complex':complexity>1.55?'medium':'simple';
+  return {ready:true,out,tri,over,minDim,maxDim,foot,bboxVol,complexity,stability,aspect,size,shape};
+}
 function apply3DPrintRecommendedSettings(show=true){
   print3dState.simplePrepared=true;
   const purpose=document.getElementById('print3d-purpose')?.value||'architecture',priority=document.getElementById('print3d-priority')?.value||'balanced',material=document.getElementById('print3d-material')?.value||'pla',g=analyze3DPrintRecommendationGeometry();
@@ -6795,13 +6804,11 @@ function apply3DPrintRecommendedSettings(show=true){
   if(purpose==='strong'){top=Math.max(top,5);bottom=Math.max(bottom,5)}
   set3DInput('print3d-top-solid',top);set3DInput('print3d-bottom-solid',bottom);
 
-  const supportThreshold=priority==='speed'?65:priority==='detail'?55:60;
-  set3DInput('print3d-support-threshold',supportThreshold);invalidate3DPrintSliceCache();
-  const over=get3DPrintOverhangInfo();let support='off';
-  if(over&&over.ratio>.05)support=over.ratio>.18?'everywhere':'buildplate';
+  const over=g.over||get3DPrintOverhangInfo();let support='off';
+  if(over&&over.ratio>.025)support=over.ratio>.12?'everywhere':'buildplate';
   set3DInput('print3d-supports',support);
   const supportDensity=priority==='speed'?10:priority==='detail'?15:12;
-  set3DInput('print3d-support-density',over&&over.ratio>.18?Math.min(20,supportDensity+3):supportDensity);set3DInput('print3d-support-interface',priority==='speed'?1:2);invalidate3DPrintSupportCache();
+  set3DInput('print3d-support-density',over&&over.ratio>.12?Math.min(20,supportDensity+3):supportDensity);set3DInput('print3d-support-interface',priority==='speed'?1:2);invalidate3DPrintSupportCache();
 
   let brim=0;
   if(g.ready&&(g.foot<650||g.stability>1.8))brim=5;
@@ -6811,14 +6818,14 @@ function apply3DPrintRecommendedSettings(show=true){
 
   const q=PRINT3D_QUALITY[document.getElementById('print3d-quality').value]||PRINT3D_QUALITY.quality,m=PRINT3D_MATERIALS[material]||PRINT3D_MATERIALS.pla;
   const goalLabel=priority==='detail'?'Detail / přesnost':priority==='speed'?'Rychlost / prototyp':'Vyvážený / spolehlivý',purposeLabel=purpose==='architecture'?'maketa / dekorace':purpose==='strong'?'pevný funkční díl':'běžný předmět';
-  const lines=[`Cíl: ${goalLabel} · použití: ${purposeLabel}`,`Tiskárna: Original Prusa i3 MK3S · tryska ${num3D('print3d-nozzle',.4).toFixed(2)} mm`,`Profil: ${q.label} · vrstva ${num3D('print3d-layer-height').toFixed(2)} mm`,`Perimetry: ${perimeters} · výplň ${infill} % (${document.getElementById('print3d-infill-pattern').selectedOptions[0].text}) · plné vrstvy ${top}/${bottom}`,`Podpěry: ${support==='off'?'vypnuto':support==='buildplate'?'jen z podložky':'všude'} · práh ${supportThreshold}° · brim: ${brim?brim+' mm':'ne'}`,`Tryska: ${m.nozzleFirst} / ${m.nozzle} °C · podložka: ${m.bedFirst} / ${m.bed} °C · ventilátor: ${m.fan} %`,`Rychlosti: perimetry ${num3D('print3d-speed-perim')} · výplň ${num3D('print3d-speed-infill')} · travel ${num3D('print3d-speed-travel')} mm/s`];
+  const lines=[`Cíl: ${goalLabel} · použití: ${purposeLabel}`,`Tiskárna: Original Prusa i3 MK3S · tryska ${num3D('print3d-nozzle',.4).toFixed(2)} mm`,`Profil: ${q.label} · vrstva ${num3D('print3d-layer-height').toFixed(2)} mm`,`Perimetry: ${perimeters} · výplň ${infill} % (${document.getElementById('print3d-infill-pattern').selectedOptions[0].text}) · plné vrstvy ${top}/${bottom}`,`Podpěry: ${support==='off'?'vypnuto':support==='buildplate'?'jen z podložky':'všude'} · brim: ${brim?brim+' mm':'ne'}`,`Tryska: ${m.nozzleFirst} / ${m.nozzle} °C · podložka: ${m.bedFirst} / ${m.bed} °C · ventilátor: ${m.fan} %`,`Rychlosti: perimetry ${num3D('print3d-speed-perim')} · výplň ${num3D('print3d-speed-infill')} · travel ${num3D('print3d-speed-travel')} mm/s`];
   if(g.ready){
     const sizeLabel=g.size==='tiny'?'velmi malý':g.size==='small'?'malý':g.size==='large'?'velký':'střední',shapeLabel=g.shape==='complex'?'členitý':g.shape==='simple'?'jednoduchý':'středně členitý';
     lines.push(`Analýza modelu: ${sizeLabel}, ${shapeLabel}; rozměr ${g.out.x.toFixed(1)} × ${g.out.y.toFixed(1)} × ${g.out.z.toFixed(1)} mm.`);
     if(purpose!=='strong'&&infill<=10)lines.push('Výplň je záměrně nízká: u nenosného modelu pevnost zbytečně nezvyšujeme hustou výplní; důležitější jsou obvodové stěny a plné horní/spodní vrstvy.');
     if(g.stability>1.8||g.foot<650)lines.push('Model má menší nebo štíhlejší kontakt s podložkou, proto byl přidán brim.');
   }
-  if(over&&over.ratio>.05)lines.push(`Toolbox našel významnější převislou plochu (~${(over.ratio*100).toFixed(1)} % povrchu při prahu ${supportThreshold}°), proto zapnul podpěry ${support==='everywhere'?'všude':'z podložky'}.`);
+  if(over&&over.ratio>.025)lines.push(`Toolbox našel převislou plochu (~${(over.ratio*100).toFixed(1)} % povrchu), proto zapnul podpěry ${support==='everywhere'?'všude':'z podložky'}.`);
   lines.push(m.note);
   const box=document.getElementById('print3d-recommended');if(box)box.innerHTML='<b>NASTAVENO DOPORUČENÍ PODLE MODELU:</b><br>'+lines.map(escapeHtml).join('<br>');
   update3DPrintLayerControls();render3DPrintLayer();schedule3DPrintEstimate();if(show){const st=document.getElementById('st-3dprint');if(st)st.textContent='Doporučení bylo přepočítáno podle geometrie modelu, účelu a cíle tisku.'}
