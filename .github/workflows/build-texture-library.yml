@@ -27,7 +27,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          VER="$(ruby -ne 'if $_ =~ /EXTENSION\.version\s*=\s*["'\''']([^"'\''']+)/; puts $1; exit; end' SketchUpPlugins/TextureLibrarySource/twentytwenty_texture_library.rb)"
+          VER="$(grep -oE "EXTENSION\.version[[:space:]]*=[[:space:]]*'[0-9.]+'" SketchUpPlugins/TextureLibrarySource/twentytwenty_texture_library.rb | grep -oE '[0-9.]+' | head -n1)"
           test -n "$VER"
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
           echo "Building Texture Library v$VER"
