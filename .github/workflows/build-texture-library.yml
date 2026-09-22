@@ -23,19 +23,37 @@ jobs:
         run: |
           ruby -c SketchUpPlugins/TextureLibrarySource/twentytwenty_texture_library.rb
           ruby -c SketchUpPlugins/TextureLibrarySource/twentytwenty_texture_library/main.rb
+      - name: Read plugin version
+        id: version
+        shell: bash
+        run: |
+          VER="$(ruby -ne 'if $_ =~ /EXTENSION\.version\s*=\s*["'\''']([^"'\''']+)/; puts $1; exit; end' SketchUpPlugins/TextureLibrarySource/twentytwenty_texture_library.rb)"
+          test -n "$VER"
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          echo "Building Texture Library v$VER"
       - name: Build RBZ
+        env:
+          VER: ${{ steps.version.outputs.ver }}
         run: |
           cd SketchUpPlugins/TextureLibrarySource
-          rm -f ../20-20_Texture_Library_v0.1.3.rbz
-          zip -r ../20-20_Texture_Library_v0.1.3.rbz twentytwenty_texture_library.rb twentytwenty_texture_library
+          rm -f "../20-20_Texture_Library_v${VER}.rbz"
+          zip -r "../20-20_Texture_Library_v${VER}.rbz" twentytwenty_texture_library.rb twentytwenty_texture_library
       - name: Commit RBZ
+        env:
+          VER: ${{ steps.version.outputs.ver }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add SketchUpPlugins/20-20_Texture_Library_v0.1.3.rbz
+          FILE="SketchUpPlugins/20-20_Texture_Library_v${VER}.rbz"
+          git add "$FILE"
           if git diff --cached --quiet; then
             echo "RBZ unchanged"
-          else
-            git commit -m "Build Texture Library v0.1.3"
-            git push
+            exit 0
           fi
+          git commit -m "Build Texture Library v${VER}"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            echo "Push raced with another commit; rebasing (attempt $attempt)..."
+            git pull --rebase origin main
+          done
+          git push
