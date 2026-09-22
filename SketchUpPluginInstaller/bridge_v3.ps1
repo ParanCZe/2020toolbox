@@ -22,6 +22,31 @@ exit /b 0
 '@
 try{Set-Content -Path $batPath -Value $bat -Encoding ASCII}catch{}
 
+# Keep the custom URL protocol completely hidden. Existing V3 installs are migrated here automatically.
+function Register-HiddenProtocol {
+ try{
+  $vbsPath=Join-Path $helperDir 'launch_bridge_v3.vbs'
+  $safeBat=$batPath.Replace('"','""')
+  $vbs=@"
+Set sh = CreateObject("WScript.Shell")
+bat = "$safeBat"
+arg = ""
+If WScript.Arguments.Count > 0 Then arg = WScript.Arguments(0)
+cmd = """" & bat & """ """ & arg & """"
+sh.Run cmd, 0, False
+"@
+  Set-Content -Path $vbsPath -Value $vbs -Encoding ASCII
+  $key='HKCU:\Software\Classes\twentytwentytoolboxv3'
+  New-Item $key -Force|Out-Null
+  Set-Item $key -Value 'URL:20-20 Toolbox SketchUp Bridge V3'
+  New-ItemProperty $key -Name 'URL Protocol' -Value '' -PropertyType String -Force|Out-Null
+  $cmdKey=Join-Path $key 'shell\open\command';New-Item $cmdKey -Force|Out-Null
+  $wscript=Join-Path $env:WINDIR 'System32\wscript.exe'
+  Set-Item $cmdKey -Value ('"'+$wscript+'" "'+$vbsPath+'" "%1"')
+ }catch{Log ('PROTOCOL MIGRATION ERROR '+$_.Exception.Message)}
+}
+Register-HiddenProtocol
+
 function Get-SketchUp {
  $root=Join-Path $env:APPDATA 'SketchUp';if(-not(Test-Path $root)){return $null}
  $dirs=Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | Where-Object {$_.Name -match '^SketchUp\s+(\d{4})$'} | Sort-Object {[int]([regex]::Match($_.Name,'\d{4}').Value)} -Descending
@@ -53,25 +78,41 @@ $port=8092;$listener=[System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loop
 try{$listener.Start()}catch{Log 'Port 8092 already in use';exit 0}
 $expires=[DateTime]::UtcNow.AddMinutes(2);Log ('BRIDGE START '+$ProtocolUrl)
 function Reply($s,$code,$obj){
- $json=$obj|ConvertTo-Json -Depth 8 -Compress;$body=[Text.Encoding]::UTF8.GetBytes($json);$status=if($code -eq 200){'OK'}elseif($code -eq 204){'No Content'}else{'Error'}
+ $json=if($code -eq 204){''}else{$obj|ConvertTo-Json -Depth 8 -Compress};$body=[Text.Encoding]::UTF8.GetBytes($json);$status=if($code -eq 200){'OK'}elseif($code -eq 204){'No Content'}else{'Error'}
  $head="HTTP/1.1 $code $status`r`nContent-Type: application/json; charset=utf-8`r`nAccess-Control-Allow-Origin: *`r`nAccess-Control-Allow-Private-Network: true`r`nAccess-Control-Allow-Methods: GET, POST, OPTIONS`r`nAccess-Control-Allow-Headers: Content-Type`r`nCache-Control: no-store`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n"
  $hb=[Text.Encoding]::ASCII.GetBytes($head);$s.Write($hb,0,$hb.Length);if($body.Length){$s.Write($body,0,$body.Length)};$s.Flush()
 }
+function Read-RequestHead($s){
+ # Read only through CRLFCRLF directly from the NetworkStream. Do NOT mix StreamReader
+ # with raw stream reads: StreamReader can pre-buffer part of the RBZ body and make POST hang forever.
+ $bytes=New-Object System.Collections.Generic.List[byte]
+ while($bytes.Count -lt 65536){
+  $b=$s.ReadByte();if($b -lt 0){break};$bytes.Add([byte]$b)
+  $n=$bytes.Count
+  if($n -ge 4 -and $bytes[$n-4] -eq 13 -and $bytes[$n-3] -eq 10 -and $bytes[$n-2] -eq 13 -and $bytes[$n-1] -eq 10){break}
+ }
+ if($bytes.Count -lt 4){return $null}
+ $txt=[Text.Encoding]::ASCII.GetString($bytes.ToArray());$lines=$txt -split "`r`n";$first=$lines[0]
+ if([string]::IsNullOrWhiteSpace($first)){return $null};$parts=$first.Split(' ');if($parts.Count -lt 2){return $null}
+ $len=0;foreach($h in $lines){if($h -match '^(?i)Content-Length:\s*(\d+)'){$len=[int]$Matches[1]}}
+ [pscustomobject]@{Method=$parts[0];Path=$parts[1];ContentLength=$len}
+}
 while([DateTime]::UtcNow -lt $expires){
- if(-not $listener.Pending()){Start-Sleep -Milliseconds 80;continue};$client=$listener.AcceptTcpClient();$s=$client.GetStream()
+ if(-not $listener.Pending()){Start-Sleep -Milliseconds 80;continue};$client=$listener.AcceptTcpClient();$s=$client.GetStream();$s.ReadTimeout=15000;$s.WriteTimeout=15000
  try{
-  $reader=New-Object IO.StreamReader($s,[Text.Encoding]::ASCII,$false,1024,$true);$first=$reader.ReadLine();if(-not $first){continue};$parts=$first.Split(' ');$method=$parts[0];$path=$parts[1];$len=0
-  while($true){$h=$reader.ReadLine();if([string]::IsNullOrEmpty($h)){break};if($h -match '^(?i)Content-Length:\s*(\d+)'){$len=[int]$Matches[1]}}
+  $req=Read-RequestHead $s;if($null -eq $req){continue};$method=$req.Method;$path=$req.Path;$len=$req.ContentLength
   if($method -eq 'OPTIONS'){Reply $s 204 @{};continue}
   if($method -eq 'GET' -and $path.StartsWith('/status')){$left=[Math]::Max(0,[int][Math]::Ceiling(($expires-[DateTime]::UtcNow).TotalSeconds));Reply $s 200 @{ok=$true;sketchup=$su.Name;remaining_seconds=$left;installed=(Get-Installed $su.Plugins)};continue}
   if($method -eq 'POST' -and $path.StartsWith('/install')){
    $file='plugin.rbz';if($path -match '[?&]file=([^&]+)'){$file=[Uri]::UnescapeDataString($Matches[1])};if($file -notmatch '^[A-Za-z0-9._-]+\.rbz$'){Reply $s 400 @{ok=$false;error='Invalid RBZ'};continue}
+   if($len -le 0){Reply $s 400 @{ok=$false;error='Empty RBZ body'};continue}
    $body=New-Object byte[] $len;$off=0;while($off -lt $len){$n=$s.Read($body,$off,$len-$off);if($n -le 0){break};$off+=$n}
+   if($off -ne $len){Reply $s 400 @{ok=$false;error=('Incomplete RBZ body '+$off+'/'+$len)};continue}
    $tmp=Join-Path $env:TEMP ('2020toolbox_post_'+[Guid]::NewGuid().ToString('N'));$rbz=Join-Path $tmp $file;$ext=Join-Path $tmp 'extract';New-Item -ItemType Directory -Force -Path $ext|Out-Null;[IO.File]::WriteAllBytes($rbz,$body);[IO.Compression.ZipFile]::ExtractToDirectory($rbz,$ext)
    foreach($item in Get-ChildItem $ext -Force){if($item.Name -eq '__MACOSX'){continue};if($item.PSIsContainer){$dst=Join-Path $su.Plugins $item.Name;if(Test-Path $dst){Remove-Item $dst -Recurse -Force};Copy-Item $item.FullName $dst -Recurse -Force}elseif($item.Extension.ToLowerInvariant() -eq '.rb'){Copy-Item $item.FullName (Join-Path $su.Plugins $item.Name) -Force}}
-   Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue;Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins)};continue
+   Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue;Log ('POST INSTALLED '+$file);Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins)};continue
   }
   Reply $s 404 @{ok=$false;error='Unknown endpoint'}
- }catch{Log ('SERVER ERROR '+$_.Exception.Message);try{Reply $s 500 @{ok=$false;error=$_.Exception.Message}}catch{}}finally{$s.Close();$client.Close()}
+ }catch{Log ('SERVER ERROR '+$_.Exception.Message);try{Reply $s 500 @{ok=$false;error=$_.Exception.Message}}catch{}}finally{try{$s.Close()}catch{};try{$client.Close()}catch{}}
 }
 $listener.Stop();Log 'BRIDGE STOP'
