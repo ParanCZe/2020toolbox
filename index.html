@@ -2761,16 +2761,16 @@ const SU_BRIDGE_SCHEME='twentytwentytoolboxv3://bridge';
 function downloadSuPluginHelperInstaller(){
   const blob=new Blob([SU_HELPER_INSTALLER_TEXT],{type:'application/octet-stream'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download='INSTALL_20-20_SKETCHUP_HELPER_V3.bat';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2500);
-  suPluginToast('Helper V3 byl stažen. Spusť ho jen jednou; potom už se Bridge zapíná automaticky.');
+  suPluginToast('Helper V3 byl stažen. Spusť ho jen jednou; další opravy Bridge si už helper stahuje automaticky.');
 }
-function launchSuBridge(){const f=document.createElement('iframe');f.style.display='none';f.src=SU_BRIDGE_SCHEME;document.body.appendChild(f);setTimeout(()=>f.remove(),2200)}
+function launchSuBridge(file=''){const f=document.createElement('iframe');f.style.display='none';f.src=file?(SU_BRIDGE_SCHEME+'/install/'+encodeURIComponent(file)):SU_BRIDGE_SCHEME;document.body.appendChild(f);setTimeout(()=>f.remove(),2200)}
 async function suBridgeStatus(){
   try{const c=new AbortController(),t=setTimeout(()=>c.abort(),800),r=await fetch(SU_BRIDGE_URL+'/status',{cache:'no-store',signal:c.signal});clearTimeout(t);if(!r.ok)return null;return await r.json()}catch(e){return null}
 }
-async function ensureSuBridge(){
+async function ensureSuBridge(file=''){
   let s=await suBridgeStatus();if(s&&s.ok)return s;
-  launchSuBridge();
-  for(let i=0;i<24;i++){await new Promise(r=>setTimeout(r,250));s=await suBridgeStatus();if(s&&s.ok)return s}
+  launchSuBridge(file);
+  for(let i=0;i<32;i++){await new Promise(r=>setTimeout(r,250));s=await suBridgeStatus();if(s&&s.ok)return s}
   return null;
 }
 function cmpVer(a,b){const A=String(a||'0').split('.').map(Number),B=String(b||'0').split('.').map(Number);for(let i=0;i<Math.max(A.length,B.length);i++){const x=A[i]||0,y=B[i]||0;if(x>y)return 1;if(x<y)return -1}return 0}
@@ -2791,14 +2791,16 @@ async function refreshSuPluginVersions(){
 async function installSuPlugin(id,version){
   let payload;try{payload=await suPluginBytes(id,version)}catch(e){suPluginToast(e?.message||String(e),true);return}
   suPluginToast('Zapínám SketchUp Bridge na 2 minuty…');
-  const s=await ensureSuBridge();
-  if(!s){suPluginToast('Helper V3 není nainstalovaný. Spusť jednou tlačítko „Nainstalovat helper V3“.',true);return}
+  const s=await ensureSuBridge(payload.version.file);
+  if(!s){suPluginToast('Bridge se nespustil. Zkus kliknout znovu; pokud helper V3 nebyl nikdy nainstalovaný, spusť jednorázový instalátor.',true);return}
+  const already=s.installed&&payload.plugin.loader&&s.installed[payload.plugin.loader]===version;
+  if(already){applyInstalledVersions(s.installed);suPluginToast(payload.plugin.name+' v'+version+' nainstalován / aktualizován. Restartuj SketchUp.');return}
   try{
     const r=await fetch(SU_BRIDGE_URL+'/install?file='+encodeURIComponent(payload.version.file),{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:payload.bytes});
     const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));
     applyInstalledVersions(data.installed||{});
     suPluginToast(payload.plugin.name+' v'+version+' nainstalován / aktualizován do '+(data.sketchup||'SketchUp')+'. Restartuj SketchUp.');
-  }catch(e){suPluginToast('Instalace selhala: '+(e?.message||e),true)}
+  }catch(e){suPluginToast('Instalace selhala: '+(e?.message||e)+'. Diagnostika: %APPDATA%\\2020toolbox\\SketchUpPluginInstaller\\bridge_v3.log',true)}
 }
 
 let suToastTimer=null;function suPluginToast(msg,error=false){const el=document.getElementById('suplugins-toast');if(!el)return;el.textContent=msg;el.style.background=error?'#7f1d1d':'#18181b';el.classList.add('show');clearTimeout(suToastTimer);suToastTimer=setTimeout(()=>el.classList.remove('show'),5200)}
