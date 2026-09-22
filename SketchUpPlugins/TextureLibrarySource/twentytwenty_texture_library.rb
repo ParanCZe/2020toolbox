@@ -10,7 +10,7 @@ module TwentyTwenty
       'twentytwenty_texture_library/main'
     )
     EXTENSION.description = 'Persistent texture/color library with click-to-paint workflow, SIKO concrete tiles, RAL and NCS palettes.'
-    EXTENSION.version = '0.1.2'
+    EXTENSION.version = '0.1.3'
     EXTENSION.creator = '20-20'
     Sketchup.register_extension(EXTENSION, true)
   end
