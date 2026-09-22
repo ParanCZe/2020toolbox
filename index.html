@@ -595,16 +595,16 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
         <div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>Instalační pomocník:</b><span>jednorázová instalace do AppData</span></div>
         <div style="margin-top:5px;color:var(--muted)">Jednou nainstaluješ pomocník do <code>%APPDATA%\2020toolbox\SketchUpPluginInstaller</code>. Potom tlačítko <b>Nainstalovat / aktualizovat</b> spustí tento lokální BAT a přepíše plugin ve SketchUpu.</div>
         <div class="suplugins-bridge-actions">
-          <button class="suplugins-bridge-start" onclick="downloadSuPluginHelperInstaller()">Stáhnout jednorázový instalátor (.bat)</button>
+          <button class="suplugins-bridge-start" onclick="downloadSuPluginHelperInstaller()">Nainstalovat / opravit helper V2 (.bat)</button>
         </div>
-        <div id="suplugins-bridge-help" class="suplugins-bridge-help show">Web nemůže přímo číst soubory v AppData. Proto instalátor jednou zaregistruje Windows protokol <code>twentytwentytoolbox://</code>, který ukazuje na BAT uložený v AppData. Když pomocník existuje, Windows ho při kliknutí na instalaci spustí.</div>
+        <div id="suplugins-bridge-help" class="suplugins-bridge-help show">Web nemůže přímo číst soubory v AppData. Proto instalátor jednou zaregistruje Windows protokol <code>twentytwentytoolboxv2://</code>, který ukazuje na BAT uložený v AppData. Když pomocník existuje, Windows ho při kliknutí na instalaci spustí.</div>
       </div>
     </div>
 
     <div id="suplugins-grid" class="suplugins-grid"></div>
 
     <div class="suplugins-note">
-      <b>Jednorázové nastavení:</b> stáhni a spusť instalátor pomocníka. Ten vytvoří <code>%APPDATA%\2020toolbox\SketchUpPluginInstaller\20-20_PLUGIN_INSTALLER.bat</code> a zaregistruje ho ve Windows. Od té chvíle už není potřeba žádný běžící Bridge. Kliknutí na <b>Nainstalovat / aktualizovat</b> stáhne vybranou verzi z dat uložených přímo v Toolboxu a přepíše stávající plugin. Po aktualizaci restartuj SketchUp.
+      <b>Jednorázové nastavení:</b> stáhni a spusť instalátor pomocníka. Ten vytvoří <code>%APPDATA%\2020toolbox\SketchUpPluginInstaller\20-20_PLUGIN_INSTALLER_V2.bat</code> a zaregistruje ho ve Windows. Od té chvíle už není potřeba žádný běžící Bridge. Kliknutí na <b>Nainstalovat / aktualizovat</b> stáhne vybranou verzi z dat uložených přímo v Toolboxu a přepíše stávající plugin. Po aktualizaci restartuj SketchUp.
     </div>
     <div id="suplugins-toast" class="suplugins-toast"></div>
   </div>
@@ -2726,8 +2726,8 @@ function downloadSuPlugin(id,version){
   }catch(e){suPluginToast('Stažení selhalo: '+(e?.message||e),true)}
 }
 
-const SU_HELPER_INSTALLER_TEXT="@echo off\nsetlocal\nchcp 65001 >nul\ntitle 20-20 Toolbox - SketchUp Plugin Helper\n\nset \"HELPER_DIR=%APPDATA%\\2020toolbox\\SketchUpPluginInstaller\"\nset \"RAW_BASE=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller\"\n\nif not exist \"%HELPER_DIR%\" mkdir \"%HELPER_DIR%\" >nul 2>&1\n\necho Instaluji 20-20 Toolbox pomocnika...\npowershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^\n  \"$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW_BASE%/20-20_PLUGIN_INSTALLER.bat' -OutFile '%HELPER_DIR%\\20-20_PLUGIN_INSTALLER.bat'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW_BASE%/install_plugin.ps1' -OutFile '%HELPER_DIR%\\install_plugin.ps1'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW_BASE%/register_protocol.ps1' -OutFile '%HELPER_DIR%\\register_protocol.ps1'\"\n\nif errorlevel 1 (\n  echo.\n  echo CHYBA: Nepodarilo se stahnout soubory pomocnika.\n  pause\n  exit /b 1\n)\n\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%HELPER_DIR%\\register_protocol.ps1\"\nif errorlevel 1 (\n  echo.\n  echo CHYBA: Nepodarilo se zaregistrovat 20-20 Toolbox protokol.\n  pause\n  exit /b 1\n)\n\necho.\necho HOTOVO.\necho Pomocnik je nainstalovan v:\necho %HELPER_DIR%\necho.\necho Toto okno muzes zavrit. Dalsi pluginy uz instaluj tlacitkem na webu.\npause\nexit /b 0\n";
-const SU_HELPER_SCHEME='twentytwentytoolbox://install?file=';
+const SU_HELPER_INSTALLER_TEXT="@echo off\nsetlocal\nchcp 65001 >nul\ntitle 20-20 Toolbox - SketchUp Plugin Helper V2\n\nset \"DIR=%APPDATA%\\2020toolbox\\SketchUpPluginInstaller\"\nset \"RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller\"\nif not exist \"%DIR%\" mkdir \"%DIR%\" >nul 2>&1\n\necho Instaluji / opravuji 20-20 Toolbox helper V2...\npowershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^\n \"$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW%/20-20_PLUGIN_INSTALLER_V2.bat' -OutFile '%DIR%\\20-20_PLUGIN_INSTALLER_V2.bat'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW%/install_plugin_v2.ps1' -OutFile '%DIR%\\install_plugin_v2.ps1'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW%/register_protocol_v2.ps1' -OutFile '%DIR%\\register_protocol_v2.ps1'\"\n\nif errorlevel 1 (\n echo CHYBA: soubory helperu se nepodarilo stahnout.\n pause\n exit /b 1\n)\n\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%DIR%\\register_protocol_v2.ps1\"\nif errorlevel 1 (\n echo CHYBA: registrace protokolu se nepodarila.\n pause\n exit /b 1\n)\n\necho.\necho HOTOVO - Helper V2 je nainstalovany.\necho %DIR%\necho.\necho Ted zavri toto okno a v Toolboxu klikni na Nainstalovat / aktualizovat.\npause\nexit /b 0\n";
+const SU_HELPER_SCHEME='twentytwentytoolboxv2://install/';
 
 function downloadSuPluginHelperInstaller(){
   try{
@@ -2740,7 +2740,7 @@ function downloadSuPluginHelperInstaller(){
     a.click();
     a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),2500);
-    suPluginToast('Jednorázový instalátor byl stažen jako BAT. Spusť ho jednou a pak už instaluj pluginy přímo tlačítkem.');
+    suPluginToast('Helper V2 byl stažen. Spusť BAT jednou; tím se opraví i stará instalace helperu.');
   }catch(e){
     suPluginToast('Stažení instalátoru selhalo: '+(e?.message||e),true);
   }
