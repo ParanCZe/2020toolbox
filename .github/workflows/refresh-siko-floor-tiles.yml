@@ -1,0 +1,39 @@
+name: Refresh SIKO Floor Tile Catalog
+
+on:
+  push:
+    paths:
+      - '.github/workflows/refresh-siko-floor-tiles.yml'
+      - 'SketchUpPlugins/TextureLibrarySource/tools/scrape_siko_floor_tiles.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install scraper dependencies
+        run: pip install requests beautifulsoup4
+      - name: Scrape SIKO floor tiles
+        run: python SketchUpPlugins/TextureLibrarySource/tools/scrape_siko_floor_tiles.py
+      - name: Commit refreshed catalog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/TextureLibrarySource/twentytwenty_texture_library/siko_floor_tiles.json
+          if git diff --cached --quiet; then
+            echo "Catalog unchanged"
+          else
+            git commit -m "Refresh SIKO floor tile catalog"
+            for attempt in 1 2 3; do
+              if git push; then exit 0; fi
+              git pull --rebase origin main
+            done
+            git push
+          fi
