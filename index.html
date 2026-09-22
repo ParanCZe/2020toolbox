@@ -592,21 +592,19 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
         <div class="muted">Hotové 20-20 pluginy pro SketchUp. Stáhni RBZ, nebo je pomocí volitelného SketchUpBridge rovnou nainstaluj / aktualizuj. U každého pluginu můžeš rozbalit i starší verze.</div>
       </div>
       <div class="suplugins-bridge">
-        <div class="suplugins-bridge-row"><span id="suplugins-bridge-dot" class="suplugins-dot wait"></span><b>SketchUpBridge:</b><span id="suplugins-bridge-status">kontroluji…</span></div>
-        <div id="suplugins-bridge-countdown" style="margin-top:4px;color:var(--muted);font-size:10px"></div>
-        <div style="margin-top:5px;color:var(--muted)">Bridge běží jen lokálně na <b>127.0.0.1</b> a po spuštění se <b>automaticky vypne za 2 minuty</b>.</div>
+        <div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>Instalační pomocník:</b><span>jednorázová instalace do AppData</span></div>
+        <div style="margin-top:5px;color:var(--muted)">Jednou nainstaluješ pomocník do <code>%APPDATA%\2020toolbox\SketchUpPluginInstaller</code>. Potom tlačítko <b>Nainstalovat / aktualizovat</b> spustí tento lokální BAT a přepíše plugin ve SketchUpu.</div>
         <div class="suplugins-bridge-actions">
-          <button class="suplugins-bridge-start" onclick="startSketchUpBridge()">Zapnout SketchUpBridge</button>
-          <button class="back-btn" style="margin:0;padding:6px 8px;font-size:10px" onclick="checkSketchUpBridge(true)">Zkontrolovat</button>
+          <button class="suplugins-bridge-start" onclick="downloadSuPluginHelperInstaller()">Stáhnout jednorázový instalátor (.bat)</button>
         </div>
-        <div id="suplugins-bridge-help" class="suplugins-bridge-help"></div>
+        <div id="suplugins-bridge-help" class="suplugins-bridge-help show">Web nemůže přímo číst soubory v AppData. Proto instalátor jednou zaregistruje Windows protokol <code>twentytwentytoolbox://</code>, který ukazuje na BAT uložený v AppData. Když pomocník existuje, Windows ho při kliknutí na instalaci spustí.</div>
       </div>
     </div>
 
     <div id="suplugins-grid" class="suplugins-grid"></div>
 
     <div class="suplugins-note">
-      <b>Přímá instalace / aktualizace:</b> klikni na <b>Zapnout SketchUpBridge</b>, spusť stažený malý BAT launcher a Bridge poběží skrytě pouze na <code>127.0.0.1:8092</code>. Po <b>2 minutách se automaticky vypne</b>. Během této doby tlačítko Nainstalovat / aktualizovat přepíše starší verzi pluginu. Po změně pluginu restartuj SketchUp.
+      <b>Jednorázové nastavení:</b> stáhni a spusť instalátor pomocníka. Ten vytvoří <code>%APPDATA%\2020toolbox\SketchUpPluginInstaller\20-20_PLUGIN_INSTALLER.bat</code> a zaregistruje ho ve Windows. Od té chvíle už není potřeba žádný běžící Bridge. Kliknutí na <b>Nainstalovat / aktualizovat</b> stáhne vybranou verzi z dat uložených přímo v Toolboxu a přepíše stávající plugin. Po aktualizaci restartuj SketchUp.
     </div>
     <div id="suplugins-toast" class="suplugins-toast"></div>
   </div>
@@ -2671,105 +2669,38 @@ const SU_PLUGIN_CATALOG = [
     versions:[{"version":"0.1.0","file":"20-20_Nano_Banana_Exporter_v0.1.0.rbz","size":5577},{"version":"0.1.1","file":"20-20_Nano_Banana_Exporter_v0.1.1.rbz","size":5678},{"version":"0.1.2","file":"20-20_Nano_Banana_Exporter_v0.1.2.rbz","size":5699},{"version":"0.1.3","file":"20-20_Nano_Banana_Exporter_v0.1.3.rbz","size":9135},{"version":"0.1.4","file":"20-20_Nano_Banana_Exporter_v0.1.4.rbz","size":9301},{"version":"0.1.5","file":"20-20_Nano_Banana_Exporter_v0.1.5.rbz","size":9771},{"version":"0.2.0","file":"20-20_AI_Image_Exporter_v0.2.0.rbz","size":4184}]
   }
 ];
-const SU_BRIDGE_URL='http://127.0.0.1:8092';
-let suBridgeOnline=false;
+const SU_HELPER_INSTALLER_TEXT="@echo off\nsetlocal\nchcp 65001 >nul\ntitle 20-20 Toolbox - SketchUp Plugin Helper\n\nset \"HELPER_DIR=%APPDATA%\\2020toolbox\\SketchUpPluginInstaller\"\nset \"RAW_BASE=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller\"\n\nif not exist \"%HELPER_DIR%\" mkdir \"%HELPER_DIR%\" >nul 2>&1\n\necho Instaluji 20-20 Toolbox pomocnika...\npowershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^\n  \"$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW_BASE%/20-20_PLUGIN_INSTALLER.bat' -OutFile '%HELPER_DIR%\\20-20_PLUGIN_INSTALLER.bat'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW_BASE%/install_plugin.ps1' -OutFile '%HELPER_DIR%\\install_plugin.ps1'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW_BASE%/register_protocol.ps1' -OutFile '%HELPER_DIR%\\register_protocol.ps1'\"\n\nif errorlevel 1 (\n  echo.\n  echo CHYBA: Nepodarilo se stahnout soubory pomocnika.\n  pause\n  exit /b 1\n)\n\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%HELPER_DIR%\\register_protocol.ps1\"\nif errorlevel 1 (\n  echo.\n  echo CHYBA: Nepodarilo se zaregistrovat 20-20 Toolbox protokol.\n  pause\n  exit /b 1\n)\n\necho.\necho HOTOVO.\necho Pomocnik je nainstalovan v:\necho %HELPER_DIR%\necho.\necho Toto okno muzes zavrit. Dalsi pluginy uz instaluj tlacitkem na webu.\npause\nexit /b 0\n";
+const SU_HELPER_SCHEME='twentytwentytoolbox://install?file=';
 
-function suPluginIcon(type){
-  if(type==='mirror')return `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="7" width="32" height="34" rx="3" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M24 9v30" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2.4 2.4"/><path d="M12 31l8-9 4 5 6-8 6 9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 31l-8-9-4 5-6-8-6 9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/></svg>`;
-  return `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="7" y="11" width="34" height="23" rx="2" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M24 7v15m-6-5 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 39h22" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>`;
-}
-function suFmtBytes(n){if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(0)+' KB';return (n/1048576).toFixed(1)+' MB'}
-function getSuPlugin(id){return SU_PLUGIN_CATALOG.find(x=>x.id===id)}
-function getSuPluginVersion(plugin,version){return plugin?.versions?.find(x=>x.version===version)}
-function renderSketchUpPlugins(){
-  const grid=document.getElementById('suplugins-grid');if(!grid)return;
-  grid.innerHTML=SU_PLUGIN_CATALOG.map(p=>{
-    const latest=getSuPluginVersion(p,p.current)||p.versions[p.versions.length-1];
-    const older=[...p.versions].filter(v=>v.version!==p.current).reverse();
-    return `<article class="suplugin-card" id="suplugin-${p.id}">
-      <div class="suplugin-card-main"><div class="suplugin-icon">${suPluginIcon(p.icon)}</div><div class="suplugin-copy"><div class="suplugin-title-row"><div class="suplugin-title">${escapeHtml(p.name)}</div><span class="suplugin-version">v${escapeHtml(p.current)}</span></div><div class="suplugin-desc">${escapeHtml(p.description)}</div><div class="suplugin-meta">${escapeHtml(p.meta)} · ${latest?suFmtBytes(latest.size):''}</div></div></div>
-      <div class="suplugin-actions"><button class="suplugin-install" onclick="installSuPlugin('${p.id}','${p.current}')">Nainstalovat / aktualizovat</button><button class="suplugin-download" onclick="downloadSuPlugin('${p.id}','${p.current}')">Stáhnout RBZ</button><button class="suplugin-old-btn" onclick="toggleSuPluginHistory('${p.id}')">Starší verze ▾</button></div>
-      <div class="suplugin-history" id="suplugin-history-${p.id}"><div class="suplugin-history-title">STARŠÍ VERZE</div>${older.length?older.map(v=>`<div class="suplugin-version-row"><span>v${escapeHtml(v.version)} · ${suFmtBytes(v.size)}</span><button onclick="downloadSuPlugin('${p.id}','${v.version}')">Stáhnout</button><button class="install-old" onclick="installSuPlugin('${p.id}','${v.version}')">Nainstalovat</button></div>`).join(''):'<div class="muted" style="font-size:11px">Žádné starší verze.</div>'}</div>
-    </article>`;
-  }).join('');
-  checkSketchUpBridge(false);
-}
-function toggleSuPluginHistory(id){document.getElementById('suplugin-history-'+id)?.classList.toggle('open')}
-function suBase64ToBytes(base64){const bin=atob(base64),arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);return arr}
-function suPluginPayload(id,version){const p=getSuPlugin(id),v=getSuPluginVersion(p,version);if(!p||!v)throw new Error('Verze pluginu nebyla nalezena.');const b64=SU_PLUGIN_BLOBS[v.file];if(!b64)throw new Error('Data RBZ nejsou v Toolboxu vložena.');return {plugin:p,version:v,bytes:suBase64ToBytes(b64)}}
-function downloadSuPlugin(id,version){try{const x=suPluginPayload(id,version),blob=new Blob([x.bytes],{type:'application/zip'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=x.version.file;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2500);suPluginToast(`${x.plugin.name} v${version} · RBZ staženo.`)}catch(e){suPluginToast('Stažení selhalo: '+(e?.message||e),true)}}
-
-const SU_BRIDGE_LAUNCHER_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpBridge/START_SKETCHUP_BRIDGE_2MIN.bat';
-let suBridgePollTimer=null;
-let suBridgeCountdownTimer=null;
-
-function startSketchUpBridge(){
-  const a=document.createElement('a');
-  a.href=SU_BRIDGE_LAUNCHER_URL;
-  a.download='START_SKETCHUP_BRIDGE_2MIN.bat';
-  a.rel='noopener';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-
-  const help=document.getElementById('suplugins-bridge-help');
-  if(help){
-    help.innerHTML='<b>Launcher byl stažen.</b> Kvůli zabezpečení Windows/prohlížeče web nesmí BAT sám spustit. Spusť stažený <b>START_SKETCHUP_BRIDGE_2MIN.bat</b>; Bridge se spustí skrytě na pozadí a po 2 minutách se sám vypne.';
-    help.classList.add('show');
-  }
-  suPluginToast('SketchUpBridge launcher stažen. Spusť BAT; Toolbox Bridge automaticky rozpozná.');
-  startSketchUpBridgePolling();
-}
-
-function startSketchUpBridgePolling(){
-  clearInterval(suBridgePollTimer);
-  let tries=0;
-  suBridgePollTimer=setInterval(async()=>{
-    tries++;
-    const online=await checkSketchUpBridge(false);
-    if(online || tries>=30){
-      if(online)suPluginToast('SketchUpBridge je online na 2 minuty. Můžeš instalovat / aktualizovat pluginy.');
-      clearInterval(suBridgePollTimer);
-      suBridgePollTimer=null;
-    }
-  },1000);
-}
-
-function updateSketchUpBridgeCountdown(seconds){
-  const el=document.getElementById('suplugins-bridge-countdown');
-  clearInterval(suBridgeCountdownTimer);
-  if(!el)return;
-  let left=Math.max(0,Math.ceil(Number(seconds)||0));
-  const paint=()=>{
-    if(left<=0){
-      el.textContent='Bridge se právě vypíná…';
-      clearInterval(suBridgeCountdownTimer);
-      setTimeout(()=>checkSketchUpBridge(false),700);
-      return;
-    }
-    el.textContent='Automatické vypnutí za '+Math.floor(left/60)+':'+String(left%60).padStart(2,'0');
-    left--;
-  };
-  paint();
-  suBridgeCountdownTimer=setInterval(paint,1000);
-}
-
-async function checkSketchUpBridge(showToast=false){
-  const dot=document.getElementById('suplugins-bridge-dot'),status=document.getElementById('suplugins-bridge-status');if(dot){dot.className='suplugins-dot wait'}if(status)status.textContent='kontroluji…';
-  try{const ctrl=new AbortController();const tm=setTimeout(()=>ctrl.abort(),900);const r=await fetch(SU_BRIDGE_URL+'/status',{cache:'no-store',signal:ctrl.signal});clearTimeout(tm);if(!r.ok)throw new Error('offline');const data=await r.json();suBridgeOnline=true;if(dot)dot.className='suplugins-dot ok';if(status)status.textContent=`online · ${data.sketchup||'SketchUp nalezen'}`;if(Number.isFinite(Number(data.remaining_seconds)))updateSketchUpBridgeCountdown(Number(data.remaining_seconds));if(showToast)suPluginToast('SketchUpBridge je online. Přímá instalace je připravená.');return true}catch(e){suBridgeOnline=false;if(dot)dot.className='suplugins-dot bad';if(status)status.textContent='offline';const cd=document.getElementById('suplugins-bridge-countdown');if(cd)cd.textContent='';if(showToast)suPluginToast('SketchUpBridge neběží. Klikni na „Zapnout SketchUpBridge“.',true);return false}
-}
-async function installSuPlugin(id,version){
-  let payload;try{payload=suPluginPayload(id,version)}catch(e){suPluginToast(e?.message||String(e),true);return}
-  const online=await checkSketchUpBridge(false);
-  if(!online){downloadSuPlugin(id,version);suPluginToast(`Bridge není spuštěný → ${payload.version.file} bylo staženo. Nainstaluj ho přes SketchUp Extension Manager, nebo spusť START_SKETCHUP_BRIDGE.bat.`,true);return}
+function downloadSuPluginHelperInstaller(){
   try{
-    suPluginToast(`Instaluji ${payload.plugin.name} v${version}…`);
-    const url=SU_BRIDGE_URL+'/install?file='+encodeURIComponent(payload.version.file);
-    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:payload.bytes});
-    const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));
-    suPluginToast(`${payload.plugin.name} v${version} nainstalován / aktualizován do ${data.sketchup||'SketchUp'}. Restartuj SketchUp, aby se načetla nová verze.`);
-  }catch(e){downloadSuPlugin(id,version);suPluginToast(`Přímá instalace selhala (${e?.message||e}). RBZ jsem místo toho stáhl.`,true)}
+    const blob=new Blob([SU_HELPER_INSTALLER_TEXT],{type:'application/octet-stream'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='INSTALL_20-20_SKETCHUP_PLUGIN_HELPER.bat';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),2500);
+    suPluginToast('Jednorázový instalátor byl stažen jako BAT. Spusť ho jednou a pak už instaluj pluginy přímo tlačítkem.');
+  }catch(e){
+    suPluginToast('Stažení instalátoru selhalo: '+(e?.message||e),true);
+  }
 }
+
+function installSuPlugin(id,version){
+  let payload;
+  try{payload=suPluginPayload(id,version)}catch(e){suPluginToast(e?.message||String(e),true);return}
+  const protocolUrl=SU_HELPER_SCHEME+encodeURIComponent(payload.version.file);
+  const iframe=document.createElement('iframe');
+  iframe.style.display='none';
+  iframe.src=protocolUrl;
+  document.body.appendChild(iframe);
+  setTimeout(()=>iframe.remove(),2500);
+  suPluginToast(`Předávám ${payload.plugin.name} v${version} lokálnímu instalátoru. Pokud Windows nic nenabídne, spusť nejdřív jednorázový instalátor pomocníka.`);
+}
+
 let suToastTimer=null;function suPluginToast(msg,error=false){const el=document.getElementById('suplugins-toast');if(!el)return;el.textContent=msg;el.style.background=error?'#7f1d1d':'#18181b';el.classList.add('show');clearTimeout(suToastTimer);suToastTimer=setTimeout(()=>el.classList.remove('show'),5200)}
 
 
