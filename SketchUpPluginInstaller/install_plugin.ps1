@@ -19,24 +19,24 @@ function Fail([string]$Message) {
 
 try {
     if ([string]::IsNullOrWhiteSpace($ProtocolUrl) -or $ProtocolUrl -notmatch '^(?i)twentytwentytoolbox:') {
-        Fail ('Neplatný instalační odkaz: ' + $ProtocolUrl)
+        Fail ('Neplatny instalacni odkaz: ' + $ProtocolUrl)
     }
 
     # Windows / Chrome mohou custom URL normalizovat např. na
     # twentytwentytoolbox://install/?file=... místo //install?file=...
     $fileMatch = [regex]::Match($ProtocolUrl, '(?i)(?:\?|&)file=([^&]+)')
     if (-not $fileMatch.Success) {
-        Fail ('Neplatný instalační odkaz: ' + $ProtocolUrl)
+        Fail ('Neplatny instalacni odkaz: ' + $ProtocolUrl)
     }
 
     $fileName = [Uri]::UnescapeDataString($fileMatch.Groups[1].Value)
     if ($fileName -notmatch '^[A-Za-z0-9._-]+\.rbz$') {
-        Fail 'Neplatný název RBZ souboru.'
+        Fail 'Neplatny nazev RBZ souboru.'
     }
 
     $sketchupRoot = Join-Path $env:APPDATA 'SketchUp'
     if (-not (Test-Path $sketchupRoot)) {
-        Fail 'Nebyla nalezena žádná instalace SketchUp v AppData.'
+        Fail 'Nebyla nalezena zadna instalace SketchUp v AppData.'
     }
 
     $versions = Get-ChildItem $sketchupRoot -Directory -ErrorAction SilentlyContinue |
@@ -44,7 +44,7 @@ try {
         Sort-Object { [int]([regex]::Match($_.Name,'\d{4}').Value) } -Descending
 
     if (-not $versions -or $versions.Count -eq 0) {
-        Fail 'Nebyla nalezena žádná instalace SketchUp.'
+        Fail 'Nebyla nalezena zadna instalace SketchUp.'
     }
 
     $pluginsDir = Join-Path $versions[0].FullName 'SketchUp\Plugins'
@@ -55,7 +55,7 @@ try {
     $pattern = '"' + [regex]::Escape($fileName) + '":"([^"]+)"'
     $match = [regex]::Match($indexText, $pattern)
     if (-not $match.Success) {
-        Fail ('Verze ' + $fileName + ' nebyla v aktuálním Toolboxu nalezena.')
+        Fail ('Verze ' + $fileName + ' nebyla v aktualnim Toolboxu nalezena.')
     }
 
     $bytes = [Convert]::FromBase64String($match.Groups[1].Value)
@@ -88,12 +88,12 @@ try {
     Remove-Item $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 
     if ($copied.Count -eq 0) {
-        Fail 'RBZ neobsahuje rozpoznatelný SketchUp plugin.'
+        Fail 'RBZ neobsahuje rozpoznatelny SketchUp plugin.'
     }
 
     $nl = [Environment]::NewLine
     [System.Windows.MessageBox]::Show(
-        ($fileName + ' bylo nainstalováno / aktualizováno do ' + $versions[0].Name + '.' + $nl + $nl + 'Restartuj SketchUp, aby se načetla nová verze.'),
+        ($fileName + ' bylo nainstalovano / aktualizovano do ' + $versions[0].Name + '.' + $nl + $nl + 'Restartuj SketchUp, aby se nacetla nova verze.'),
         '20-20 Toolbox - hotovo',
         [System.Windows.MessageBoxButton]::OK,
         [System.Windows.MessageBoxImage]::Information
