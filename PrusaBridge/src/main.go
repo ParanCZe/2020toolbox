@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-const bridgeVersion = "3.14w"
+const bridgeVersion = "3.14x"
 const latestJSONURL = "https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/latest.json"
 const prusaLatestReleaseAPI = "https://api.github.com/repos/prusa3d/PrusaSlicer/releases/latest"
 const prusaFallbackZipURL = "https://github.com/prusa3d/PrusaSlicer/releases/download/version_2.9.6/PrusaSlicer-2.9.6.zip"
@@ -107,6 +107,7 @@ type SliceSettings struct {
 	Retract          float64 `json:"retract"`
 	ZHop             float64 `json:"zHop"`
 	SupportInterface int     `json:"supportInterface"`
+	SupportThreshold int     `json:"supportThreshold"`
 	NozzleFirst      int     `json:"nozzleFirst"`
 	NozzleTemp       int     `json:"nozzleTemp"`
 	BedFirst         int     `json:"bedFirst"`
@@ -1101,13 +1102,21 @@ func sliceWithPrusa(stl []byte, s SliceSettings) ([]byte, string, error) {
 	if s.Brim > 0 {
 		add("--brim-width", f(s.Brim))
 	}
-	switch strings.ToLower(s.Supports) {
+	supportMode := strings.ToLower(s.Supports)
+	switch supportMode {
 	case "buildplate":
 		args = append(args, "--support-material", "--support-material-buildplate-only")
 	case "everywhere":
 		args = append(args, "--support-material")
 	default:
 		// support disabled: no boolean CLI flag
+	}
+	if supportMode == "buildplate" || supportMode == "everywhere" {
+		threshold := s.SupportThreshold
+		if threshold <= 0 {
+			threshold = 60
+		}
+		add("--support-material-threshold", strconv.Itoa(clampInt(threshold, 30, 85)))
 	}
 	if s.SupportInterface >= 0 {
 		add("--support-material-interface-layers", strconv.Itoa(s.SupportInterface))
