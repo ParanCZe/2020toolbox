@@ -177,7 +177,7 @@ def main():
             if i % 20 == 0 or i == len(futs):
                 print(f"done {i}/{len(futs)}", flush=True)
 
-    items.sort(key=lambda x: (x.get("brand") or "", x.get("series") or "", x.get("name") or "").lower())
+    items.sort(key=lambda x: tuple(str(v or "").lower() for v in (x.get("brand"), x.get("series"), x.get("name"))))
     payload = {
         "category": "Betonové obklady",
         "source_url": CATEGORY,
