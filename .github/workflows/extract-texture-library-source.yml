@@ -1,0 +1,31 @@
+name: Extract Texture Library Source
+
+on:
+  push:
+    paths:
+      - '.github/workflows/extract-texture-library-source.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract RBZ source
+        run: |
+          rm -rf SketchUpPlugins/TextureLibrarySource
+          mkdir -p SketchUpPlugins/TextureLibrarySource
+          unzip -o SketchUpPlugins/20-20_Texture_Library_v0.1.1.rbz -d SketchUpPlugins/TextureLibrarySource
+      - name: Commit extracted source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/TextureLibrarySource
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+          else
+            git commit -m "Extract Texture Library source for maintenance"
+            git push
+          fi
