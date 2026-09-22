@@ -43,14 +43,14 @@ jobs:
           python tools\patch_main_menu_v314u.py
           if ($LASTEXITCODE -ne 0) { throw "V3.14u main-menu patch failed: $LASTEXITCODE" }
 
-          # The repository is already on Bridge 3.14w. Old migration patchers are
+          # The repository is already on Bridge 3.14x. Old migration patchers are
           # intentionally skipped on current builds because they expect 3.14t/v input.
           $bridgeNow = Get-Content -Raw -Encoding UTF8 $p
-          if (-not $bridgeNow.Contains('const bridgeVersion = "3.14w"')) {
+          if (-not $bridgeNow.Contains('const bridgeVersion = "3.14x"')) {
             python tools\patch_portable_prusaslicer_v314v.py
             if ($LASTEXITCODE -ne 0) { throw "V3.14v portable PrusaSlicer patch failed: $LASTEXITCODE" }
             python tools\patch_sketchup_bridge_v314w.py
-            if ($LASTEXITCODE -ne 0) { throw "V3.14w SketchUp bridge patch failed: $LASTEXITCODE" }
+            if ($LASTEXITCODE -ne 0) { throw "V3.14x SketchUp bridge patch failed: $LASTEXITCODE" }
           }
 
           python tools\patch_print3d_preserve_orientation_v329.py
@@ -59,7 +59,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "V3.30 SketchUp extension button patch failed: $LASTEXITCODE" }
 
           $main = Get-Content -Raw -Encoding UTF8 $p
-          if (-not $main.Contains('const bridgeVersion = "3.14w"')) { throw 'Bridge 3.14w version patch failed' }
+          if (-not $main.Contains('const bridgeVersion = "3.14x"')) { throw 'Bridge 3.14x version patch failed' }
           if ($main.Contains('"--support-material", "1"')) { throw 'Boolean CLI fix did not apply' }
           if (-not $main.Contains('startPortableSlicerBootstrap')) { throw 'Portable slicer bootstrap missing' }
           if (-not $main.Contains('ensureManagedSlicerData')) { throw 'Managed PrusaSlicer datadir missing' }
@@ -70,7 +70,7 @@ jobs:
           if (-not $html.Contains('analyze3DPrintRecommendationGeometry')) { throw 'Smart recommendation function missing' }
           if (-not $html.Contains('class="menu-app-groups"')) { throw 'V3.14u main menu layout missing' }
           if (-not $html.Contains('session-data-mb')) { throw 'V3.14u data overview missing' }
-          if (-not $html.Contains("PRINT3D_PRUSA_BRIDGE_EXPECTED='3.14w'")) { throw 'Web does not expect Bridge 3.14w' }
+          if (-not $html.Contains("PRINT3D_PRUSA_BRIDGE_EXPECTED='3.14x'")) { throw 'Web does not expect Bridge 3.14x' }
           if ($html.Contains('await autoAlign3DPrintModel(true);apply3DPrintRecommendedSettings(false)')) { throw 'Simple prepare still auto-rotates model' }
           if ($html.Contains('update3DPrintTransform();await autoAlign3DPrintModel(true);fit3DPrintView(true)')) { throw 'Model load still auto-rotates model' }
           if (-not $html.Contains('sketchup_extension_button_v330.js')) { throw 'SketchUp extension button loader missing' }
@@ -141,13 +141,13 @@ jobs:
           if (-not (Test-Path $exe)) { throw 'Built PrusaBridge EXE is missing.' }
           $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           $manifest = [ordered]@{
-            version = '3.14w'
+            version = '3.14x'
             url = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/20-20-PrusaBridge.exe'
             sha256 = $sha
           } | ConvertTo-Json
           [IO.File]::WriteAllText((Join-Path $PWD 'PrusaBridge\latest.json'), $manifest + "`n", [Text.UTF8Encoding]::new($false))
 
-      - name: Commit V3.14w SketchUp handoff runtime
+      - name: Commit V3.14x SketchUp handoff runtime
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -155,5 +155,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add PrusaBridge/src/main.go PrusaBridge/src/Win3DRepair.cpp PrusaBridge/src/go.mod PrusaBridge/20-20-PrusaBridge.exe PrusaBridge/latest.json index.html SketchUpExtension/20-20-Toolbox-Print.rbz
           if (git diff --cached --quiet) { exit 0 }
-          git commit -m 'V3.30 add SketchUp extension download in 3D print'
+          git commit -m 'V3.31 improve 3D print bridge UI and support threshold'
           git push origin main
