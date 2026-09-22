@@ -509,6 +509,11 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .suplugins-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:16px}
 .suplugins-bridge{border:1px solid var(--border);border-radius:9px;background:#fafafa;padding:10px 12px;min-width:260px;font-size:11px;line-height:1.5}
 .suplugins-bridge-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.suplugins-bridge-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:9px}
+.suplugins-bridge-start{border:1px solid #18181b;background:#18181b;color:#fff;border-radius:7px;padding:7px 10px;font-size:10px;cursor:pointer}
+.suplugins-bridge-start:hover{background:#2f2f32}
+.suplugins-bridge-help{display:none;margin-top:7px;padding:7px 8px;border:1px solid #e1dc80;background:#fffdeb;border-radius:7px;color:#52525b;font-size:10px;line-height:1.45}
+.suplugins-bridge-help.show{display:block}
 .suplugins-dot{width:8px;height:8px;border-radius:50%;background:#a1a1aa;display:inline-block}.suplugins-dot.ok{background:#16a34a}.suplugins-dot.bad{background:#dc2626}.suplugins-dot.wait{background:#ca8a04}
 .suplugins-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:14px;margin-top:14px}
 .suplugin-card{border:1px solid var(--border);border-radius:12px;background:#fff;overflow:visible;box-shadow:0 1px 3px rgba(0,0,0,.04);position:relative}
@@ -588,15 +593,20 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
       </div>
       <div class="suplugins-bridge">
         <div class="suplugins-bridge-row"><span id="suplugins-bridge-dot" class="suplugins-dot wait"></span><b>SketchUpBridge:</b><span id="suplugins-bridge-status">kontroluji…</span></div>
-        <div style="margin-top:5px;color:var(--muted)">Přímá instalace funguje, když vedle Toolboxu běží <b>START_SKETCHUP_BRIDGE.bat</b>. Bez něj tlačítko automaticky stáhne RBZ.</div>
-        <button class="back-btn" style="margin:7px 0 0;padding:5px 8px;font-size:10px" onclick="checkSketchUpBridge(true)">Zkontrolovat Bridge</button>
+        <div id="suplugins-bridge-countdown" style="margin-top:4px;color:var(--muted);font-size:10px"></div>
+        <div style="margin-top:5px;color:var(--muted)">Bridge běží jen lokálně na <b>127.0.0.1</b> a po spuštění se <b>automaticky vypne za 2 minuty</b>.</div>
+        <div class="suplugins-bridge-actions">
+          <button class="suplugins-bridge-start" onclick="startSketchUpBridge()">Zapnout SketchUpBridge</button>
+          <button class="back-btn" style="margin:0;padding:6px 8px;font-size:10px" onclick="checkSketchUpBridge(true)">Zkontrolovat</button>
+        </div>
+        <div id="suplugins-bridge-help" class="suplugins-bridge-help"></div>
       </div>
     </div>
 
     <div id="suplugins-grid" class="suplugins-grid"></div>
 
     <div class="suplugins-note">
-      <b>Přímá instalace / aktualizace:</b> prohlížeč z bezpečnostních důvodů nemůže sám zapisovat do složky SketchUp Plugins. Volitelný lokální <b>SketchUpBridge</b> běží jen na <code>127.0.0.1:8092</code>, rozbalí RBZ do nejnovější nalezené instalace SketchUp a při aktualizaci přepíše starou verzi pluginu. Po instalaci / aktualizaci pluginu je nejlepší SketchUp restartovat.
+      <b>Přímá instalace / aktualizace:</b> klikni na <b>Zapnout SketchUpBridge</b>, spusť stažený malý BAT launcher a Bridge poběží skrytě pouze na <code>127.0.0.1:8092</code>. Po <b>2 minutách se automaticky vypne</b>. Během této doby tlačítko Nainstalovat / aktualizovat přepíše starší verzi pluginu. Po změně pluginu restartuj SketchUp.
     </div>
     <div id="suplugins-toast" class="suplugins-toast"></div>
   </div>
@@ -2688,9 +2698,65 @@ function toggleSuPluginHistory(id){document.getElementById('suplugin-history-'+i
 function suBase64ToBytes(base64){const bin=atob(base64),arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);return arr}
 function suPluginPayload(id,version){const p=getSuPlugin(id),v=getSuPluginVersion(p,version);if(!p||!v)throw new Error('Verze pluginu nebyla nalezena.');const b64=SU_PLUGIN_BLOBS[v.file];if(!b64)throw new Error('Data RBZ nejsou v Toolboxu vložena.');return {plugin:p,version:v,bytes:suBase64ToBytes(b64)}}
 function downloadSuPlugin(id,version){try{const x=suPluginPayload(id,version),blob=new Blob([x.bytes],{type:'application/zip'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=x.version.file;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2500);suPluginToast(`${x.plugin.name} v${version} · RBZ staženo.`)}catch(e){suPluginToast('Stažení selhalo: '+(e?.message||e),true)}}
+
+const SU_BRIDGE_LAUNCHER_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpBridge/START_SKETCHUP_BRIDGE_2MIN.bat';
+let suBridgePollTimer=null;
+let suBridgeCountdownTimer=null;
+
+function startSketchUpBridge(){
+  const a=document.createElement('a');
+  a.href=SU_BRIDGE_LAUNCHER_URL;
+  a.download='START_SKETCHUP_BRIDGE_2MIN.bat';
+  a.rel='noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  const help=document.getElementById('suplugins-bridge-help');
+  if(help){
+    help.innerHTML='<b>Launcher byl stažen.</b> Kvůli zabezpečení Windows/prohlížeče web nesmí BAT sám spustit. Spusť stažený <b>START_SKETCHUP_BRIDGE_2MIN.bat</b>; Bridge se spustí skrytě na pozadí a po 2 minutách se sám vypne.';
+    help.classList.add('show');
+  }
+  suPluginToast('SketchUpBridge launcher stažen. Spusť BAT; Toolbox Bridge automaticky rozpozná.');
+  startSketchUpBridgePolling();
+}
+
+function startSketchUpBridgePolling(){
+  clearInterval(suBridgePollTimer);
+  let tries=0;
+  suBridgePollTimer=setInterval(async()=>{
+    tries++;
+    const online=await checkSketchUpBridge(false);
+    if(online || tries>=30){
+      if(online)suPluginToast('SketchUpBridge je online na 2 minuty. Můžeš instalovat / aktualizovat pluginy.');
+      clearInterval(suBridgePollTimer);
+      suBridgePollTimer=null;
+    }
+  },1000);
+}
+
+function updateSketchUpBridgeCountdown(seconds){
+  const el=document.getElementById('suplugins-bridge-countdown');
+  clearInterval(suBridgeCountdownTimer);
+  if(!el)return;
+  let left=Math.max(0,Math.ceil(Number(seconds)||0));
+  const paint=()=>{
+    if(left<=0){
+      el.textContent='Bridge se právě vypíná…';
+      clearInterval(suBridgeCountdownTimer);
+      setTimeout(()=>checkSketchUpBridge(false),700);
+      return;
+    }
+    el.textContent='Automatické vypnutí za '+Math.floor(left/60)+':'+String(left%60).padStart(2,'0');
+    left--;
+  };
+  paint();
+  suBridgeCountdownTimer=setInterval(paint,1000);
+}
+
 async function checkSketchUpBridge(showToast=false){
   const dot=document.getElementById('suplugins-bridge-dot'),status=document.getElementById('suplugins-bridge-status');if(dot){dot.className='suplugins-dot wait'}if(status)status.textContent='kontroluji…';
-  try{const ctrl=new AbortController();const tm=setTimeout(()=>ctrl.abort(),900);const r=await fetch(SU_BRIDGE_URL+'/status',{cache:'no-store',signal:ctrl.signal});clearTimeout(tm);if(!r.ok)throw new Error('offline');const data=await r.json();suBridgeOnline=true;if(dot)dot.className='suplugins-dot ok';if(status)status.textContent=`online · ${data.sketchup||'SketchUp nalezen'}`;if(showToast)suPluginToast('SketchUpBridge je online. Přímá instalace je připravená.');return true}catch(e){suBridgeOnline=false;if(dot)dot.className='suplugins-dot bad';if(status)status.textContent='offline';if(showToast)suPluginToast('SketchUpBridge neběží. Tlačítko instalace proto použije běžné stažení RBZ.',true);return false}
+  try{const ctrl=new AbortController();const tm=setTimeout(()=>ctrl.abort(),900);const r=await fetch(SU_BRIDGE_URL+'/status',{cache:'no-store',signal:ctrl.signal});clearTimeout(tm);if(!r.ok)throw new Error('offline');const data=await r.json();suBridgeOnline=true;if(dot)dot.className='suplugins-dot ok';if(status)status.textContent=`online · ${data.sketchup||'SketchUp nalezen'}`;if(Number.isFinite(Number(data.remaining_seconds)))updateSketchUpBridgeCountdown(Number(data.remaining_seconds));if(showToast)suPluginToast('SketchUpBridge je online. Přímá instalace je připravená.');return true}catch(e){suBridgeOnline=false;if(dot)dot.className='suplugins-dot bad';if(status)status.textContent='offline';const cd=document.getElementById('suplugins-bridge-countdown');if(cd)cd.textContent='';if(showToast)suPluginToast('SketchUpBridge neběží. Klikni na „Zapnout SketchUpBridge“.',true);return false}
 }
 async function installSuPlugin(id,version){
   let payload;try{payload=suPluginPayload(id,version)}catch(e){suPluginToast(e?.message||String(e),true);return}
