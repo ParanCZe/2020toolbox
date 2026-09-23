@@ -24,6 +24,8 @@ jobs:
         run: python SketchUpPlugins/TextureLibrarySource/tools/scrape_siko_concrete.py
       - name: Enrich material filters
         run: python SketchUpPlugins/TextureLibrarySource/tools/enrich_siko_filters.py
+      - name: Normalize SIKO filters
+        run: python SketchUpPlugins/TextureLibrarySource/tools/normalize_siko_filters.py
       - name: Commit refreshed catalog
         run: |
           git config user.name "github-actions[bot]"
