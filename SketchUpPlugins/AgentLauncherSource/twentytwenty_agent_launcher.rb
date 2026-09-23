@@ -10,8 +10,8 @@ module TwentyTwenty
       'twentytwenty_agent_launcher/main'
     )
 
-    EXTENSION.description = 'One-click launcher for adapter-agent.exe and C:/2020agent/dist/sketchup/most.rb.'
-    EXTENSION.version = '0.1.0'
+    EXTENSION.description = 'One-click launcher for user-selected adapter-agent.exe and most.rb; both paths can be changed from Extensions.'
+    EXTENSION.version = '0.1.1'
     EXTENSION.creator = '20-20'
 
     Sketchup.register_extension(EXTENSION, true)
