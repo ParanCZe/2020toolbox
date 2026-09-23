@@ -103,7 +103,9 @@ def sane_brand(v):
 
 def infer_series(name, brand):
     toks = tokens_before_dimension(name)
-    # Drop everything through the brand occurrence.
+    # Drop everything through the exact SIKO brand. What follows is normally
+    # "Series [colour/variant]"; SIKO writes the series in title case while
+    # colour/variant tokens are usually lower-case.
     idx = None
     for i,t in enumerate(toks):
         if n(t) == n(brand):
@@ -111,17 +113,21 @@ def infer_series(name, brand):
             break
     rest = toks[idx+1:] if idx is not None else toks[1:]
     out = []
+    connectors = {"and","&","di","de","del","of"}
     for t in rest:
         lt = n(t)
         if lt in COLOR_WORDS or lt in FINISH_WORDS:
             break
         if re.fullmatch(r"\d+(?:[.,]\d+)?", t):
             break
-        # Product code-looking token marks the end.
         if len(t) >= 6 and any(ch.isdigit() for ch in t) and any(ch.isalpha() for ch in t) and t.upper() == t:
             break
+        # Once the series has started, a lower-case word is almost always the
+        # colour/variant (Kenzo ivory, Miami light, Extra slonová...). Preserve
+        # connector words used inside genuine multi-word series.
+        if out and t[:1].islower() and lt not in connectors:
+            break
         out.append(t)
-    # Keep useful multiword series (e.g. Taurus Granit / Tele Di Marmo Onyx).
     return " ".join(out).strip()
 
 def normalize_existing_series(series, brand):
@@ -139,9 +145,11 @@ def normalize_item(item):
     name = clean(item.get("name"))
     inferred_brand = infer_brand(name)
     existing_brand = clean(item.get("brand"))
-    brand = existing_brand if sane_brand(existing_brand) and n(existing_brand) == n(inferred_brand) else inferred_brand
+    # Prefer SIKO's own brand metadata whenever it is present. The product title
+    # contains many descriptors (corner piece, 2 cm, outdoor, etc.) that are not brands.
+    brand = existing_brand if sane_brand(existing_brand) else inferred_brand
     if not sane_brand(brand):
-        brand = existing_brand if sane_brand(existing_brand) else "Ostatní"
+        brand = "Ostatní"
 
     # Derive the series from the SIKO product title instead of trusting stale/combined
     # detail-page breadcrumbs. This maps Rako Rave -> Rave, Argenta Kenzo -> Kenzo, etc.
