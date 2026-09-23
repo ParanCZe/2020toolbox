@@ -22,7 +22,7 @@ jobs:
 
       - name: Rebuild RBZ from staged package
         run: |
-          cat .github/tmp/ai-tools-v042.p1a .github/tmp/ai-tools-v042.p1b .github/tmp/ai-tools-v042.part2 .github/tmp/ai-tools-v042.part3 .github/tmp/ai-tools-v042.p4a .github/tmp/ai-tools-v042.p4b | base64 -d > /tmp/20-20_AI-TOOLS_v0.4.2.rbz
+          cat .github/tmp/ai-tools-v042.p1a .github/tmp/ai-tools-v042.p1b .github/tmp/ai-tools-v042.p2a .github/tmp/ai-tools-v042.p2b .github/tmp/ai-tools-v042.part3 .github/tmp/ai-tools-v042.p4a .github/tmp/ai-tools-v042.p4b | base64 -d > /tmp/20-20_AI-TOOLS_v0.4.2.rbz
           echo "4eef4304a580517b6744bc14133278f16237154c1ec94d6947302ae8ac9a0df0  /tmp/20-20_AI-TOOLS_v0.4.2.rbz" | sha256sum -c -
           rm -rf /tmp/ai-tools-check
           mkdir -p /tmp/ai-tools-check
