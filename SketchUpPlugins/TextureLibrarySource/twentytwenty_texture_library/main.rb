@@ -38,8 +38,8 @@ module TwentyTwenty
 
     def create_command
       @cmd_open=UI::Command.new('20-20 Texture Library'){show_dialog}
-      @cmd_open.tooltip='20-20 Texture Library – vlastní textury, SIKO obklady, EGGER dekory, Texture Club kategorie, RAL a NCS'
-      @cmd_open.status_bar_text='Otevře knihovnu textur, SIKO obkladů, EGGER dekorů, Texture Club kategorií a barev pro rychlé mapování klikáním na plochy.'
+      @cmd_open.tooltip='20-20 Texture Library – vlastní textury, SIKO obklady, EGGER dekory, Poly Haven CC0, RAL a NCS'
+      @cmd_open.status_bar_text='Otevře knihovnu textur, SIKO obkladů, EGGER dekorů, Poly Haven materiálů a barev pro rychlé mapování klikáním na plochy.'
       icon=File.join(__dir__,'icons','texture_library.png')
       if File.exist?(icon)
         @cmd_open.small_icon=icon
