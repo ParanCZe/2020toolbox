@@ -183,6 +183,9 @@ def enrich_item(item, use_image=True):
     brand = infer_brand(item)
     product = infer_product(item, brand)
     color = color_from_text(item)
+    existing_color = clean(item.get("filter_color"))
+    if not color and existing_color and existing_color != "Ostatní":
+        color = existing_color
     if not color and use_image:
         color = color_from_image(clean(item.get("image_url")))
     item["filter_brand"] = brand or "Ostatní"
