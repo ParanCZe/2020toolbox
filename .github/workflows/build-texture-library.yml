@@ -38,6 +38,46 @@ jobs:
           cd SketchUpPlugins/TextureLibrarySource
           rm -f "../20-20_Texture_Library_v${VER}.rbz"
           zip -r "../20-20_Texture_Library_v${VER}.rbz" twentytwenty_texture_library.rb twentytwenty_texture_library
+      - name: Update Toolbox plugin catalog
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+        run: |
+          python - <<'PY'
+          import os, re
+
+          ver = os.environ["VER"]
+          path = "index.html"
+          rbz = f"SketchUpPlugins/20-20_Texture_Library_v{ver}.rbz"
+          size = os.path.getsize(rbz)
+          text = open(path, "r", encoding="utf-8").read()
+
+          start = text.index("    id:'texture-library'")
+          end = text.index("\n  },\n  {\n  id:'model-exporter'", start)
+          block = text[start:end]
+
+          block = re.sub(r"current:'[^']+'", f"current:'{ver}'", block, count=1)
+          block = re.sub(
+              r"description:'[^']*'",
+              "description:'Rychlé mapování materiálů. SIKO, EGGER, Poly Haven CC0, přímé 1200px RAKO Rave textury ze SIKO API, per-face posun/rotace, RAL a NCS.'",
+              block, count=1
+          )
+          block = re.sub(
+              r"meta:'[^']*'",
+              "meta:'V0.2.4 používá pro RAKO Rave DAK62900.1 (Grit), DAK62899.1 (Rice) a DAK62901.1 (Malt) přímo 1200px SIKO API obrázky. Náhled i materiál používají ostrý zdroj a novou HQ cache v4, takže staré 96/515px soubory se znovu nepoužijí.'",
+              block, count=1
+          )
+
+          entry = f'{{"version":"{ver}","file":"20-20_Texture_Library_v{ver}.rbz","size":{size},"repo_file":"SketchUpPlugins/20-20_Texture_Library_v{ver}.rbz"}}'
+          if f'"version":"{ver}"' not in block:
+              pos = block.rfind("]")
+              if pos < 0:
+                  raise RuntimeError("Texture Library versions list end not found")
+              block = block[:pos] + "," + entry + block[pos:]
+
+          text = text[:start] + block + text[end:]
+          open(path, "w", encoding="utf-8").write(text)
+          print(f"Toolbox now points to Texture Library v{ver} ({size} bytes)")
+          PY
       - name: Commit RBZ
         env:
           VER: ${{ steps.version.outputs.ver }}
@@ -45,9 +85,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           FILE="SketchUpPlugins/20-20_Texture_Library_v${VER}.rbz"
-          git add "$FILE"
+          git add "$FILE" index.html
           if git diff --cached --quiet; then
-            echo "RBZ unchanged"
+            echo "RBZ and Toolbox catalog unchanged"
             exit 0
           fi
           git commit -m "Build Texture Library v${VER}"
