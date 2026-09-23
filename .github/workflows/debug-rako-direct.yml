@@ -1,0 +1,36 @@
+name: Debug RAKO Direct Texture URLs
+
+on:
+  push:
+    paths:
+      - '.github/workflows/debug-rako-direct.yml'
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests pillow
+      - run: |
+          python - <<'PY'
+          import io, requests
+          from PIL import Image
+          H={'User-Agent':'Mozilla/5.0'}
+          urls=[
+            'https://www.rako.cz/file/edee/produkty-serie/rako-rave/DAK62899_1.jpg',
+            'https://www.rako.cz/file/edee/produkty-serie/rako-rave/dak62899_1.jpg',
+            'https://www.rako.cz/file/edee/produkty-serie/rako%20rave/DAK62899_1.jpg',
+            'https://www.rako.cz/file/edee/produkty-serie/DAK62899_1.jpg'
+          ]
+          for u in urls:
+            try:
+              r=requests.get(u,headers=H,timeout=20,allow_redirects=True)
+              print('\n',u,'->',r.status_code,r.url,r.headers.get('content-type'),len(r.content))
+              if r.ok:
+                try:
+                  print(Image.open(io.BytesIO(r.content)).size)
+                except Exception as e: print('not image',e)
+            except Exception as e: print('ERR',u,e)
+          PY
