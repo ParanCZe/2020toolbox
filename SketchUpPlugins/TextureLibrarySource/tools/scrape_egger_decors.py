@@ -15,11 +15,12 @@ BASE = "https://www.egger.com"
 SITEMAP = BASE + "/sitemap/index.xml"
 OUT = "SketchUpPlugins/TextureLibrarySource/twentytwenty_texture_library/egger_decors.json"
 
-SESSION = requests.Session()
-SESSION.headers.update({
+HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36",
     "Accept-Language": "cs-CZ,cs;q=0.9,en;q=0.7",
-})
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Cache-Control": "no-cache",
+}
 
 DECOR_PATH = "/cs/vyroba-nabytku-a-interierovy-design/dekory/"
 
@@ -28,14 +29,19 @@ def clean(s):
 
 def get_bytes(url, timeout=35):
     last = None
-    for i in range(4):
+    for i in range(7):
         try:
-            r = SESSION.get(url, timeout=timeout)
+            r = requests.get(url, headers=HEADERS, timeout=timeout)
+            if r.status_code in (403, 429):
+                last = RuntimeError(f"HTTP {r.status_code} for {url}")
+                time.sleep(1.8 * (i + 1))
+                continue
             r.raise_for_status()
+            time.sleep(0.08)
             return r.content
         except Exception as e:
             last = e
-            time.sleep(0.8 * (i + 1))
+            time.sleep(1.0 * (i + 1))
     raise last
 
 def get_text(url, timeout=35):
@@ -117,48 +123,34 @@ def parse_code_and_name(title, fallback_slug):
     return slug.upper(), "", title or slug
 
 def image_candidate(soup, code):
-    candidates = []
-    for prop in ("og:image", "twitter:image"):
-        attr = "property" if prop == "og:image" else "name"
-        tag = soup.find("meta", attrs={attr: prop})
-        if tag and tag.get("content"):
-            candidates.append(tag.get("content").strip())
+    # The first media-stage lightbox is EGGER's full decor image ("Deska"),
+    # while later page images are often room/lifestyle photos. This is the asset
+    # we want both for the library thumbnail and for the SketchUp material.
+    stage = soup.find("egger-mediastage")
+    if stage:
+        links = stage.find_all("a", attrs={"data-egger-lightbox": "true"}, href=True)
+        if links:
+            href = clean(links[0].get("href"))
+            if href:
+                return href if href.startswith("http") else BASE + href
 
-    # JSON-LD fallback.
-    for node in soup.find_all("script", attrs={"type": "application/ld+json"}):
-        try:
-            data = json.loads(node.string or "")
-        except Exception:
+    # Download overlay fallback: prefer CAD/Raport thumbnails or direct PIM images.
+    for node in soup.find_all("script", attrs={"type": "application/json"}):
+        raw = node.string or ""
+        if "imageDownloadItems" not in raw and "thumbUrl" not in raw:
             continue
-        stack = data if isinstance(data, list) else [data]
-        for obj in stack:
-            if not isinstance(obj, dict):
-                continue
-            imgs = obj.get("image")
-            if isinstance(imgs, str):
-                candidates.append(imgs)
-            elif isinstance(imgs, list):
-                candidates.extend(x for x in imgs if isinstance(x, str))
+        urls = re.findall(r'https://cdn\.egger\.com/[^"\\]+', raw)
+        if urls:
+            urls.sort(key=lambda u: ("pim/" not in u, "original" not in u.lower(), len(u)))
+            return urls[0].replace("\\u0026", "&")
 
-    # Product/decor image fallback.
+    # Last fallback: an image whose alt explicitly names this decor.
     for img in soup.find_all("img"):
         src = img.get("data-src") or img.get("src") or ""
         alt = clean(img.get("alt"))
-        if src and (code.lower() in (src + " " + alt).lower() or "dekor" in alt.lower()):
-            candidates.append(src)
-
-    # Prefer EGGER CDN and image URLs that mention the decor code.
-    candidates = [c if c.startswith("http") else BASE + c for c in candidates if c]
-    if not candidates:
-        return ""
-    candidates = list(dict.fromkeys(candidates))
-    candidates.sort(key=lambda u: (
-        code.lower() not in u.lower(),
-        "cdn.egger.com" not in u.lower(),
-        "egger" not in u.lower(),
-        len(u),
-    ))
-    return candidates[0]
+        if src and code.lower() in alt.lower():
+            return src if src.startswith("http") else BASE + src
+    return ""
 
 def parse_size_mm(text):
     # The page commonly says: "přibližně 2.311 x 1.300 mm"
@@ -221,7 +213,7 @@ def main():
     items = []
     failures = []
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
         futs = {ex.submit(parse_decor, url): url for url in urls}
         for i, fut in enumerate(concurrent.futures.as_completed(futs), 1):
             url = futs[fut]
