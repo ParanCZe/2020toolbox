@@ -11,7 +11,7 @@ module TwentyTwenty
     )
 
     EXTENSION.description = 'One-click launcher for user-selected adapter-agent.exe and most.rb; both paths can be changed from Extensions.'
-    EXTENSION.version = '0.1.1'
+    EXTENSION.version = '0.1.2'
     EXTENSION.creator = '20-20'
 
     Sketchup.register_extension(EXTENSION, true)
