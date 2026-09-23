@@ -7,11 +7,11 @@ module TwentyTwenty
   module NanoBananaExporter
     EXTENSION ||= SketchupExtension.new(
       '20-20 AI Image Exporter',
-      'twentytwenty_nano_banana_exporter/main_v030'
+      'twentytwenty_nano_banana_exporter/main_v031'
     )
 
-    EXTENSION.description = '16:9 SketchUp exporter: standard PNG or AI pack with RGB, Z-depth, line pass and camera metadata.'
-    EXTENSION.version     = '0.3.0'
+    EXTENSION.description = '16:9 SketchUp exporter with toggleable native export frame, standard PNG or AI pack with RGB, Z-depth, line pass and camera metadata.'
+    EXTENSION.version     = '0.3.1'
     EXTENSION.creator     = '20-20'
 
     Sketchup.register_extension(EXTENSION, true)
