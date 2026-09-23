@@ -1,0 +1,74 @@
+name: Debug SIKO Rave Product Image
+
+on:
+  push:
+    paths:
+      - '.github/workflows/debug-siko-rave-image.yml'
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests beautifulsoup4 pillow
+      - name: Inspect catalog record and product image sources
+        run: |
+          python - <<'PY'
+          import io,json,re,requests
+          from bs4 import BeautifulSoup
+          from PIL import Image
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/153 Safari/537.36'}
+          code='DAK62900.1'
+          for p in [
+            'SketchUpPlugins/TextureLibrarySource/twentytwenty_texture_library/siko_floor_tiles.json',
+            'SketchUpPlugins/TextureLibrarySource/twentytwenty_texture_library/siko_concrete_tiles.json'
+          ]:
+            try:
+              data=json.load(open(p,encoding='utf-8'))
+            except Exception as e:
+              print('JSONERR',p,e); continue
+            items=data.get('items',data if isinstance(data,list) else [])
+            for x in items:
+              if str(x.get('code','')).upper()==code:
+                print('CATALOG',p,json.dumps(x,ensure_ascii=False,indent=2))
+
+          url='https://www.siko.cz/dlazba-rako-rave-grit-60x60-cm-mat-dak62900-1/p/DAK62900.1'
+          r=requests.get(url,headers=H,timeout=40)
+          print('PAGE',r.status_code,len(r.text),r.url)
+          soup=BeautifulSoup(r.text,'html.parser')
+          candidates=[]
+          attrs=['src','data-src','data-original','data-zoom','data-zoom-image','href','content','srcset']
+          for tag in soup.find_all(True):
+            vals=[]
+            for a in attrs:
+              v=tag.get(a)
+              if not v: continue
+              vals += [z.strip().split(' ')[0] for z in str(v).split(',')]
+            for v in vals:
+              if not v.startswith('http'): continue
+              low=v.lower()
+              if any(k in low for k in ['dak62900','0000010118','10118','rave']):
+                candidates.append(v.replace('&amp;','&'))
+          # Also dump all API/media image URLs around product gallery.
+          for m in re.findall(r'https?://[^"\'<> ]+',r.text):
+            m=m.replace('\\u0026','&').replace('\\/','/')
+            if ('api.siko.cz' in m or 'media.siko.cz' in m) and any(x in m.lower() for x in ['image','product','dak62900','10118']):
+              candidates.append(m)
+          uniq=[]
+          for u in candidates:
+            if u not in uniq: uniq.append(u)
+          print('CANDIDATES',len(uniq))
+          for u in uniq[:100]:
+            try:
+              rr=requests.get(u,headers=H,timeout=20)
+              ct=rr.headers.get('content-type','')
+              dims=''
+              if 'image' in ct:
+                try: dims=str(Image.open(io.BytesIO(rr.content)).size)
+                except: pass
+              print('IMG',rr.status_code,len(rr.content),dims,u[:1000])
+            except Exception as e: print('ERR',u,e)
+          PY
