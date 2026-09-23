@@ -7,7 +7,7 @@ module TwentyTwenty
   module AgentLauncher
     extend self
 
-    VERSION = '0.1.1'.freeze
+    VERSION = '0.1.2'.freeze
     PREF_SECTION = '20-20 Agent Launcher'.freeze
     PREF_ADAPTER = 'adapter_path'.freeze
     PREF_SCRIPT = 'most_rb_path'.freeze
@@ -73,31 +73,16 @@ module TwentyTwenty
 
       adapter, script = paths
 
-      show_ruby_console
-      puts
-      puts '[20-20 Agent Launcher]'
-      puts "Adapter: #{adapter}"
-      puts "Ruby:    #{script}"
-
       unless adapter_running?(adapter)
-        puts "Spouštím adapter-agent.exe…"
         launch_adapter(adapter)
-      else
-        puts 'Adapter-agent už běží, další instanci nespouštím.'
       end
 
       # Give the adapter a short moment to initialize before the bridge script loads.
       UI.start_timer(0.8, false) do
         begin
-          ruby_path=script.gsub('\\','/')
-          command="load '#{ruby_path.gsub("'", "\\'")}'"
-          puts ">>> #{command}"
           load script
-          puts '[20-20 Agent Launcher] most.rb načten.'
           Sketchup.status_text = '20-20 Agent: adapter běží + most.rb načten.'
         rescue StandardError, ScriptError => e
-          puts "[20-20 Agent Launcher] CHYBA: #{e.class}: #{e.message}"
-          puts e.backtrace.join("\n") if e.backtrace
           UI.messagebox(
             "20-20 Agent Launcher\n\nmost.rb se nepodařilo načíst:\n" \
             "#{e.class}: #{e.message}\n\n" \
@@ -259,15 +244,6 @@ module TwentyTwenty
       true
     end
 
-    def show_ruby_console
-      if defined?(SKETCHUP_CONSOLE)
-        SKETCHUP_CONSOLE.show unless SKETCHUP_CONSOLE.visible?
-      else
-        Sketchup.send_action('showRubyPanel:')
-      end
-    rescue StandardError
-      Sketchup.send_action('showRubyPanel:') rescue nil
-    end
   end
 end
 
