@@ -57,6 +57,21 @@ jobs:
             m=m.replace('\\u0026','&').replace('\\/','/')
             if ('api.siko.cz' in m or 'media.siko.cz' in m) and any(x in m.lower() for x in ['image','product','dak62900','10118']):
               candidates.append(m)
+          # Probe whether SIKO serves larger raster variants for the same media.
+          first515=next((u for u in candidates if '/im-515-DAK62900.1.jpg' in u),None)
+          if first515:
+            print('PROBE_FROM_515',first515)
+            for size in [640,768,800,960,1024,1200,1600,2048]:
+              u=re.sub(r'/im-515-',f'/im-{size}-',first515)
+              try:
+                rr=requests.get(u,headers=H,timeout=20)
+                dims=''
+                if 'image' in rr.headers.get('content-type',''):
+                  try:dims=str(Image.open(io.BytesIO(rr.content)).size)
+                  except:pass
+                print('PROBE',size,rr.status_code,len(rr.content),dims,u[:300])
+              except Exception as e: print('PROBEERR',size,e)
+
           uniq=[]
           for u in candidates:
             if u not in uniq: uniq.append(u)
