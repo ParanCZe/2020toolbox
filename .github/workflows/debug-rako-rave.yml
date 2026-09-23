@@ -43,6 +43,18 @@ jobs:
             for row in sorted([x for x in rows if x[1]],key=lambda x:x[1][0]*x[1][1],reverse=True)[:40]:
               print(row)
 
+          for product in ['https://www.rako.cz/cs/dak62899','https://www.rako.cz/cs/dak62900','https://www.rako.cz/cs/dak62901']:
+            pr=requests.get(product,headers=H,timeout=60)
+            print('\nRAKO PRODUCT',product,pr.status_code,len(pr.text))
+            ps=BeautifulSoup(pr.text,'html.parser')
+            for tag in ps.find_all(['img','source','a']):
+              vals=[]
+              for k in ['src','srcset','href','data-src','data-original','data-zoom-image','data-image']:
+                if tag.get(k): vals.append(f'{k}={tag.get(k)}')
+              joined=' '.join(vals)
+              if any(x in joined.lower() for x in ['62899','62900','62901','rave']):
+                print(tag.name,joined[:2000])
+
           listing='https://www.siko.cz/obklady-dlazby/c/C999-obklady-dlazby?query=%3Arelevance%3AA1%3ARako'
           rr=requests.get(listing,headers=H,timeout=60)
           print('SIKO LIST',rr.status_code,len(rr.text))
