@@ -2711,6 +2711,16 @@ const SU_PLUGIN_CATALOG = [
   meta:'V0.1.2: Ruby Console se už vůbec neotevírá. Kliknutí na Spustit 20-20 Agent spustí adapter-agent.exe a potichu provede load z uložené cesty k most.rb přímo ve stejném SketchUp Ruby runtime. Cesty zůstávají uživatelské a měnitelné samostatnými tlačítky v Extensions.',
   icon:'export',
   versions:[{"version":"0.1.0","file":"20-20_Agent_Launcher_v0.1.0.rbz","size":3854,"repo_file":"SketchUpPlugins/20-20_Agent_Launcher_v0.1.0.rbz"},{"version":"0.1.1","file":"20-20_Agent_Launcher_v0.1.1.rbz","size":3945,"repo_file":"SketchUpPlugins/20-20_Agent_Launcher_v0.1.1.rbz"},{"version":"0.1.2","file":"20-20_Agent_Launcher_v0.1.2.rbz","size":3663,"repo_file":"SketchUpPlugins/20-20_Agent_Launcher_v0.1.2.rbz"}]
+},
+  {
+  id:'ai-tools',
+  loader:'dvacet20-ai-tools.rb',
+  name:'20-20 AI-TOOLS',
+  current:'0.4.2',
+  description:'Most mezi SketchUpem a RENDERMAKERem + knihovna materiálů. Nově automaticky spouští lokální adapter-agent.exe.',
+  meta:'V0.4.2: při startu SketchUpu se automaticky spustí adapter agent, pokud už neběží. Výchozí cesta je C:/2020agent/dist/adapter-agent.exe; pokud tam soubor není, plugin se zeptá na umístění. V Extensions > 20-20 AI-TOOLS lze agenta ručně spustit, změnit cestu a zobrazit aktuálně uloženou cestu. Most se načítá dál bez Ruby Console.',
+  icon:'library',
+  versions:[{"version":"0.4.2","file":"20-20_AI-TOOLS_v0.4.2.rbz","size":20679,"repo_file":"SketchUpPlugins/20-20_AI-TOOLS_v0.4.2.rbz"}]
 }
 ];
 function suPluginIcon(type){
