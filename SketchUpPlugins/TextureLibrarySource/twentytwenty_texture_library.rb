@@ -9,8 +9,8 @@ module TwentyTwenty
       '20-20 Texture Library',
       'twentytwenty_texture_library/main'
     )
-    EXTENSION.description = 'Texture library with SIKO, EGGER, Poly Haven CC0 and official RAKO Rave 1200 px archive textures.'
-    EXTENSION.version = '0.2.2'
+    EXTENSION.description = 'Texture library with SIKO, EGGER, Poly Haven CC0 and sharp RAKO Rave product-page textures.'
+    EXTENSION.version = '0.2.3'
     EXTENSION.creator = '20-20'
     Sketchup.register_extension(EXTENSION, true)
   end
