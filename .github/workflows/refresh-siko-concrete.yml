@@ -19,9 +19,11 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install scraper dependencies
-        run: pip install requests beautifulsoup4
+        run: pip install requests beautifulsoup4 pillow
       - name: Scrape SIKO concrete tiles
         run: python SketchUpPlugins/TextureLibrarySource/tools/scrape_siko_concrete.py
+      - name: Enrich material filters
+        run: python SketchUpPlugins/TextureLibrarySource/tools/enrich_siko_filters.py
       - name: Commit refreshed catalog
         run: |
           git config user.name "github-actions[bot]"
