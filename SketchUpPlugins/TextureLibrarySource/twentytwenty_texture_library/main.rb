@@ -4,7 +4,6 @@ require 'fileutils'
 require 'securerandom'
 require 'net/http'
 require 'uri'
-require 'set'
 
 module TwentyTwenty
   module TextureLibrary
@@ -490,9 +489,6 @@ function resetAll(){xr.value=xn.value=0;yr.value=yn.value=0;rr.value=rn.value=0;
       dlg.set_html(dialog_html)
       dlg.add_action_callback('ready'){|_ctx| push_library_to_dialog}
       dlg.add_action_callback('add_texture'){|_ctx| add_custom_texture}
-      dlg.add_action_callback('add_texture_club'){|_ctx,key| add_texture_club_texture(key.to_s)}
-      dlg.add_action_callback('open_texture_club_live'){|_ctx,key| open_texture_club_live(key.to_s)}
-      dlg.add_action_callback('import_latest_texture_club'){|_ctx,key| import_latest_texture_club(key.to_s)}
       dlg.add_action_callback('delete_texture'){|_ctx,id| delete_custom_texture(id.to_s)}
       dlg.add_action_callback('paint'){|_ctx,payload| activate_paint_tool(payload)}
       dlg.add_action_callback('refresh_polyhaven'){|_ctx| push_polyhaven_to_dialog(true)}
@@ -559,123 +555,6 @@ function resetAll(){xr.value=xn.value=0;yr.value=yn.value=0;rr.value=rn.value=0;
       write_library(data); push_library_to_dialog
     rescue StandardError => e
       UI.messagebox("Přidání textury selhalo:\n#{e.class}: #{e.message}")
-    end
-
-    def texture_club_category(key)
-      TEXTURE_CLUB_CATEGORIES.find{|x|x['key'].to_s==key.to_s} || TEXTURE_CLUB_CATEGORIES.first
-    end
-
-    def texture_club_download_dirs
-      dirs=[]
-      dirs << File.join(ENV['USERPROFILE'].to_s,'Downloads') unless ENV['USERPROFILE'].to_s.empty?
-      dirs << File.join(Dir.home,'Downloads')
-      dirs.uniq.select{|d|File.directory?(d)}
-    end
-
-    def texture_club_download_files
-      exts=%w[*.png *.jpg *.jpeg *.webp *.bmp]
-      texture_club_download_dirs.flat_map{|d| exts.flat_map{|e|Dir.glob(File.join(d,e),File::FNM_CASEFOLD)}}.uniq
-    rescue StandardError
-      []
-    end
-
-    def import_texture_club_file(path,key)
-      category=texture_club_category(key)
-      return unless path && File.file?(path)
-      base=File.basename(path,'.*')
-      values=UI.inputbox(
-        ['Název textury:','Reálná šířka vzoru [mm]:','Reálná výška vzoru [mm]:'],
-        [base,1000.0,1000.0],
-        "Texture Club → #{category['name']}"
-      )
-      return unless values
-      name=values[0].to_s.strip; name=base if name.empty?
-      width_mm=[values[1].to_f,1.0].max; height_mm=[values[2].to_f,1.0].max
-      id=SecureRandom.hex(6)
-      ext=File.extname(path).downcase
-      copied=File.join(TEX_ROOT,"#{id}#{ext}")
-      FileUtils.cp(path,copied)
-      target=normalize_texture_image(copied,id)
-      File.delete(copied) rescue nil if target!=copied && File.file?(copied)
-      data=read_library
-      data['textures'] << {
-        'id'=>id,'name'=>name,'path'=>target,'width_mm'=>width_mm,'height_mm'=>height_mm,
-        'source'=>'SketchUp Texture Club','category'=>category['key'],'category_name'=>category['name'],
-        'source_url'=>category['url']
-      }
-      write_library(data)
-      push_library_to_dialog
-      @dialog.execute_script("window.clubImportDone && window.clubImportDone(#{JSON.generate(category['key'])},#{JSON.generate(name)});") rescue nil
-      true
-    rescue StandardError => e
-      UI.messagebox("Přidání Texture Club textury selhalo:\n#{e.class}: #{e.message}")
-      false
-    end
-
-    def add_texture_club_texture(key)
-      category=texture_club_category(key)
-      path=UI.openpanel("Vyber staženou texturu – #{category['name']}",nil,'Obrázky|*.png;*.jpg;*.jpeg;*.webp;*.bmp||')
-      import_texture_club_file(path,key) if path
-    end
-
-    def import_latest_texture_club(key)
-      files=texture_club_download_files
-      path=files.max_by{|p|File.mtime(p) rescue Time.at(0)}
-      return UI.messagebox('V Downloads jsem nenašel žádný obrázek textury.') unless path
-      import_texture_club_file(path,key)
-    end
-
-    def stop_texture_club_watch
-      if @club_watch_timer
-        UI.stop_timer(@club_watch_timer) rescue nil
-        @club_watch_timer=nil
-      end
-    end
-
-    def start_texture_club_watch(key)
-      stop_texture_club_watch
-      @club_watch_key=key.to_s
-      @club_watch_seen=Set.new(texture_club_download_files.map{|p|File.expand_path(p)})
-      @club_watch_timer=UI.start_timer(1.25,true) do
-        begin
-          fresh=texture_club_download_files.reject{|p|@club_watch_seen.include?(File.expand_path(p))}
-          next if fresh.empty?
-          path=fresh.max_by{|p|File.mtime(p) rescue Time.at(0)}
-          @club_watch_seen << File.expand_path(path)
-          # Give Chromium/antivirus a moment to finish writing the file.
-          UI.start_timer(0.8,false){import_texture_club_file(path,@club_watch_key) if File.file?(path)}
-        rescue StandardError
-          nil
-        end
-      end
-    end
-
-    def open_texture_club_live(key)
-      category=texture_club_category(key)
-      @club_watch_key=category['key']
-      if @texture_club_dialog
-        @texture_club_dialog.set_url(category['url'])
-        @texture_club_dialog.show
-        @texture_club_dialog.bring_to_front
-      else
-        dlg=UI::HtmlDialog.new(
-          dialog_title:"Texture Club Live – #{category['name']}",
-          preferences_key:'twentytwenty_texture_club_live_v1',
-          scrollable:true,resizable:true,width:1180,height:820,min_width:800,min_height:560,
-          style:UI::HtmlDialog::STYLE_DIALOG
-        )
-        dlg.set_url(category['url'])
-        dlg.set_on_closed do
-          stop_texture_club_watch
-          @texture_club_dialog=nil
-        end
-        @texture_club_dialog=dlg
-        dlg.show
-        dlg.bring_to_front
-      end
-      start_texture_club_watch(category['key'])
-    rescue StandardError => e
-      UI.messagebox("Texture Club Live: #{e.class}: #{e.message}")
     end
 
     def delete_custom_texture(id)
@@ -834,9 +713,8 @@ function resetAll(){xr.value=xn.value=0;yr.value=yn.value=0;rr.value=rn.value=0;
 <script>
 const RAL=#{ral_json};const NCS_PRESETS=#{ncs_json};let CUSTOM=[],SIKO_CONCRETE=[],SIKO_FLOOR=[],SIKO_ALL=[],EGGER=[],POLYHAVEN=[],PH_CATEGORY='Vše',tab='custom',LIMIT=240;const COLOR_HEX={'Bílá':'#f5f5f2','Šedá':'#969696','Černá':'#202020','Béžová':'#d8c5a4','Hnědá':'#805b42','Modrá':'#6687a8','Zelená':'#718b67','Červená':'#a95149','Oranžová':'#c77c45','Žlutá':'#d4bb58','Růžová':'#cf9aa8','Fialová':'#8b7095','Ostatní':'#ddd'};window.setCustomTextures=items=>{CUSTOM=items||[];render()};window.setSikoTiles=items=>{SIKO_CONCRETE=items||[];rebuildSiko()};window.setSikoFloorTiles=items=>{SIKO_FLOOR=items||[];rebuildSiko()};window.setEggerDecors=items=>{EGGER=items||[];fillDecorFilters();render()};window.setPolyHaven=items=>{POLYHAVEN=items||[];document.getElementById('phStatus').textContent=POLYHAVEN.length+' materiálů';renderPhTabs();render()};window.setPolyHavenError=msg=>{document.getElementById('phStatus').textContent='Chyba: '+msg};function rebuildSiko(){const seen=new Map();SIKO_CONCRETE.forEach(x=>{if(!seen.has(String(x.code)))seen.set(String(x.code),Object.assign({_kind:'siko'},x))});SIKO_FLOOR.forEach(x=>{if(!seen.has(String(x.code)))seen.set(String(x.code),Object.assign({_kind:'siko_floor'},x))});SIKO_ALL=Array.from(seen.values());fillSikoFilters();render()}document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;LIMIT=240;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));document.getElementById('addBtn').style.display=tab==='custom'?'':'none';document.getElementById('sikoFilters').style.display=tab==='siko'?'grid':'none';document.getElementById('decorFilters').style.display=tab==='decor'?'grid':'none';document.getElementById('phTabs').style.display=tab==='polyhaven'?'flex':'none';document.getElementById('phToolbar').style.display=tab==='polyhaven'?'flex':'none';document.getElementById('ncsControls').style.display=tab==='ncs'?'flex':'none';document.getElementById('ncsHint').style.display=tab==='ncs'?'block':'none';document.getElementById('search').value='';render()});
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}function fileUrl(path){const p=String(path).split(String.fromCharCode(92)).join('/');return 'file:///'+p.split('/').map((x,i)=>(i===0&&/^[A-Za-z]:$/.test(x))?x:encodeURIComponent(x)).join('/')}function paint(o){sketchup.paint(JSON.stringify(o))}function del(id,e){e.stopPropagation();if(confirm('Odebrat texturu z knihovny?'))sketchup.delete_texture(id)}function openSource(url,e){e.stopPropagation();sketchup.open_url(url)}function colorCard(code,name,hex,kind){const data=JSON.stringify({kind,name:code,hex}).replace(/'/g,'&#39;');return `<button class="card" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="swatch" style="background:${hex}"></div><div class="copy"><div class="name">${esc(code)}</div><div class="meta">${esc(name||hex)} · ${esc(hex)}</div></div></button>`}function sikoCard(x){const data=JSON.stringify({kind:x._kind||'siko',code:x.code}).replace(/'/g,'&#39;');const img=x.image_url?`<img loading="lazy" src="${esc(x.image_url)}" alt="">`:'';const col=x.filter_color||'Ostatní',dot=COLOR_HEX[col]||COLOR_HEX.Ostatní;return `<div class="card" role="button" tabindex="0" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview">${img}</div><div class="copy"><button class="source-link" onclick="openSource('${esc(x.product_url)}',event)">SIKO ↗</button><div class="name">${esc(x.name)}</div><div class="meta">${esc(x.filter_brand||x.brand||'')} · ${esc(x.filter_product||x.series||'')} · ${esc(x.filter_size||x.size_cm||'rozměr neuveden')} cm</div><div class="meta color-pill"><span class="color-dot" style="background:${dot}"></span>${esc(col)} · ${esc(x.code||'')}</div></div></div>`}function catalogHtml(items,empty){if(!items.length)return `<div class="empty">${empty}</div>`;const visible=items.slice(0,LIMIT);let html=visible.map(sikoCard).join('');if(items.length>visible.length)html+=`<button class="btn" style="width:100%;padding:12px" onclick="LIMIT+=240;render()">Načíst další · zobrazeno ${visible.length} z ${items.length}</button>`;return html}
-function eggerPreviewUrl(raw){try{const u=new URL(raw);u.searchParams.set('width','360');return u.toString()}catch(e){return raw}}let DECOR_OBSERVER=null;function activateDecorLazy(){if(DECOR_OBSERVER)DECOR_OBSERVER.disconnect();const imgs=[...document.querySelectorAll('img.decor-lazy[data-src]')];if(!('IntersectionObserver'in window)){imgs.forEach(i=>{i.src=i.dataset.src;i.removeAttribute('data-src')});return}DECOR_OBSERVER=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting){const i=e.target;i.src=i.dataset.src;i.removeAttribute('data-src');DECOR_OBSERVER.unobserve(i)}}),{rootMargin:'500px 0px'});imgs.forEach(i=>DECOR_OBSERVER.observe(i))}function eggerCard(x){const data=JSON.stringify({kind:'egger',code:x.code}).replace(/'/g,'&#39;');const img=x.image_url?`<img class="decor-lazy" data-src="${esc(eggerPreviewUrl(x.image_url))}" alt="">`:'';return `<div class="card decor-card" role="button" tabindex="0" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview">${img}</div><div class="copy"><button class="source-link" onclick="openSource('${esc(x.product_url)}',event)">EGGER ↗</button><div class="name">${esc(x.name)}</div><div class="decor-code">${esc(x.code)}</div></div></div>`}function chooseClub(key,openLive=true){CLUB_KEY=key;LIMIT=240;renderClubTabs();render();if(openLive)sketchup.open_texture_club_live(key)}function renderClubTabs(){const el=document.getElementById('clubTabs');if(!el)return;el.innerHTML=CLUB_CATEGORIES.map(x=>`<button class="club-subtab ${x.key===CLUB_KEY?'active':''}" onclick="chooseClub('${esc(x.key)}',true)">${esc(x.name)}</button>`).join('')}function clubCategory(){return CLUB_CATEGORIES.find(x=>x.key===CLUB_KEY)||CLUB_CATEGORIES[0]}function clubHead(){const x=clubCategory(),el=document.getElementById('clubHead');if(!el)return;if(!x){el.innerHTML='';return}el.innerHTML=`<div class="club-head-row"><div><h3>${esc(x.name)}</h3><div class="meta">SketchUp Texture Club · živý katalog uvnitř SketchUpu</div></div><div class="club-actions"><button class="btn primary" onclick="sketchup.open_texture_club_live('${esc(x.key)}')">Otevřít živý katalog</button><button class="btn" onclick="sketchup.import_latest_texture_club('${esc(x.key)}')">Importovat poslední staženou</button></div></div><div class="club-note">Katalog se otevře v interním okně SketchUpu, takže nemusíš přeskakovat do prohlížeče. Přihlas se tam jednou a stahuj jednotlivé textury oficiálním tlačítkem webu. Plugin sleduje složku Downloads a po novém obrázku ho automaticky nabídne k importu do právě vybrané kategorie.</div>`}function phCategories(){return ['Vše',...Array.from(new Set(POLYHAVEN.map(x=>x.category).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'cs'))]}function renderPhTabs(){const el=document.getElementById('phTabs');if(!el)return;const cats=phCategories();if(!cats.includes(PH_CATEGORY))PH_CATEGORY='Vše';el.innerHTML=cats.map(x=>`<button class="ph-subtab ${x===PH_CATEGORY?'active':''}" onclick="PH_CATEGORY='${esc(x)}';LIMIT=180;renderPhTabs();render()">${esc(x)}</button>`).join('')}function filteredPolyHaven(){const q=document.getElementById('search').value.trim().toLowerCase();return POLYHAVEN.filter(x=>(PH_CATEGORY==='Vše'||x.category===PH_CATEGORY)&&(!q||[x.name,x.id,x.category,x.category_path,...(x.tags||[])].join(' ').toLowerCase().includes(q)))}let PH_OBSERVER=null;function activatePhLazy(){if(PH_OBSERVER)PH_OBSERVER.disconnect();const imgs=[...document.querySelectorAll('img.ph-lazy[data-src]')];if(!('IntersectionObserver'in window)){imgs.forEach(i=>{i.src=i.dataset.src;i.removeAttribute('data-src')});return}PH_OBSERVER=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){const i=e.target;i.src=i.dataset.src;i.removeAttribute('data-src');PH_OBSERVER.unobserve(i)}}),{rootMargin:'500px 0px'});imgs.forEach(i=>PH_OBSERVER.observe(i))}function phCard(x){const res=document.getElementById('phResolution')?.value||'2k';const data=JSON.stringify({kind:'polyhaven',id:x.id,resolution:res}).replace(/'/g,'&#39;');const dims=(x.dimensions||[]);const dim=dims.length>=2?Math.round(dims[0])+' × '+Math.round(dims[1])+' mm':'';return `<div class="card ph-card" role="button" tabindex="0" data-payload='${data}' onclick="phPaint(this)"><div class="preview"><img class="ph-lazy" data-src="${esc(x.thumbnail_url)}" alt=""></div><div class="copy"><div class="name">${esc(x.name)}</div><div class="meta">${esc(x.category_path||x.category||'')}${dim?' · '+dim:''}</div><span class="ph-badge">Poly Haven · CC0</span></div></div>`}function phPaint(el){if(el.dataset.busy==='1')return;el.dataset.busy='1';const copy=el.querySelector('.name');if(copy){el.dataset.oldname=copy.textContent;copy.textContent='Stahuji…'}paint(JSON.parse(el.dataset.payload));setTimeout(()=>{el.dataset.busy='0'},5000)}window.polyHavenReady=(id,res)=>{document.querySelectorAll('.ph-card').forEach(el=>{try{const p=JSON.parse(el.dataset.payload);if(p.id===id){const n=el.querySelector('.name');if(n)n.textContent=el.dataset.oldname||n.textContent;el.dataset.busy='0'}}catch(e){}});document.getElementById('phStatus').textContent='Staženo '+res.toUpperCase()+' · připraveno k malování'};function phRefresh(){document.getElementById('phStatus').textContent='Obnovuji katalog…';sketchup.refresh_polyhaven()}
-function optionSort(a,b){return String(a).localeCompare(String(b),'cs',{numeric:true,sensitivity:'base'})}function fillSelect(id,values,label){const el=document.getElementById(id),keep=el.value;const vals=Array.from(new Set(values.filter(Boolean))).sort(optionSort);el.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');if(vals.includes(keep))el.value=keep}function fillSikoFilters(){fillSelect('filterSize',SIKO_ALL.map(x=>x.filter_size||x.size_cm),'Všechny rozměry');fillSelect('filterBrand',SIKO_ALL.map(x=>x.filter_brand||x.brand),'Všechny značky');fillSelect('filterProduct',SIKO_ALL.map(x=>x.filter_product||x.series),'Všechny série');fillSelect('filterColor',SIKO_ALL.map(x=>x.filter_color),'Všechny barvy')}function resetSikoFilters(){['filterSize','filterBrand','filterProduct','filterColor'].forEach(id=>document.getElementById(id).value='');LIMIT=240;render()}function fillDecorFilters(){fillSelect('decorManufacturer',EGGER.map(x=>x.manufacturer||'EGGER'),'Všichni výrobci')}function resetDecorFilters(){document.getElementById('decorManufacturer').value='';LIMIT=240;render()}function filteredEgger(){const q=document.getElementById('search').value.trim().toLowerCase(),fm=document.getElementById('decorManufacturer').value;return EGGER.filter(x=>(!fm||(x.manufacturer||'EGGER')===fm)&&(!q||[x.name,x.code,x.base_code,x.texture,x.manufacturer].join(' ').toLowerCase().includes(q)))}function filteredSiko(){const q=document.getElementById('search').value.trim().toLowerCase(),fs=document.getElementById('filterSize').value,fb=document.getElementById('filterBrand').value,fp=document.getElementById('filterProduct').value,fc=document.getElementById('filterColor').value;return SIKO_ALL.filter(x=>{if(fs&&(x.filter_size||x.size_cm)!==fs)return false;if(fb&&(x.filter_brand||x.brand)!==fb)return false;if(fp&&(x.filter_product||x.series)!==fp)return false;if(fc&&x.filter_color!==fc)return false;if(q&&!([x.name,x.code,x.filter_brand,x.brand,x.filter_product,x.series,x.filter_size,x.size_cm,x.filter_color].join(' ').toLowerCase().includes(q)))return false;return true})}
-window.clubImportDone=(key,name)=>{CLUB_KEY=key;renderClubTabs();render();const el=document.getElementById('clubHead');if(el){const note=document.createElement('div');note.className='hint';note.textContent='Přidáno: '+name;el.appendChild(note);setTimeout(()=>note.remove(),3500)}};function customCard(x){const data=JSON.stringify({kind:'custom',id:x.id}).replace(/'/g,'&#39;');return `<div class="card" role="button" tabindex="0" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview" style="background-image:url('${fileUrl(x.path)}')"></div><div class="copy"><button class="delete" onclick="del('${x.id}',event)">Smazat</button><div class="name">${esc(x.name)}</div><div class="meta">${Math.round(x.width_mm)} × ${Math.round(x.height_mm)} mm${x.category_name?' · '+esc(x.category_name):''}</div></div></div>`}function render(){const q=document.getElementById('search').value.trim().toLowerCase(),g=document.getElementById('grid');g.classList.toggle('list',tab==='custom'||tab==='siko');g.classList.toggle('decor-grid',tab==='decor'||tab==='polyhaven');if(tab==='custom'){const a=CUSTOM.filter(x=>(x.name+' '+x.width_mm+' '+x.height_mm+' '+(x.category_name||'')).toLowerCase().includes(q));g.innerHTML=a.length?a.map(customCard).join(''):`<div class="empty">Zatím žádné vlastní textury.<br><br>Klikni na <b>+ Přidat texturu</b>.</div>`}else if(tab==='siko'){const a=filteredSiko();document.getElementById('resultCount').textContent=`Nalezeno ${a.length} z ${SIKO_ALL.length} položek`;g.innerHTML=catalogHtml(a,'Žádný obklad neodpovídá vybraným filtrům.')}else if(tab==='decor'){const a=filteredEgger(),visible=a.slice(0,LIMIT);document.getElementById('decorResultCount').textContent=`Nalezeno ${a.length} z ${EGGER.length} dekorů`;g.classList.add('decor-grid');g.innerHTML=visible.length?visible.map(eggerCard).join(''):`<div class="empty">Žádný dekor neodpovídá filtru.</div>`;if(a.length>visible.length)g.innerHTML+=`<button class="btn" style="grid-column:1/-1;padding:12px" onclick="LIMIT+=240;render()">Načíst další · zobrazeno ${visible.length} z ${a.length}</button>`;setTimeout(activateDecorLazy,0)}else if(tab==='polyhaven'){const a=filteredPolyHaven(),visible=a.slice(0,LIMIT);g.classList.remove('list');g.classList.add('decor-grid');g.innerHTML=visible.length?visible.map(phCard).join(''):`<div class="empty">${POLYHAVEN.length?'Žádný materiál neodpovídá filtru.':'Načítám Poly Haven katalog…'}</div>`;if(a.length>visible.length)g.innerHTML+=`<button class="btn" style="grid-column:1/-1;padding:12px" onclick="LIMIT+=180;render()">Načíst další · zobrazeno ${visible.length} z ${a.length}</button>`;setTimeout(activatePhLazy,0)}else if(tab==='ral'){const a=RAL.filter(x=>(x.code+' '+x.name+' '+x.hex).toLowerCase().includes(q));g.innerHTML=a.map(x=>colorCard(x.code,x.name,x.hex,'ral')).join('')}else{const a=NCS_PRESETS.map(code=>({code,hex:ncsHex(code)})).filter(x=>x.hex&&(x.code+' '+x.hex).toLowerCase().includes(q));g.innerHTML=a.map(x=>colorCard(x.code,'NCS screen preview',x.hex,'ncs')).join('')}}
+function eggerPreviewUrl(raw){try{const u=new URL(raw);u.searchParams.set('width','360');return u.toString()}catch(e){return raw}}let DECOR_OBSERVER=null;function activateDecorLazy(){if(DECOR_OBSERVER)DECOR_OBSERVER.disconnect();const imgs=[...document.querySelectorAll('img.decor-lazy[data-src]')];if(!('IntersectionObserver'in window)){imgs.forEach(i=>{i.src=i.dataset.src;i.removeAttribute('data-src')});return}DECOR_OBSERVER=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting){const i=e.target;i.src=i.dataset.src;i.removeAttribute('data-src');DECOR_OBSERVER.unobserve(i)}}),{rootMargin:'500px 0px'});imgs.forEach(i=>DECOR_OBSERVER.observe(i))}function eggerCard(x){const data=JSON.stringify({kind:'egger',code:x.code}).replace(/'/g,'&#39;');const img=x.image_url?`<img class="decor-lazy" data-src="${esc(eggerPreviewUrl(x.image_url))}" alt="">`:'';return `<div class="card decor-card" role="button" tabindex="0" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview">${img}</div><div class="copy"><button class="source-link" onclick="openSource('${esc(x.product_url)}',event)">EGGER ↗</button><div class="name">${esc(x.name)}</div><div class="decor-code">${esc(x.code)}</div></div></div>`}function optionSort(a,b){return String(a).localeCompare(String(b),'cs',{numeric:true,sensitivity:'base'})}function fillSelect(id,values,label){const el=document.getElementById(id),keep=el.value;const vals=Array.from(new Set(values.filter(Boolean))).sort(optionSort);el.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');if(vals.includes(keep))el.value=keep}function fillSikoFilters(){fillSelect('filterSize',SIKO_ALL.map(x=>x.filter_size||x.size_cm),'Všechny rozměry');fillSelect('filterBrand',SIKO_ALL.map(x=>x.filter_brand||x.brand),'Všechny značky');fillSelect('filterProduct',SIKO_ALL.map(x=>x.filter_product||x.series),'Všechny série');fillSelect('filterColor',SIKO_ALL.map(x=>x.filter_color),'Všechny barvy')}function resetSikoFilters(){['filterSize','filterBrand','filterProduct','filterColor'].forEach(id=>document.getElementById(id).value='');LIMIT=240;render()}function fillDecorFilters(){fillSelect('decorManufacturer',EGGER.map(x=>x.manufacturer||'EGGER'),'Všichni výrobci')}function resetDecorFilters(){document.getElementById('decorManufacturer').value='';LIMIT=240;render()}function filteredEgger(){const q=document.getElementById('search').value.trim().toLowerCase(),fm=document.getElementById('decorManufacturer').value;return EGGER.filter(x=>(!fm||(x.manufacturer||'EGGER')===fm)&&(!q||[x.name,x.code,x.base_code,x.texture,x.manufacturer].join(' ').toLowerCase().includes(q)))}function filteredSiko(){const q=document.getElementById('search').value.trim().toLowerCase(),fs=document.getElementById('filterSize').value,fb=document.getElementById('filterBrand').value,fp=document.getElementById('filterProduct').value,fc=document.getElementById('filterColor').value;return SIKO_ALL.filter(x=>{if(fs&&(x.filter_size||x.size_cm)!==fs)return false;if(fb&&(x.filter_brand||x.brand)!==fb)return false;if(fp&&(x.filter_product||x.series)!==fp)return false;if(fc&&x.filter_color!==fc)return false;if(q&&!([x.name,x.code,x.filter_brand,x.brand,x.filter_product,x.series,x.filter_size,x.size_cm,x.filter_color].join(' ').toLowerCase().includes(q)))return false;return true})}
+function customCard(x){const data=JSON.stringify({kind:'custom',id:x.id}).replace(/'/g,'&#39;');return `<div class="card" role="button" tabindex="0" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview" style="background-image:url('${fileUrl(x.path)}')"></div><div class="copy"><button class="delete" onclick="del('${x.id}',event)">Smazat</button><div class="name">${esc(x.name)}</div><div class="meta">${Math.round(x.width_mm)} × ${Math.round(x.height_mm)} mm${x.category_name?' · '+esc(x.category_name):''}</div></div></div>`}function render(){const q=document.getElementById('search').value.trim().toLowerCase(),g=document.getElementById('grid');g.classList.toggle('list',tab==='custom'||tab==='siko');g.classList.toggle('decor-grid',tab==='decor'||tab==='polyhaven');if(tab==='custom'){const a=CUSTOM.filter(x=>(x.name+' '+x.width_mm+' '+x.height_mm+' '+(x.category_name||'')).toLowerCase().includes(q));g.innerHTML=a.length?a.map(customCard).join(''):`<div class="empty">Zatím žádné vlastní textury.<br><br>Klikni na <b>+ Přidat texturu</b>.</div>`}else if(tab==='siko'){const a=filteredSiko();document.getElementById('resultCount').textContent=`Nalezeno ${a.length} z ${SIKO_ALL.length} položek`;g.innerHTML=catalogHtml(a,'Žádný obklad neodpovídá vybraným filtrům.')}else if(tab==='decor'){const a=filteredEgger(),visible=a.slice(0,LIMIT);document.getElementById('decorResultCount').textContent=`Nalezeno ${a.length} z ${EGGER.length} dekorů`;g.classList.add('decor-grid');g.innerHTML=visible.length?visible.map(eggerCard).join(''):`<div class="empty">Žádný dekor neodpovídá filtru.</div>`;if(a.length>visible.length)g.innerHTML+=`<button class="btn" style="grid-column:1/-1;padding:12px" onclick="LIMIT+=240;render()">Načíst další · zobrazeno ${visible.length} z ${a.length}</button>`;setTimeout(activateDecorLazy,0)}else if(tab==='polyhaven'){const a=filteredPolyHaven(),visible=a.slice(0,LIMIT);g.classList.remove('list');g.classList.add('decor-grid');g.innerHTML=visible.length?visible.map(phCard).join(''):`<div class="empty">${POLYHAVEN.length?'Žádný materiál neodpovídá filtru.':'Načítám Poly Haven katalog…'}</div>`;if(a.length>visible.length)g.innerHTML+=`<button class="btn" style="grid-column:1/-1;padding:12px" onclick="LIMIT+=180;render()">Načíst další · zobrazeno ${visible.length} z ${a.length}</button>`;setTimeout(activatePhLazy,0)}else if(tab==='ral'){const a=RAL.filter(x=>(x.code+' '+x.name+' '+x.hex).toLowerCase().includes(q));g.innerHTML=a.map(x=>colorCard(x.code,x.name,x.hex,'ral')).join('')}else{const a=NCS_PRESETS.map(code=>({code,hex:ncsHex(code)})).filter(x=>x.hex&&(x.code+' '+x.hex).toLowerCase().includes(q));g.innerHTML=a.map(x=>colorCard(x.code,'NCS screen preview',x.hex,'ncs')).join('')}}
 
 function useTypedNcs(){let code=document.getElementById('ncsInput').value.trim().toUpperCase();if(!/^NCS/.test(code))code='NCS S '+code.replace(/^S\s+/,'');const hex=ncsHex(code);if(!hex){alert('Neplatný NCS kód. Příklad: NCS S 2050-B90G');return}paint({kind:'ncs',name:code,hex})}
 function ncsHex(value){const m=String(value).trim().toUpperCase().match(/^(?:NCS|NCS\sS)\s(\d{2})(\d{2})-(N|R|G|B|Y)(\d{2})?(R|G|B|Y)?$/);if(!m)return null;const Sn=parseInt(m[1],10),Cn=parseInt(m[2],10),C1=m[3],N=parseInt(m[4]||'0',10);let R,G,B;if(C1==='N'){R=G=B=parseInt((1-Sn/100)*255,10)}else{const S=1.05*Sn-5.25,C=Cn;let Ra,Ba,Ga,x;if(C1==='Y'&&N<=60)Ra=1;else if((C1==='Y'&&N>60)||(C1==='R'&&N<=80)){x=C1==='Y'?N-60:N+40;Ra=(Math.sqrt(14884-x*x)-22)/100}else if((C1==='R'&&N>80)||C1==='B')Ra=0;else if(C1==='G'){x=N-170;Ra=(Math.sqrt(33800-x*x)-70)/100}if(C1==='Y'&&N<=80)Ba=0;else if((C1==='Y'&&N>80)||(C1==='R'&&N<=60)){x=C1==='Y'?(N-80)+20.5:(N+20)+20.5;Ba=(104-Math.sqrt(11236-x*x))/100}else if((C1==='R'&&N>60)||(C1==='B'&&N<=80)){x=C1==='R'?(N-60)-60:(N+40)-60;Ba=(Math.sqrt(10000-x*x)-10)/100}else if((C1==='B'&&N>80)||(C1==='G'&&N<=40)){x=C1==='B'?(N-80)-131:(N+20)-131;Ba=(122-Math.sqrt(19881-x*x))/100}else if(C1==='G'&&N>40)Ba=0;if(C1==='Y')Ga=(85-17/20*N)/100;else if(C1==='R'&&N<=60)Ga=0;else if(C1==='R'&&N>60){x=(N-60)+35;Ga=(67.5-Math.sqrt(5776-x*x))/100}else if(C1==='B'&&N<=60){x=N-68.5;Ga=(6.5+Math.sqrt(7044.5-x*x))/100}else if((C1==='B'&&N>60)||(C1==='G'&&N<=60))Ga=.9;else if(C1==='G'&&N>60){x=N-60;Ga=(90-x/8)/100}if([Ra,Ga,Ba].some(v=>!Number.isFinite(v)))return null;const avg=(Ra+Ga+Ba)/3,Rc=((avg-Ra)*(100-C)/100)+Ra,Gc=((avg-Ga)*(100-C)/100)+Ga,Bc=((avg-Ba)*(100-C)/100)+Ba,top=Math.max(Rc,Gc,Bc);if(!top)return null;const ss=1/top;R=Math.floor(Rc*ss*(100-S)/100*255);G=Math.floor(Gc*ss*(100-S)/100*255);B=Math.floor(Bc*ss*(100-S)/100*255)}const cl=v=>Math.max(0,Math.min(255,v|0)),h=v=>cl(v).toString(16).padStart(2,'0');return '#'+h(R)+h(G)+h(B)}
