@@ -44,6 +44,9 @@ COLOR_WORDS = {
     "fialová","fialova","violet","purple","lila","lilac",
     "přírodní","prirodni","natural","naturale","nature","roble","dune","paper","cenere","ash",
     "mix","barev","barevná","barevny","barevný","světle","svetle","tmavě","tmave",
+    "avorio","bruciato","miele","sbiancato","biscotto","cotto","pizzo","perla","tabacco",
+    "ocra","ottanio","senape","glacier","sky","dark","light","dust","pitch","mink","basalt",
+    "ambra","pomice","talco","cadmio","cobalto","ice","smoke","cotone","rojo","paja","salmon",
 }
 
 FINISH_WORDS = {
