@@ -1,0 +1,129 @@
+name: Publish 20-20 AI-TOOLS v0.4.2
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publish-ai-tools-v042.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Rebuild RBZ from staged package
+        run: |
+          cat .github/tmp/ai-tools-v042.part1               .github/tmp/ai-tools-v042.part2               .github/tmp/ai-tools-v042.part3               .github/tmp/ai-tools-v042.part4 | base64 -d > /tmp/20-20_AI-TOOLS_v0.4.2.rbz
+          echo "4eef4304a580517b6744bc14133278f16237154c1ec94d6947302ae8ac9a0df0  /tmp/20-20_AI-TOOLS_v0.4.2.rbz" | sha256sum -c -
+          rm -rf /tmp/ai-tools-check
+          mkdir -p /tmp/ai-tools-check
+          unzip -q /tmp/20-20_AI-TOOLS_v0.4.2.rbz -d /tmp/ai-tools-check
+          ruby -c /tmp/ai-tools-check/dvacet20-ai-tools.rb
+          ruby -c /tmp/ai-tools-check/dvacet20-ai-tools/nacti.rb
+          ruby -c /tmp/ai-tools-check/dvacet20-ai-tools/most.rb
+          cp /tmp/20-20_AI-TOOLS_v0.4.2.rbz SketchUpPlugins/20-20_AI-TOOLS_v0.4.2.rbz
+
+      - name: Update Toolbox plugin catalog
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path=Path("index.html")
+          text=path.read_text(encoding="utf-8")
+          needle="const SU_PLUGIN_CATALOG = ["
+          pos=text.find(needle)
+          if pos<0:
+              raise SystemExit("SU_PLUGIN_CATALOG not found")
+
+          arr_start=text.find("[",pos)
+          depth=0
+          quote=None
+          escape=False
+          arr_end=None
+          for i in range(arr_start,len(text)):
+              ch=text[i]
+              if quote:
+                  if escape:
+                      escape=False
+                  elif ch=="\\":
+                      escape=True
+                  elif ch==quote:
+                      quote=None
+                  continue
+              if ch in ("'", '"', "`"):
+                  quote=ch
+                  continue
+              if ch=="[":
+                  depth+=1
+              elif ch=="]":
+                  depth-=1
+                  if depth==0:
+                      arr_end=i
+                      break
+          if arr_end is None:
+              raise SystemExit("catalog closing bracket not found")
+
+          obj="""  {
+            id:'ai-tools',
+            loader:'dvacet20-ai-tools.rb',
+            name:'20-20 AI-TOOLS',
+            current:'0.4.2',
+            description:'Most mezi SketchUpem a RENDERMAKERem + knihovna materiálů. Nově automaticky spouští lokální adapter-agent.exe.',
+            meta:'V0.4.2: při startu SketchUpu se automaticky spustí adapter agent, pokud už neběží. Výchozí cesta je C:/2020agent/dist/adapter-agent.exe; pokud tam soubor není, plugin se zeptá na umístění. V Extensions > 20-20 AI-TOOLS lze agenta ručně spustit, změnit cestu a zobrazit aktuálně uloženou cestu. Most se načítá dál bez Ruby Console.',
+            icon:'library',
+            versions:[{"version":"0.4.2","file":"20-20_AI-TOOLS_v0.4.2.rbz","size":20679,"repo_file":"SketchUpPlugins/20-20_AI-TOOLS_v0.4.2.rbz"}]
+          }"""
+
+          obj_pos=text.find("id:'ai-tools'",arr_start,arr_end)
+          if obj_pos>=0:
+              start=text.rfind("\n  {",arr_start,obj_pos)
+              start=start+1 if start>=0 else text.rfind("{",arr_start,obj_pos)
+              depth=0;quote=None;escape=False;end=None
+              for i in range(start,arr_end):
+                  ch=text[i]
+                  if quote:
+                      if escape: escape=False
+                      elif ch=="\\": escape=True
+                      elif ch==quote: quote=None
+                      continue
+                  if ch in ("'", '"', "`"): quote=ch; continue
+                  if ch=="{": depth+=1
+                  elif ch=="}":
+                      depth-=1
+                      if depth==0:
+                          end=i+1
+                          break
+              if end is None:
+                  raise SystemExit("existing ai-tools object end not found")
+              text=text[:start]+obj+text[end:]
+          else:
+              prefix=text[:arr_end].rstrip()
+              comma="" if prefix.endswith("[") else ","
+              text=prefix+comma+"\n"+obj+"\n"+text[arr_end:]
+
+          path.write_text(text,encoding="utf-8")
+          PY
+
+      - name: Commit package and catalog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_AI-TOOLS_v0.4.2.rbz index.html
+          if git diff --cached --quiet; then
+            echo "Already published"
+            exit 0
+          fi
+          git commit -m "Publish 20-20 AI-TOOLS v0.4.2"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
