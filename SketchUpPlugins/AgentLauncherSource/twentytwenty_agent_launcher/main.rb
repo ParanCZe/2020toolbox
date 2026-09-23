@@ -7,7 +7,7 @@ module TwentyTwenty
   module AgentLauncher
     extend self
 
-    VERSION = '0.1.0'.freeze
+    VERSION = '0.1.1'.freeze
     PREF_SECTION = '20-20 Agent Launcher'.freeze
     PREF_ADAPTER = 'adapter_path'.freeze
     PREF_SCRIPT = 'most_rb_path'.freeze
@@ -29,16 +29,25 @@ module TwentyTwenty
       @launch_command.status_bar_text = 'Spustí adapter-agent.exe a potom načte most.rb do SketchUp Ruby prostředí.'
       setup_icon(@launch_command, 'agent_launcher.svg')
 
-      @settings_command = UI::Command.new('Nastavit cesty…') { configure_paths(true) }
-      @settings_command.tooltip = 'Nastavit cestu k adapter-agent.exe a most.rb'
-      @settings_command.status_bar_text = 'Změní uložené cesty pro 20-20 Agent Launcher.'
+      @adapter_path_command = UI::Command.new('Změnit cestu adapter-agent.exe…') { change_adapter_path }
+      @adapter_path_command.tooltip = 'Vybrat jiný adapter-agent.exe'
+      @adapter_path_command.status_bar_text = 'Změní uloženou cestu k adapter-agent.exe.'
+
+      @script_path_command = UI::Command.new('Změnit cestu most.rb…') { change_script_path }
+      @script_path_command.tooltip = 'Vybrat jiný most.rb'
+      @script_path_command.status_bar_text = 'Změní uloženou cestu k most.rb.'
+
+      @show_paths_command = UI::Command.new('Zobrazit nastavené cesty') { show_paths }
+      @show_paths_command.tooltip = 'Zobrazit aktuálně uložené cesty'
     end
 
     def create_menu
       root = UI.menu('Extensions').add_submenu('20-20 Agent Launcher')
       root.add_item(@launch_command)
       root.add_separator
-      root.add_item(@settings_command)
+      root.add_item(@adapter_path_command)
+      root.add_item(@script_path_command)
+      root.add_item(@show_paths_command)
     end
 
     def create_toolbar
@@ -103,49 +112,51 @@ module TwentyTwenty
       adapter = stored_adapter_path
       script = stored_script_path
 
-      # Requirement: on the first run, always ask for the adapter executable,
-      # even if the conventional C:/2020agent path already exists.
+      # Both paths are user-specific. On first run ask for BOTH, even when the
+      # conventional C:/2020agent paths happen to exist on this machine.
       unless adapter && File.file?(adapter)
         adapter = choose_adapter(adapter || DEFAULT_ADAPTER)
         return nil unless adapter
         save_adapter_path(adapter)
       end
 
-      # most.rb has a known default. Use it automatically when present;
-      # only ask if it moved or the saved path no longer exists.
       unless script && File.file?(script)
-        if File.file?(DEFAULT_SCRIPT)
-          script = DEFAULT_SCRIPT
-          save_script_path(script)
-        else
-          script = choose_script(script || DEFAULT_SCRIPT)
-          return nil unless script
-          save_script_path(script)
-        end
+        script = choose_script(script || DEFAULT_SCRIPT)
+        return nil unless script
+        save_script_path(script)
       end
 
       [adapter, script]
     end
 
-    def configure_paths(force = false)
-      current_adapter = stored_adapter_path || DEFAULT_ADAPTER
-      current_script = stored_script_path || DEFAULT_SCRIPT
-
-      adapter = choose_adapter(current_adapter)
-      return unless adapter
-      script = choose_script(current_script)
-      return unless script
-
-      save_adapter_path(adapter)
-      save_script_path(script)
-
-      UI.messagebox(
-        "20-20 Agent Launcher\n\nCesty uloženy:\n\n" \
-        "Adapter:\n#{adapter}\n\n" \
-        "most.rb:\n#{script}"
-      )
+    def change_adapter_path
+      current=stored_adapter_path || DEFAULT_ADAPTER
+      path=choose_adapter(current)
+      return unless path
+      save_adapter_path(path)
+      UI.messagebox("20-20 Agent Launcher\n\nCesta k adapteru uložena:\n#{path}")
     rescue StandardError => e
-      UI.messagebox("Nastavení cest selhalo:\n#{e.class}: #{e.message}")
+      UI.messagebox("Nastavení adapteru selhalo:\n#{e.class}: #{e.message}")
+    end
+
+    def change_script_path
+      current=stored_script_path || DEFAULT_SCRIPT
+      path=choose_script(current)
+      return unless path
+      save_script_path(path)
+      UI.messagebox("20-20 Agent Launcher\n\nCesta k most.rb uložena:\n#{path}")
+    rescue StandardError => e
+      UI.messagebox("Nastavení most.rb selhalo:\n#{e.class}: #{e.message}")
+    end
+
+    def show_paths
+      adapter=stored_adapter_path
+      script=stored_script_path
+      UI.messagebox(
+        "20-20 Agent Launcher\n\n" \
+        "adapter-agent.exe:\n#{adapter || '(zatím nenastaveno)'}\n\n" \
+        "most.rb:\n#{script || '(zatím nenastaveno)'}"
+      )
     end
 
     def choose_adapter(suggested)
