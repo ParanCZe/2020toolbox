@@ -9,8 +9,8 @@ module TwentyTwenty
       '20-20 Texture Library',
       'twentytwenty_texture_library/main'
     )
-    EXTENSION.description = 'Persistent texture/color library with click-to-paint workflow, merged SIKO Obklady, EGGER Decor, RAL and NCS palettes.'
-    EXTENSION.version = '0.1.6'
+    EXTENSION.description = 'Texture library with cleaned SIKO filters, EGGER decor textures, per-face positioning, RAL and NCS.'
+    EXTENSION.version = '0.1.7'
     EXTENSION.creator = '20-20'
     Sketchup.register_extension(EXTENSION, true)
   end
