@@ -23,12 +23,37 @@ jobs:
           text = path.read_text(encoding="utf-8")
           needle = "id:'texture-library'"
           pos = text.index(needle)
-          start = text.rfind("  {", 0, pos)
+          start = text.rfind("\n  {", 0, pos)
+          start = start + 1 if start >= 0 else text.rfind("{", 0, pos)
           if start < 0:
               raise SystemExit("Texture Library object start not found")
-          marker = "\n  }\n];"
-          marker_pos = text.index(marker, pos)
-          end = marker_pos + len("\n  }")
+
+          depth = 0
+          quote = None
+          escape = False
+          end = None
+          for i in range(start, len(text)):
+              ch = text[i]
+              if quote:
+                  if escape:
+                      escape = False
+                  elif ch == "\\":
+                      escape = True
+                  elif ch == quote:
+                      quote = None
+                  continue
+              if ch in ("'", '"', "`"):
+                  quote = ch
+                  continue
+              if ch == "{":
+                  depth += 1
+              elif ch == "}":
+                  depth -= 1
+                  if depth == 0:
+                      end = i + 1
+                      break
+          if end is None:
+              raise SystemExit("Texture Library object end not found")
           new = """  {
               id:'texture-library',
               loader:'twentytwenty_texture_library.rb',
