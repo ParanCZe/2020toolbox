@@ -8,8 +8,8 @@ require 'uri'
 module TwentyTwenty
   module TextureLibrary
     extend self
-    VERSION='0.1.6'.freeze
-    PREF_KEY='twentytwenty_texture_library_v016'.freeze
+    VERSION='0.1.7'.freeze
+    PREF_KEY='twentytwenty_texture_library_v017'.freeze
     LIB_ROOT=File.join((ENV['APPDATA'] || Dir.home),'2020toolbox','TextureLibrary').freeze
     TEX_ROOT=File.join(LIB_ROOT,'textures').freeze
     LIB_JSON=File.join(LIB_ROOT,'library.json').freeze
@@ -100,7 +100,7 @@ module TwentyTwenty
       raise 'Příliš mnoho přesměrování.' if limit<=0
       uri=URI.parse(url.to_s)
       raise 'Neplatná adresa obrázku.' unless uri.is_a?(URI::HTTPS)
-      req=Net::HTTP::Get.new(uri.request_uri,{'User-Agent'=>'20-20 Texture Library/0.1.6'})
+      req=Net::HTTP::Get.new(uri.request_uri,{'User-Agent'=>'20-20 Texture Library/0.1.7'})
       response=Net::HTTP.start(uri.host,uri.port,use_ssl:true,open_timeout:8,read_timeout:25){|http|http.request(req)}
       case response
       when Net::HTTPSuccess
@@ -207,6 +207,123 @@ module TwentyTwenty
       end
     end
 
+    def face_texture_axes(face)
+      edge=face.edges.max_by{|e|e.length.to_f}
+      return nil unless edge
+      u=edge.line[1].clone
+      u.normalize!
+      n=face.normal.clone
+      n.normalize!
+      v=n.cross(u)
+      return nil if v.length.to_f<=0.000001
+      v.normalize!
+      [u,v]
+    rescue StandardError
+      nil
+    end
+
+    def apply_face_mapping(face,material,x_mm=0.0,y_mm=0.0,rotation_deg=0.0,record_operation=true)
+      return false unless face && face.valid? && material && material.texture
+      axes=face_texture_axes(face)
+      return false unless axes
+      u,v=axes
+      angle=rotation_deg.to_f.degrees
+      ca=Math.cos(angle); sa=Math.sin(angle)
+      ru=Geom::Vector3d.new(u.x*ca+v.x*sa,u.y*ca+v.y*sa,u.z*ca+v.z*sa)
+      rv=Geom::Vector3d.new(-u.x*sa+v.x*ca,-u.y*sa+v.y*ca,-u.z*sa+v.z*ca)
+      ru.normalize!; rv.normalize!
+      origin=face.vertices.first.position
+      p0=origin.offset(ru,x_mm.to_f.mm).offset(rv,y_mm.to_f.mm)
+      p1=p0.offset(ru,material.texture.width)
+      p2=p0.offset(rv,material.texture.height)
+      mapping=[
+        p0,Geom::Point3d.new(0,0,0),
+        p1,Geom::Point3d.new(1,0,0),
+        p2,Geom::Point3d.new(0,1,0)
+      ]
+      model=Sketchup.active_model
+      model.start_operation('20-20 Upravit mapování textury',true,false,true) if record_operation
+      face.position_material(material,mapping,true)
+      face.set_attribute('20-20 Texture Library','map_x_mm',x_mm.to_f)
+      face.set_attribute('20-20 Texture Library','map_y_mm',y_mm.to_f)
+      face.set_attribute('20-20 Texture Library','map_rotation_deg',rotation_deg.to_f)
+      model.commit_operation if record_operation
+      model.active_view.invalidate
+      true
+    rescue StandardError => e
+      Sketchup.active_model.abort_operation rescue nil if record_operation
+      UI.messagebox("Úprava mapování selhala:\n#{e.class}: #{e.message}") if record_operation
+      false
+    end
+
+    def open_texture_positioner
+      model=Sketchup.active_model
+      faces=model.selection.grep(Sketchup::Face)
+      return UI.messagebox('Vyber přesně jednu plochu, jejíž texturu chceš posunout nebo otočit.') unless faces.length==1
+      face=faces.first
+      material=face.material
+      return UI.messagebox('Vybraná plocha nemá na přední straně materiál.') unless material
+      return UI.messagebox('Materiál na vybrané ploše nemá texturu.') unless material.texture
+
+      @position_face=face
+      @position_material=material
+      x=face.get_attribute('20-20 Texture Library','map_x_mm',0.0).to_f
+      y=face.get_attribute('20-20 Texture Library','map_y_mm',0.0).to_f
+      rot=face.get_attribute('20-20 Texture Library','map_rotation_deg',0.0).to_f
+
+      @position_dialog.close rescue nil if @position_dialog
+      dlg=UI::HtmlDialog.new(
+        dialog_title:'20-20 – Pozice textury',
+        preferences_key:'twentytwenty_texture_positioner_v1',
+        scrollable:false,resizable:true,width:520,height:390,min_width:430,min_height:330,
+        style:UI::HtmlDialog::STYLE_DIALOG
+      )
+      dlg.set_html(texture_positioner_html(material.display_name,x,y,rot))
+      dlg.add_action_callback('adjust_texture'){|_ctx,payload|
+        begin
+          data=JSON.parse(payload.to_s)
+          face_ref=@position_face
+          mat_ref=@position_material
+          next unless face_ref && face_ref.valid? && mat_ref && mat_ref.texture
+          apply_face_mapping(face_ref,mat_ref,data['x'].to_f,data['y'].to_f,data['rotation'].to_f,true)
+        rescue StandardError => e
+          UI.messagebox("Úprava mapování selhala:\n#{e.class}: #{e.message}")
+        end
+      }
+      dlg.add_action_callback('reset_texture'){|_ctx|
+        if @position_face && @position_face.valid? && @position_material
+          apply_face_mapping(@position_face,@position_material,0.0,0.0,0.0,true)
+        end
+      }
+      dlg.add_action_callback('close_positioner'){|_ctx| dlg.close}
+      dlg.set_on_closed{@position_dialog=nil;@position_face=nil;@position_material=nil}
+      @position_dialog=dlg
+      dlg.show
+      dlg.bring_to_front
+    rescue StandardError => e
+      UI.messagebox("Pozice textury: #{e.class}: #{e.message}")
+    end
+
+    def texture_positioner_html(material_name,x,y,rot)
+      safe_name=material_name.to_s.gsub('&','&amp;').gsub('<','&lt;').gsub('>','&gt;')
+      <<~HTML
+<!doctype html><html lang="cs"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}body{margin:0;background:#f5f5f5;color:#18181b;font:13px system-ui,Segoe UI,sans-serif}.head{background:#f7f197;border-bottom:1px solid #d8d16d;padding:14px 16px}.head b{font-size:16px}.head div{font-size:10px;margin-top:3px;color:#555}.wrap{padding:16px}.row{display:grid;grid-template-columns:82px 1fr 92px;gap:10px;align-items:center;margin:15px 0}.row label{font-weight:700}.row input[type=range]{width:100%}.row input[type=number]{width:100%;padding:7px;border:1px solid #ccc;border-radius:7px}.buttons{display:flex;gap:8px;margin-top:22px}.btn{border:1px solid #ccc;background:#fff;border-radius:8px;padding:9px 12px;cursor:pointer}.primary{background:#18181b;color:#fff;border-color:#18181b}.hint{font-size:11px;color:#666;line-height:1.45;margin-top:14px}
+</style></head><body><div class="head"><b>Pozice textury na vybrané ploše</b><div>#{safe_name}</div></div><div class="wrap">
+<div class="row"><label>Posun X</label><input id="xr" type="range" min="-3000" max="3000" step="1" value="#{x}"><input id="xn" type="number" step="1" value="#{x}"></div>
+<div class="row"><label>Posun Y</label><input id="yr" type="range" min="-3000" max="3000" step="1" value="#{y}"><input id="yn" type="number" step="1" value="#{y}"></div>
+<div class="row"><label>Rotace</label><input id="rr" type="range" min="-180" max="180" step="1" value="#{rot}"><input id="rn" type="number" min="-360" max="360" step="1" value="#{rot}"></div>
+<div class="buttons"><button class="btn" onclick="resetAll()">Reset</button><button class="btn primary" onclick="sketchup.close_positioner()">Hotovo</button></div>
+<div class="hint">X/Y jsou v milimetrech. Úprava se týká pouze právě vybrané plochy; ostatní plochy se stejným materiálem zůstanou beze změny.</div>
+</div><script>
+let timer=null;function send(){clearTimeout(timer);timer=setTimeout(()=>sketchup.adjust_texture(JSON.stringify({x:+xn.value||0,y:+yn.value||0,rotation:+rn.value||0})),35)}
+function pair(range,num){range.addEventListener('input',()=>{num.value=range.value;send()});num.addEventListener('input',()=>{range.value=num.value;send()})}
+const xr=document.getElementById('xr'),xn=document.getElementById('xn'),yr=document.getElementById('yr'),yn=document.getElementById('yn'),rr=document.getElementById('rr'),rn=document.getElementById('rn');pair(xr,xn);pair(yr,yn);pair(rr,rn);
+function resetAll(){xr.value=xn.value=0;yr.value=yn.value=0;rr.value=rn.value=0;sketchup.reset_texture()}
+</script></body></html>
+      HTML
+    end
+
     def show_dialog
       @dialog=build_dialog if @dialog.nil?
       @dialog.show
@@ -224,6 +341,7 @@ module TwentyTwenty
       dlg.add_action_callback('add_texture'){|_ctx| add_custom_texture}
       dlg.add_action_callback('delete_texture'){|_ctx,id| delete_custom_texture(id.to_s)}
       dlg.add_action_callback('paint'){|_ctx,payload| activate_paint_tool(payload)}
+      dlg.add_action_callback('open_positioner'){|_ctx| open_texture_positioner}
       dlg.add_action_callback('open_url'){|_ctx,url|
         u=url.to_s
         UI.openURL(u) if u.start_with?('https://www.siko.cz/') || u.start_with?('https://www.egger.com/')
@@ -397,7 +515,12 @@ module TwentyTwenty
           if candidate; face=candidate; break; end
         end
         return unless face
-        model=Sketchup.active_model; model.start_operation('20-20 Paint Texture',true); face.material=@material; model.commit_operation; view.invalidate
+        model=Sketchup.active_model
+        model.start_operation('20-20 Paint Texture',true)
+        face.material=@material
+        TwentyTwenty::TextureLibrary.apply_face_mapping(face,@material,0.0,0.0,0.0,false) if @material.texture
+        model.commit_operation
+        view.invalidate
       rescue StandardError => e
         Sketchup.active_model.abort_operation rescue nil
         UI.messagebox("Aplikace materiálu selhala:\n#{e.class}: #{e.message}")
@@ -409,12 +532,12 @@ module TwentyTwenty
       <<~HTML
 <!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 :root{--bg:#f5f5f5;--card:#fff;--line:#dedede;--text:#18181b;--muted:#71717a;--yellow:#f7f197}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px system-ui,Segoe UI,sans-serif}.head{position:sticky;top:0;z-index:10;background:var(--yellow);border-bottom:1px solid #d8d16d;padding:13px 16px;display:flex;align-items:center;justify-content:space-between}.head b{font-size:17px}.wrap{padding:14px}.tabs{display:flex;gap:7px;flex-wrap:wrap}.tab{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}.tab.active{background:#18181b;color:#fff;border-color:#18181b}.toolbar{display:flex;gap:8px;margin:12px 0;align-items:center;flex-wrap:wrap}.search{flex:1;min-width:220px;border:1px solid var(--line);border-radius:8px;padding:9px}.filters{display:none;grid-template-columns:repeat(4,minmax(120px,1fr)) auto;gap:7px;margin:-3px 0 12px;align-items:center}.filters select{width:100%;min-width:0;border:1px solid var(--line);border-radius:8px;background:#fff;padding:8px;font:inherit}.filter-reset{white-space:nowrap}.result-count{grid-column:1/-1;font-size:10px;color:var(--muted);margin-top:-1px}.color-pill{display:inline-flex;align-items:center;gap:5px}.color-dot{width:9px;height:9px;border:1px solid #aaa;border-radius:50%;display:inline-block}@media(max-width:760px){.filters{grid-template-columns:1fr 1fr}.filter-reset{grid-column:1/-1}.result-count{grid-column:1/-1}}.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 11px;cursor:pointer}.primary{background:#18181b;color:#fff;border-color:#18181b}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.grid.list{display:flex;flex-direction:column;gap:8px}.card{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;text-align:left;color:inherit}.card:hover{border-color:#999}.grid.list .card{display:grid;grid-template-columns:132px minmax(0,1fr);width:100%;min-height:96px}.preview{height:92px;background:#eee;background-size:cover;background-position:center;border-bottom:1px solid var(--line);overflow:hidden}.grid.list .preview{height:100%;min-height:96px;border-bottom:0;border-right:1px solid var(--line)}.preview img{width:100%;height:100%;object-fit:cover;display:block}.source-link{float:right;border:0;background:transparent;color:#52525b;text-decoration:underline;cursor:pointer;font-size:10px;padding:0}.swatch{height:92px;border-bottom:1px solid var(--line)}.copy{padding:9px}.name{font-weight:700}.meta{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.35}.delete{float:right;border:0;background:transparent;color:#991b1b;cursor:pointer;font-size:11px}.empty{border:1px dashed #ccc;border-radius:10px;padding:28px;text-align:center;color:var(--muted);grid-column:1/-1}.ncsbox{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.ncsbox input{flex:1;min-width:230px;border:1px solid var(--line);border-radius:8px;padding:9px}.hint{font-size:10px;color:var(--muted);line-height:1.4;margin:8px 0 12px}.decor-filter{display:none;grid-template-columns:minmax(180px,280px) auto;gap:7px;margin:-3px 0 12px;align-items:center}.decor-filter select{border:1px solid var(--line);border-radius:8px;background:#fff;padding:8px;font:inherit}.decor-filter .result-count{grid-column:1/-1}.grid.decor-grid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}.decor-card{border-radius:0;border:0;box-shadow:0 5px 12px rgba(0,0,0,.11)}.decor-card .preview{height:132px}.decor-card .copy{padding:12px}.decor-card .name{font-weight:400;font-size:12px;color:#666}.decor-code{font-size:16px;font-weight:700;margin-top:5px}.footer{margin-top:14px;font-size:10px;color:var(--muted);line-height:1.45}</style></head><body>
-<div class="head"><div><b>20-20 TEXTURE LIBRARY</b><div style="font-size:10px;margin-top:2px">vyber materiál → klikáním mapuj plochy</div></div><button class="btn" onclick="sketchup.close_dialog()">Zavřít</button></div><div class="wrap"><div class="tabs"><button class="tab active" data-tab="custom">Vlastní textury</button><button class="tab" data-tab="siko">Obklady</button><button class="tab" data-tab="decor">Dekor</button><button class="tab" data-tab="ral">RAL</button><button class="tab" data-tab="ncs">NCS</button></div><div class="toolbar"><input id="search" class="search" placeholder="Hledat…" oninput="LIMIT=240;render()"><button id="addBtn" class="btn primary" onclick="sketchup.add_texture()">+ Přidat texturu</button></div><div id="sikoFilters" class="filters"><select id="filterSize" onchange="LIMIT=240;render()"><option value="">Všechny rozměry</option></select><select id="filterBrand" onchange="LIMIT=240;render()"><option value="">Všechny značky</option></select><select id="filterProduct" onchange="LIMIT=240;render()"><option value="">Všechny výrobky</option></select><select id="filterColor" onchange="LIMIT=240;render()"><option value="">Všechny barvy</option></select><button class="btn filter-reset" onclick="resetSikoFilters()">Vymazat filtry</button><div id="resultCount" class="result-count"></div></div><div id="decorFilters" class="decor-filter"><select id="decorManufacturer" onchange="LIMIT=240;render()"><option value="">Všichni výrobci</option></select><button class="btn filter-reset" onclick="resetDecorFilters()">Vymazat filtr</button><div id="decorResultCount" class="result-count"></div></div><div id="ncsControls" class="ncsbox" style="display:none"><input id="ncsInput" value="NCS S 2050-B90G" placeholder="např. NCS S 2050-B90G"><button class="btn primary" onclick="useTypedNcs()">Použít NCS kód</button></div><div id="ncsHint" class="hint" style="display:none">NCS náhled je převod pro obrazovku, ne náhrada fyzického vzorníku. Můžeš zadat i vlastní platný NCS/NCS S kód.</div><div id="grid" class="grid"></div><div class="footer">Kliknutí na kartu aktivuje štětec. Potom klikáš na libovolné plochy ve SketchUpu; <b>Esc</b> režim ukončí. Vlastní textury se ukládají do <code>%APPDATA%\\2020toolbox\\TextureLibrary</code> a zůstanou dostupné i v dalších projektech. RAL/NCS hodnoty jsou pouze aproximace pro zobrazení na monitoru. <b>Obklady:</b> společná knihovna betonových obkladů a dlažeb SIKO s filtry. <b>Dekor:</b> katalog dekorů pro nábytek a interiér; aktuálně výrobce EGGER. Kliknutí na dekor stáhne originální EGGER obrazová data do lokální cache a aktivuje štětec.</div></div>
+<div class="head"><div><b>20-20 TEXTURE LIBRARY</b><div style="font-size:10px;margin-top:2px">vyber materiál → klikáním mapuj plochy</div></div><button class="btn" onclick="sketchup.close_dialog()">Zavřít</button></div><div class="wrap"><div class="tabs"><button class="tab active" data-tab="custom">Vlastní textury</button><button class="tab" data-tab="siko">Obklady</button><button class="tab" data-tab="decor">Dekor</button><button class="tab" data-tab="ral">RAL</button><button class="tab" data-tab="ncs">NCS</button></div><div class="toolbar"><input id="search" class="search" placeholder="Hledat…" oninput="LIMIT=240;render()"><button id="positionBtn" class="btn" onclick="sketchup.open_positioner()">↔ Upravit mapování vybrané plochy</button><button id="addBtn" class="btn primary" onclick="sketchup.add_texture()">+ Přidat texturu</button></div><div id="sikoFilters" class="filters"><select id="filterSize" onchange="LIMIT=240;render()"><option value="">Všechny rozměry</option></select><select id="filterBrand" onchange="LIMIT=240;render()"><option value="">Všechny značky</option></select><select id="filterProduct" onchange="LIMIT=240;render()"><option value="">Všechny série</option></select><select id="filterColor" onchange="LIMIT=240;render()"><option value="">Všechny barvy</option></select><button class="btn filter-reset" onclick="resetSikoFilters()">Vymazat filtry</button><div id="resultCount" class="result-count"></div></div><div id="decorFilters" class="decor-filter"><select id="decorManufacturer" onchange="LIMIT=240;render()"><option value="">Všichni výrobci</option></select><button class="btn filter-reset" onclick="resetDecorFilters()">Vymazat filtr</button><div id="decorResultCount" class="result-count"></div></div><div id="ncsControls" class="ncsbox" style="display:none"><input id="ncsInput" value="NCS S 2050-B90G" placeholder="např. NCS S 2050-B90G"><button class="btn primary" onclick="useTypedNcs()">Použít NCS kód</button></div><div id="ncsHint" class="hint" style="display:none">NCS náhled je převod pro obrazovku, ne náhrada fyzického vzorníku. Můžeš zadat i vlastní platný NCS/NCS S kód.</div><div id="grid" class="grid"></div><div class="footer">Kliknutí na kartu aktivuje štětec. Potom klikáš na libovolné plochy ve SketchUpu; <b>Esc</b> režim ukončí. Vlastní textury se ukládají do <code>%APPDATA%\\2020toolbox\\TextureLibrary</code> a zůstanou dostupné i v dalších projektech. RAL/NCS hodnoty jsou pouze aproximace pro zobrazení na monitoru. <b>Obklady:</b> společná knihovna betonových obkladů a dlažeb SIKO; rozměr je nominální rozměr z názvu produktu, značka a série jsou čištěné podle SIKO produktových dat. <b>Dekor:</b> aktuální katalog EGGER používá pouze samotný obraz dekoru. Tlačítko <b>Upravit mapování vybrané plochy</b> dovolí samostatně posunout X/Y a otočit texturu jen na jedné ploše.</div></div>
 <script>
 const RAL=#{ral_json};const NCS_PRESETS=#{ncs_json};let CUSTOM=[],SIKO_CONCRETE=[],SIKO_FLOOR=[],SIKO_ALL=[],EGGER=[],tab='custom',LIMIT=240;const COLOR_HEX={'Bílá':'#f5f5f2','Šedá':'#969696','Černá':'#202020','Béžová':'#d8c5a4','Hnědá':'#805b42','Modrá':'#6687a8','Zelená':'#718b67','Červená':'#a95149','Oranžová':'#c77c45','Žlutá':'#d4bb58','Růžová':'#cf9aa8','Fialová':'#8b7095','Ostatní':'#ddd'};window.setCustomTextures=items=>{CUSTOM=items||[];render()};window.setSikoTiles=items=>{SIKO_CONCRETE=items||[];rebuildSiko()};window.setSikoFloorTiles=items=>{SIKO_FLOOR=items||[];rebuildSiko()};window.setEggerDecors=items=>{EGGER=items||[];fillDecorFilters();render()};function rebuildSiko(){const seen=new Map();SIKO_CONCRETE.forEach(x=>{if(!seen.has(String(x.code)))seen.set(String(x.code),Object.assign({_kind:'siko'},x))});SIKO_FLOOR.forEach(x=>{if(!seen.has(String(x.code)))seen.set(String(x.code),Object.assign({_kind:'siko_floor'},x))});SIKO_ALL=Array.from(seen.values());fillSikoFilters();render()}document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;LIMIT=240;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));document.getElementById('addBtn').style.display=tab==='custom'?'':'none';document.getElementById('sikoFilters').style.display=tab==='siko'?'grid':'none';document.getElementById('decorFilters').style.display=tab==='decor'?'grid':'none';document.getElementById('ncsControls').style.display=tab==='ncs'?'flex':'none';document.getElementById('ncsHint').style.display=tab==='ncs'?'block':'none';document.getElementById('search').value='';render()});
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}function fileUrl(path){const p=String(path).split(String.fromCharCode(92)).join('/');return 'file:///'+p.split('/').map((x,i)=>(i===0&&/^[A-Za-z]:$/.test(x))?x:encodeURIComponent(x)).join('/')}function paint(o){sketchup.paint(JSON.stringify(o))}function del(id,e){e.stopPropagation();if(confirm('Odebrat texturu z knihovny?'))sketchup.delete_texture(id)}function openSource(url,e){e.stopPropagation();sketchup.open_url(url)}function colorCard(code,name,hex,kind){const data=JSON.stringify({kind,name:code,hex}).replace(/'/g,'&#39;');return `<button class="card" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="swatch" style="background:${hex}"></div><div class="copy"><div class="name">${esc(code)}</div><div class="meta">${esc(name||hex)} · ${esc(hex)}</div></div></button>`}function sikoCard(x){const data=JSON.stringify({kind:x._kind||'siko',code:x.code}).replace(/'/g,'&#39;');const img=x.image_url?`<img loading="lazy" src="${esc(x.image_url)}" alt="">`:'';const col=x.filter_color||'Ostatní',dot=COLOR_HEX[col]||COLOR_HEX.Ostatní;return `<div class="card" role="button" tabindex="0" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview">${img}</div><div class="copy"><button class="source-link" onclick="openSource('${esc(x.product_url)}',event)">SIKO ↗</button><div class="name">${esc(x.name)}</div><div class="meta">${esc(x.filter_brand||x.brand||'')} · ${esc(x.filter_product||x.series||'')} · ${esc(x.filter_size||x.size_cm||'rozměr neuveden')} cm</div><div class="meta color-pill"><span class="color-dot" style="background:${dot}"></span>${esc(col)} · ${esc(x.code||'')}</div></div></div>`}function catalogHtml(items,empty){if(!items.length)return `<div class="empty">${empty}</div>`;const visible=items.slice(0,LIMIT);let html=visible.map(sikoCard).join('');if(items.length>visible.length)html+=`<button class="btn" style="width:100%;padding:12px" onclick="LIMIT+=240;render()">Načíst další · zobrazeno ${visible.length} z ${items.length}</button>`;return html}
-function eggerCard(x){const data=JSON.stringify({kind:'egger',code:x.code}).replace(/'/g,'&#39;');const img=x.image_url?`<img loading="lazy" src="${esc(x.image_url)}" alt="">`:'';return `<div class="card decor-card" role="button" tabindex="0" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview">${img}</div><div class="copy"><button class="source-link" onclick="openSource('${esc(x.product_url)}',event)">EGGER ↗</button><div class="name">${esc(x.name)}</div><div class="decor-code">${esc(x.code)}</div></div></div>`}function optionSort(a,b){return String(a).localeCompare(String(b),'cs',{numeric:true,sensitivity:'base'})}function fillSelect(id,values,label){const el=document.getElementById(id),keep=el.value;const vals=Array.from(new Set(values.filter(Boolean))).sort(optionSort);el.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');if(vals.includes(keep))el.value=keep}function fillSikoFilters(){fillSelect('filterSize',SIKO_ALL.map(x=>x.filter_size||x.size_cm),'Všechny rozměry');fillSelect('filterBrand',SIKO_ALL.map(x=>x.filter_brand||x.brand),'Všechny značky');fillSelect('filterProduct',SIKO_ALL.map(x=>x.filter_product||x.series),'Všechny výrobky');fillSelect('filterColor',SIKO_ALL.map(x=>x.filter_color),'Všechny barvy')}function resetSikoFilters(){['filterSize','filterBrand','filterProduct','filterColor'].forEach(id=>document.getElementById(id).value='');LIMIT=240;render()}function fillDecorFilters(){fillSelect('decorManufacturer',EGGER.map(x=>x.manufacturer||'EGGER'),'Všichni výrobci')}function resetDecorFilters(){document.getElementById('decorManufacturer').value='';LIMIT=240;render()}function filteredEgger(){const q=document.getElementById('search').value.trim().toLowerCase(),fm=document.getElementById('decorManufacturer').value;return EGGER.filter(x=>(!fm||(x.manufacturer||'EGGER')===fm)&&(!q||[x.name,x.code,x.base_code,x.texture,x.manufacturer].join(' ').toLowerCase().includes(q)))}function filteredSiko(){const q=document.getElementById('search').value.trim().toLowerCase(),fs=document.getElementById('filterSize').value,fb=document.getElementById('filterBrand').value,fp=document.getElementById('filterProduct').value,fc=document.getElementById('filterColor').value;return SIKO_ALL.filter(x=>{if(fs&&(x.filter_size||x.size_cm)!==fs)return false;if(fb&&(x.filter_brand||x.brand)!==fb)return false;if(fp&&(x.filter_product||x.series)!==fp)return false;if(fc&&x.filter_color!==fc)return false;if(q&&!([x.name,x.code,x.filter_brand,x.brand,x.filter_product,x.series,x.filter_size,x.size_cm,x.filter_color].join(' ').toLowerCase().includes(q)))return false;return true})}
-function render(){const q=document.getElementById('search').value.trim().toLowerCase(),g=document.getElementById('grid');g.classList.toggle('list',tab==='custom'||tab==='siko');g.classList.toggle('decor-grid',tab==='decor');if(tab==='custom'){const a=CUSTOM.filter(x=>(x.name+' '+x.width_mm+' '+x.height_mm).toLowerCase().includes(q));g.innerHTML=a.length?a.map(x=>{const data=JSON.stringify({kind:'custom',id:x.id}).replace(/'/g,'&#39;');return `<div class="card" role="button" tabindex="0" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview" style="background-image:url('${fileUrl(x.path)}')"></div><div class="copy"><button class="delete" onclick="del('${x.id}',event)">Smazat</button><div class="name">${esc(x.name)}</div><div class="meta">${Math.round(x.width_mm)} × ${Math.round(x.height_mm)} mm</div></div></div>`}).join(''):`<div class="empty">Zatím žádné vlastní textury.<br><br>Klikni na <b>+ Přidat texturu</b>.</div>`}else if(tab==='siko'){const a=filteredSiko();document.getElementById('resultCount').textContent=`Nalezeno ${a.length} z ${SIKO_ALL.length} položek`;g.innerHTML=catalogHtml(a,'Žádný obklad neodpovídá vybraným filtrům.')}else if(tab==='decor'){const a=filteredEgger(),visible=a.slice(0,LIMIT);document.getElementById('decorResultCount').textContent=`Nalezeno ${a.length} z ${EGGER.length} dekorů`;g.classList.add('decor-grid');g.innerHTML=visible.length?visible.map(eggerCard).join(''):`<div class="empty">Žádný dekor neodpovídá filtru.</div>`;if(a.length>visible.length)g.innerHTML+=`<button class="btn" style="grid-column:1/-1;padding:12px" onclick="LIMIT+=240;render()">Načíst další · zobrazeno ${visible.length} z ${a.length}</button>`}else if(tab==='ral'){const a=RAL.filter(x=>(x.code+' '+x.name+' '+x.hex).toLowerCase().includes(q));g.innerHTML=a.map(x=>colorCard(x.code,x.name,x.hex,'ral')).join('')}else{const a=NCS_PRESETS.map(code=>({code,hex:ncsHex(code)})).filter(x=>x.hex&&(x.code+' '+x.hex).toLowerCase().includes(q));g.innerHTML=a.map(x=>colorCard(x.code,'NCS screen preview',x.hex,'ncs')).join('')}}
+function eggerPreviewUrl(raw){try{const u=new URL(raw);u.searchParams.set('width','360');return u.toString()}catch(e){return raw}}let DECOR_OBSERVER=null;function activateDecorLazy(){if(DECOR_OBSERVER)DECOR_OBSERVER.disconnect();const imgs=[...document.querySelectorAll('img.decor-lazy[data-src]')];if(!('IntersectionObserver'in window)){imgs.forEach(i=>{i.src=i.dataset.src;i.removeAttribute('data-src')});return}DECOR_OBSERVER=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting){const i=e.target;i.src=i.dataset.src;i.removeAttribute('data-src');DECOR_OBSERVER.unobserve(i)}}),{rootMargin:'500px 0px'});imgs.forEach(i=>DECOR_OBSERVER.observe(i))}function eggerCard(x){const data=JSON.stringify({kind:'egger',code:x.code}).replace(/'/g,'&#39;');const img=x.image_url?`<img class="decor-lazy" data-src="${esc(eggerPreviewUrl(x.image_url))}" alt="">`:'';return `<div class="card decor-card" role="button" tabindex="0" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview">${img}</div><div class="copy"><button class="source-link" onclick="openSource('${esc(x.product_url)}',event)">EGGER ↗</button><div class="name">${esc(x.name)}</div><div class="decor-code">${esc(x.code)}</div></div></div>`}function optionSort(a,b){return String(a).localeCompare(String(b),'cs',{numeric:true,sensitivity:'base'})}function fillSelect(id,values,label){const el=document.getElementById(id),keep=el.value;const vals=Array.from(new Set(values.filter(Boolean))).sort(optionSort);el.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');if(vals.includes(keep))el.value=keep}function fillSikoFilters(){fillSelect('filterSize',SIKO_ALL.map(x=>x.filter_size||x.size_cm),'Všechny rozměry');fillSelect('filterBrand',SIKO_ALL.map(x=>x.filter_brand||x.brand),'Všechny značky');fillSelect('filterProduct',SIKO_ALL.map(x=>x.filter_product||x.series),'Všechny série');fillSelect('filterColor',SIKO_ALL.map(x=>x.filter_color),'Všechny barvy')}function resetSikoFilters(){['filterSize','filterBrand','filterProduct','filterColor'].forEach(id=>document.getElementById(id).value='');LIMIT=240;render()}function fillDecorFilters(){fillSelect('decorManufacturer',EGGER.map(x=>x.manufacturer||'EGGER'),'Všichni výrobci')}function resetDecorFilters(){document.getElementById('decorManufacturer').value='';LIMIT=240;render()}function filteredEgger(){const q=document.getElementById('search').value.trim().toLowerCase(),fm=document.getElementById('decorManufacturer').value;return EGGER.filter(x=>(!fm||(x.manufacturer||'EGGER')===fm)&&(!q||[x.name,x.code,x.base_code,x.texture,x.manufacturer].join(' ').toLowerCase().includes(q)))}function filteredSiko(){const q=document.getElementById('search').value.trim().toLowerCase(),fs=document.getElementById('filterSize').value,fb=document.getElementById('filterBrand').value,fp=document.getElementById('filterProduct').value,fc=document.getElementById('filterColor').value;return SIKO_ALL.filter(x=>{if(fs&&(x.filter_size||x.size_cm)!==fs)return false;if(fb&&(x.filter_brand||x.brand)!==fb)return false;if(fp&&(x.filter_product||x.series)!==fp)return false;if(fc&&x.filter_color!==fc)return false;if(q&&!([x.name,x.code,x.filter_brand,x.brand,x.filter_product,x.series,x.filter_size,x.size_cm,x.filter_color].join(' ').toLowerCase().includes(q)))return false;return true})}
+function render(){const q=document.getElementById('search').value.trim().toLowerCase(),g=document.getElementById('grid');g.classList.toggle('list',tab==='custom'||tab==='siko');g.classList.toggle('decor-grid',tab==='decor');if(tab==='custom'){const a=CUSTOM.filter(x=>(x.name+' '+x.width_mm+' '+x.height_mm).toLowerCase().includes(q));g.innerHTML=a.length?a.map(x=>{const data=JSON.stringify({kind:'custom',id:x.id}).replace(/'/g,'&#39;');return `<div class="card" role="button" tabindex="0" data-payload='${data}' onclick="paint(JSON.parse(this.dataset.payload))"><div class="preview" style="background-image:url('${fileUrl(x.path)}')"></div><div class="copy"><button class="delete" onclick="del('${x.id}',event)">Smazat</button><div class="name">${esc(x.name)}</div><div class="meta">${Math.round(x.width_mm)} × ${Math.round(x.height_mm)} mm</div></div></div>`}).join(''):`<div class="empty">Zatím žádné vlastní textury.<br><br>Klikni na <b>+ Přidat texturu</b>.</div>`}else if(tab==='siko'){const a=filteredSiko();document.getElementById('resultCount').textContent=`Nalezeno ${a.length} z ${SIKO_ALL.length} položek`;g.innerHTML=catalogHtml(a,'Žádný obklad neodpovídá vybraným filtrům.')}else if(tab==='decor'){const a=filteredEgger(),visible=a.slice(0,LIMIT);document.getElementById('decorResultCount').textContent=`Nalezeno ${a.length} z ${EGGER.length} dekorů`;g.classList.add('decor-grid');g.innerHTML=visible.length?visible.map(eggerCard).join(''):`<div class="empty">Žádný dekor neodpovídá filtru.</div>`;if(a.length>visible.length)g.innerHTML+=`<button class="btn" style="grid-column:1/-1;padding:12px" onclick="LIMIT+=240;render()">Načíst další · zobrazeno ${visible.length} z ${a.length}</button>`;setTimeout(activateDecorLazy,0)}else if(tab==='ral'){const a=RAL.filter(x=>(x.code+' '+x.name+' '+x.hex).toLowerCase().includes(q));g.innerHTML=a.map(x=>colorCard(x.code,x.name,x.hex,'ral')).join('')}else{const a=NCS_PRESETS.map(code=>({code,hex:ncsHex(code)})).filter(x=>x.hex&&(x.code+' '+x.hex).toLowerCase().includes(q));g.innerHTML=a.map(x=>colorCard(x.code,'NCS screen preview',x.hex,'ncs')).join('')}}
 
 function useTypedNcs(){let code=document.getElementById('ncsInput').value.trim().toUpperCase();if(!/^NCS/.test(code))code='NCS S '+code.replace(/^S\s+/,'');const hex=ncsHex(code);if(!hex){alert('Neplatný NCS kód. Příklad: NCS S 2050-B90G');return}paint({kind:'ncs',name:code,hex})}
 function ncsHex(value){const m=String(value).trim().toUpperCase().match(/^(?:NCS|NCS\sS)\s(\d{2})(\d{2})-(N|R|G|B|Y)(\d{2})?(R|G|B|Y)?$/);if(!m)return null;const Sn=parseInt(m[1],10),Cn=parseInt(m[2],10),C1=m[3],N=parseInt(m[4]||'0',10);let R,G,B;if(C1==='N'){R=G=B=parseInt((1-Sn/100)*255,10)}else{const S=1.05*Sn-5.25,C=Cn;let Ra,Ba,Ga,x;if(C1==='Y'&&N<=60)Ra=1;else if((C1==='Y'&&N>60)||(C1==='R'&&N<=80)){x=C1==='Y'?N-60:N+40;Ra=(Math.sqrt(14884-x*x)-22)/100}else if((C1==='R'&&N>80)||C1==='B')Ra=0;else if(C1==='G'){x=N-170;Ra=(Math.sqrt(33800-x*x)-70)/100}if(C1==='Y'&&N<=80)Ba=0;else if((C1==='Y'&&N>80)||(C1==='R'&&N<=60)){x=C1==='Y'?(N-80)+20.5:(N+20)+20.5;Ba=(104-Math.sqrt(11236-x*x))/100}else if((C1==='R'&&N>60)||(C1==='B'&&N<=80)){x=C1==='R'?(N-60)-60:(N+40)-60;Ba=(Math.sqrt(10000-x*x)-10)/100}else if((C1==='B'&&N>80)||(C1==='G'&&N<=40)){x=C1==='B'?(N-80)-131:(N+20)-131;Ba=(122-Math.sqrt(19881-x*x))/100}else if(C1==='G'&&N>40)Ba=0;if(C1==='Y')Ga=(85-17/20*N)/100;else if(C1==='R'&&N<=60)Ga=0;else if(C1==='R'&&N>60){x=(N-60)+35;Ga=(67.5-Math.sqrt(5776-x*x))/100}else if(C1==='B'&&N<=60){x=N-68.5;Ga=(6.5+Math.sqrt(7044.5-x*x))/100}else if((C1==='B'&&N>60)||(C1==='G'&&N<=60))Ga=.9;else if(C1==='G'&&N>60){x=N-60;Ga=(90-x/8)/100}if([Ra,Ga,Ba].some(v=>!Number.isFinite(v)))return null;const avg=(Ra+Ga+Ba)/3,Rc=((avg-Ra)*(100-C)/100)+Ra,Gc=((avg-Ga)*(100-C)/100)+Ga,Bc=((avg-Ba)*(100-C)/100)+Ba,top=Math.max(Rc,Gc,Bc);if(!top)return null;const ss=1/top;R=Math.floor(Rc*ss*(100-S)/100*255);G=Math.floor(Gc*ss*(100-S)/100*255);B=Math.floor(Bc*ss*(100-S)/100*255)}const cl=v=>Math.max(0,Math.min(255,v|0)),h=v=>cl(v).toString(16).padStart(2,'0');return '#'+h(R)+h(G)+h(B)}
