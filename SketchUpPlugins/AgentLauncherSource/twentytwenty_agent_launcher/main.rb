@@ -89,7 +89,8 @@ module TwentyTwenty
       # Give the adapter a short moment to initialize before the bridge script loads.
       UI.start_timer(0.8, false) do
         begin
-          command = "load #{script.gsub('\\', '/').inspect}"
+          ruby_path=script.gsub('\\','/')
+          command="load '#{ruby_path.gsub("'", "\\'")}'"
           puts ">>> #{command}"
           load script
           puts '[20-20 Agent Launcher] most.rb načten.'
