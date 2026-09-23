@@ -25,7 +25,8 @@ TYPE_PREFIXES = [
 SKIP_AFTER_TYPE = {
     "venkovní","venkovni","interiérová","interierova","keramická","keramicka",
     "slinutá","slinuta","mrazuvzdorná","mrazuvzdorna","rektifikovaná","rektifikovana",
-    "velkoformátová","velkoformatova","2cm","2","cm",
+    "velkoformátová","velkoformatova","bazénová","bazenova","bazénový","bazenovy",
+    "protiskluzná","protiskluzna","technická","technicka","2cm","2","cm",
 }
 
 COLOR_WORDS = {
@@ -142,10 +143,9 @@ def normalize_item(item):
     if not sane_brand(brand):
         brand = existing_brand if sane_brand(existing_brand) else "Ostatní"
 
-    series = normalize_existing_series(item.get("series"), brand)
-    # Existing series from SIKO detail pages wins; otherwise derive from product title.
-    if not series:
-        series = infer_series(name, brand)
+    # Derive the series from the SIKO product title instead of trusting stale/combined
+    # detail-page breadcrumbs. This maps Rako Rave -> Rave, Argenta Kenzo -> Kenzo, etc.
+    series = infer_series(name, brand)
     if not series or n(series) in COLOR_WORDS or re.fullmatch(r"[\d.\- x×]+", series):
         series = "Ostatní"
 
@@ -171,7 +171,11 @@ def main():
             print("missing", path)
             continue
         data = json.loads(path.read_text(encoding="utf-8"))
-        items = [normalize_item(x) for x in (data.get("items") or [])]
+        raw_items = list(data.get("items") or [])
+        # The broad SIKO "Dlažby" category also contains tools/accessories. Keep only
+        # actual surface products that make sense in a texture library.
+        allowed = re.compile(r"^\s*(?:\(\d+\)\s*)?(?:Dlažba|Obklad|Dekor|Mozaika|Sokl|Schodovka)\b", re.I)
+        items = [normalize_item(x) for x in raw_items if allowed.search(clean(x.get("name")))]
         data["items"] = items
         data["filters"] = {
             "brand": sorted({x["filter_brand"] for x in items}, key=str.casefold),
