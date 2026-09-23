@@ -1,1 +1,1 @@
-publish v0.4.2 exact package
+publish v0.4.2 exact package retry 2
