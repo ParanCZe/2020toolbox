@@ -1,0 +1,62 @@
+name: Debug RAKO Rave Sources
+
+on:
+  push:
+    paths:
+      - '.github/workflows/debug-rako-rave.yml'
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests beautifulsoup4 pillow
+      - name: Inspect official RAKO ZIP and SIKO
+        run: |
+          python - <<'PY'
+          import io, re, zipfile, requests
+          from bs4 import BeautifulSoup
+          from PIL import Image
+
+          H={'User-Agent':'Mozilla/5.0 (20-20 Texture Library quality check)'}
+          zurl='https://www.rako.cz/file/edee/produkty-serie/rako-rave.zip'
+          r=requests.get(zurl,headers=H,timeout=60)
+          print('RAKO ZIP',r.status_code,r.headers.get('content-type'),len(r.content))
+          if r.ok:
+            z=zipfile.ZipFile(io.BytesIO(r.content))
+            rows=[]
+            for n in z.namelist():
+              if n.lower().endswith(('.jpg','.jpeg','.png','.webp','.tif','.tiff')):
+                try:
+                  data=z.read(n)
+                  im=Image.open(io.BytesIO(data))
+                  rows.append((n,im.size,len(data),im.mode))
+                except Exception as e:
+                  rows.append((n,None,None,str(e)))
+            print('IMAGE COUNT',len(rows))
+            for row in rows:
+              if any(code.lower() in row[0].lower() for code in ['dak62899','dak62900','dak62901','rave']):
+                print('RAKO_IMAGE',row)
+            print('TOP LARGEST:')
+            for row in sorted([x for x in rows if x[1]],key=lambda x:x[1][0]*x[1][1],reverse=True)[:40]:
+              print(row)
+
+          listing='https://www.siko.cz/obklady-dlazby/c/C999-obklady-dlazby?query=%3Arelevance%3AA1%3ARako'
+          rr=requests.get(listing,headers=H,timeout=60)
+          print('SIKO LIST',rr.status_code,len(rr.text))
+          soup=BeautifulSoup(rr.text,'html.parser')
+          hrefs=[]
+          for a in soup.find_all('a',href=True):
+            txt=' '.join(a.stripped_strings)
+            href=a['href']
+            if any(code in (txt+' '+href) for code in ['DAK62899.1','DAK62900.1','DAK62901.1']):
+              hrefs.append((txt,href))
+          print('SIKO HREFS',hrefs[:20])
+          # Also regex nearby any occurrence.
+          for code in ['DAK62899.1','DAK62900.1','DAK62901.1']:
+            p=rr.text.find(code)
+            print('\nCODE',code,'AT',p)
+            print(rr.text[max(0,p-1500):p+2500] if p>=0 else 'not found')
+          PY
