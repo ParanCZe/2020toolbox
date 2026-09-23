@@ -1,0 +1,112 @@
+name: Publish AI Model Exporter v0.1.0
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publish-ai-model-exporter-v010.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update Toolbox plugin catalog
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path=Path("index.html")
+          text=path.read_text(encoding="utf-8")
+          needle="const SU_PLUGIN_CATALOG = ["
+          pos=text.find(needle)
+          if pos<0:
+              raise SystemExit("SU_PLUGIN_CATALOG not found")
+
+          # Find closing bracket of the catalog array while respecting quoted strings.
+          arr_start=text.find("[",pos)
+          depth=0
+          quote=None
+          escape=False
+          arr_end=None
+          for i in range(arr_start,len(text)):
+              ch=text[i]
+              if quote:
+                  if escape:
+                      escape=False
+                  elif ch=="\\":
+                      escape=True
+                  elif ch==quote:
+                      quote=None
+                  continue
+              if ch in ("'", '"', "`"):
+                  quote=ch
+                  continue
+              if ch=="[":
+                  depth+=1
+              elif ch=="]":
+                  depth-=1
+                  if depth==0:
+                      arr_end=i
+                      break
+          if arr_end is None:
+              raise SystemExit("SU_PLUGIN_CATALOG closing bracket not found")
+
+          obj="""  {
+            id:'model-exporter',
+            loader:'twentytwenty_ai_model_exporter.rb',
+            name:'20-20 AI Model Exporter',
+            current:'0.1.0',
+            description:'AI-ready export celého SketchUp modelu: FBX + lehký GLB + manifest scén, kamer, tagů, hierarchie a materiálů.',
+            meta:'V0.1.0 exportuje FBX v metrech s triangulovanou geometrií a texturami, GLB pro rychlý AI/realtime import a 20-20_model_manifest.json. Manifest uchová scény, eye/target/up/FOV kamer, viditelnost tagů, section planes, komponentovou hierarchii, transformace a materiálová/PBR metadata.',
+            icon:'export',
+            versions:[{"version":"0.1.0","file":"20-20_AI_Model_Exporter_v0.1.0.rbz","size":7276,"repo_file":"SketchUpPlugins/20-20_AI_Model_Exporter_v0.1.0.rbz"}]
+          }"""
+
+          # Replace existing object if rerun, otherwise append before array end.
+          obj_pos=text.find("id:'model-exporter'",arr_start,arr_end)
+          if obj_pos>=0:
+              start=text.rfind("\n  {",arr_start,obj_pos)
+              start = start+1 if start>=0 else text.rfind("{",arr_start,obj_pos)
+              depth=0;quote=None;escape=False;end=None
+              for i in range(start,arr_end):
+                  ch=text[i]
+                  if quote:
+                      if escape: escape=False
+                      elif ch=="\\": escape=True
+                      elif ch==quote: quote=None
+                      continue
+                  if ch in ("'", '"', "`"): quote=ch; continue
+                  if ch=="{": depth+=1
+                  elif ch=="}":
+                      depth-=1
+                      if depth==0:
+                          end=i+1
+                          break
+              if end is None: raise SystemExit("existing model-exporter object end not found")
+              text=text[:start]+obj+text[end:]
+          else:
+              prefix=text[:arr_end].rstrip()
+              comma="" if prefix.endswith("[") else ","
+              text=prefix+comma+"\n"+obj+"\n"+text[arr_end:]
+
+          path.write_text(text,encoding="utf-8")
+          PY
+      - name: Commit Toolbox catalog update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "Catalog already current"
+            exit 0
+          fi
+          git commit -m "Publish AI Model Exporter v0.1.0"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
