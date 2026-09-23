@@ -189,7 +189,7 @@ module TwentyTwenty
           use_hidden_objects: (page.use_hidden_objects? rescue false),
           use_section_planes: (page.use_section_planes? rescue false),
           camera: camera_hash(camera),
-          axes: axes_hash(page.axes rescue nil),
+          axes: axes_hash((page.axes rescue nil)),
           visible_tags: scene_visible_tags(model, page),
           hidden_top_level_entities: scene_hidden_entities(page),
           active_section_planes: scene_section_planes(page),
@@ -294,7 +294,7 @@ module TwentyTwenty
           internal_name: layer.name.to_s,
           visible_now: (layer.visible? rescue true),
           folder: folder_path(folder),
-          color: color_hash(layer.color rescue nil)
+          color: color_hash((layer.color rescue nil))
         }
       end
     end
@@ -318,7 +318,7 @@ module TwentyTwenty
         entry = {
           name: material.display_name.to_s,
           internal_name: material.name.to_s,
-          color: color_hash(material.color rescue nil),
+          color: color_hash((material.color rescue nil)),
           alpha: (material.alpha.to_f rescue 1.0),
           material_type: (material.materialType.to_i rescue nil),
           texture: texture_hash(texture),
@@ -337,23 +337,23 @@ module TwentyTwenty
       if material.respond_to?(:metalness_enabled?)
         data[:metalness_enabled] = material.metalness_enabled? rescue nil
         data[:metallic_factor] = material.metallic_factor.to_f rescue nil
-        data[:metallic_texture] = texture_hash(material.metallic_texture rescue nil)
+        data[:metallic_texture] = texture_hash((material.metallic_texture rescue nil))
       end
       if material.respond_to?(:roughness_enabled?)
         data[:roughness_enabled] = material.roughness_enabled? rescue nil
         data[:roughness_factor] = material.roughness_factor.to_f rescue nil
-        data[:roughness_texture] = texture_hash(material.roughness_texture rescue nil)
+        data[:roughness_texture] = texture_hash((material.roughness_texture rescue nil))
       end
       if material.respond_to?(:normal_enabled?)
         data[:normal_enabled] = material.normal_enabled? rescue nil
         data[:normal_scale] = material.normal_scale.to_f rescue nil
         data[:normal_style] = material.normal_style rescue nil
-        data[:normal_texture] = texture_hash(material.normal_texture rescue nil)
+        data[:normal_texture] = texture_hash((material.normal_texture rescue nil))
       end
       if material.respond_to?(:ao_enabled?)
         data[:ao_enabled] = material.ao_enabled? rescue nil
         data[:ao_strength] = material.ao_strength.to_f rescue nil
-        data[:ao_texture] = texture_hash(material.ao_texture rescue nil)
+        data[:ao_texture] = texture_hash((material.ao_texture rescue nil))
       end
       data
     end
@@ -382,7 +382,7 @@ module TwentyTwenty
         name: entity_name(entity),
         tag: (entity.layer.display_name.to_s rescue nil),
         hidden: (entity.hidden? rescue false),
-        material: material_name(entity.material rescue nil)
+        material: material_name((entity.material rescue nil))
       }
 
       case entity
