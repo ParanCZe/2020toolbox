@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/publish-ai-tools-v042.yml'
+      - '.github/tmp/ai-tools-v042.trigger'
   workflow_dispatch:
 
 permissions:
