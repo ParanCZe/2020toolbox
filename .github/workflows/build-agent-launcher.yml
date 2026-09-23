@@ -25,18 +25,18 @@ jobs:
       - name: Build RBZ
         run: |
           cd SketchUpPlugins/AgentLauncherSource
-          rm -f ../20-20_Agent_Launcher_v0.1.0.rbz
-          zip -r ../20-20_Agent_Launcher_v0.1.0.rbz             twentytwenty_agent_launcher.rb             twentytwenty_agent_launcher
+          rm -f ../20-20_Agent_Launcher_v0.1.1.rbz
+          zip -r ../20-20_Agent_Launcher_v0.1.1.rbz             twentytwenty_agent_launcher.rb             twentytwenty_agent_launcher
       - name: Commit RBZ
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add SketchUpPlugins/20-20_Agent_Launcher_v0.1.0.rbz
+          git add SketchUpPlugins/20-20_Agent_Launcher_v0.1.1.rbz
           if git diff --cached --quiet; then
             echo "RBZ unchanged"
             exit 0
           fi
-          git commit -m "Build Agent Launcher v0.1.0"
+          git commit -m "Build Agent Launcher v0.1.1"
           for attempt in 1 2 3; do
             if git push; then exit 0; fi
             git pull --rebase origin main
