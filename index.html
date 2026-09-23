@@ -2706,11 +2706,11 @@ const SU_PLUGIN_CATALOG = [
   id:'agent-launcher',
   loader:'twentytwenty_agent_launcher.rb',
   name:'20-20 Agent Launcher',
-  current:'0.1.1',
+  current:'0.1.2',
   description:'Jedním kliknutím spustí uživatelem zvolený adapter-agent.exe a načte uživatelem zvolený most.rb do SketchUp Ruby prostředí.',
-  meta:'V0.1.1: při prvním spuštění se zeptá na obě cesty. V Extensions > 20-20 Agent Launcher jsou samostatná tlačítka Změnit cestu adapter-agent.exe, Změnit cestu most.rb a Zobrazit nastavené cesty. Po spuštění otevře Ruby Console, nastartuje adapter a provede load z uložené cesty. Duplicitní běžící adapter znovu nespouští.',
+  meta:'V0.1.2: Ruby Console se už vůbec neotevírá. Kliknutí na Spustit 20-20 Agent spustí adapter-agent.exe a potichu provede load z uložené cesty k most.rb přímo ve stejném SketchUp Ruby runtime. Cesty zůstávají uživatelské a měnitelné samostatnými tlačítky v Extensions.',
   icon:'export',
-  versions:[{"version":"0.1.0","file":"20-20_Agent_Launcher_v0.1.0.rbz","size":3854,"repo_file":"SketchUpPlugins/20-20_Agent_Launcher_v0.1.0.rbz"},{"version":"0.1.1","file":"20-20_Agent_Launcher_v0.1.1.rbz","size":3945,"repo_file":"SketchUpPlugins/20-20_Agent_Launcher_v0.1.1.rbz"}]
+  versions:[{"version":"0.1.0","file":"20-20_Agent_Launcher_v0.1.0.rbz","size":3854,"repo_file":"SketchUpPlugins/20-20_Agent_Launcher_v0.1.0.rbz"},{"version":"0.1.1","file":"20-20_Agent_Launcher_v0.1.1.rbz","size":3945,"repo_file":"SketchUpPlugins/20-20_Agent_Launcher_v0.1.1.rbz"},{"version":"0.1.2","file":"20-20_Agent_Launcher_v0.1.2.rbz","size":3663,"repo_file":"SketchUpPlugins/20-20_Agent_Launcher_v0.1.2.rbz"}]
 }
 ];
 function suPluginIcon(type){
