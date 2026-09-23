@@ -118,10 +118,15 @@ def item_from_listing(a, full, code):
     if not dims:
         dims = nominal
 
-    brand = ""
-    m = re.match(r"(?:Dlažba(?:\s+II\.jakost)?|Schodovka|Sokl)\s+([^\s]+)", name, re.I)
-    if m:
-        brand = clean(m.group(1))
+    brand = clean(a.get("data-brand"))
+    if not brand:
+        tagged = card.find("a", attrs={"data-brand": True})
+        if tagged:
+            brand = clean(tagged.get("data-brand"))
+    if not brand:
+        m = re.match(r"(?:\(\d+\)\s*)?(?:Dlažba(?:\s+II\.jakost)?|Obklad|Dekor|Schodovka|Sokl|Mozaika)\s+([^\s]+)", name, re.I)
+        if m:
+            brand = clean(m.group(1))
 
     w_cm = dims[0] if dims else None
     h_cm = dims[1] if dims else None
