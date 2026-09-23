@@ -9,8 +9,8 @@ module TwentyTwenty
       '20-20 Texture Library',
       'twentytwenty_texture_library/main'
     )
-    EXTENSION.description = 'Texture library with SIKO, EGGER, in-SketchUp Texture Club live browser, per-face positioning, RAL and NCS.'
-    EXTENSION.version = '0.1.9'
+    EXTENSION.description = 'Texture library with SIKO, EGGER, direct Poly Haven CC0 materials, per-face positioning, RAL and NCS.'
+    EXTENSION.version = '0.2.0'
     EXTENSION.creator = '20-20'
     Sketchup.register_extension(EXTENSION, true)
   end
