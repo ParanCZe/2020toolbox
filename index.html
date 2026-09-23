@@ -1014,14 +1014,14 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
             <div id="print3d-health" class="print3d-health" style="margin-top:8px">Nahraj model pro kontrolu.</div>
           </div>
           <div class="print3d-box">
-            <h3>ODHAD TISKU</h3>
+            <h3>VÝPOČET TISKU · PRUSASLICER</h3>
             <div class="print3d-stats">
               <div class="print3d-stat"><span>Počet vrstev</span><b id="print3d-layer-count">–</b></div>
               <div class="print3d-stat"><span>Odhad času</span><b id="print3d-print-time">–</b></div>
               <div class="print3d-stat"><span>Filament</span><b id="print3d-filament">–</b></div>
               <div class="print3d-stat"><span>Hmotnost</span><b id="print3d-mass">–</b></div>
             </div>
-            <div id="print3d-estimate-note" class="print3d-estimate-note">Odhad se počítá ze stejných řezů, které používá náhled vrstev.</div>
+            <div id="print3d-estimate-note" class="print3d-estimate-note">Rychlý náhled se ukáže hned, ale cena se doplní až podle skutečného lokálního PrusaSliceru.</div>
           </div>
           <div class="print3d-box">
             <h3>CENOVÝ ODHAD</h3>
@@ -1036,7 +1036,7 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
                 <label>Elektřina [Kč/kWh]<input id="print3d-price-kwh" type="number" min="0" step="0.1" value="7" oninput="update3DPrintCost()"></label>
                 <label>Průměrný příkon [W]<input id="print3d-power-w" type="number" min="1" step="5" value="120" oninput="update3DPrintCost()"></label>
               </div>
-              <div class="print3d-estimate-note">Ceny jsou orientační. Uprav si cenu své PETG cívky, elektřiny a průměrný příkon tiskárny.</div>
+              <div class="print3d-estimate-note"><b>Cena se počítá z PrusaSliceru.</b> Filament vychází z jeho G-code statistiky a elektřina z jeho času tisku × nastaveného příkonu. Uprav si jen cenu cívky, elektřiny a příkon tiskárny.</div>
             </div>
           </div>
         </div>
@@ -6309,7 +6309,7 @@ const print3dState={
   initialized:false,deps:null,renderer:null,scene:null,camera:null,controls:null,root:null,file:null,
   sourceDims:null,analysis:null,grid:null,bedOutline:null,resizeObserver:null,animationStarted:false,
   profilesInitialized:false,sliceMode:false,sliceGroup:null,nozzleDot:null,nozzleTrail:null,nozzleAnimation:0,
-  triangleCache:null,sliceCache:new Map(),supportCache:new Map(),estimateTimer:null,estimateToken:0,lastLayerPath:[],lastEstimate:null,
+  triangleCache:null,sliceCache:new Map(),supportCache:new Map(),estimateTimer:null,estimateToken:0,slicerEstimateTimer:null,slicerEstimateToken:0,slicerEstimateBusy:false,slicerEstimateQueued:false,slicerEstimatePromise:null,lastPrusaSlice:null,lastSlicerError:null,lastLayerPath:[],lastEstimate:null,
   playToken:0,playbackActive:false,measureMode:false,measurePointsLocal:[],measureGroup:null,measurePointerDown:null,repairBusy:false,repairBackup:null,lastRepairResult:null,
   uiMode:'simple',simplePrepared:false,simplePreparing:false,
   manifoldDeps:null,manifoldLoadPromise:null,meshFixModule:null,meshFixLoadPromise:null,kiriFactory:null,kiriFactoryName:null,kiriLoadPromise:null,kiriLastError:null,kiriBusy:false,
@@ -6493,7 +6493,7 @@ function clear3DPrintModel(confirmIt=true){
 }
 
 function reset3DPrintStats(){
-  ['source-dims','output-dims','triangles','meshes','boundary','degenerate','volume','filesize','layer-count','print-time','filament','mass'].forEach(id=>{const e=document.getElementById('print3d-'+id);if(e)e.textContent='–'});print3dState.lastEstimate=null;update3DPrintCost();
+  ['source-dims','output-dims','triangles','meshes','boundary','degenerate','volume','filesize','layer-count','print-time','filament','mass'].forEach(id=>{const e=document.getElementById('print3d-'+id);if(e)e.textContent='–'});print3dState.lastEstimate=null;print3dState.lastPrusaSlice=null;update3DPrintCost();
   const h=document.getElementById('print3d-health');if(h){h.className='print3d-health';h.textContent='Nahraj model pro kontrolu.'}const rr=document.getElementById('print3d-repair-report');if(rr){rr.className='print3d-repair-report';rr.innerHTML=''}const ru=document.getElementById('print3d-repair-undo-btn');if(ru)ru.disabled=true;
   const li=document.getElementById('print3d-layer-info');if(li)li.textContent='Vrstva –';
   const sl=document.getElementById('print3d-layer-slider');if(sl){sl.min=0;sl.max=0;sl.value=0;sl.disabled=true}
@@ -7050,7 +7050,7 @@ function apply3DPrintRecommendedSettings(show=true){
   update3DPrintLayerControls();render3DPrintLayer();schedule3DPrintEstimate();if(show){const st=document.getElementById('st-3dprint');if(st)st.textContent='Doporučení bylo přepočítáno podle geometrie modelu, účelu a cíle tisku.'}
 }
 function invalidate3DPrintSupportCache(){print3dState.supportCache?.clear?.()}
-function invalidate3DPrintSliceCache(){print3dState.triangleCache=null;print3dState.sliceCache?.clear?.();invalidate3DPrintSupportCache();print3dState.lastLayerPath=[];print3dState.preparedSlicerCopy=null;stop3DPrintNozzleAnimation(true)}
+function invalidate3DPrintSliceCache(){print3dState.triangleCache=null;print3dState.sliceCache?.clear?.();invalidate3DPrintSupportCache();print3dState.lastLayerPath=[];print3dState.preparedSlicerCopy=null;print3dState.lastPrusaSlice=null;stop3DPrintNozzleAnimation(true)}
 function get3DPrintTriangleCache(){
   if(print3dState.triangleCache)return print3dState.triangleCache;
   const root=print3dState.root,d=print3dState.deps;if(!root||!d)return null;const {THREE}=d;root.updateMatrixWorld(true);
@@ -7142,25 +7142,99 @@ async function animate3DPrintNozzle(){
   for(let idx=1;idx<=n;idx++){if(token!==print3dState.playToken)break;set3DPrintLayerInternal(idx);render3DPrintLayer(true);const st=document.getElementById('st-3dprint');if(st)st.textContent=`Přehrávání tisku — vrstva ${idx-1}/${Math.max(0,n-1)}…`;const path=print3dState.lastLayerPath||[];if(path.length)await animate3DPrintPathOnce(path,idx,token);else await new Promise(r=>setTimeout(r,25))}
   if(token===print3dState.playToken){print3dState.playbackActive=false;if(sb)sb.disabled=true;if(pb)pb.textContent='▶ Přehrát celý tisk';const st=document.getElementById('st-3dprint');if(st)st.textContent=`Přehrání dokončeno — vrstva ${Math.max(0,n-1)}/${Math.max(0,n-1)}.`}
 }
-function schedule3DPrintEstimate(){clearTimeout(print3dState.estimateTimer);if(!print3dState.root)return;print3dState.estimateTimer=setTimeout(()=>estimate3DPrint(),320)}
+function schedule3DPrintEstimate(){clearTimeout(print3dState.estimateTimer);clearTimeout(print3dState.slicerEstimateTimer);if(!print3dState.root)return;const token=++print3dState.slicerEstimateToken;print3dState.lastPrusaSlice=null;print3dState.lastSlicerError=null;print3dState.lastEstimate=null;update3DPrintCost();print3dState.estimateTimer=setTimeout(()=>estimate3DPrint(),220);print3dState.slicerEstimateTimer=setTimeout(()=>start3DPrintPrusaEstimate(token),1400)}
 function format3DPrintDuration(sec){if(!Number.isFinite(sec)||sec<=0)return '–';const h=Math.floor(sec/3600),m=Math.round((sec-h*3600)/60);return h?`${h} h ${m} min`:`${m} min`}
 function update3DPrintCost(){
   const e=print3dState.lastEstimate,fil=document.getElementById('print3d-cost-filament'),el=document.getElementById('print3d-cost-electricity'),tot=document.getElementById('print3d-cost-total');
   if(!fil||!el||!tot)return;
-  if(!e||!Number.isFinite(e.mass)||!Number.isFinite(e.sec)){fil.textContent='–';el.textContent='–';tot.textContent='–';update3DPrintSimpleUI();return}
+  const ready=e?.source==='prusaslicer',hasMass=ready&&Number.isFinite(e.mass)&&e.mass>=0,hasTime=ready&&Number.isFinite(e.sec)&&e.sec>0;
+  if(!ready){const t=print3dState.slicerEstimateBusy?'počítám…':'čeká na PrusaSlicer';fil.textContent=t;el.textContent=t;tot.textContent=t;update3DPrintSimpleUI();return}
   const priceKg=Math.max(0,Number(document.getElementById('print3d-price-kg')?.value||0)),priceKwh=Math.max(0,Number(document.getElementById('print3d-price-kwh')?.value||0)),powerW=Math.max(0,Number(document.getElementById('print3d-power-w')?.value||0));
-  const filamentCost=e.mass/1000*priceKg,electricityCost=e.sec/3600*powerW/1000*priceKwh,total=filamentCost+electricityCost;
-  const money=v=>`${v.toLocaleString('cs-CZ',{minimumFractionDigits:v<10?2:1,maximumFractionDigits:2})} Kč`;
-  fil.textContent=money(filamentCost);el.textContent=money(electricityCost);tot.textContent=money(total);update3DPrintSimpleUI();
+  const filamentCost=hasMass?e.mass/1000*priceKg:NaN,electricityCost=hasTime?e.sec/3600*powerW/1000*priceKwh:NaN,total=Number.isFinite(filamentCost)&&Number.isFinite(electricityCost)?filamentCost+electricityCost:NaN;
+  const money=v=>Number.isFinite(v)?`${v.toLocaleString('cs-CZ',{minimumFractionDigits:v<10?2:1,maximumFractionDigits:2})} Kč`:'–';fil.textContent=money(filamentCost);el.textContent=money(electricityCost);tot.textContent=money(total);update3DPrintSimpleUI();
 }
 async function estimate3DPrint(){
   const token=++print3dState.estimateToken,out=current3DPrintDims();if(!out)return;update3DPrintLayerControls();const layers=calc3DPrintLayerCount();if(!layers)return;const cache=get3DPrintTriangleCache();if(!cache)return;const samples=Math.max(4,Math.min(cache.count>220000?10:cache.count>100000?16:24,layers)),perimeters=Math.max(1,num3D('print3d-perimeters',3)),ps=Math.max(1,num3D('print3d-speed-perim',35)),is=Math.max(1,num3D('print3d-speed-infill',50)),travel=Math.max(1,num3D('print3d-speed-travel',180)),lh=Math.max(.03,num3D('print3d-layer-height',.15)),nozzle=num3D('print3d-nozzle',.4),width=nozzle*1.125;let cp=0,ip=0,used=0;
   let sp=0;for(let s=0;s<samples;s++){if(token!==print3dState.estimateToken)return;const idx=1+Math.round((layers-1)*(samples===1?0:s/(samples-1))),z=layer3DPrintZ(idx),cont=slice3DPrintContours(z),sup=generate3DPrintSupports(idx);if(!cont.length&&!sup.length)continue;cp+=cont.reduce((a,x)=>a+segLength3D(x),0)*perimeters;const inf=generate3DPrintInfill(cont,idx);ip+=inf.reduce((a,x)=>a+segLength3D(x),0);sp+=sup.reduce((a,x)=>a+segLength3D(x),0);used++;if(s%4===3)await new Promise(r=>setTimeout(r,0))}
   if(!used)return;const factor=layers/used,totalPerim=cp*factor,totalInfill=ip*factor*1.08,totalSupport=sp*factor,supportSpeed=Math.min(is,40);let sec=totalPerim/ps+totalInfill/is+totalSupport/supportSpeed+(totalPerim+totalInfill+totalSupport)*.12/travel+layers*.75+300;let path=totalPerim+totalInfill+totalSupport;
   const vol=path*width*lh,filArea=Math.PI*Math.pow(1.75/2,2),filLen=vol/filArea,mat=PRINT3D_MATERIALS[document.getElementById('print3d-material')?.value||'pla']||PRINT3D_MATERIALS.pla,mass=vol/1000*mat.density;
-  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('print3d-print-time',format3DPrintDuration(sec));set('print3d-filament',filLen>=1000?`${(filLen/1000).toFixed(2)} m`:`${Math.round(filLen)} mm`);set('print3d-mass',`${mass.toFixed(mass<10?1:0)} g`);print3dState.lastEstimate={sec,mass,filLen};update3DPrintCost();const note=document.getElementById('print3d-estimate-note');if(note)note.textContent=`Orientační výpočet z ${used} reprezentativních vrstev (${samples} vzorků), šířka extruze ~${width.toFixed(2)} mm. Podpěry jsou do odhadu zahrnuté skutečnými generovanými drahami. Skutečný čas se může lišit podle akcelerací a konkrétní geometrie.`;update3DPrintSimpleUI();
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('print3d-print-time',format3DPrintDuration(sec));set('print3d-filament',filLen>=1000?`${(filLen/1000).toFixed(2)} m`:`${Math.round(filLen)} mm`);set('print3d-mass',`${mass.toFixed(mass<10?1:0)} g`);print3dState.lastEstimate={sec,mass,filLen,source:'preview'};update3DPrintCost();const note=document.getElementById('print3d-estimate-note');if(note&&!print3dState.slicerEstimateBusy)note.textContent=`Rychlý náhled z ${used} reprezentativních vrstev. Cena na něj není napojená — čeká na lokální PrusaSlicer.`;update3DPrintSimpleUI();
 }
 
+
+
+function parse3DPrintPrusaDuration(value){
+  const s=String(value||'').trim();if(!s)return NaN;
+  if(/^\d+(?:\.\d+)?$/.test(s))return Number(s);
+  const colon=s.match(/(?:(\d+)\s*:)?(\d{1,2})\s*:(\d{1,2})/);if(colon)return Number(colon[1]||0)*3600+Number(colon[2]||0)*60+Number(colon[3]||0);
+  let sec=0,hit=false;const d=s.match(/(\d+(?:\.\d+)?)\s*d/i),h=s.match(/(\d+(?:\.\d+)?)\s*h/i),m=s.match(/(\d+(?:\.\d+)?)\s*m/i),ss=s.match(/(\d+(?:\.\d+)?)\s*s/i);
+  if(d){sec+=Number(d[1])*86400;hit=true}if(h){sec+=Number(h[1])*3600;hit=true}if(m){sec+=Number(m[1])*60;hit=true}if(ss){sec+=Number(ss[1]);hit=true}return hit?sec:NaN;
+}
+function inspect3DPrintPrusaMotion(gcode){
+  const lines=String(gcode||'').split(/\r?\n/);let absXYZ=true,absE=true,x=0,y=0,z=0,e=0,feed=0,sec=0,filLen=0;
+  const val=(line,k)=>{const m=line.match(new RegExp('(?:^|\\s)'+k+'(-?\\d+(?:\\.\\d+)?)','i'));return m?Number(m[1]):null};
+  for(const raw of lines){const line=raw.split(';')[0].trim();if(!line)continue;
+    if(/^G90\b/i.test(line)){absXYZ=true;continue}if(/^G91\b/i.test(line)){absXYZ=false;continue}if(/^M82\b/i.test(line)){absE=true;continue}if(/^M83\b/i.test(line)){absE=false;continue}
+    if(/^G92\b/i.test(line)){const E=val(line,'E');if(E!=null)e=E;continue}
+    if(!/^G0?[123]\b/i.test(line))continue;
+    const X=val(line,'X'),Y=val(line,'Y'),Z=val(line,'Z'),E=val(line,'E'),F=val(line,'F');if(F!=null&&F>0)feed=F;
+    const nx=X==null?x:(absXYZ?X:x+X),ny=Y==null?y:(absXYZ?Y:y+Y),nz=Z==null?z:(absXYZ?Z:z+Z),ne=E==null?e:(absE?E:e+E),de=E==null?0:(absE?ne-e:E);
+    if(de>0)filLen+=de;const dist=Math.hypot(nx-x,ny-y,nz-z)||Math.abs(de);if(feed>0&&dist>0)sec+=dist/feed*60;x=nx;y=ny;z=nz;e=ne;
+  }
+  return {sec:sec>0?sec:NaN,filLen:filLen>0?filLen:NaN};
+}
+function extract3DPrintPrusaStats(gcode){
+  const text=String(gcode||''),pick=re=>{const m=text.match(re);return m?Number(m[1]):NaN};
+  let filLen=pick(/^\s*;\s*(?:total\s+)?filament\s+used\s*\[mm\]\s*=\s*([0-9.]+)/im);
+  let volumeCm3=pick(/^\s*;\s*(?:total\s+)?filament\s+used\s*\[cm3\]\s*=\s*([0-9.]+)/im);
+  let mass=pick(/^\s*;\s*(?:total\s+)?filament\s+used\s*\[g\]\s*=\s*([0-9.]+)/im);
+  let sec=NaN,timeSource='prusaslicer';
+  const tm=text.match(/^\s*;\s*estimated\s+printing\s+time\s*\(normal mode\)\s*=\s*([^\r\n]+)/im)||text.match(/^\s*;\s*estimated\s+printing\s+time[^=]*=\s*([^\r\n]+)/im);
+  if(tm)sec=parse3DPrintPrusaDuration(tm[1]);
+  if(!Number.isFinite(filLen)||filLen<=0||!Number.isFinite(sec)||sec<=0){const motion=inspect3DPrintPrusaMotion(text);if((!Number.isFinite(filLen)||filLen<=0)&&Number.isFinite(motion.filLen))filLen=motion.filLen;if((!Number.isFinite(sec)||sec<=0)&&Number.isFinite(motion.sec)){sec=motion.sec;timeSource='gcode-motion'}}
+  const mat=PRINT3D_MATERIALS[document.getElementById('print3d-material')?.value||'pla']||PRINT3D_MATERIALS.pla;
+  if((!Number.isFinite(mass)||mass<=0)&&Number.isFinite(volumeCm3)&&volumeCm3>0)mass=volumeCm3*mat.density;
+  if((!Number.isFinite(mass)||mass<=0)&&Number.isFinite(filLen)&&filLen>0){const area=Math.PI*Math.pow(1.75/2,2);mass=(filLen*area/1000)*mat.density}
+  return {sec:Number.isFinite(sec)&&sec>0?sec:NaN,filLen:Number.isFinite(filLen)&&filLen>0?filLen:NaN,mass:Number.isFinite(mass)&&mass>0?mass:NaN,timeSource};
+}
+function apply3DPrintPrusaStats(gcode,origin='auto'){
+  const e=extract3DPrintPrusaStats(gcode),set=(id,v)=>{const n=document.getElementById(id);if(n)n.textContent=v};
+  if(!Number.isFinite(e.filLen)||!Number.isFinite(e.mass))throw new Error('PrusaSlicer nedodal použitelnou spotřebu filamentu.');
+  set('print3d-print-time',Number.isFinite(e.sec)?format3DPrintDuration(e.sec):'–');set('print3d-filament',e.filLen>=1000?`${(e.filLen/1000).toFixed(2)} m`:`${Math.round(e.filLen)} mm`);set('print3d-mass',`${e.mass.toFixed(e.mass<10?1:0)} g`);
+  print3dState.lastEstimate={sec:e.sec,mass:e.mass,filLen:e.filLen,source:'prusaslicer',timeSource:e.timeSource,origin};update3DPrintCost();
+  const note=document.getElementById('print3d-estimate-note');if(note)note.textContent=`✓ Cena a spotřeba jsou z lokálního PrusaSliceru${Number.isFinite(e.sec)?' včetně jeho odhadu času':''}.${e.timeSource==='gcode-motion'?' Čas nebyl v metadatech G-code, proto je dopočten z jeho pohybů a rychlostí.':''}`;
+  update3DPrintSimpleUI();return e;
+}
+function get3DPrintPrusaSliceKey(){
+  if(!print3dState.root||!print3dState.file)return '';
+  try{print3dState.root.updateMatrixWorld?.(true);const matrix=Array.from(print3dState.root.matrixWorld?.elements||[]).map(v=>Number(v.toFixed(6))),f=print3dState.file;return JSON.stringify({file:[f.name,f.size,f.lastModified],matrix,settings:get3DPrintPrusaBridgeSettings()})}catch(e){return ''}
+}
+async function run3DPrintPrusaSlice(silent=false){
+  if(!(await check3DPrintPrusaBridge(true)))throw new Error('PrusaBridge není spuštěný nebo PrusaSlicer ještě není připravený.');
+  const baked=await p3CurrentBakedSTL(),form=new FormData();form.append('file',new Blob([baked.buffer],{type:'application/sla'}),'toolbox_input.stl');form.append('settings',JSON.stringify({...get3DPrintPrusaBridgeSettings(),sourceMode:'Windows RepairAsync → PrusaSlicer'}));
+  const st=document.getElementById('st-3dprint'),status=document.getElementById('print3d-cura-status');if(!silent&&st)st.textContent='Windows RepairAsync opravuje tiskovou kopii a PrusaSlicer ji slicuje…';if(!silent&&status)status.innerHTML='<b>WINDOWS REPAIRASYNC → PRUSASLICER</b><br>Před slicingem se přesná STL z vieweru opraví Windows 3D repair algoritmem. Až opravený výstup dostane PrusaSlicer.';
+  const resp=await p3BridgeFetch('/slice',{method:'POST',body:form},900000);if(!resp.ok)throw new Error(await p3BridgeError(resp));
+  let gcode=await resp.text();gcode=validate3DPrintSlicerGcode(gcode);const bounds=inspect3DPrintGcodeBounds(gcode,null),bz=num3D('print3d-bedz',210);if(!bounds.size||bounds.count<10)throw new Error('PrusaSlicer vrátil G-code bez dostatečného množství tiskových pohybů.');if(bounds.size.z>bz*1.15)throw new Error(`G-code má zjevně neplatnou výšku ${bounds.size.z.toFixed(1)} mm (limit tiskárny ${bz.toFixed(1)} mm).`);
+  return {gcode,bounds,ver:resp.headers.get('X-PrusaSlicer-Version')||p3BridgeState().status?.slicerVersion||'PrusaSlicer',mode:resp.headers.get('X-Prusa-Slice-Mode')||'',repairMode:resp.headers.get('X-Prusa-Repair-Mode')||'Windows RepairAsync',engine:resp.headers.get('X-Repair-Engine')||'Windows.Graphics.Printing3D.RepairAsync'};
+}
+function start3DPrintPrusaEstimate(token){
+  if(!print3dState.root||token!==print3dState.slicerEstimateToken)return;
+  if(print3dState.slicerBusy||print3dState.slicerEstimateBusy){print3dState.slicerEstimateQueued=true;return}
+  const p=estimate3DPrintFromPrusa(token);print3dState.slicerEstimatePromise=p;p.finally(()=>{if(print3dState.slicerEstimatePromise===p)print3dState.slicerEstimatePromise=null}).catch(()=>{});
+}
+async function estimate3DPrintFromPrusa(token=print3dState.slicerEstimateToken){
+  if(!print3dState.root||token!==print3dState.slicerEstimateToken||print3dState.slicerEstimateBusy)return;
+  print3dState.slicerEstimateBusy=true;update3DPrintCost();const key=get3DPrintPrusaSliceKey(),note=document.getElementById('print3d-estimate-note');if(note)note.textContent='Lokální PrusaSlicer právě počítá skutečný čas, filament a cenu…';
+  try{
+    const run=await run3DPrintPrusaSlice(true);if(token!==print3dState.slicerEstimateToken||key!==get3DPrintPrusaSliceKey())return;
+    run.key=key;print3dState.lastPrusaSlice=run;apply3DPrintPrusaStats(run.gcode,'auto');print3dState.lastSlicerError=null;const st=document.getElementById('st-3dprint');if(st)st.textContent='PrusaSlicer přepočítal spotřebu, čas a cenu tisku.';
+  }catch(e){
+    console.warn('PrusaSlicer price estimate',e);if(token===print3dState.slicerEstimateToken){print3dState.lastSlicerError=e?.message||String(e);print3dState.lastPrusaSlice=null;print3dState.lastEstimate=null;update3DPrintCost();if(note)note.textContent='Pro přesnou cenu spusť PrusaBridge. Cena se schválně nepočítá z interního odhadu.'}
+  }finally{
+    print3dState.slicerEstimateBusy=false;update3DPrintCost();
+    if((print3dState.slicerEstimateQueued||token!==print3dState.slicerEstimateToken)&&!print3dState.slicerBusy){print3dState.slicerEstimateQueued=false;const next=print3dState.slicerEstimateToken;clearTimeout(print3dState.slicerEstimateTimer);print3dState.slicerEstimateTimer=setTimeout(()=>start3DPrintPrusaEstimate(next),450)}
+  }
+}
 
 function layer3DPrintNozzleZ(idx){const first=Math.max(.01,num3D('print3d-first-layer',.2)),lh=Math.max(.01,num3D('print3d-layer-height',.15));return idx===1?first:first+(idx-1)*lh}
 function loopCentroid3DPrint(poly){let x=0,y=0;for(const p of poly){x+=p[0];y+=p[1]}return [x/poly.length,y/poly.length]}
@@ -8452,30 +8526,21 @@ async function export3DPrintGcode(){
   const root=print3dState.root,f=print3dState.file;if(!root||!f||print3dState.slicerBusy)return;
   const st=document.getElementById('st-3dprint'),status=document.getElementById('print3d-cura-status'),btn=document.getElementById('btn-3dprint-export'),simpleBtn=document.getElementById('print3d-simple-export'),out=current3DPrintDims(),bx=num3D('print3d-bedx',250),by=num3D('print3d-bedy',210),bz=num3D('print3d-bedz',210);
   if(!out||out.x>bx+.01||out.y>by+.01||out.z>bz+.01){alert('Model se nevejde na tiskovou plochu MK3S. Zmenši ho měřítkem nebo změň orientaci.');if(print3dState.uiMode==='advanced')open3DPrintTab('model');return}
-  print3dState.slicerBusy=true;if(btn)btn.disabled=true;if(simpleBtn)simpleBtn.disabled=true;
+  clearTimeout(print3dState.slicerEstimateTimer);++print3dState.slicerEstimateToken;print3dState.slicerEstimateQueued=false;print3dState.slicerBusy=true;if(btn)btn.disabled=true;if(simpleBtn)simpleBtn.disabled=true;
   try{
-    if(!(await check3DPrintPrusaBridge(true)))throw new Error('PrusaBridge 3.14x není připravený. Klikni na „Spustit PrusaBridge“ nebo „Aktualizovat Bridge“.');
-    if(st)st.textContent='Windows RepairAsync opravuje tiskovou kopii a PrusaSlicer ji slicuje…';
-    if(status)status.innerHTML='<b>WINDOWS REPAIRASYNC → PRUSASLICER</b><br>Před slicingem se přesná STL z vieweru opraví Windows 3D repair algoritmem. Až opravený výstup dostane PrusaSlicer.';
-    const baked=await p3CurrentBakedSTL();
-    const form=new FormData();form.append('file',new Blob([baked.buffer],{type:'application/sla'}),'toolbox_input.stl');form.append('settings',JSON.stringify({...get3DPrintPrusaBridgeSettings(),sourceMode:'Windows RepairAsync → PrusaSlicer'}));
-    const resp=await p3BridgeFetch('/slice',{method:'POST',body:form},900000);if(!resp.ok)throw new Error(await p3BridgeError(resp));
-    let gcode=await resp.text();gcode=validate3DPrintSlicerGcode(gcode);
-    const bounds=inspect3DPrintGcodeBounds(gcode,null);if(!bounds.size||bounds.count<10)throw new Error('PrusaSlicer vrátil G-code bez dostatečného množství tiskových pohybů.');
-    // XY rozsah záměrně neporovnáváme 1:1 s modelem: skirt, brim a podpěry mohou být větší než objekt.
-    // Hlídáme pouze zjevně absurdní Z nebo překročení rozměru podložky s velkou rezervou.
-    if(bounds.size.z>bz*1.15)throw new Error(`G-code má zjevně neplatnou výšku ${bounds.size.z.toFixed(1)} mm (limit tiskárny ${bz.toFixed(1)} mm).`);
-    const ver=resp.headers.get('X-PrusaSlicer-Version')||p3BridgeState().status?.slicerVersion||'PrusaSlicer',mode=resp.headers.get('X-Prusa-Slice-Mode')||'',repairMode=resp.headers.get('X-Prusa-Repair-Mode')||'Windows RepairAsync',engine=resp.headers.get('X-Repair-Engine')||'Windows.Graphics.Printing3D.RepairAsync',tc=`${bounds.size.x.toFixed(1)} × ${bounds.size.y.toFixed(1)} × ${bounds.size.z.toFixed(1)} mm`;
+    if(print3dState.slicerEstimatePromise){try{await print3dState.slicerEstimatePromise}catch(e){}}
+    const key=get3DPrintPrusaSliceKey();let run=print3dState.lastPrusaSlice?.key===key?print3dState.lastPrusaSlice:null;
+    if(!run){run=await run3DPrintPrusaSlice(false);run.key=key;print3dState.lastPrusaSlice=run}
+    apply3DPrintPrusaStats(run.gcode,'export');
+    const {gcode,bounds,ver,mode,repairMode,engine}=run,tc=`${bounds.size.x.toFixed(1)} × ${bounds.size.y.toFixed(1)} × ${bounds.size.z.toFixed(1)} mm`;
     const header=`; 20-20-TOOLBOX V3.14x\n; slicer_engine = LOCAL ${ver}\n; repair_engine = ${engine}\n; repair_mode = ${repairMode}\n; source = ${f.name}\n; toolpath_bounds_including_support_skirt = ${tc}\n; IMPORTANT: verify in PrusaSlicer G-code Viewer before printing\n`;
-    const ratio=String(document.getElementById('print3d-scale')?.value||1).replace(/[^0-9._-]/g,'');
-    const downloadName=f.name.replace(/\.[^.]+$/,'')+`_MK3S_WINDOWS_REPAIR_1-${ratio}.gcode`;
+    const ratio=String(document.getElementById('print3d-scale')?.value||1).replace(/[^0-9._-]/g,''),downloadName=f.name.replace(/\.[^.]+$/,'')+`_MK3S_WINDOWS_REPAIR_1-${ratio}.gcode`;
     open3DPrintGcodePreview(header+gcode,downloadName);
-    if(st)st.textContent='G-code vytvořen. Zkontroluj náhled a potom zvol Stáhnout G-code.';
-    if(status)status.innerHTML=`<b>✓ WINDOWS REPAIRASYNC → PRUSASLICER · HOTOVO</b><br><b>${escapeHtml(ver)}</b><br>Repair: ${escapeHtml(repairMode)}<br>Tiskový rozsah včetně skirt/brim/support: ${escapeHtml(tc)}.${mode?'<br>CLI profil: '+escapeHtml(mode):''}<br><b>Otevřen náhled G-code. Stažení je povolené až po úspěšném načtení vieweru.</b>`;
+    if(st)st.textContent='G-code vytvořen. Cena, čas a spotřeba jsou převzaté z tohoto PrusaSlicer výstupu.';
+    if(status)status.innerHTML=`<b>✓ WINDOWS REPAIRASYNC → PRUSASLICER · HOTOVO</b><br><b>${escapeHtml(ver)}</b><br>Repair: ${escapeHtml(repairMode)}<br>Tiskový rozsah včetně skirt/brim/support: ${escapeHtml(tc)}.${mode?'<br>CLI profil: '+escapeHtml(mode):''}<br><b>Cena v Toolboxu je přepočtená z tohoto G-code.</b><br><b>Otevřen náhled G-code. Stažení je povolené až po úspěšném načtení vieweru.</b>`;
   }catch(e){console.error('Prusa bridge export',e);if(st)st.textContent='PrusaSlicer export selhal.';if(status)status.innerHTML='<b>⚠ WINDOWS REPAIR / PRUSASLICER EXPORT SELHAL</b><br>'+escapeHtml(e?.message||String(e));alert('G-code se nepodařilo vytvořit přes Windows RepairAsync + PrusaSlicer:\n\n'+(e?.message||String(e)))}
   finally{print3dState.slicerBusy=false;if(btn)btn.disabled=!print3dState.root;if(simpleBtn)simpleBtn.disabled=!print3dState.root||!print3dState.simplePrepared}
 }
-
 
 let print3dGcodePreviewOverlay=null;
 let print3dGcodePreviewPayload=null;
