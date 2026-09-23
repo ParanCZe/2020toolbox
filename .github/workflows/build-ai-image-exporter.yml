@@ -21,22 +21,77 @@ jobs:
       - name: Validate Ruby syntax
         run: |
           ruby -c SketchUpPlugins/AIImageExporterSource/twentytwenty_nano_banana_exporter.rb
-          ruby -c SketchUpPlugins/AIImageExporterSource/twentytwenty_nano_banana_exporter/main_v030.rb
+          for file in SketchUpPlugins/AIImageExporterSource/twentytwenty_nano_banana_exporter/main_v*.rb; do
+            ruby -c "$file"
+          done
+      - name: Read plugin version
+        id: version
+        shell: bash
+        run: |
+          VER="$(grep -m1 "EXTENSION.version" SketchUpPlugins/AIImageExporterSource/twentytwenty_nano_banana_exporter.rb | cut -d"'" -f2)"
+          test -n "$VER"
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          echo "Building AI Image Exporter v$VER"
       - name: Build RBZ
+        env:
+          VER: ${{ steps.version.outputs.ver }}
         run: |
           cd SketchUpPlugins/AIImageExporterSource
-          rm -f ../20-20_AI_Image_Exporter_v0.3.0.rbz
-          zip -r ../20-20_AI_Image_Exporter_v0.3.0.rbz             twentytwenty_nano_banana_exporter.rb             twentytwenty_nano_banana_exporter
+          rm -f "../20-20_AI_Image_Exporter_v${VER}.rbz"
+          zip -r "../20-20_AI_Image_Exporter_v${VER}.rbz" twentytwenty_nano_banana_exporter.rb twentytwenty_nano_banana_exporter
+      - name: Update Toolbox plugin catalog
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+        run: |
+          python - <<'PY'
+          import os, re
+
+          ver = os.environ["VER"]
+          path = "index.html"
+          rbz = f"SketchUpPlugins/20-20_AI_Image_Exporter_v{ver}.rbz"
+          size = os.path.getsize(rbz)
+          text = open(path, "r", encoding="utf-8").read()
+
+          start = text.index("    id:'ai-exporter'")
+          end = text.index("\n  },\n  {\n    id:'model-library'", start)
+          block = text[start:end]
+
+          block = re.sub(r"current:'[^']+'", f"current:'{ver}'", block, count=1)
+          block = re.sub(
+              r"description:'[^']*'",
+              "description:'16:9 exporter pro SketchUp s přepínatelnou hranicí exportu. Standard 4K/6K/8K nebo AI export RGB + Z-depth + Lines.'",
+              block, count=1
+          )
+          block = re.sub(
+              r"meta:'[^']*'",
+              "meta:'V0.3.1 přidává tlačítko 16:9 FRAME. SketchUp zobrazí nativní šedé masky mimo výsledný 16:9 záběr a druhým klikem se náhled vypne. Export vždy dočasně vynutí přesný poměr 16:9, takže náhled odpovídá výslednému PNG.'",
+              block, count=1
+          )
+
+          entry = f'{{"version":"{ver}","file":"20-20_AI_Image_Exporter_v{ver}.rbz","size":{size},"repo_file":"SketchUpPlugins/20-20_AI_Image_Exporter_v{ver}.rbz"}}'
+          if f'"version":"{ver}"' not in block:
+              pos = block.rfind("]")
+              if pos < 0:
+                  raise RuntimeError("AI Image Exporter versions list end not found")
+              block = block[:pos] + "," + entry + block[pos:]
+
+          text = text[:start] + block + text[end:]
+          open(path, "w", encoding="utf-8").write(text)
+          print(f"Toolbox now points to AI Image Exporter v{ver} ({size} bytes)")
+          PY
       - name: Commit RBZ
+        env:
+          VER: ${{ steps.version.outputs.ver }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add SketchUpPlugins/20-20_AI_Image_Exporter_v0.3.0.rbz
+          FILE="SketchUpPlugins/20-20_AI_Image_Exporter_v${VER}.rbz"
+          git add "$FILE" index.html
           if git diff --cached --quiet; then
-            echo "RBZ unchanged"
+            echo "RBZ and Toolbox catalog unchanged"
             exit 0
           fi
-          git commit -m "Build AI Image Exporter v0.3.0"
+          git commit -m "Build AI Image Exporter v${VER}"
           for attempt in 1 2 3; do
             if git push; then exit 0; fi
             git pull --rebase origin main
