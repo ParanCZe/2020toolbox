@@ -1,0 +1,41 @@
+name: Debug RAKO Zoom Dimensions
+
+on:
+  push:
+    paths:
+      - '.github/workflows/debug-rako-zoom.yml'
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests beautifulsoup4 pillow
+      - run: |
+          python - <<'PY'
+          import io,requests
+          from bs4 import BeautifulSoup
+          from PIL import Image
+          H={'User-Agent':'Mozilla/5.0'}
+          for code in ['dak62899','dak62900','dak62901','wakv1899','wakv1900','wakv1901']:
+            page='https://www.rako.cz/cs/'+code
+            r=requests.get(page,headers=H,timeout=30)
+            print('\nPAGE',code,r.status_code)
+            if not r.ok: continue
+            s=BeautifulSoup(r.text,'html.parser')
+            urls=[]
+            for a in s.find_all('a',href=True):
+              h=a['href']
+              if 'eshop-product-detail' in h:
+                if h.startswith('/'): h='https://www.rako.cz'+h
+                urls.append(h)
+            for u in urls:
+              rr=requests.get(u,headers=H,timeout=30)
+              try:
+                im=Image.open(io.BytesIO(rr.content))
+                print(u.split('/')[-1],im.size,len(rr.content))
+              except Exception as e:
+                print('ERR',u,rr.status_code,len(rr.content),e)
+          PY
