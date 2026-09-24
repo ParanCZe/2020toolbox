@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
 
-APP_VERSION = "1.8.0"
+APP_VERSION = "1.8.1"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -152,14 +152,13 @@ def _fmt_dt(value: Any) -> str:
         return str(value)
 
 
+
 def _run_powershell(script: str, env_extra: dict[str, str] | None = None, timeout: int = 30) -> str:
-    """Run a short PowerShell helper as the current Windows user."""
     if os.name != "nt":
         raise RuntimeError("Windows Certificate Store je dostupný pouze ve Windows.")
     env = os.environ.copy()
     if env_extra:
         env.update(env_extra)
-    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     proc = subprocess.run(
         ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "-"],
         input=script,
@@ -167,7 +166,7 @@ def _run_powershell(script: str, env_extra: dict[str, str] | None = None, timeou
         capture_output=True,
         env=env,
         timeout=timeout,
-        creationflags=creationflags,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout or "PowerShell selhal.").strip()
@@ -210,7 +209,123 @@ try {
 _WINDOWS_CERT_DER_PS = r"""
 $ErrorActionPreference = 'Stop'
 $thumb = ($env:TWENTY20_CERT_THUMBPRINT -replace ' ','').ToUpperInvariant()
-if ($thumb -notmatch '^[0-9A-F]{40,128}def _load_signer(pfx_bytes: bytes, password: str) -> signers.SimpleSigner:
+if ($thumb -notmatch '^[0-9A-F]{40,128}$') { throw 'Neplatný thumbprint certifikátu.' }
+$store = New-Object System.Security.Cryptography.X509Certificates.X509Store('My','CurrentUser')
+$store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
+try {
+  $cert = $store.Certificates | Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } | Select-Object -First 1
+  if ($null -eq $cert) { throw 'Vybraný certifikát už není ve Windows úložišti.' }
+  if (-not $cert.HasPrivateKey) { throw 'Vybraný certifikát nemá dostupný privátní klíč.' }
+  [Convert]::ToBase64String($cert.RawData)
+} finally {
+  $store.Close()
+}
+"""
+
+
+_WINDOWS_RSA_SIGN_PS = r"""
+$ErrorActionPreference = 'Stop'
+$thumb = ($env:TWENTY20_CERT_THUMBPRINT -replace ' ','').ToUpperInvariant()
+if ($thumb -notmatch '^[0-9A-F]{40,128}$') { throw 'Neplatný thumbprint certifikátu.' }
+$data = [Convert]::FromBase64String($env:TWENTY20_SIGN_DATA)
+$store = New-Object System.Security.Cryptography.X509Certificates.X509Store('My','CurrentUser')
+$store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
+try {
+  $cert = $store.Certificates | Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } | Select-Object -First 1
+  if ($null -eq $cert) { throw 'Vybraný certifikát už není ve Windows úložišti.' }
+  if (-not $cert.HasPrivateKey) { throw 'Privátní klíč vybraného certifikátu není dostupný.' }
+  $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
+  if ($null -eq $rsa) { throw 'Toolbox zatím podporuje podpis certifikátem s RSA privátním klíčem.' }
+  try {
+    $sig = $rsa.SignData(
+      $data,
+      [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+      [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
+    )
+    [Convert]::ToBase64String($sig)
+  } finally {
+    $rsa.Dispose()
+  }
+} finally {
+  $store.Close()
+}
+"""
+
+
+def _windows_certificates() -> list[dict[str, Any]]:
+    raw = _run_powershell(_WINDOWS_CERT_LIST_PS, timeout=20)
+    if not raw:
+        return []
+    data = json.loads(raw)
+    if isinstance(data, dict):
+        data = [data]
+    if not isinstance(data, list):
+        return []
+    now = datetime.now(timezone.utc)
+    out: list[dict[str, Any]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        try:
+            valid_to = datetime.fromisoformat(str(item.get("valid_to") or "").replace("Z", "+00:00"))
+            if valid_to.tzinfo is None:
+                valid_to = valid_to.astimezone()
+            item["expired"] = valid_to.astimezone(timezone.utc) <= now
+        except Exception:
+            item["expired"] = False
+        out.append(item)
+    return out
+
+
+def _windows_cert_der(thumbprint: str) -> bytes:
+    thumbprint = re.sub(r"\s+", "", str(thumbprint or "")).upper()
+    if not re.fullmatch(r"[0-9A-F]{40,128}", thumbprint):
+        raise ValueError("Neplatný thumbprint certifikátu.")
+    raw = _run_powershell(
+        _WINDOWS_CERT_DER_PS,
+        {"TWENTY20_CERT_THUMBPRINT": thumbprint},
+        timeout=20,
+    )
+    return base64.b64decode(raw, validate=True)
+
+
+def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
+    raw = _run_powershell(
+        _WINDOWS_RSA_SIGN_PS,
+        {
+            "TWENTY20_CERT_THUMBPRINT": thumbprint,
+            "TWENTY20_SIGN_DATA": base64.b64encode(data).decode("ascii"),
+        },
+        timeout=120,
+    )
+    return base64.b64decode(raw, validate=True)
+
+
+class WindowsStoreSigner(signers.ExternalSigner):
+    def __init__(self, thumbprint: str):
+        cert_der = _windows_cert_der(thumbprint)
+        crypto_cert = x509.load_der_x509_certificate(cert_der)
+        public_key = crypto_cert.public_key()
+        if not isinstance(public_key, rsa.RSAPublicKey):
+            raise ValueError("Toolbox zatím podporuje Windows podpisové certifikáty s RSA klíčem.")
+        self.thumbprint = re.sub(r"\s+", "", thumbprint).upper()
+        self.signature_size = (public_key.key_size + 7) // 8
+        super().__init__(
+            signing_cert=asn1_x509.Certificate.load(cert_der),
+            cert_registry=None,
+            signature_value=self.signature_size,
+            signature_mechanism=algos.SignedDigestAlgorithm({"algorithm": "sha256_rsa"}),
+        )
+
+    async def async_sign_raw(self, data: bytes, digest_algorithm: str, dry_run: bool = False) -> bytes:
+        if dry_run:
+            return b"\x00" * self.signature_size
+        if str(digest_algorithm or "").lower().replace("-", "") != "sha256":
+            raise ValueError("Windows signer je nastavený na SHA-256.")
+        return _windows_sign_data(self.thumbprint, data)
+
+
+def _load_signer(pfx_bytes: bytes, password: str) -> signers.SimpleSigner:
     path = None
     try:
         with tempfile.NamedTemporaryFile(prefix="2020-auth-", suffix=".pfx", delete=False) as tmp:
@@ -483,831 +598,6 @@ def sign_batch():
         if not test_mode:
             cert_info["thumbprint"] = re.sub(r"\s+", "", cert_thumbprint).upper()
             cert_info["source"] = "Windows Certificate Store · CurrentUser\\My"
-
-        stamp_file = request.files.get("stamp")
-        if stamp_file and stamp_file.filename:
-            ext = Path(stamp_file.filename).suffix.lower()
-            if ext not in {".png", ".jpg", ".jpeg"}:
-                return jsonify(ok=False, error="Obrázek razítka musí být PNG nebo JPG."), 400
-            with tempfile.NamedTemporaryFile(prefix="2020-stamp-", suffix=ext, delete=False) as tmp:
-                tmp.write(stamp_file.read())
-                stamp_path = tmp.name
-
-        out_zip = io.BytesIO()
-        used_names: set[str] = set()
-        manifest_files = []
-
-        # PDFs are already compressed internally; recompressing them inside ZIP
-        # burns CPU for very little size reduction. STORE changes no PDF bytes.
-        with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_STORED) as zf:
-            for idx, uploaded in enumerate(pdfs):
-                original_name = uploaded.filename or f"document_{idx+1}.pdf"
-                raw_pdf = uploaded.read()
-                if not raw_pdf.startswith(b"%PDF-"):
-                    raise ValueError(f"{original_name}: soubor nevypadá jako PDF.")
-
-                doc_meta = docs_meta[idx] if isinstance(docs_meta[idx], dict) else {}
-                signed = _sign_one(
-                    raw_pdf,
-                    signer=signer,
-                    document_meta=doc_meta,
-                    common_meta=meta,
-                    timestamper=timestamper,
-                    stamp_path=stamp_path,
-                )
-                requested_output = str(doc_meta.get("output_name") or original_name)
-                append_ear = bool(meta.get("append_ear", True))
-                requested_output = _ear_name(requested_output) if append_ear else _safe_name(requested_output)
-                out_name = _unique_name(requested_output, used_names)
-                zf.writestr(out_name, signed)
-                manifest_files.append(
-                    {
-                        "source": str(doc_meta.get("name") or original_name),
-                        "output": out_name,
-                        "standard": str(meta.get("output_standard") or "PDF/A-3b"),
-                        "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
-                        "visible": bool(doc_meta.get("placement")),
-                    }
-                )
-
-            manifest = {
-                "tool": "20-20 TOOLBOX · Autorizace PDF",
-                "bridge_version": APP_VERSION,
-                "created_utc": datetime.now(timezone.utc).isoformat(),
-                "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
-                "test_mode": test_mode,
-                "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
-                "append_ear": bool(meta.get("append_ear", True)),
-                "tsa_url": tsa_url if profile == "bt" else None,
-                "tsa_authenticated": bool(tsa_user) if profile == "bt" else False,
-                "certificate": cert_info,
-                "files": manifest_files,
-            }
-            zf.writestr("20-20_autorizace_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
-
-        out_zip.seek(0)
-        name = "autorizovane_pdf_" + datetime.now().strftime("%Y-%m-%d_%H%M") + ".zip"
-        return send_file(
-            out_zip,
-            mimetype="application/zip",
-            as_attachment=True,
-            download_name=name,
-            max_age=0,
-        )
-
-    except Exception as exc:
-        print("[AuthorizationBridge] signing error:", traceback.format_exc(), flush=True)
-        return jsonify(ok=False, error=str(exc)), 400
-    finally:
-        if stamp_path:
-            try:
-                os.remove(stamp_path)
-            except OSError:
-                pass
-
-
-if __name__ == "__main__":
-    print(f"20-20 AuthorizationBridge v{APP_VERSION} · http://{HOST}:{PORT}", flush=True)
-    app.run(host=HOST, port=PORT, threaded=True, debug=False, use_reloader=False)
-) { throw 'Neplatný thumbprint certifikátu.' }
-$store = New-Object System.Security.Cryptography.X509Certificates.X509Store('My','CurrentUser')
-$store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
-try {
-  $cert = $store.Certificates | Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } | Select-Object -First 1
-  if ($null -eq $cert) { throw 'Vybraný certifikát už není ve Windows úložišti.' }
-  if (-not $cert.HasPrivateKey) { throw 'Vybraný certifikát nemá dostupný privátní klíč.' }
-  [Convert]::ToBase64String($cert.RawData)
-} finally {
-  $store.Close()
-}
-"""
-
-
-_WINDOWS_RSA_SIGN_PS = r"""
-$ErrorActionPreference = 'Stop'
-$thumb = ($env:TWENTY20_CERT_THUMBPRINT -replace ' ','').ToUpperInvariant()
-if ($thumb -notmatch '^[0-9A-F]{40,128}def _load_signer(pfx_bytes: bytes, password: str) -> signers.SimpleSigner:
-    path = None
-    try:
-        with tempfile.NamedTemporaryFile(prefix="2020-auth-", suffix=".pfx", delete=False) as tmp:
-            tmp.write(pfx_bytes)
-            path = tmp.name
-        signer = signers.SimpleSigner.load_pkcs12(
-            path,
-            passphrase=password.encode("utf-8") if password else None,
-        )
-        if signer is None:
-            raise ValueError("Certifikát se nepodařilo načíst. Zkontroluj heslo a obsah PFX/P12.")
-        return signer
-    finally:
-        if path:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
-
-
-def _make_test_signer() -> signers.SimpleSigner:
-    """Create a short-lived local self-signed certificate for TEST mode."""
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    subject = issuer = x509.Name(
-        [
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "20-20 TOOLBOX"),
-            x509.NameAttribute(NameOID.COMMON_NAME, "20-20 TOOLBOX TEST SIGNATURE"),
-        ]
-    )
-    now = datetime.now(timezone.utc)
-    cert = (
-        x509.CertificateBuilder()
-        .subject_name(subject)
-        .issuer_name(issuer)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(now - timedelta(minutes=5))
-        .not_valid_after(now + timedelta(days=1))
-        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
-        .sign(key, hashes.SHA256())
-    )
-    pfx_bytes = pkcs12.serialize_key_and_certificates(
-        name=b"20-20 TOOLBOX TEST",
-        key=key,
-        cert=cert,
-        cas=None,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
-    return _load_signer(pfx_bytes, "")
-
-
-def _cert_payload(signer: signers.SimpleSigner) -> dict[str, Any]:
-    cert = signer.signing_cert
-    validity = cert["tbs_certificate"]["validity"]
-    subject_native = cert.subject.native or {}
-    display_name = (
-        subject_native.get("common_name")
-        or subject_native.get("name")
-        or subject_native.get("organization_name")
-        or ""
-    )
-    return {
-        "subject": cert.subject.human_friendly,
-        "display_name": str(display_name or ""),
-        "issuer": cert.issuer.human_friendly,
-        "serial": str(cert.serial_number),
-        "valid_from": _fmt_dt(validity["not_before"].native),
-        "valid_to": _fmt_dt(validity["not_after"].native),
-    }
-
-
-def _safe_name(name: str, fallback: str = "document.pdf") -> str:
-    name = os.path.basename(name or fallback)
-    name = re.sub(r"[\\/:*?\"<>|\x00-\x1f]", "_", name).strip(" .")
-    if not name:
-        name = fallback
-    if not name.lower().endswith(".pdf"):
-        name += ".pdf"
-    return name
-
-
-def _ear_name(name: str) -> str:
-    base = _safe_name(name)
-    stem, _ext = os.path.splitext(base)
-    if not stem.lower().endswith("_ear"):
-        stem += "_EAR"
-    return stem + ".pdf"
-
-
-def _unique_name(name: str, used: set[str]) -> str:
-    base = _safe_name(name)
-    stem, ext = os.path.splitext(base)
-    candidate = base
-    n = 2
-    while candidate.lower() in used:
-        if stem.lower().endswith("_ear"):
-            candidate = f"{stem[:-4]}_{n}_EAR{ext}"
-        else:
-            candidate = f"{stem}_{n}{ext}"
-        n += 1
-    used.add(candidate.lower())
-    return candidate
-
-
-def _validate_box(box: Any) -> tuple[int, int, int, int]:
-    if not isinstance(box, list) or len(box) != 4:
-        raise ValueError("Neplatný obdélník viditelného podpisu.")
-    vals = [float(x) for x in box]
-    x1, y1, x2, y2 = vals
-    if x2 <= x1 or y2 <= y1:
-        raise ValueError("Obdélník podpisu má nulovou nebo zápornou velikost.")
-    if max(abs(x) for x in vals) > 100000:
-        raise ValueError("Souřadnice podpisu jsou mimo očekávaný rozsah.")
-    return tuple(int(round(x)) for x in vals)  # type: ignore[return-value]
-
-
-def _stamp_style(stamp_path: str | None):
-    if stamp_path:
-        # Static image appearance: the image itself is the signature appearance.
-        return stamp.StaticStampStyle(
-            background=images.PdfImage(stamp_path),
-            background_opacity=1.0,
-            border_width=0,
-        )
-    # Text fallback uses only ASCII to stay compatible with the default font.
-    return stamp.TextStampStyle(
-        stamp_text="Podepsal: %(signer)s\nCas: %(ts)s",
-        border_width=1,
-        background_opacity=0.0,
-    )
-
-
-def _sign_one(
-    pdf_bytes: bytes,
-    signer: signers.SimpleSigner,
-    document_meta: dict[str, Any],
-    common_meta: dict[str, Any],
-    timestamper,
-    stamp_path: str | None,
-) -> bytes:
-    field_name = "Signature_2020_" + os.urandom(8).hex()
-    placement = document_meta.get("placement")
-
-    new_field = None
-    appearance = None
-    if placement:
-        page = int(placement.get("page", 0))
-        if page < 0:
-            raise ValueError("Číslo stránky podpisu je neplatné.")
-        box = _validate_box(placement.get("box"))
-        new_field = fields.SigFieldSpec(
-            sig_field_name=field_name,
-            on_page=page,
-            box=box,
-        )
-        appearance = _stamp_style(stamp_path)
-    else:
-        # box=None => invisible signature field.
-        new_field = fields.SigFieldSpec(sig_field_name=field_name)
-
-    sig_meta = signers.PdfSignatureMetadata(
-        field_name=field_name,
-        md_algorithm="sha256",
-        subfilter=fields.SigSeedSubFilter.PADES,
-        reason=common_meta.get("reason") or None,
-        location=common_meta.get("location") or None,
-        contact_info=common_meta.get("contact") or None,
-        certify=False,
-    )
-
-    input_stream = io.BytesIO(pdf_bytes)
-    output_stream = io.BytesIO()
-    writer = IncrementalPdfFileWriter(input_stream)
-    pdf_signer = signers.PdfSigner(
-        sig_meta,
-        signer=signer,
-        timestamper=timestamper,
-        stamp_style=appearance,
-        new_field_spec=new_field,
-    )
-    pdf_signer.sign_pdf(writer, output=output_stream)
-    return output_stream.getvalue()
-
-
-@app.get("/status")
-def status():
-    return jsonify(
-        ok=True,
-        service="20-20 AuthorizationBridge",
-        version=APP_VERSION,
-        pyhanko=getattr(pyhanko, "__version__", "unknown"),
-        host=HOST,
-        port=PORT,
-        features={
-            "test_signing": True,
-            "dedicated_test_endpoint": True,
-            "pdfa3_input": True,
-            "origin_lock": True,
-            "session_token": True,
-            "fast_zip": True,
-            "optional_ear_suffix": True,
-            "tsa_basic_auth": True,
-        },
-    )
-
-
-@app.post("/certificate-info")
-def certificate_info():
-    try:
-        cert = request.files.get("certificate")
-        if cert is None:
-            return jsonify(ok=False, error="Chybí PFX/P12 certifikát."), 400
-        password = request.form.get("password", "")
-        raw = cert.read()
-        if not raw:
-            return jsonify(ok=False, error="Certifikát je prázdný."), 400
-        signer = _load_signer(raw, password)
-        return jsonify(ok=True, **_cert_payload(signer))
-    except Exception as exc:
-        return jsonify(ok=False, error=str(exc)), 400
-
-
-@app.post("/sign-batch")
-@app.post("/sign-batch-test")
-def sign_batch():
-    stamp_path = None
-    try:
-        cert = request.files.get("certificate")
-        pdfs = request.files.getlist("pdfs")
-        metadata_raw = request.form.get("metadata", "")
-        password = request.form.get("password", "")
-
-        if not pdfs:
-            return jsonify(ok=False, error="Nebyla odeslána žádná PDF."), 400
-        try:
-            meta = json.loads(metadata_raw)
-        except Exception:
-            return jsonify(ok=False, error="Metadata požadavku nejsou platný JSON."), 400
-
-        test_mode = request.path.endswith("/sign-batch-test") or bool(meta.get("test_mode"))
-        if not test_mode and cert is None:
-            return jsonify(ok=False, error="Chybí PFX/P12 certifikát."), 400
-
-        docs_meta = meta.get("documents")
-        if not isinstance(docs_meta, list) or len(docs_meta) != len(pdfs):
-            return jsonify(ok=False, error="Počet dokumentů neodpovídá metadatům."), 400
-
-        profile = str(meta.get("profile") or "bt").lower()
-        if profile not in {"bb", "bt"}:
-            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
-
-        tsa_url = str(meta.get("tsa_url") or "").strip()
-        tsa_user = str(meta.get("tsa_user") or "").strip()
-        tsa_password = str(meta.get("tsa_password") or "")
-        if profile == "bt":
-            if not re.match(r"^https?://", tsa_url, re.I):
-                return jsonify(ok=False, error="Pro PAdES B-T je nutná platná HTTP(S) adresa RFC 3161 TSA serveru."), 400
-            if bool(tsa_user) != bool(tsa_password):
-                return jsonify(ok=False, error="Pro přihlášení k TSA musí být vyplněn login i heslo."), 400
-            auth = BasicAuth(tsa_user, tsa_password) if tsa_user else None
-            timestamper = AIOHttpTimeStamper(tsa_url, auth=auth)
-        else:
-            timestamper = None
-
-        signer = _make_test_signer() if test_mode else _load_signer(cert.read(), password)
-        cert_info = _cert_payload(signer)
-
-        stamp_file = request.files.get("stamp")
-        if stamp_file and stamp_file.filename:
-            ext = Path(stamp_file.filename).suffix.lower()
-            if ext not in {".png", ".jpg", ".jpeg"}:
-                return jsonify(ok=False, error="Obrázek razítka musí být PNG nebo JPG."), 400
-            with tempfile.NamedTemporaryFile(prefix="2020-stamp-", suffix=ext, delete=False) as tmp:
-                tmp.write(stamp_file.read())
-                stamp_path = tmp.name
-
-        out_zip = io.BytesIO()
-        used_names: set[str] = set()
-        manifest_files = []
-
-        # PDFs are already compressed internally; recompressing them inside ZIP
-        # burns CPU for very little size reduction. STORE changes no PDF bytes.
-        with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_STORED) as zf:
-            for idx, uploaded in enumerate(pdfs):
-                original_name = uploaded.filename or f"document_{idx+1}.pdf"
-                raw_pdf = uploaded.read()
-                if not raw_pdf.startswith(b"%PDF-"):
-                    raise ValueError(f"{original_name}: soubor nevypadá jako PDF.")
-
-                doc_meta = docs_meta[idx] if isinstance(docs_meta[idx], dict) else {}
-                signed = _sign_one(
-                    raw_pdf,
-                    signer=signer,
-                    document_meta=doc_meta,
-                    common_meta=meta,
-                    timestamper=timestamper,
-                    stamp_path=stamp_path,
-                )
-                requested_output = str(doc_meta.get("output_name") or original_name)
-                append_ear = bool(meta.get("append_ear", True))
-                requested_output = _ear_name(requested_output) if append_ear else _safe_name(requested_output)
-                out_name = _unique_name(requested_output, used_names)
-                zf.writestr(out_name, signed)
-                manifest_files.append(
-                    {
-                        "source": str(doc_meta.get("name") or original_name),
-                        "output": out_name,
-                        "standard": str(meta.get("output_standard") or "PDF/A-3b"),
-                        "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
-                        "visible": bool(doc_meta.get("placement")),
-                    }
-                )
-
-            manifest = {
-                "tool": "20-20 TOOLBOX · Autorizace PDF",
-                "bridge_version": APP_VERSION,
-                "created_utc": datetime.now(timezone.utc).isoformat(),
-                "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
-                "test_mode": test_mode,
-                "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
-                "append_ear": bool(meta.get("append_ear", True)),
-                "tsa_url": tsa_url if profile == "bt" else None,
-                "tsa_authenticated": bool(tsa_user) if profile == "bt" else False,
-                "certificate": cert_info,
-                "files": manifest_files,
-            }
-            zf.writestr("20-20_autorizace_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
-
-        out_zip.seek(0)
-        name = "autorizovane_pdf_" + datetime.now().strftime("%Y-%m-%d_%H%M") + ".zip"
-        return send_file(
-            out_zip,
-            mimetype="application/zip",
-            as_attachment=True,
-            download_name=name,
-            max_age=0,
-        )
-
-    except Exception as exc:
-        print("[AuthorizationBridge] signing error:", traceback.format_exc(), flush=True)
-        return jsonify(ok=False, error=str(exc)), 400
-    finally:
-        if stamp_path:
-            try:
-                os.remove(stamp_path)
-            except OSError:
-                pass
-
-
-if __name__ == "__main__":
-    print(f"20-20 AuthorizationBridge v{APP_VERSION} · http://{HOST}:{PORT}", flush=True)
-    app.run(host=HOST, port=PORT, threaded=True, debug=False, use_reloader=False)
-) { throw 'Neplatný thumbprint certifikátu.' }
-$data = [Convert]::FromBase64String($env:TWENTY20_SIGN_DATA)
-$store = New-Object System.Security.Cryptography.X509Certificates.X509Store('My','CurrentUser')
-$store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
-try {
-  $cert = $store.Certificates | Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } | Select-Object -First 1
-  if ($null -eq $cert) { throw 'Vybraný certifikát už není ve Windows úložišti.' }
-  if (-not $cert.HasPrivateKey) { throw 'Privátní klíč vybraného certifikátu není dostupný.' }
-  $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
-  if ($null -eq $rsa) { throw 'Toolbox zatím podporuje podpis certifikátem s RSA privátním klíčem.' }
-  try {
-    $sig = $rsa.SignData(
-      $data,
-      [System.Security.Cryptography.HashAlgorithmName]::SHA256,
-      [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
-    )
-    [Convert]::ToBase64String($sig)
-  } finally {
-    $rsa.Dispose()
-  }
-} finally {
-  $store.Close()
-}
-"""
-
-
-def _windows_certificates() -> list[dict[str, Any]]:
-    raw = _run_powershell(_WINDOWS_CERT_LIST_PS, timeout=20)
-    if not raw:
-        return []
-    data = json.loads(raw)
-    if isinstance(data, dict):
-        data = [data]
-    if not isinstance(data, list):
-        return []
-    now = datetime.now(timezone.utc)
-    out = []
-    for item in data:
-        if not isinstance(item, dict):
-            continue
-        try:
-            valid_to = datetime.fromisoformat(str(item.get("valid_to") or "").replace("Z", "+00:00"))
-            if valid_to.tzinfo is None:
-                valid_to = valid_to.astimezone()
-            expired = valid_to.astimezone(timezone.utc) <= now
-        except Exception:
-            expired = False
-        item["expired"] = expired
-        out.append(item)
-    return out
-
-
-def _windows_cert_der(thumbprint: str) -> bytes:
-    thumbprint = re.sub(r"\s+", "", str(thumbprint or "")).upper()
-    if not re.fullmatch(r"[0-9A-F]{40,128}", thumbprint):
-        raise ValueError("Neplatný thumbprint certifikátu.")
-    raw = _run_powershell(
-        _WINDOWS_CERT_DER_PS,
-        {"TWENTY20_CERT_THUMBPRINT": thumbprint},
-        timeout=20,
-    )
-    return base64.b64decode(raw, validate=True)
-
-
-def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
-    raw = _run_powershell(
-        _WINDOWS_RSA_SIGN_PS,
-        {
-            "TWENTY20_CERT_THUMBPRINT": thumbprint,
-            "TWENTY20_SIGN_DATA": base64.b64encode(data).decode("ascii"),
-        },
-        timeout=120,
-    )
-    return base64.b64decode(raw, validate=True)
-
-
-class WindowsStoreSigner(signers.ExternalSigner):
-    """pyHanko signer backed by the current user's Windows Certificate Store."""
-
-    def __init__(self, thumbprint: str):
-        cert_der = _windows_cert_der(thumbprint)
-        crypto_cert = x509.load_der_x509_certificate(cert_der)
-        public_key = crypto_cert.public_key()
-        if not isinstance(public_key, rsa.RSAPublicKey):
-            raise ValueError("Toolbox zatím podporuje Windows podpisové certifikáty s RSA klíčem.")
-        self.thumbprint = re.sub(r"\s+", "", thumbprint).upper()
-        self.signature_size = (public_key.key_size + 7) // 8
-        super().__init__(
-            signing_cert=asn1_x509.Certificate.load(cert_der),
-            cert_registry=None,
-            signature_value=self.signature_size,
-            signature_mechanism=algos.SignedDigestAlgorithm({"algorithm": "sha256_rsa"}),
-        )
-
-    async def async_sign_raw(self, data: bytes, digest_algorithm: str, dry_run: bool = False) -> bytes:
-        if dry_run:
-            return b"\x00" * self.signature_size
-        if str(digest_algorithm or "").lower().replace("-", "") != "sha256":
-            raise ValueError("Windows signer je nastavený na SHA-256.")
-        return _windows_sign_data(self.thumbprint, data)
-
-
-def _load_signer(pfx_bytes: bytes, password: str) -> signers.SimpleSigner:
-    path = None
-    try:
-        with tempfile.NamedTemporaryFile(prefix="2020-auth-", suffix=".pfx", delete=False) as tmp:
-            tmp.write(pfx_bytes)
-            path = tmp.name
-        signer = signers.SimpleSigner.load_pkcs12(
-            path,
-            passphrase=password.encode("utf-8") if password else None,
-        )
-        if signer is None:
-            raise ValueError("Certifikát se nepodařilo načíst. Zkontroluj heslo a obsah PFX/P12.")
-        return signer
-    finally:
-        if path:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
-
-
-def _make_test_signer() -> signers.SimpleSigner:
-    """Create a short-lived local self-signed certificate for TEST mode."""
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    subject = issuer = x509.Name(
-        [
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "20-20 TOOLBOX"),
-            x509.NameAttribute(NameOID.COMMON_NAME, "20-20 TOOLBOX TEST SIGNATURE"),
-        ]
-    )
-    now = datetime.now(timezone.utc)
-    cert = (
-        x509.CertificateBuilder()
-        .subject_name(subject)
-        .issuer_name(issuer)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(now - timedelta(minutes=5))
-        .not_valid_after(now + timedelta(days=1))
-        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
-        .sign(key, hashes.SHA256())
-    )
-    pfx_bytes = pkcs12.serialize_key_and_certificates(
-        name=b"20-20 TOOLBOX TEST",
-        key=key,
-        cert=cert,
-        cas=None,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
-    return _load_signer(pfx_bytes, "")
-
-
-def _cert_payload(signer: signers.SimpleSigner) -> dict[str, Any]:
-    cert = signer.signing_cert
-    validity = cert["tbs_certificate"]["validity"]
-    subject_native = cert.subject.native or {}
-    display_name = (
-        subject_native.get("common_name")
-        or subject_native.get("name")
-        or subject_native.get("organization_name")
-        or ""
-    )
-    return {
-        "subject": cert.subject.human_friendly,
-        "display_name": str(display_name or ""),
-        "issuer": cert.issuer.human_friendly,
-        "serial": str(cert.serial_number),
-        "valid_from": _fmt_dt(validity["not_before"].native),
-        "valid_to": _fmt_dt(validity["not_after"].native),
-    }
-
-
-def _safe_name(name: str, fallback: str = "document.pdf") -> str:
-    name = os.path.basename(name or fallback)
-    name = re.sub(r"[\\/:*?\"<>|\x00-\x1f]", "_", name).strip(" .")
-    if not name:
-        name = fallback
-    if not name.lower().endswith(".pdf"):
-        name += ".pdf"
-    return name
-
-
-def _ear_name(name: str) -> str:
-    base = _safe_name(name)
-    stem, _ext = os.path.splitext(base)
-    if not stem.lower().endswith("_ear"):
-        stem += "_EAR"
-    return stem + ".pdf"
-
-
-def _unique_name(name: str, used: set[str]) -> str:
-    base = _safe_name(name)
-    stem, ext = os.path.splitext(base)
-    candidate = base
-    n = 2
-    while candidate.lower() in used:
-        if stem.lower().endswith("_ear"):
-            candidate = f"{stem[:-4]}_{n}_EAR{ext}"
-        else:
-            candidate = f"{stem}_{n}{ext}"
-        n += 1
-    used.add(candidate.lower())
-    return candidate
-
-
-def _validate_box(box: Any) -> tuple[int, int, int, int]:
-    if not isinstance(box, list) or len(box) != 4:
-        raise ValueError("Neplatný obdélník viditelného podpisu.")
-    vals = [float(x) for x in box]
-    x1, y1, x2, y2 = vals
-    if x2 <= x1 or y2 <= y1:
-        raise ValueError("Obdélník podpisu má nulovou nebo zápornou velikost.")
-    if max(abs(x) for x in vals) > 100000:
-        raise ValueError("Souřadnice podpisu jsou mimo očekávaný rozsah.")
-    return tuple(int(round(x)) for x in vals)  # type: ignore[return-value]
-
-
-def _stamp_style(stamp_path: str | None):
-    if stamp_path:
-        # Static image appearance: the image itself is the signature appearance.
-        return stamp.StaticStampStyle(
-            background=images.PdfImage(stamp_path),
-            background_opacity=1.0,
-            border_width=0,
-        )
-    # Text fallback uses only ASCII to stay compatible with the default font.
-    return stamp.TextStampStyle(
-        stamp_text="Podepsal: %(signer)s\nCas: %(ts)s",
-        border_width=1,
-        background_opacity=0.0,
-    )
-
-
-def _sign_one(
-    pdf_bytes: bytes,
-    signer: signers.SimpleSigner,
-    document_meta: dict[str, Any],
-    common_meta: dict[str, Any],
-    timestamper,
-    stamp_path: str | None,
-) -> bytes:
-    field_name = "Signature_2020_" + os.urandom(8).hex()
-    placement = document_meta.get("placement")
-
-    new_field = None
-    appearance = None
-    if placement:
-        page = int(placement.get("page", 0))
-        if page < 0:
-            raise ValueError("Číslo stránky podpisu je neplatné.")
-        box = _validate_box(placement.get("box"))
-        new_field = fields.SigFieldSpec(
-            sig_field_name=field_name,
-            on_page=page,
-            box=box,
-        )
-        appearance = _stamp_style(stamp_path)
-    else:
-        # box=None => invisible signature field.
-        new_field = fields.SigFieldSpec(sig_field_name=field_name)
-
-    sig_meta = signers.PdfSignatureMetadata(
-        field_name=field_name,
-        md_algorithm="sha256",
-        subfilter=fields.SigSeedSubFilter.PADES,
-        reason=common_meta.get("reason") or None,
-        location=common_meta.get("location") or None,
-        contact_info=common_meta.get("contact") or None,
-        certify=False,
-    )
-
-    input_stream = io.BytesIO(pdf_bytes)
-    output_stream = io.BytesIO()
-    writer = IncrementalPdfFileWriter(input_stream)
-    pdf_signer = signers.PdfSigner(
-        sig_meta,
-        signer=signer,
-        timestamper=timestamper,
-        stamp_style=appearance,
-        new_field_spec=new_field,
-    )
-    pdf_signer.sign_pdf(writer, output=output_stream)
-    return output_stream.getvalue()
-
-
-@app.get("/status")
-def status():
-    return jsonify(
-        ok=True,
-        service="20-20 AuthorizationBridge",
-        version=APP_VERSION,
-        pyhanko=getattr(pyhanko, "__version__", "unknown"),
-        host=HOST,
-        port=PORT,
-        features={
-            "test_signing": True,
-            "dedicated_test_endpoint": True,
-            "pdfa3_input": True,
-            "origin_lock": True,
-            "session_token": True,
-            "fast_zip": True,
-            "optional_ear_suffix": True,
-            "tsa_basic_auth": True,
-        },
-    )
-
-
-@app.post("/certificate-info")
-def certificate_info():
-    try:
-        cert = request.files.get("certificate")
-        if cert is None:
-            return jsonify(ok=False, error="Chybí PFX/P12 certifikát."), 400
-        password = request.form.get("password", "")
-        raw = cert.read()
-        if not raw:
-            return jsonify(ok=False, error="Certifikát je prázdný."), 400
-        signer = _load_signer(raw, password)
-        return jsonify(ok=True, **_cert_payload(signer))
-    except Exception as exc:
-        return jsonify(ok=False, error=str(exc)), 400
-
-
-@app.post("/sign-batch")
-@app.post("/sign-batch-test")
-def sign_batch():
-    stamp_path = None
-    try:
-        cert = request.files.get("certificate")
-        pdfs = request.files.getlist("pdfs")
-        metadata_raw = request.form.get("metadata", "")
-        password = request.form.get("password", "")
-
-        if not pdfs:
-            return jsonify(ok=False, error="Nebyla odeslána žádná PDF."), 400
-        try:
-            meta = json.loads(metadata_raw)
-        except Exception:
-            return jsonify(ok=False, error="Metadata požadavku nejsou platný JSON."), 400
-
-        test_mode = request.path.endswith("/sign-batch-test") or bool(meta.get("test_mode"))
-        if not test_mode and cert is None:
-            return jsonify(ok=False, error="Chybí PFX/P12 certifikát."), 400
-
-        docs_meta = meta.get("documents")
-        if not isinstance(docs_meta, list) or len(docs_meta) != len(pdfs):
-            return jsonify(ok=False, error="Počet dokumentů neodpovídá metadatům."), 400
-
-        profile = str(meta.get("profile") or "bt").lower()
-        if profile not in {"bb", "bt"}:
-            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
-
-        tsa_url = str(meta.get("tsa_url") or "").strip()
-        tsa_user = str(meta.get("tsa_user") or "").strip()
-        tsa_password = str(meta.get("tsa_password") or "")
-        if profile == "bt":
-            if not re.match(r"^https?://", tsa_url, re.I):
-                return jsonify(ok=False, error="Pro PAdES B-T je nutná platná HTTP(S) adresa RFC 3161 TSA serveru."), 400
-            if bool(tsa_user) != bool(tsa_password):
-                return jsonify(ok=False, error="Pro přihlášení k TSA musí být vyplněn login i heslo."), 400
-            auth = BasicAuth(tsa_user, tsa_password) if tsa_user else None
-            timestamper = AIOHttpTimeStamper(tsa_url, auth=auth)
-        else:
-            timestamper = None
-
-        signer = _make_test_signer() if test_mode else _load_signer(cert.read(), password)
-        cert_info = _cert_payload(signer)
 
         stamp_file = request.files.get("stamp")
         if stamp_file and stamp_file.filename:
