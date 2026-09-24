@@ -553,10 +553,10 @@
       if (!r.ok || !j.ok) throw new Error(j.error || 'Bridge neodpovídá.');
       state.bridge = j;
       if (el) {
-        const staleForTest = authIsTestMode() && !authVersionAtLeast(j.version, '1.3.0');
+        const staleForTest = authIsTestMode() && !authVersionAtLeast(j.version, '1.4.0');
         el.className = staleForTest ? 'auth-health bad' : 'auth-health ok';
         el.querySelector('.auth-health-copy').innerHTML = staleForTest
-          ? '<b>AuthorizationBridge je zastaralý pro TEST</b><span>běží v' + esc(j.version || '–') + ' · je potřeba 1.3.0+ · spusť znovu Instalátor</span>'
+          ? '<b>AuthorizationBridge je zastaralý pro TEST</b><span>běží v' + esc(j.version || '–') + ' · je potřeba 1.4.0+ · spusť znovu Instalátor</span>'
           : '<b>AuthorizationBridge je připravený</b><span>verze ' + esc(j.version || '–') + ' · pyHanko ' + esc(j.pyhanko || '–') + '</span>';
       }
       return j;
@@ -1096,8 +1096,8 @@
     if (!testMode && profile==='bt' && !tsa) { toast('Pro PAdES B-T zadej RFC 3161 TSA server.', true); return; }
     const bridge = await checkAuthorizationBridge(true);
     if (!bridge) { toast('AuthorizationBridge neběží.', true); return; }
-    if (testMode && !authVersionAtLeast(bridge.version, '1.3.0')) {
-      toast('TEST režim vyžaduje AuthorizationBridge 1.3.0 nebo novější. Stáhni znovu Instalátor, který starý bridge restartuje.', true);
+    if (testMode && !authVersionAtLeast(bridge.version, '1.4.0')) {
+      toast('TEST režim vyžaduje AuthorizationBridge 1.4.0 nebo novější. Stáhni znovu Instalátor, který starý bridge restartuje.', true);
       return;
     }
 
@@ -1161,7 +1161,7 @@
       if (appearanceFile) fd.append('stamp', appearanceFile, appearanceFile.name);
       convertedFiles.forEach((file, i) => fd.append('pdfs', file, docs[i].output_name));
 
-      const resp = await bridgeFetch('/sign-batch', {method:'POST', body:fd}, 240000);
+      const resp = await bridgeFetch(testMode ? '/sign-batch-test' : '/sign-batch', {method:'POST', body:fd}, 240000);
       if (!resp.ok) {
         let msg='Podepisování selhalo.';
         try { const j=await resp.json(); msg=j.error || j.detail || msg; } catch {}
