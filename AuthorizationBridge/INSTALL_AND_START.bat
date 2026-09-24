@@ -70,7 +70,9 @@ if not exist "%VENV%\Scripts\python.exe" (
 )
 
 echo [4/6] Instaluji / aktualizuji podpisove knihovny...
-"%VENV%\Scripts\python.exe" -m pip install --disable-pip-version-check --quiet --upgrade -r "%DIR%\requirements.txt"
+"%VENV%\Scripts\python.exe" -m pip install --disable-pip-version-check --quiet --upgrade pip setuptools wheel
+if errorlevel 1 goto :pip_error
+"%VENV%\Scripts\python.exe" -m pip install --disable-pip-version-check --upgrade --upgrade-strategy eager -r "%DIR%\requirements.txt"
 if errorlevel 1 goto :pip_error
 
 echo [5/6] Vytvarim spoustec s automatickym restartem...
