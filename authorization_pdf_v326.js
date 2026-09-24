@@ -1151,8 +1151,6 @@
       const docs = new Array(state.files.length);
       const convertedFiles = new Array(state.files.length);
 
-      // Placement math is cheap and done first so the heavy Ghostscript jobs can
-      // run independently in parallel afterwards.
       for (let i=0;i<state.files.length;i++) {
         const rec = state.files[i];
         docs[i] = {
@@ -1162,51 +1160,43 @@
           pdfa:'3b',
           placement:await absolutePlacement(rec)
         };
+        rec.status = 'converting';
       }
+      renderFileList();
 
-      const totalBytes = state.files.reduce((sum, r) => sum + (Number(r.size) || 0), 0);
-      const deviceMemory = Number(navigator.deviceMemory || 8);
-      const cpuCount = Number(navigator.hardwareConcurrency || 4);
-      // Two independent WASM Ghostscript instances are materially faster on a
-      // normal desktop, while keeping RAM usage under control for huge drawings.
-      const parallelism = state.files.length > 1 && deviceMemory >= 6 && cpuCount >= 4 && totalBytes < 350*1024*1024 ? 2 : 1;
-      let nextIndex = 0;
-      let finished = 0;
-      const conversionErrors = [];
-
-      async function conversionWorker() {
-        while (true) {
-          const i = nextIndex++;
-          if (i >= state.files.length) return;
-          const rec = state.files[i];
-          rec.status = 'converting';
-          renderFileList();
-          btn.textContent = 'PDF/A-3b ' + finished + '/' + state.files.length + (parallelism > 1 ? ' · 2× paralelně' : '') + '…';
-          try {
-            await new Promise(resolve => setTimeout(resolve, 0));
-            const sourceBytes = new Uint8Array(await rec.file.arrayBuffer());
-            const pdfaBytes = await window.convertPdfToPdfa(sourceBytes, '3');
-            convertedFiles[i] = new File([pdfaBytes], docs[i].output_name, {
-              type:'application/pdf',
-              lastModified:Date.now()
-            });
-            rec.status = 'ready';
-          } catch (err) {
-            rec.status = 'error';
-            conversionErrors.push({index:i, error:err});
-          } finally {
-            finished++;
+      if (typeof window.convertPdfBatchToPdfaFast === 'function') {
+        const convertedBytes = await window.convertPdfBatchToPdfaFast(
+          state.files.map(r => r.file),
+          '3',
+          ({index, completed, total, parallelism}) => {
+            const rec = state.files[index];
+            if (rec) rec.status = 'ready';
             renderFileList();
-            btn.textContent = 'PDF/A-3b ' + finished + '/' + state.files.length + (parallelism > 1 ? ' · 2× paralelně' : '') + '…';
+            btn.textContent = 'PDF/A-3b ' + completed + '/' + total + (parallelism > 1 ? ' · '+parallelism+'× paralelně' : '') + '…';
           }
+        );
+        for (let i=0;i<convertedBytes.length;i++) {
+          convertedFiles[i] = new File([convertedBytes[i]], docs[i].output_name, {
+            type:'application/pdf',
+            lastModified:Date.now()
+          });
+          state.files[i].status = 'ready';
+        }
+      } else {
+        for (let i=0;i<state.files.length;i++) {
+          const rec = state.files[i];
+          btn.textContent = 'PDF/A-3b ' + (i+1) + '/' + state.files.length + '…';
+          const sourceBytes = new Uint8Array(await rec.file.arrayBuffer());
+          const pdfaBytes = await window.convertPdfToPdfa(sourceBytes, '3');
+          convertedFiles[i] = new File([pdfaBytes], docs[i].output_name, {
+            type:'application/pdf',
+            lastModified:Date.now()
+          });
+          rec.status = 'ready';
+          renderFileList();
         }
       }
-
-      await Promise.all(Array.from({length:parallelism}, () => conversionWorker()));
-      if (conversionErrors.length) {
-        const first = conversionErrors[0];
-        throw new Error((state.files[first.index]?.name || 'PDF') + ': ' + (first.error?.message || first.error));
-      }
+      renderFileList();
 
       btn.textContent = 'Podepisuji PDF/A-3b…';
       const signTime = new Intl.DateTimeFormat('cs-CZ',{dateStyle:'short',timeStyle:'short'}).format(new Date());
