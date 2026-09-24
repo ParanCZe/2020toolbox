@@ -19,6 +19,7 @@
     stampFile: null,
     certInfo: null,
     bridge: null,
+    bridgeToken: null,
     zoom: 1,
     stampSourceName: '',
     placementPreviewUrl: null,
@@ -531,14 +532,43 @@
     return true;
   }
 
-  async function bridgeFetch(path, opts={}, timeout=2500) {
+  async function authFetchBridgeSession(timeout=2500) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeout);
     try {
-      return await fetch(BRIDGE_URL + path, {...opts, cache:'no-store', signal:ctrl.signal});
+      const r = await fetch(BRIDGE_URL + '/session', {cache:'no-store', signal:ctrl.signal});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok || !j.token) throw new Error(j.error || 'Bridge nevydal bezpečnostní session.');
+      state.bridgeToken = j.token;
+      return j.token;
     } finally {
       clearTimeout(t);
     }
+  }
+
+  async function bridgeFetch(path, opts={}, timeout=2500) {
+    const needsToken = path !== '/status' && path !== '/session';
+    if (needsToken && !state.bridgeToken) await authFetchBridgeSession(Math.min(timeout, 5000));
+
+    async function runOnce() {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), timeout);
+      try {
+        const headers = new Headers(opts.headers || {});
+        if (needsToken && state.bridgeToken) headers.set('X-20-20-Session', state.bridgeToken);
+        return await fetch(BRIDGE_URL + path, {...opts, headers, cache:'no-store', signal:ctrl.signal});
+      } finally {
+        clearTimeout(t);
+      }
+    }
+
+    let response = await runOnce();
+    if (needsToken && response.status === 401) {
+      state.bridgeToken = null;
+      await authFetchBridgeSession(Math.min(timeout, 5000));
+      response = await runOnce();
+    }
+    return response;
   }
 
   window.checkAuthorizationBridge = async function(silent=false) {
@@ -551,13 +581,18 @@
       const r = await bridgeFetch('/status', {}, 1400);
       const j = await r.json();
       if (!r.ok || !j.ok) throw new Error(j.error || 'Bridge neodpovídá.');
+      const secureBridge = authVersionAtLeast(j.version, '1.5.0') && !!j.features?.origin_lock && !!j.features?.session_token;
+      const staleForTest = authIsTestMode() && (!authVersionAtLeast(j.version, '1.4.0') || !j.features?.test_signing);
+      if (secureBridge && !state.bridgeToken) await authFetchBridgeSession(3000);
       state.bridge = j;
       if (el) {
-        const staleForTest = authIsTestMode() && (!authVersionAtLeast(j.version, '1.4.0') || !j.features?.test_signing);
-        el.className = staleForTest ? 'auth-health bad' : 'auth-health ok';
-        el.querySelector('.auth-health-copy').innerHTML = staleForTest
-          ? '<b>AuthorizationBridge je zastaralý pro TEST</b><span>běží v' + esc(j.version || '–') + ' · je potřeba 1.4.0+ · spusť znovu Instalátor</span>'
-          : '<b>AuthorizationBridge je připravený</b><span>verze ' + esc(j.version || '–') + ' · pyHanko ' + esc(j.pyhanko || '–') + '</span>';
+        const bad = !secureBridge || staleForTest;
+        el.className = bad ? 'auth-health bad' : 'auth-health ok';
+        el.querySelector('.auth-health-copy').innerHTML = !secureBridge
+          ? '<b>AuthorizationBridge je potřeba aktualizovat</b><span>běží v' + esc(j.version || '–') + ' · bezpečný režim vyžaduje 1.5.0+ · spusť Instalátor</span>'
+          : staleForTest
+            ? '<b>AuthorizationBridge je zastaralý pro TEST</b><span>běží v' + esc(j.version || '–') + ' · spusť znovu Instalátor</span>'
+            : '<b>AuthorizationBridge je připravený a zabezpečený</b><span>verze ' + esc(j.version || '–') + ' · origin lock + session token · pyHanko ' + esc(j.pyhanko || '–') + '</span>';
       }
       return j;
     } catch (e) {
@@ -571,6 +606,7 @@
   };
 
   window.launchAuthorizationBridge = async function() {
+    state.bridgeToken = null;
     const frame = document.createElement('iframe');
     frame.style.display = 'none';
     frame.src = BRIDGE_SCHEME;
@@ -1096,8 +1132,12 @@
     if (!testMode && profile==='bt' && !tsa) { toast('Pro PAdES B-T zadej RFC 3161 TSA server.', true); return; }
     const bridge = await checkAuthorizationBridge(true);
     if (!bridge) { toast('AuthorizationBridge neběží.', true); return; }
-    if (testMode && (!authVersionAtLeast(bridge.version, '1.4.0') || !bridge.features?.test_signing)) {
-      toast('Běží starý AuthorizationBridge bez podpory TEST podpisu. Spusť znovu aktuální Instalátor a potom Zkontrolovat.', true);
+    if (!authVersionAtLeast(bridge.version, '1.5.0') || !bridge.features?.origin_lock || !bridge.features?.session_token) {
+      toast('Kvůli bezpečnosti je potřeba AuthorizationBridge 1.5.0+. Spusť aktuální Instalátor a potom Zkontrolovat.', true);
+      return;
+    }
+    if (testMode && !bridge.features?.test_signing) {
+      toast('Běží bridge bez podpory TEST podpisu. Spusť znovu aktuální Instalátor.', true);
       return;
     }
 
@@ -1108,34 +1148,64 @@
     try {
       // DŮLEŽITÉ: PDF/A konverze musí proběhnout PŘED kryptografickým podpisem.
       // Převod podepsaného PDF přes Ghostscript by existující podpis zneplatnil.
-      const docs = [];
-      const convertedFiles = [];
+      const docs = new Array(state.files.length);
+      const convertedFiles = new Array(state.files.length);
 
+      // Placement math is cheap and done first so the heavy Ghostscript jobs can
+      // run independently in parallel afterwards.
       for (let i=0;i<state.files.length;i++) {
         const rec = state.files[i];
-        rec.status = 'converting';
-        renderFileList();
-        btn.textContent = 'PDF/A-3b ' + (i+1) + '/' + state.files.length + '…';
-
-        await new Promise(resolve => setTimeout(resolve, 20));
-        const sourceBytes = new Uint8Array(await rec.file.arrayBuffer());
-        const pdfaBytes = await window.convertPdfToPdfa(sourceBytes, '3');
-        const outputName = earOutputName(rec.name);
-        const converted = new File([pdfaBytes], outputName, {
-          type:'application/pdf',
-          lastModified:Date.now()
-        });
-
-        docs.push({
+        docs[i] = {
           index:i,
           name:rec.name,
-          output_name:outputName,
+          output_name:earOutputName(rec.name),
           pdfa:'3b',
           placement:await absolutePlacement(rec)
-        });
-        convertedFiles.push(converted);
-        rec.status = 'ready';
-        renderFileList();
+        };
+      }
+
+      const totalBytes = state.files.reduce((sum, r) => sum + (Number(r.size) || 0), 0);
+      const deviceMemory = Number(navigator.deviceMemory || 8);
+      const cpuCount = Number(navigator.hardwareConcurrency || 4);
+      // Two independent WASM Ghostscript instances are materially faster on a
+      // normal desktop, while keeping RAM usage under control for huge drawings.
+      const parallelism = state.files.length > 1 && deviceMemory >= 6 && cpuCount >= 4 && totalBytes < 350*1024*1024 ? 2 : 1;
+      let nextIndex = 0;
+      let finished = 0;
+      const conversionErrors = [];
+
+      async function conversionWorker() {
+        while (true) {
+          const i = nextIndex++;
+          if (i >= state.files.length) return;
+          const rec = state.files[i];
+          rec.status = 'converting';
+          renderFileList();
+          btn.textContent = 'PDF/A-3b ' + finished + '/' + state.files.length + (parallelism > 1 ? ' · 2× paralelně' : '') + '…';
+          try {
+            await new Promise(resolve => setTimeout(resolve, 0));
+            const sourceBytes = new Uint8Array(await rec.file.arrayBuffer());
+            const pdfaBytes = await window.convertPdfToPdfa(sourceBytes, '3');
+            convertedFiles[i] = new File([pdfaBytes], docs[i].output_name, {
+              type:'application/pdf',
+              lastModified:Date.now()
+            });
+            rec.status = 'ready';
+          } catch (err) {
+            rec.status = 'error';
+            conversionErrors.push({index:i, error:err});
+          } finally {
+            finished++;
+            renderFileList();
+            btn.textContent = 'PDF/A-3b ' + finished + '/' + state.files.length + (parallelism > 1 ? ' · 2× paralelně' : '') + '…';
+          }
+        }
+      }
+
+      await Promise.all(Array.from({length:parallelism}, () => conversionWorker()));
+      if (conversionErrors.length) {
+        const first = conversionErrors[0];
+        throw new Error((state.files[first.index]?.name || 'PDF') + ': ' + (first.error?.message || first.error));
       }
 
       btn.textContent = 'Podepisuji PDF/A-3b…';
