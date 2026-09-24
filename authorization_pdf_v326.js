@@ -262,6 +262,9 @@
   };
 
   window.authLoadSavedSettings = async function(requestFilePermission=false) {
+    // Od V3.27 se PFX/P12 handle nikdy nepamatuje. Smaž i případný legacy
+    // handle uložený starší verzí, aby po upgradu nezůstal trvalý přístup.
+    try { await authDbDelete('certHandle'); } catch {}
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(AUTH_SETTINGS_KEY) || 'null'); } catch {}
     if (saved) {
