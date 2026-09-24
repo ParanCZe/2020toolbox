@@ -36,7 +36,7 @@ Aplikace vytvoří kryptografický PAdES podpis. To, zda jde současně o kvalif
 
 Autorizace v Toolboxu používá stejný Ghostscript/WASM převod jako samostatný modul **Konverze do PDF/A**. Každý vstup se nejprve převede na **PDF/A-3b** a až poté se pošle lokálnímu bridge k PAdES podpisu. Toto pořadí je záměrné: převod přes Ghostscript po podpisu by kryptografický podpis zneplatnil.
 
-Výstupní soubory mají vždy suffix `_EAR.pdf`; bridge suffix kontroluje i na backendu, aby se nepřidal dvakrát.
+Výstupní soubory mohou volitelně dostat suffix `_EAR.pdf`. Volba je řízená Toolboxem a bridge ji respektuje i na backendu; při zapnutém suffixu se `_EAR` nepřidá dvakrát.
 
 
 ## Security hardening v1.5
@@ -52,3 +52,8 @@ AuthorizationBridge stále naslouchá pouze na `127.0.0.1:8094`, ale navíc odm�
 ## Rychlý batch export
 
 Autorizace používá až dva samostatné Web Workery s Ghostscript WASM, takže na vhodném desktopu mohou běžet dva PDF/A-3b převody současně. Parametry převodu a ICC profil jsou stejné jako v původním převodu; nezavádí se nižší DPI ani rasterizační režim. Výsledný ZIP používá STORE místo zbytečné druhé komprese již komprimovaných PDF.
+
+
+## Volitelný suffix _EAR v1.6
+
+Toolbox obsahuje volbu **přidat _EAR za název exportovaného PDF**. Výchozí stav je zapnutý kvůli zpětné kompatibilitě. Po vypnutí bridge zachová běžný název PDF bez suffixu `_EAR`.
