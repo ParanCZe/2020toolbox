@@ -88,7 +88,7 @@ exit /b 0
 :find_python
 set "PY_EXE="
 del /q "%PYFILE%" >nul 2>nul
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PYFINDER%" > "%PYFILE%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PYFINDER%" > "%PYFILE%" 2>nul
 if exist "%PYFILE%" set /p "PY_EXE="<"%PYFILE%"
 del /q "%PYFILE%" >nul 2>nul
 exit /b 0
