@@ -88,7 +88,7 @@
       #auth-canvas{display:block}
       .auth-sig-box{position:absolute;border:2px solid #d4c700;background:rgba(247,241,151,.14);cursor:move;min-width:48px;min-height:26px;box-shadow:0 0 0 1px rgba(255,255,255,.8) inset}
       .auth-sig-box.hidden{display:none}
-      .auth-resize{position:absolute;width:13px;height:13px;right:-7px;bottom:-7px;border-radius:50%;background:#18181b;border:2px solid #fff;cursor:nwse-resize}
+      .auth-resize{position:absolute;width:12px;height:12px;right:-7px;bottom:-7px;border-radius:50%;background:#f7f197;border:2px solid #d4c700;cursor:nwse-resize}
       .auth-side{padding:10px;display:grid;gap:9px;max-height:calc(100vh - 250px);min-height:620px;overflow:auto}
       .auth-box{border:1px solid var(--border);border-radius:8px;background:#fff;padding:10px}.auth-box h3{font:normal 12px 'Antarctican Mono',monospace;margin:0 0 8px}
       .auth-field{display:grid;gap:4px;margin-bottom:7px}.auth-field:last-child{margin-bottom:0}.auth-field label{font-size:10px;color:var(--muted)}
