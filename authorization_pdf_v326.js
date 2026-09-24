@@ -520,6 +520,17 @@
     host.appendChild(view);
   }
 
+  function authVersionAtLeast(actual, required) {
+    const a=String(actual||'0').split('.').map(x=>parseInt(x,10)||0);
+    const b=String(required||'0').split('.').map(x=>parseInt(x,10)||0);
+    for(let i=0;i<Math.max(a.length,b.length);i++){
+      const av=a[i]||0,bv=b[i]||0;
+      if(av>bv)return true;
+      if(av<bv)return false;
+    }
+    return true;
+  }
+
   async function bridgeFetch(path, opts={}, timeout=2500) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeout);
@@ -542,8 +553,11 @@
       if (!r.ok || !j.ok) throw new Error(j.error || 'Bridge neodpovídá.');
       state.bridge = j;
       if (el) {
-        el.className = 'auth-health ok';
-        el.querySelector('.auth-health-copy').innerHTML = '<b>AuthorizationBridge je připravený</b><span>verze ' + esc(j.version || '–') + ' · pyHanko ' + esc(j.pyhanko || '–') + '</span>';
+        const staleForTest = authIsTestMode() && !authVersionAtLeast(j.version, '1.3.0');
+        el.className = staleForTest ? 'auth-health bad' : 'auth-health ok';
+        el.querySelector('.auth-health-copy').innerHTML = staleForTest
+          ? '<b>AuthorizationBridge je zastaralý pro TEST</b><span>běží v' + esc(j.version || '–') + ' · je potřeba 1.3.0+ · spusť znovu Instalátor</span>'
+          : '<b>AuthorizationBridge je připravený</b><span>verze ' + esc(j.version || '–') + ' · pyHanko ' + esc(j.pyhanko || '–') + '</span>';
       }
       return j;
     } catch (e) {
@@ -853,6 +867,7 @@
     const signBtn = document.getElementById('auth-sign-btn');
     if (signBtn) signBtn.textContent = on ? 'TEST · PDF/A-3b + podepsat + stáhnout ZIP' : 'PDF/A-3b + podepsat + stáhnout ZIP';
     updatePlacementStampPreview();
+    checkAuthorizationBridge(true);
   };
 
   window.authProfileChanged = function() {
@@ -1081,6 +1096,10 @@
     if (!testMode && profile==='bt' && !tsa) { toast('Pro PAdES B-T zadej RFC 3161 TSA server.', true); return; }
     const bridge = await checkAuthorizationBridge(true);
     if (!bridge) { toast('AuthorizationBridge neběží.', true); return; }
+    if (testMode && !authVersionAtLeast(bridge.version, '1.3.0')) {
+      toast('TEST režim vyžaduje AuthorizationBridge 1.3.0 nebo novější. Stáhni znovu Instalátor, který starý bridge restartuje.', true);
+      return;
+    }
 
     persistOverlay();
     const btn = document.getElementById('auth-sign-btn');
