@@ -86,7 +86,7 @@
       .auth-stage{flex:1;overflow:auto;padding:12px;position:relative}
       .auth-page-wrap{position:relative;margin:0 auto;background:#fff;box-shadow:0 4px 22px rgba(0,0,0,.13);user-select:none}
       #auth-canvas{display:block}
-      .auth-sig-box{position:absolute;border:2px solid #d4c700;background:rgba(247,241,151,.14);cursor:move;min-width:48px;min-height:26px;box-shadow:0 0 0 1px rgba(255,255,255,.8) inset}
+      .auth-sig-box{position:absolute;border:2px solid #d4c700;background:transparent;cursor:move;min-width:48px;min-height:26px;box-shadow:none}
       .auth-sig-box.hidden{display:none}
       .auth-resize{position:absolute;width:12px;height:12px;right:-7px;bottom:-7px;border-radius:50%;background:#f7f197;border:2px solid #d4c700;cursor:nwse-resize}
       .auth-side{padding:10px;display:grid;gap:9px;max-height:calc(100vh - 250px);min-height:620px;overflow:auto}
