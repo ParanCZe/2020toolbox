@@ -21,6 +21,8 @@
     bridge: null,
     zoom: 1,
     stampSourceName: '',
+    placementPreviewUrl: null,
+    previousProfile: 'bt',
     initialized: false,
   };
   window.authorizationState = state;
@@ -61,6 +63,21 @@
     s.id = 'auth-pdf-styles';
     s.textContent = `
       #tool-authorization{width:calc(100vw - 32px);max-width:none;margin-left:50%;transform:translateX(-50%);background:var(--card);padding:18px 20px;border-radius:12px}
+      .auth-titlebar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:2px 0 6px}
+      .auth-titlebar h1{margin:0}
+      .auth-test-control{display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid var(--border);border-radius:999px;background:#fff;white-space:nowrap}
+      .auth-test-control b{font:normal 11px 'Antarctican Mono',monospace}
+      .auth-test-switch{position:relative;width:42px;height:22px;display:inline-block}
+      .auth-test-switch input{position:absolute;opacity:0;pointer-events:none}
+      .auth-test-slider{position:absolute;inset:0;border-radius:999px;background:#d4d4d8;cursor:pointer;transition:.16s}
+      .auth-test-slider:before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:.16s}
+      .auth-test-switch input:checked+.auth-test-slider{background:#eab308}
+      .auth-test-switch input:checked+.auth-test-slider:before{transform:translateX(20px)}
+      .auth-test-state{min-width:26px;font-size:10px;font-weight:700}
+      .auth-test-banner{display:none;margin:0 0 10px;padding:8px 10px;border:1px solid #facc15;border-radius:8px;background:#fffbea;color:#854d0e;font-size:10px;line-height:1.45}
+      .auth-test-banner.active{display:block}
+      .auth-disabled{opacity:.48;filter:grayscale(.15)}
+      .auth-disabled *{pointer-events:none}
       .auth-health{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:#fafafa;margin:10px 0 12px;flex-wrap:wrap}
       .auth-health.ok{background:#f0fdf4;border-color:#bbf7d0}.auth-health.warn{background:#fffbeb;border-color:#fde68a}
       .auth-health.bad{background:#fef2f2;border-color:#fecaca}
@@ -88,6 +105,7 @@
       #auth-canvas{display:block}
       .auth-sig-box{position:absolute;border:2px solid #d4c700;background:transparent;cursor:move;min-width:48px;min-height:26px;box-shadow:none}
       .auth-sig-box.hidden{display:none}
+      .auth-sig-preview-img{position:absolute;inset:3px;width:calc(100% - 6px);height:calc(100% - 6px);object-fit:contain;pointer-events:none;user-select:none}
       .auth-resize{position:absolute;width:12px;height:12px;right:-7px;bottom:-7px;border-radius:50%;background:#f7f197;border:2px solid #d4c700;cursor:nwse-resize}
       .auth-side{padding:10px;display:grid;gap:9px;max-height:calc(100vh - 250px);min-height:620px;overflow:auto}
       .auth-box{border:1px solid var(--border);border-radius:8px;background:#fff;padding:10px}.auth-box h3{font:normal 12px 'Antarctican Mono',monospace;margin:0 0 8px}
@@ -134,7 +152,18 @@
     view.className = 'tool-view';
     view.innerHTML = `
       <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
-      <h1>Autorizace PDF <small class="menu-status">BETA</small></h1>
+      <div class="auth-titlebar">
+        <h1>Autorizace PDF <small class="menu-status">BETA</small></h1>
+        <div class="auth-test-control" title="Testovací režim použije dočasný lokální self-signed certifikát.">
+          <b>TEST</b>
+          <label class="auth-test-switch">
+            <input id="auth-test-mode" type="checkbox" onchange="authTestModeChanged()">
+            <span class="auth-test-slider"></span>
+          </label>
+          <span id="auth-test-state" class="auth-test-state">OFF</span>
+        </div>
+      </div>
+      <div id="auth-test-banner" class="auth-test-banner"><b>TEST MODE:</b> certifikát ani TSA nejsou potřeba. PDF bude skutečně digitálně podepsané dočasným lokálním testovacím certifikátem, který nebude důvěryhodný. V PDF prohlížeči se proto zobrazí informace o podpisu, ale ne jako platná autorizace.</div>
       <div class="muted">Hromadné rozmístění podpisového razítka a skutečný elektronický podpis PDF. Před podpisem se každý dokument lokálně převede stejným Ghostscript enginem jako modul PDF/A na <b>PDF/A-3b</b>; teprve potom se kryptograficky podepíše. Výstup má vždy příponu <b>_EAR.pdf</b>. PFX/P12 a heslo se neposílají na webový server.</div>
 
       <div id="auth-health" class="auth-health warn">
@@ -174,6 +203,7 @@
             <div id="auth-page-wrap" class="auth-page-wrap" style="display:none">
               <canvas id="auth-canvas"></canvas>
               <div id="auth-sig-box" class="auth-sig-box">
+                <img id="auth-sig-preview-img" class="auth-sig-preview-img" alt="" hidden>
                 <span id="auth-resize" class="auth-resize"></span>
               </div>
             </div>
@@ -197,7 +227,7 @@
               </div>
             </div>
 
-            <div class="auth-box">
+            <div id="auth-cert-box" class="auth-box">
               <h3>CERTIFIKÁT</h3>
               <div class="auth-field"><label>PFX / P12 s privátním klíčem</label><input id="auth-cert-file" type="file" accept=".pfx,.p12,application/x-pkcs12"></div>
               <div class="auth-field"><label>Heslo k certifikátu</label><input id="auth-cert-pass" type="password" autocomplete="off" placeholder="Heslo se nikam neukládá"></div>
@@ -205,7 +235,7 @@
               <div id="auth-cert-info" class="auth-cert-card" style="margin-top:7px">Certifikát zatím nebyl načten.</div>
             </div>
 
-            <div class="auth-box">
+            <div id="auth-sign-level-box" class="auth-box">
               <h3>ÚROVEŇ PODPISU</h3>
               <div class="auth-field"><label>Profil</label>
                 <select id="auth-profile" onchange="authProfileChanged()">
@@ -436,6 +466,7 @@
     box.style.top = (p.y*H) + 'px';
     box.style.width = (p.w*W) + 'px';
     box.style.height = (p.h*H) + 'px';
+    updatePlacementStampPreview();
   }
 
   function persistOverlay() {
@@ -517,8 +548,56 @@
     toast('Pozice a číslo stránky byly přeneseny na všechny dokumenty.');
   };
 
+  function authIsTestMode() {
+    return !!document.getElementById('auth-test-mode')?.checked;
+  }
+
+  window.authTestModeChanged = function() {
+    const on = authIsTestMode();
+    const stateLabel = document.getElementById('auth-test-state');
+    const banner = document.getElementById('auth-test-banner');
+    const certBox = document.getElementById('auth-cert-box');
+    const levelBox = document.getElementById('auth-sign-level-box');
+    const profile = document.getElementById('auth-profile');
+    const certInfo = document.getElementById('auth-cert-info');
+
+    if (stateLabel) stateLabel.textContent = on ? 'ON' : 'OFF';
+    if (banner) banner.classList.toggle('active', on);
+    if (certBox) certBox.classList.toggle('auth-disabled', on);
+    if (levelBox) levelBox.classList.toggle('auth-disabled', on);
+
+    if (profile) {
+      if (on) {
+        state.previousProfile = profile.value || 'bt';
+        profile.value = 'bb';
+        profile.disabled = true;
+      } else {
+        profile.disabled = false;
+        profile.value = state.previousProfile || 'bt';
+      }
+    }
+
+    const certControls = certBox ? certBox.querySelectorAll('input,button') : [];
+    certControls.forEach(el => { el.disabled = on; });
+
+    if (certInfo) {
+      if (on) {
+        certInfo.className = 'auth-cert-card ok';
+        certInfo.innerHTML = '<b>TEST certifikát se vytvoří automaticky</b><br>Dočasný self-signed certifikát vznikne pouze lokálně při exportu a nebude důvěryhodný.';
+      } else {
+        certInfo.className = 'auth-cert-card';
+        certInfo.textContent = state.certFile ? 'Vybráno: '+state.certFile.name+'. Klikni na Ověřit certifikát.' : 'Certifikát zatím nebyl načten.';
+      }
+    }
+
+    authProfileChanged();
+    const signBtn = document.getElementById('auth-sign-btn');
+    if (signBtn) signBtn.textContent = on ? 'TEST · PDF/A-3b + podepsat + stáhnout ZIP' : 'PDF/A-3b + podepsat + stáhnout ZIP';
+    updatePlacementStampPreview();
+  };
+
   window.authProfileChanged = function() {
-    const bt = document.getElementById('auth-profile')?.value === 'bt';
+    const bt = !authIsTestMode() && document.getElementById('auth-profile')?.value === 'bt';
     const wrap = document.getElementById('auth-tsa-wrap');
     if (wrap) wrap.style.display = bt ? 'grid' : 'none';
   };
@@ -627,6 +706,29 @@
     }
   }
 
+  async function updatePlacementStampPreview() {
+    const img = document.getElementById('auth-sig-preview-img');
+    if (!img) return;
+    try {
+      const appearance = await buildCompositeStamp('');
+      if (state.placementPreviewUrl) {
+        URL.revokeObjectURL(state.placementPreviewUrl);
+        state.placementPreviewUrl = null;
+      }
+      if (!appearance) {
+        img.hidden = true;
+        img.removeAttribute('src');
+        return;
+      }
+      state.placementPreviewUrl = URL.createObjectURL(appearance);
+      img.src = state.placementPreviewUrl;
+      img.hidden = false;
+    } catch (e) {
+      img.hidden = true;
+      img.removeAttribute('src');
+    }
+  }
+
   async function renderStampPreview() {
     const box = document.getElementById('auth-stamp-preview');
     if (!box) return;
@@ -647,6 +749,7 @@
       text.innerHTML = '<span class="auth-small">'+(state.stampFile?'Pouze grafika razítka':'Bez vlastního vzhledu')+'</span>';
     }
     box.appendChild(text);
+    updatePlacementStampPreview();
   }
 
   window.authStampOptionsChanged = function() {
@@ -656,6 +759,7 @@
   };
 
   window.inspectAuthorizationCertificate = async function() {
+    if (authIsTestMode()) { toast('V TEST režimu se certifikát vytváří automaticky.'); return; }
     const f = state.certFile;
     const pass = document.getElementById('auth-cert-pass')?.value || '';
     const info = document.getElementById('auth-cert-info');
@@ -706,15 +810,16 @@
 
   window.signAuthorizationBatch = async function() {
     if (!state.files.length) { toast('Nejdřív nahraj PDF.', true); return; }
-    if (!state.certFile) { toast('Vyber PFX/P12 certifikát.', true); return; }
+    const testMode = authIsTestMode();
+    if (!testMode && !state.certFile) { toast('Vyber PFX/P12 certifikát.', true); return; }
     if (typeof window.convertPdfToPdfa !== 'function') {
       toast('PDF/A engine z hlavního Toolboxu není dostupný. Obnov stránku přes Ctrl+F5.', true);
       return;
     }
 
-    const profile = document.getElementById('auth-profile').value;
-    const tsa = document.getElementById('auth-tsa').value.trim();
-    if (profile==='bt' && !tsa) { toast('Pro PAdES B-T zadej RFC 3161 TSA server.', true); return; }
+    const profile = testMode ? 'bb' : document.getElementById('auth-profile').value;
+    const tsa = testMode ? '' : document.getElementById('auth-tsa').value.trim();
+    if (!testMode && profile==='bt' && !tsa) { toast('Pro PAdES B-T zadej RFC 3161 TSA server.', true); return; }
     const bridge = await checkAuthorizationBridge(true);
     if (!bridge) { toast('AuthorizationBridge neběží.', true); return; }
 
@@ -760,8 +865,9 @@
       const appearanceFile = await buildCompositeStamp(signTime);
       const meta = {
         profile,
+        test_mode: testMode,
         tsa_url: tsa,
-        reason: document.getElementById('auth-reason').value.trim(),
+        reason: (testMode ? 'TEST – ' : '') + document.getElementById('auth-reason').value.trim(),
         location: document.getElementById('auth-location').value.trim(),
         contact: document.getElementById('auth-contact').value.trim(),
         output_standard:'PDF/A-3b',
@@ -769,8 +875,10 @@
       };
 
       const fd = new FormData();
-      fd.append('certificate', state.certFile, state.certFile.name);
-      fd.append('password', document.getElementById('auth-cert-pass').value || '');
+      if (!testMode) {
+        fd.append('certificate', state.certFile, state.certFile.name);
+        fd.append('password', document.getElementById('auth-cert-pass').value || '');
+      }
       fd.append('metadata', JSON.stringify(meta));
       if (appearanceFile) fd.append('stamp', appearanceFile, appearanceFile.name);
       convertedFiles.forEach((file, i) => fd.append('pdfs', file, docs[i].output_name));
@@ -792,14 +900,14 @@
 
       state.files.forEach(r=>r.status='signed');
       renderFileList();
-      toast('Hotovo — PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.');
+      toast(testMode ? 'Hotovo — TEST PDF/A-3b jsou digitálně podepsaná testovacím certifikátem a stažená v ZIPu.' : 'Hotovo — PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.');
     } catch (e) {
       state.files.forEach(r=>{ if(r.status!=='signed') r.status='error'; });
       renderFileList();
       toast(e.message || String(e), true);
     } finally {
       btn.disabled = false;
-      btn.textContent = 'PDF/A-3b + podepsat + stáhnout ZIP';
+      btn.textContent = authIsTestMode() ? 'TEST · PDF/A-3b + podepsat + stáhnout ZIP' : 'PDF/A-3b + podepsat + stáhnout ZIP';
     }
   };
 
@@ -907,7 +1015,7 @@
   window.initAuthorizationApp = function() {
     if (!state.initialized) {
       state.initialized = true;
-      authProfileChanged();
+      authTestModeChanged();
       authStampOptionsChanged();
       checkAuthorizationBridge(true);
     }
