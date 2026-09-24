@@ -19,13 +19,13 @@ echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
 echo [1/6] Stahuji aktualni AuthorizationBridge...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/authorization_bridge.py?cb=9' -OutFile '%DIR%\authorization_bridge.py'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/authorization_bridge.py?cb=10' -OutFile '%DIR%\authorization_bridge.py'"
 if errorlevel 1 goto :download_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/requirements.txt?cb=9' -OutFile '%DIR%\requirements.txt'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/requirements.txt?cb=10' -OutFile '%DIR%\requirements.txt'"
 if errorlevel 1 goto :download_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/find_python.ps1?cb=9' -OutFile '%PYFINDER%'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/find_python.ps1?cb=10' -OutFile '%PYFINDER%'"
 if errorlevel 1 goto :download_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/restart_bridge.ps1?cb=9' -OutFile '%RESTARTER%'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/restart_bridge.ps1?cb=10' -OutFile '%RESTARTER%'"
 if errorlevel 1 goto :download_error
 
 echo [2/6] Hledam existujici Python 3...
@@ -139,10 +139,24 @@ exit /b 1
 :bridge_start_error
 echo.
 echo CHYBA: novy AuthorizationBridge se nepodarilo spustit.
-echo Podivej se do:
-echo   %DIR%\bridge.error.log
-echo a
-echo   %DIR%\bridge.log
+echo.
+if exist "%DIR%\bridge.preflight.log" (
+  echo ===== BRIDGE PREFLIGHT =====
+  powershell.exe -NoProfile -Command "Get-Content -LiteralPath '%DIR%\bridge.preflight.log' -Tail 80"
+  echo.
+)
+if exist "%DIR%\bridge.error.log" (
+  echo ===== BRIDGE ERROR LOG =====
+  powershell.exe -NoProfile -Command "Get-Content -LiteralPath '%DIR%\bridge.error.log' -Tail 100"
+  echo.
+)
+if exist "%DIR%\bridge.log" (
+  echo ===== BRIDGE LOG =====
+  powershell.exe -NoProfile -Command "Get-Content -LiteralPath '%DIR%\bridge.log' -Tail 60"
+  echo.
+)
+echo Logy zustavaji v:
+echo   %DIR%
 echo.
 pause
 exit /b 1
