@@ -19,6 +19,8 @@
     stampFile: null,
     certInfo: null,
     bridge: null,
+    zoom: 1,
+    stampSourceName: '',
     initialized: false,
   };
   window.authorizationState = state;
@@ -58,6 +60,7 @@
     const s = document.createElement('style');
     s.id = 'auth-pdf-styles';
     s.textContent = `
+      #tool-authorization{width:calc(100vw - 32px);max-width:none;margin-left:50%;transform:translateX(-50%);background:var(--card);padding:18px 20px;border-radius:12px}
       .auth-health{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:#fafafa;margin:10px 0 12px;flex-wrap:wrap}
       .auth-health.ok{background:#f0fdf4;border-color:#bbf7d0}.auth-health.warn{background:#fffbeb;border-color:#fde68a}
       .auth-health.bad{background:#fef2f2;border-color:#fecaca}
@@ -65,17 +68,17 @@
       .auth-actions{display:flex;gap:6px;flex-wrap:wrap}.auth-actions button,.auth-actions .back-btn{margin:0}
       .auth-drop{border:1px dashed #a1a1aa;border-radius:9px;background:#fafafa;padding:16px;text-align:center;cursor:pointer;margin-bottom:10px}
       .auth-drop.over{border-color:#8a7d00;background:#fffdec}.auth-drop b{font-weight:600}
-      .auth-shell{display:grid;grid-template-columns:260px minmax(0,1fr) 330px;gap:12px;align-items:start}
+      .auth-shell{display:grid;grid-template-columns:240px minmax(0,1fr) 320px;gap:12px;align-items:start}
       .auth-pane{border:1px solid var(--border);border-radius:10px;background:#fafafa;overflow:hidden;min-width:0}
       .auth-pane-head{padding:9px 11px;border-bottom:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:space-between;gap:8px}
       .auth-pane-head b{font:normal 12px 'Antarctican Mono',monospace}.auth-small{font-size:10px;color:var(--muted)}
-      .auth-file-list{max-height:650px;overflow:auto;padding:7px;display:grid;gap:6px}
+      .auth-file-list{max-height:calc(100vh - 250px);min-height:620px;overflow:auto;padding:7px;display:grid;gap:6px}
       .auth-file{width:100%;border:1px solid var(--border);border-radius:7px;background:#fff;padding:8px;text-align:left;cursor:pointer;color:var(--text)}
       .auth-file:hover{border-color:#d4cc5d;background:#fffef3}.auth-file.active{border-color:#18181b;box-shadow:0 0 0 1px #18181b inset}
       .auth-file-top{display:flex;justify-content:space-between;gap:8px}.auth-file-name{font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:175px}
       .auth-file-meta{font-size:9px;color:var(--muted);margin-top:3px}.auth-dot{width:8px;height:8px;border-radius:50%;background:#a1a1aa;flex:0 0 auto;margin-top:3px}
       .auth-dot.ready{background:#eab308}.auth-dot.converting{background:#2563eb}.auth-dot.signed{background:#16a34a}.auth-dot.error{background:#dc2626}
-      .auth-viewer{height:650px;display:flex;flex-direction:column;background:#e4e4e7}
+      .auth-viewer{height:calc(100vh - 205px);min-height:720px;display:flex;flex-direction:column;background:#e4e4e7}
       .auth-toolbar{padding:7px 8px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
       .auth-toolbar button{border:1px solid var(--border);background:#fff;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:10px;color:var(--text)}
       .auth-toolbar button:hover{background:#fffdec}.auth-toolbar button:disabled{opacity:.4;cursor:not-allowed}
@@ -83,10 +86,10 @@
       .auth-stage{flex:1;overflow:auto;padding:12px;position:relative}
       .auth-page-wrap{position:relative;margin:0 auto;background:#fff;box-shadow:0 4px 22px rgba(0,0,0,.13);user-select:none}
       #auth-canvas{display:block}
-      .auth-sig-box{position:absolute;border:2px solid #18181b;background:rgba(247,241,151,.25);cursor:move;min-width:48px;min-height:26px;box-shadow:0 0 0 1px rgba(255,255,255,.75) inset}
-      .auth-sig-box.hidden{display:none}.auth-sig-label{position:absolute;left:4px;top:3px;font-size:9px;background:#18181b;color:#fff;padding:2px 4px;border-radius:3px;pointer-events:none}
+      .auth-sig-box{position:absolute;border:2px solid #d4c700;background:rgba(247,241,151,.14);cursor:move;min-width:48px;min-height:26px;box-shadow:0 0 0 1px rgba(255,255,255,.8) inset}
+      .auth-sig-box.hidden{display:none}
       .auth-resize{position:absolute;width:13px;height:13px;right:-7px;bottom:-7px;border-radius:50%;background:#18181b;border:2px solid #fff;cursor:nwse-resize}
-      .auth-side{padding:10px;display:grid;gap:9px;max-height:650px;overflow:auto}
+      .auth-side{padding:10px;display:grid;gap:9px;max-height:calc(100vh - 250px);min-height:620px;overflow:auto}
       .auth-box{border:1px solid var(--border);border-radius:8px;background:#fff;padding:10px}.auth-box h3{font:normal 12px 'Antarctican Mono',monospace;margin:0 0 8px}
       .auth-field{display:grid;gap:4px;margin-bottom:7px}.auth-field:last-child{margin-bottom:0}.auth-field label{font-size:10px;color:var(--muted)}
       .auth-field input,.auth-field select,.auth-field textarea{width:100%;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);padding:7px 8px;font:11px system-ui,Segoe UI,sans-serif}
@@ -100,8 +103,13 @@
       .auth-warn{font-size:9.5px;line-height:1.45;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:7px}
       #auth-toast{position:fixed;right:18px;bottom:18px;z-index:10050;background:#18181b;color:#fff;padding:10px 12px;border-radius:8px;font-size:11px;box-shadow:0 8px 30px rgba(0,0,0,.24);opacity:0;transform:translateY(8px);pointer-events:none;transition:.18s}
       #auth-toast.show{opacity:1;transform:none}#auth-toast.bad{background:#7f1d1d}
-      @media(max-width:1050px){.auth-shell{grid-template-columns:220px minmax(0,1fr)}.auth-pane.auth-settings{grid-column:1/-1}.auth-side{max-height:none;grid-template-columns:repeat(2,minmax(0,1fr))}}
-      @media(max-width:760px){.auth-shell{grid-template-columns:1fr}.auth-viewer{height:560px}.auth-side{grid-template-columns:1fr}.auth-file-list{max-height:240px}}
+      .auth-zoom-readout{min-width:46px;text-align:center;font-size:10px;color:var(--muted)}
+      .auth-stamp-layout-options{display:grid;gap:7px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+      .auth-stamp-preview{display:flex;align-items:center;gap:10px;padding:8px;border:1px dashed var(--border);border-radius:7px;background:#fafafa;min-height:54px}
+      .auth-stamp-preview img{max-width:90px;max-height:54px;object-fit:contain}
+      .auth-stamp-preview-text{font-size:10px;line-height:1.35}
+      @media(max-width:1050px){#tool-authorization{width:calc(100vw - 16px);padding:12px}.auth-shell{grid-template-columns:210px minmax(0,1fr)}.auth-pane.auth-settings{grid-column:1/-1}.auth-side{max-height:none;min-height:0;grid-template-columns:repeat(2,minmax(0,1fr))}.auth-file-list{min-height:0}.auth-viewer{min-height:620px}}
+      @media(max-width:760px){#tool-authorization{width:100vw;border-radius:0}.auth-shell{grid-template-columns:1fr}.auth-viewer{height:620px;min-height:620px}.auth-side{grid-template-columns:1fr}.auth-file-list{max-height:240px;min-height:0}}
     `;
     document.head.appendChild(s);
   }
@@ -156,13 +164,16 @@
             <select id="auth-page-select" onchange="authSetPage(Number(this.value))"></select>
             <button id="auth-next" onclick="authNextPage()">→</button>
             <span id="auth-page-info" class="auth-small">–</span>
+            <button onclick="authZoomOut()" title="Oddálit">−</button>
+            <span id="auth-zoom-readout" class="auth-zoom-readout">100 %</span>
+            <button onclick="authZoomIn()" title="Přiblížit">+</button>
+            <button onclick="authZoomFit()" title="Přizpůsobit šířce">Přizpůsobit</button>
             <button style="margin-left:auto" onclick="authApplyPlacementToAll()">Použít pozici na všechny</button>
           </div>
           <div id="auth-stage" class="auth-stage">
             <div id="auth-page-wrap" class="auth-page-wrap" style="display:none">
               <canvas id="auth-canvas"></canvas>
               <div id="auth-sig-box" class="auth-sig-box">
-                <span class="auth-sig-label">PODPIS / RAZÍTKO</span>
                 <span id="auth-resize" class="auth-resize"></span>
               </div>
             </div>
@@ -176,8 +187,14 @@
             <div class="auth-box">
               <h3>VIDITELNÉ RAZÍTKO</h3>
               <label class="auth-check"><input id="auth-visible" type="checkbox" checked onchange="authToggleVisible()"> zobrazit podpis na stránce</label>
-              <div class="auth-field"><label>Vlastní obrázek razítka / podpisu (PNG/JPG)</label><input id="auth-stamp-file" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg"></div>
-              <div id="auth-stamp-info" class="auth-small">Bez obrázku se použije standardní podpisový vzhled se jménem z certifikátu a časem.</div>
+              <div class="auth-field"><label>Grafika razítka / podpisu (PNG, JPG nebo PDF)</label><input id="auth-stamp-file" type="file" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"></div>
+              <div id="auth-stamp-info" class="auth-small">U PDF se jako grafika razítka použije první strana.</div>
+              <div class="auth-stamp-layout-options">
+                <label class="auth-check"><input id="auth-add-architect" type="checkbox" onchange="authStampOptionsChanged()"> přidat jméno architekta vedle razítka</label>
+                <div id="auth-architect-wrap" class="auth-field" style="display:none"><label>Jméno architekta</label><input id="auth-architect-name" placeholder="Jméno a příjmení" oninput="authStampOptionsChanged()"></div>
+                <label class="auth-check"><input id="auth-add-datetime" type="checkbox" onchange="authStampOptionsChanged()"> přidat datum a čas podpisu</label>
+                <div id="auth-stamp-preview" class="auth-stamp-preview"><span class="auth-small">Náhled vzhledu podpisu</span></div>
+              </div>
             </div>
 
             <div class="auth-box">
@@ -338,6 +355,7 @@
   async function selectFile(i) {
     if (i < 0 || i >= state.files.length) return;
     state.current = i;
+    state.zoom = 1;
     renderFileList();
     await renderCurrent();
   }
@@ -358,9 +376,12 @@
       const stage = document.getElementById('auth-stage');
       const base = page.getViewport({scale:1});
       const maxW = Math.max(260, (stage?.clientWidth || 700) - 28);
-      const scale = Math.max(.25, Math.min(2.2, maxW/base.width));
+      const fitScale = Math.max(.15, Math.min(2.2, maxW/base.width));
+      const scale = Math.max(.08, Math.min(6, fitScale * state.zoom));
       const vp = page.getViewport({scale});
       state.viewport = vp;
+      const zoomReadout = document.getElementById('auth-zoom-readout');
+      if (zoomReadout) zoomReadout.textContent = Math.round(state.zoom * 100) + ' %';
       const canvas = document.getElementById('auth-canvas');
       const ctx = canvas.getContext('2d', {alpha:false});
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -466,6 +487,19 @@
     });
   }
 
+  window.authZoomIn = async function() {
+    state.zoom = Math.min(4, Math.round((state.zoom + 0.15) * 100) / 100);
+    await renderCurrent();
+  };
+  window.authZoomOut = async function() {
+    state.zoom = Math.max(0.35, Math.round((state.zoom - 0.15) * 100) / 100);
+    await renderCurrent();
+  };
+  window.authZoomFit = async function() {
+    state.zoom = 1;
+    await renderCurrent();
+  };
+
   window.authToggleVisible = function() {
     const rec = state.files[state.current];
     if (rec) placeOverlay(rec);
@@ -489,6 +523,138 @@
     if (wrap) wrap.style.display = bt ? 'grid' : 'none';
   };
 
+  async function fileToImageElement(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.decoding = 'async';
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = () => reject(new Error('Obrázek razítka se nepodařilo načíst.'));
+        img.src = url;
+      });
+      return img;
+    } finally {
+      // URL is revoked after rasterisation by callers that draw synchronously.
+    }
+  }
+
+  async function pdfStampToPng(file) {
+    if (!window.pdfjsLib) throw new Error('PDF.js není dostupné.');
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const doc = await pdfjsLib.getDocument({data:bytes}).promise;
+    try {
+      const page = await doc.getPage(1);
+      const base = page.getViewport({scale:1});
+      const targetW = 1800;
+      const scale = Math.max(1, Math.min(5, targetW / Math.max(1, base.width)));
+      const vp = page.getViewport({scale});
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(vp.width);
+      canvas.height = Math.ceil(vp.height);
+      const ctx = canvas.getContext('2d', {alpha:true});
+      await page.render({canvasContext:ctx, viewport:vp, background:'rgba(255,255,255,0)'}).promise;
+      const blob = await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('PDF razítko se nepodařilo převést.')),'image/png'));
+      const name = String(file.name || 'razitko.pdf').replace(/\.pdf$/i,'') + '.png';
+      return new File([blob], name, {type:'image/png', lastModified:Date.now()});
+    } finally {
+      try { await doc.destroy(); } catch {}
+    }
+  }
+
+  async function loadStampGraphic(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.decoding = 'async';
+      await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('Grafiku razítka nelze načíst.'));img.src=url;});
+      return {img, url};
+    } catch(e) {
+      URL.revokeObjectURL(url);
+      throw e;
+    }
+  }
+
+  function signatureDisplayLines(signTime) {
+    const addName = document.getElementById('auth-add-architect')?.checked;
+    const addTime = document.getElementById('auth-add-datetime')?.checked;
+    const name = document.getElementById('auth-architect-name')?.value.trim() || '';
+    const lines = [];
+    if (addName && name) lines.push(name);
+    if (addTime) lines.push(signTime || new Intl.DateTimeFormat('cs-CZ',{dateStyle:'short',timeStyle:'short'}).format(new Date()));
+    return lines;
+  }
+
+  async function buildCompositeStamp(signTime) {
+    const lines = signatureDisplayLines(signTime);
+    if (!state.stampFile && !lines.length) return null;
+    if (state.stampFile && !lines.length) return state.stampFile;
+
+    let graphic = null;
+    if (state.stampFile) graphic = await loadStampGraphic(state.stampFile);
+    try {
+      const gh = graphic ? graphic.img.naturalHeight : 0;
+      const gw = graphic ? graphic.img.naturalWidth : 0;
+      const textW = lines.length ? 720 : 0;
+      const gap = graphic && lines.length ? 50 : 0;
+      const h = Math.max(220, gh || 0);
+      const scale = graphic && gh ? h / gh : 1;
+      const drawnW = graphic ? Math.round(gw * scale) : 0;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(320, drawnW + gap + textW);
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      if (graphic) ctx.drawImage(graphic.img,0,0,drawnW,h);
+      if (lines.length) {
+        const x = drawnW + gap;
+        const mainSize = Math.max(30, Math.round(h * .18));
+        const subSize = Math.max(24, Math.round(h * .135));
+        ctx.fillStyle = '#18181b';
+        ctx.textBaseline = 'middle';
+        ctx.font = '600 '+mainSize+'px Arial, sans-serif';
+        const startY = lines.length===2 ? h*.40 : h*.50;
+        ctx.fillText(lines[0], x, startY);
+        if (lines.length===2) {
+          ctx.font = '400 '+subSize+'px Arial, sans-serif';
+          ctx.fillText(lines[1], x, h*.66);
+        }
+      }
+      const blob = await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Vzhled podpisu se nepodařilo vytvořit.')),'image/png'));
+      return new File([blob], '20-20_signature_appearance.png', {type:'image/png',lastModified:Date.now()});
+    } finally {
+      if (graphic?.url) URL.revokeObjectURL(graphic.url);
+    }
+  }
+
+  async function renderStampPreview() {
+    const box = document.getElementById('auth-stamp-preview');
+    if (!box) return;
+    const lines = signatureDisplayLines('');
+    box.innerHTML = '';
+    if (state.stampFile) {
+      const url = URL.createObjectURL(state.stampFile);
+      const img = document.createElement('img');
+      img.src = url;
+      img.onload = () => setTimeout(()=>URL.revokeObjectURL(url),1000);
+      box.appendChild(img);
+    }
+    const text = document.createElement('div');
+    text.className = 'auth-stamp-preview-text';
+    if (lines.length) {
+      text.innerHTML = lines.map((x,i)=> i===0?'<b>'+esc(x)+'</b>':esc(x)).join('<br>');
+    } else {
+      text.innerHTML = '<span class="auth-small">'+(state.stampFile?'Pouze grafika razítka':'Bez vlastního vzhledu')+'</span>';
+    }
+    box.appendChild(text);
+  }
+
+  window.authStampOptionsChanged = function() {
+    const wrap = document.getElementById('auth-architect-wrap');
+    if (wrap) wrap.style.display = document.getElementById('auth-add-architect')?.checked ? 'grid' : 'none';
+    renderStampPreview();
+  };
+
   window.inspectAuthorizationCertificate = async function() {
     const f = state.certFile;
     const pass = document.getElementById('auth-cert-pass')?.value || '';
@@ -505,6 +671,8 @@
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) throw new Error(j.error || 'Certifikát se nepodařilo načíst.');
       state.certInfo = j;
+      const architect = document.getElementById('auth-architect-name');
+      if (architect && !architect.value.trim() && j.display_name) architect.value = j.display_name;
       info.className = 'auth-cert-card ok';
       info.innerHTML = '<b>'+esc(j.subject || 'Certifikát načten')+'</b><br>Vydavatel: '+esc(j.issuer || '–')+'<br>Platnost: '+esc(j.valid_from || '–')+' → '+esc(j.valid_to || '–')+'<br>Serial: '+esc(j.serial || '–');
       toast('Certifikát je čitelný a obsahuje privátní klíč.');
@@ -588,6 +756,8 @@
       }
 
       btn.textContent = 'Podepisuji PDF/A-3b…';
+      const signTime = new Intl.DateTimeFormat('cs-CZ',{dateStyle:'short',timeStyle:'short'}).format(new Date());
+      const appearanceFile = await buildCompositeStamp(signTime);
       const meta = {
         profile,
         tsa_url: tsa,
@@ -602,7 +772,7 @@
       fd.append('certificate', state.certFile, state.certFile.name);
       fd.append('password', document.getElementById('auth-cert-pass').value || '');
       fd.append('metadata', JSON.stringify(meta));
-      if (state.stampFile) fd.append('stamp', state.stampFile, state.stampFile.name);
+      if (appearanceFile) fd.append('stamp', appearanceFile, appearanceFile.name);
       convertedFiles.forEach((file, i) => fd.append('pdfs', file, docs[i].output_name));
 
       const resp = await bridgeFetch('/sign-batch', {method:'POST', body:fd}, 240000);
@@ -679,10 +849,34 @@
       state.certFile = e.target.files?.[0] || null; state.certInfo=null;
       const box=document.getElementById('auth-cert-info'); box.className='auth-cert-card'; box.textContent=state.certFile?'Vybráno: '+state.certFile.name+'. Klikni na Ověřit certifikát.':'Certifikát zatím nebyl načten.';
     });
-    document.getElementById('auth-stamp-file').addEventListener('change', e => {
-      state.stampFile = e.target.files?.[0] || null;
-      document.getElementById('auth-stamp-info').textContent = state.stampFile ? 'Použije se obrázek: '+state.stampFile.name : 'Bez obrázku se použije standardní podpisový vzhled se jménem z certifikátu a časem.';
+    document.getElementById('auth-stamp-file').addEventListener('change', async e => {
+      const source = e.target.files?.[0] || null;
+      state.stampFile = null;
+      state.stampSourceName = source?.name || '';
+      const info = document.getElementById('auth-stamp-info');
+      if (!source) {
+        info.textContent = 'U PDF se jako grafika razítka použije první strana.';
+        renderStampPreview();
+        return;
+      }
+      try {
+        info.textContent = /\.pdf$/i.test(source.name) || source.type==='application/pdf' ? 'Převádím 1. stranu PDF razítka…' : 'Načítám grafiku razítka…';
+        state.stampFile = (/\.pdf$/i.test(source.name) || source.type==='application/pdf') ? await pdfStampToPng(source) : source;
+        info.textContent = 'Použije se: '+source.name + ((/\.pdf$/i.test(source.name) || source.type==='application/pdf') ? ' · 1. strana PDF' : '');
+        await renderStampPreview();
+      } catch(err) {
+        state.stampFile = null;
+        info.textContent = 'Chyba: '+(err.message || err);
+        toast('Razítko se nepodařilo načíst.', true);
+      }
     });
+    const stage = document.getElementById('auth-stage');
+    stage.addEventListener('wheel', e => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      state.zoom = Math.max(.35, Math.min(4, state.zoom + (e.deltaY < 0 ? .12 : -.12)));
+      renderCurrent();
+    }, {passive:false});
     window.addEventListener('resize', () => { if(document.getElementById('tool-authorization')?.classList.contains('active')) renderCurrent(); });
   }
 
@@ -714,6 +908,7 @@
     if (!state.initialized) {
       state.initialized = true;
       authProfileChanged();
+      authStampOptionsChanged();
       checkAuthorizationBridge(true);
     }
     renderFileList();
