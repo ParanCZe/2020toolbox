@@ -269,6 +269,11 @@ def status():
         pyhanko=getattr(pyhanko, "__version__", "unknown"),
         host=HOST,
         port=PORT,
+        features={
+            "test_signing": True,
+            "dedicated_test_endpoint": True,
+            "pdfa3_input": True,
+        },
     )
 
 
