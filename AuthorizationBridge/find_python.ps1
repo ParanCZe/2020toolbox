@@ -1,44 +1,62 @@
 $ErrorActionPreference = 'SilentlyContinue'
 
 function Test-PythonExe([string]$Path) {
-    if (-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
-    # Ignore Microsoft Store execution aliases; they are not usable runtimes for venv/pip.
+    if (-not $Path) { return $null }
     if ($Path -match '\\Microsoft\\WindowsApps\\python(3)?\.exe$') { return $null }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
     try {
-        $out = & $Path -c "import sys; print(sys.executable if sys.version_info.major == 3 else '')" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $out) {
-            $resolved = ($out | Select-Object -First 1).Trim()
-            if ($resolved -and $resolved -notmatch '\\Microsoft\\WindowsApps\\python(3)?\.exe$') { return $resolved }
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $Path
+        $psi.Arguments = '-c "import sys; print(sys.executable)"'
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.CreateNoWindow = $true
+        $p = New-Object System.Diagnostics.Process
+        $p.StartInfo = $psi
+        [void]$p.Start()
+        if (-not $p.WaitForExit(4000)) {
+            try { $p.Kill() } catch {}
+            return $null
         }
-    } catch {}
-    return $null
+        if ($p.ExitCode -ne 0) { return $null }
+        $resolved = $p.StandardOutput.ReadToEnd().Trim()
+        if (-not $resolved) { return $null }
+        if ($resolved -match '\\Microsoft\\WindowsApps\\python(3)?\.exe$') { return $null }
+        return $resolved
+    } catch {
+        return $null
+    }
 }
 
-function Test-CommandPython([string]$Command, [string[]]$Args) {
-    try {
-        $out = & $Command @Args 2>$null
-        if ($LASTEXITCODE -eq 0 -and $out) {
-            $candidate = ($out | Select-Object -First 1).Trim()
-            return Test-PythonExe $candidate
+# IMPORTANT:
+# Never execute the generic "python" command here. On Windows it can be the
+# Microsoft Store execution alias and can hang/open the Store.
+$candidates = New-Object System.Collections.Generic.List[string]
+
+# Known per-user Python.org / winget locations, newest first.
+foreach ($ver in @('314','313','312','311','310')) {
+    if ($env:LOCALAPPDATA) {
+        $candidates.Add((Join-Path $env:LOCALAPPDATA ("Programs\Python\Python{0}\python.exe" -f $ver)))
+    }
+}
+
+# Common system installs.
+foreach ($root in @($env:ProgramFiles, [Environment]::GetFolderPath('ProgramFilesX86'))) {
+    if ($root) {
+        foreach ($ver in @('314','313','312','311','310')) {
+            $candidates.Add((Join-Path $root ("Python{0}\python.exe" -f $ver)))
         }
-    } catch {}
-    return $null
+    }
 }
 
-# 1) Python launcher / PATH
-$valid = Test-CommandPython 'py' @('-3','-c','import sys; print(sys.executable)')
-if ($valid) { $valid; exit 0 }
-$valid = Test-CommandPython 'python' @('-c','import sys; print(sys.executable)')
-if ($valid) { $valid; exit 0 }
-
-# 2) Python Launcher installed outside PATH
-$launcher = Join-Path $env:LOCALAPPDATA 'Programs\Python\Launcher\py.exe'
-if (Test-Path -LiteralPath $launcher) {
-    $valid = Test-CommandPython $launcher @('-3','-c','import sys; print(sys.executable)')
-    if ($valid) { $valid; exit 0 }
+# Conda, if present.
+if ($env:USERPROFILE) {
+    $candidates.Add((Join-Path $env:USERPROFILE 'miniconda3\python.exe'))
+    $candidates.Add((Join-Path $env:USERPROFILE 'anaconda3\python.exe'))
 }
 
-# 3) Registry installations
+# Registry installs.
 $registryRoots = @(
     'Registry::HKEY_CURRENT_USER\Software\Python\PythonCore',
     'Registry::HKEY_LOCAL_MACHINE\Software\Python\PythonCore',
@@ -46,36 +64,40 @@ $registryRoots = @(
 )
 foreach ($root in $registryRoots) {
     if (-not (Test-Path -LiteralPath $root)) { continue }
-    foreach ($versionKey in (Get-ChildItem -LiteralPath $root | Sort-Object PSChildName -Descending)) {
+    foreach ($versionKey in (Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue | Sort-Object PSChildName -Descending)) {
         try {
             $installKey = Join-Path $versionKey.PSPath 'InstallPath'
-            $installDir = (Get-Item -LiteralPath $installKey).GetValue('')
-            if ($installDir) {
-                $candidate = Join-Path $installDir 'python.exe'
-                $valid = Test-PythonExe $candidate
-                if ($valid) { $valid; exit 0 }
+            $item = Get-Item -LiteralPath $installKey -ErrorAction SilentlyContinue
+            if ($item) {
+                $installDir = $item.GetValue('')
+                if ($installDir) { $candidates.Add((Join-Path $installDir 'python.exe')) }
             }
         } catch {}
     }
 }
 
-# 4) Common user/system locations
-$roots = @(
-    (Join-Path $env:LOCALAPPDATA 'Programs\Python'),
-    $env:ProgramFiles,
-    ([Environment]::GetFolderPath('ProgramFilesX86'))
-) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
-
-$candidates = @()
-foreach ($root in $roots) {
-    $candidates += Get-ChildItem -Path (Join-Path $root 'Python*\python.exe') -File -ErrorAction SilentlyContinue
+# Last fallback: enumerate only the immediate Python folders under LocalAppData.
+if ($env:LOCALAPPDATA) {
+    $pythonRoot = Join-Path $env:LOCALAPPDATA 'Programs\Python'
+    if (Test-Path -LiteralPath $pythonRoot) {
+        Get-ChildItem -LiteralPath $pythonRoot -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like 'Python*' } |
+            Sort-Object Name -Descending |
+            ForEach-Object { $candidates.Add((Join-Path $_.FullName 'python.exe')) }
+    }
 }
-$candidates += Get-Item -LiteralPath (Join-Path $env:USERPROFILE 'miniconda3\python.exe') -ErrorAction SilentlyContinue
-$candidates += Get-Item -LiteralPath (Join-Path $env:USERPROFILE 'anaconda3\python.exe') -ErrorAction SilentlyContinue
 
-foreach ($candidate in ($candidates | Where-Object { $_ } | Sort-Object FullName -Descending -Unique)) {
-    $valid = Test-PythonExe $candidate.FullName
-    if ($valid) { $valid; exit 0 }
+$seen = @{}
+foreach ($candidate in $candidates) {
+    if (-not $candidate) { continue }
+    $key = $candidate.ToLowerInvariant()
+    if ($seen.ContainsKey($key)) { continue }
+    $seen[$key] = $true
+    $valid = Test-PythonExe $candidate
+    if ($valid) {
+        Write-Output $valid
+        exit 0
+    }
 }
 
 exit 1
