@@ -29,6 +29,8 @@ from pyhanko import stamp
 from pyhanko.pdf_utils import images
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign import fields, signers, timestamps
+from pyhanko.sign.timestamps.aiohttp_client import AIOHttpTimeStamper
+from aiohttp import BasicAuth
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -37,7 +39,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
 
-APP_VERSION = "1.6.0"
+APP_VERSION = "1.7.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -349,6 +351,7 @@ def status():
             "session_token": True,
             "fast_zip": True,
             "optional_ear_suffix": True,
+            "tsa_basic_auth": True,
         },
     )
 
@@ -399,10 +402,15 @@ def sign_batch():
             return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
 
         tsa_url = str(meta.get("tsa_url") or "").strip()
+        tsa_user = str(meta.get("tsa_user") or "").strip()
+        tsa_password = str(meta.get("tsa_password") or "")
         if profile == "bt":
             if not re.match(r"^https?://", tsa_url, re.I):
                 return jsonify(ok=False, error="Pro PAdES B-T je nutná platná HTTP(S) adresa RFC 3161 TSA serveru."), 400
-            timestamper = timestamps.HTTPTimeStamper(tsa_url)
+            if bool(tsa_user) != bool(tsa_password):
+                return jsonify(ok=False, error="Pro přihlášení k TSA musí být vyplněn login i heslo."), 400
+            auth = BasicAuth(tsa_user, tsa_password) if tsa_user else None
+            timestamper = AIOHttpTimeStamper(tsa_url, auth=auth)
         else:
             timestamper = None
 
@@ -464,6 +472,7 @@ def sign_batch():
                 "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
                 "append_ear": bool(meta.get("append_ear", True)),
                 "tsa_url": tsa_url if profile == "bt" else None,
+                "tsa_authenticated": bool(tsa_user) if profile == "bt" else False,
                 "certificate": cert_info,
                 "files": manifest_files,
             }
