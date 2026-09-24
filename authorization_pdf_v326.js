@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.29
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.30
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Privátní klíč / PFX zůstává v počítači uživatele a posílá se pouze na 127.0.0.1.
 
@@ -41,13 +41,17 @@
   function uid() {
     return (crypto?.randomUUID?.() || Math.random().toString(36).slice(2) + Date.now().toString(36)).replace(/-/g,'');
   }
-  function earOutputName(name) {
+  function authAppendEarEnabled() {
+    return document.getElementById('auth-append-ear')?.checked !== false;
+  }
+
+  function authorizationOutputName(name) {
     let base = String(name || 'document.pdf').replace(/\.pdf$/i, '');
     try {
       if (typeof window.removeDiacritics === 'function') base = window.removeDiacritics(base);
     } catch (_) {}
     base = base.replace(/_EAR$/i, '');
-    return base + '_EAR.pdf';
+    return base + (authAppendEarEnabled() ? '_EAR' : '') + '.pdf';
   }
   function toast(msg, bad=false) {
     const el = document.getElementById('auth-toast');
@@ -129,6 +133,7 @@
       reason: document.getElementById('auth-reason')?.value || '',
       location: document.getElementById('auth-location')?.value || '',
       contact: document.getElementById('auth-contact')?.value || '',
+      appendEar: authAppendEarEnabled(),
       stampName: state.stampSourceName || ''
     };
   }
@@ -280,10 +285,12 @@
       setValue('auth-reason', saved.reason || 'Autorizace dokumentace');
       setValue('auth-location', saved.location || '');
       setValue('auth-contact', saved.contact || '');
+      setChecked('auth-append-ear', saved.appendEar !== false);
       state.stampSourceName = saved.stampName || state.stampSourceName || '';
       authProfileChanged();
       authStampOptionsChanged();
       authToggleVisible();
+      authOutputNamingChanged();
     }
     await authLoadHandle('stamp', !!requestFilePermission);
     // Certifikát se z bezpečnostních důvodů mezi relacemi automaticky nenačítá.
@@ -518,7 +525,8 @@
 
             <div class="auth-box">
               <h3>VÝSTUP</h3>
-              <div class="auth-cert-card ok"><b>PDF/A-3b + PAdES</b><br>Každý soubor bude exportovaný jako <b>název_EAR.pdf</b>. Pořadí je záměrně PDF/A-3b → podpis, aby se podpis následnou konverzí nezneplatnil.</div>
+              <label class="auth-check"><input id="auth-append-ear" type="checkbox" checked onchange="authOutputNamingChanged()"> přidat <b>_EAR</b> za název exportovaného PDF</label>
+              <div id="auth-output-name-info" class="auth-cert-card ok"><b>PDF/A-3b + PAdES</b><br>Každý soubor bude exportovaný jako <b>název_EAR.pdf</b>. Pořadí je záměrně PDF/A-3b → podpis, aby se podpis následnou konverzí nezneplatnil.</div>
             </div>
 
             <div class="auth-warn">PFX/P12 ani heslo se trvale neukládají. Certifikát je dostupný jen v aktuální relaci prohlížeče a při podepisování se posílá pouze lokální službě na <b>127.0.0.1</b>. Výsledná právní úroveň podpisu závisí také na typu certifikátu a způsobu jeho vydání/uložení.</div>
@@ -857,6 +865,16 @@
   window.authToggleVisible = function() {
     const rec = state.files[state.current];
     if (rec) placeOverlay(rec);
+  };
+
+  window.authOutputNamingChanged = function() {
+    const info = document.getElementById('auth-output-name-info');
+    if (info) {
+      info.innerHTML = '<b>PDF/A-3b + PAdES</b><br>Každý soubor bude exportovaný jako <b>' +
+        (authAppendEarEnabled() ? 'název_EAR.pdf' : 'název.pdf') +
+        '</b>. Pořadí je záměrně PDF/A-3b → podpis, aby se podpis následnou konverzí nezneplatnil.';
+    }
+    if (authRememberEnabled()) authSaveSettings(false);
   };
 
   async function bottomRightPlacementMetrics(rec) {
@@ -1218,6 +1236,10 @@
       toast('Kvůli bezpečnosti je potřeba AuthorizationBridge 1.5.0+. Spusť aktuální Instalátor a potom Zkontrolovat.', true);
       return;
     }
+    if (!authAppendEarEnabled() && !bridge.features?.optional_ear_suffix) {
+      toast('Pro export bez _EAR aktualizuj AuthorizationBridge přes Instalátor a potom dej Zkontrolovat.', true);
+      return;
+    }
     if (testMode && !bridge.features?.test_signing) {
       toast('Běží bridge bez podpory TEST podpisu. Spusť znovu aktuální Instalátor.', true);
       return;
@@ -1245,7 +1267,7 @@
         docs[i] = {
           index:i,
           name:rec.name,
-          output_name:earOutputName(rec.name),
+          output_name:authorizationOutputName(rec.name),
           pdfa:'3b',
           page_count: rec.pages || null,
           preview_page: 1,
@@ -1306,6 +1328,7 @@
         location: document.getElementById('auth-location').value.trim(),
         contact: document.getElementById('auth-contact').value.trim(),
         output_standard:'PDF/A-3b',
+        append_ear: authAppendEarEnabled(),
         documents: docs
       };
 
@@ -1329,13 +1352,17 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href=url;
-      a.download='autorizovane_PDF-A-3b_EAR_'+new Date().toISOString().slice(0,10)+'.zip';
+      a.download='autorizovane_PDF-A-3b'+(authAppendEarEnabled()?'_EAR':'')+'_'+new Date().toISOString().slice(0,10)+'.zip';
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),4000);
 
       state.files.forEach(r=>r.status='signed');
       renderFileList();
-      toast(testMode ? 'Hotovo — TEST PDF/A-3b jsou digitálně podepsaná testovacím certifikátem a stažená v ZIPu.' : 'Hotovo — PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.');
+      toast(testMode
+        ? 'Hotovo — TEST PDF/A-3b jsou digitálně podepsaná testovacím certifikátem a stažená v ZIPu.'
+        : (authAppendEarEnabled()
+          ? 'Hotovo — PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.'
+          : 'Hotovo — PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.'));
     } catch (e) {
       state.files.forEach(r=>{ if(r.status!=='signed') r.status='error'; });
       renderFileList();
