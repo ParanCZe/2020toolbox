@@ -553,7 +553,7 @@
       if (!r.ok || !j.ok) throw new Error(j.error || 'Bridge neodpovídá.');
       state.bridge = j;
       if (el) {
-        const staleForTest = authIsTestMode() && !authVersionAtLeast(j.version, '1.4.0');
+        const staleForTest = authIsTestMode() && (!authVersionAtLeast(j.version, '1.4.0') || !j.features?.test_signing);
         el.className = staleForTest ? 'auth-health bad' : 'auth-health ok';
         el.querySelector('.auth-health-copy').innerHTML = staleForTest
           ? '<b>AuthorizationBridge je zastaralý pro TEST</b><span>běží v' + esc(j.version || '–') + ' · je potřeba 1.4.0+ · spusť znovu Instalátor</span>'
@@ -1096,8 +1096,8 @@
     if (!testMode && profile==='bt' && !tsa) { toast('Pro PAdES B-T zadej RFC 3161 TSA server.', true); return; }
     const bridge = await checkAuthorizationBridge(true);
     if (!bridge) { toast('AuthorizationBridge neběží.', true); return; }
-    if (testMode && !authVersionAtLeast(bridge.version, '1.4.0')) {
-      toast('TEST režim vyžaduje AuthorizationBridge 1.4.0 nebo novější. Stáhni znovu Instalátor, který starý bridge restartuje.', true);
+    if (testMode && (!authVersionAtLeast(bridge.version, '1.4.0') || !bridge.features?.test_signing)) {
+      toast('Běží starý AuthorizationBridge bez podpory TEST podpisu. Spusť znovu aktuální Instalátor a potom Zkontrolovat.', true);
       return;
     }
 
