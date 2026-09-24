@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.32
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.33
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Podpis používá certifikát přímo z Windows Certificate Store; privátní klíč neopouští Windows.
 
@@ -994,12 +994,21 @@
       if (!r.ok || !j.ok) throw new Error(j.error || 'Certifikáty z Windows se nepodařilo načíst.');
       state.windowsCerts = Array.isArray(j.certificates) ? j.certificates : [];
       if (sel) {
-        const available = state.windowsCerts.filter(c => !c.expired);
-        sel.innerHTML = '<option value="">— vyber certifikát —</option>' + available.map(cert => {
-          const until = cert.valid_to ? new Date(cert.valid_to).toLocaleDateString('cs-CZ') : '–';
-          const label = (cert.display_name || cert.subject || 'Certifikát') + ' · do ' + until;
-          return '<option value="'+esc(cert.thumbprint || '')+'">'+esc(label)+'</option>';
-        }).join('');
+        const available = state.windowsCerts.filter(c => !c.expired && c.supported !== false && c.has_private_key !== false);
+        const diagnostics = state.windowsCerts.filter(c => !available.includes(c));
+        sel.innerHTML = '<option value="">— vyber certifikát —</option>' +
+          available.map(cert => {
+            const until = cert.valid_to ? new Date(cert.valid_to).toLocaleDateString('cs-CZ') : '–';
+            const where = cert.store_location ? ' · '+cert.store_location : '';
+            const label = (cert.display_name || cert.subject || 'Certifikát') + ' · '+(cert.key_type || 'RSA')+' '+(cert.key_bits || '')+' · do ' + until + where;
+            return '<option value="'+esc(cert.thumbprint || '')+'">'+esc(label)+'</option>';
+          }).join('') +
+          diagnostics.map(cert => {
+            const until = cert.valid_to ? new Date(cert.valid_to).toLocaleDateString('cs-CZ') : '–';
+            const reason = cert.expired ? 'EXPIROVANÝ' : (!cert.has_private_key ? 'bez privátního klíče' : 'nepodporovaný '+(cert.key_type || 'typ klíče'));
+            const label = '⚠ '+(cert.display_name || cert.subject || 'Certifikát')+' · '+reason+' · do '+until;
+            return '<option value="" disabled>'+esc(label)+'</option>';
+          }).join('');
         if (state.selectedCertThumbprint && available.some(c => String(c.thumbprint).toUpperCase() === String(state.selectedCertThumbprint).toUpperCase())) {
           sel.value = state.selectedCertThumbprint;
         } else if (available.length === 1) {
@@ -1010,7 +1019,17 @@
         }
       }
       authRenderWindowsCertificateInfo();
-      if (showToast) toast(state.windowsCerts.length ? 'Certifikáty z Windows byly načteny.' : 'Ve Windows nebyl nalezen podporovaný podpisový certifikát.', !state.windowsCerts.length);
+      if (showToast) {
+        const supportedCount = state.windowsCerts.filter(c => !c.expired && c.supported !== false && c.has_private_key !== false).length;
+        toast(
+          supportedCount
+            ? 'Načteno podpisových certifikátů: '+supportedCount+'.'
+            : (state.windowsCerts.length
+              ? 'Windows certifikáty byly nalezeny, ale žádný zatím nesplňuje podmínky podpisu. Podívej se do seznamu na důvod.'
+              : 'Ve Windows nebyl nalezen žádný certifikát v osobním úložišti CurrentUser ani LocalMachine.'),
+          !supportedCount
+        );
+      }
     } catch (e) {
       state.windowsCerts = [];
       state.certInfo = null;
