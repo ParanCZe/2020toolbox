@@ -35,6 +35,14 @@
   function uid() {
     return (crypto?.randomUUID?.() || Math.random().toString(36).slice(2) + Date.now().toString(36)).replace(/-/g,'');
   }
+  function earOutputName(name) {
+    let base = String(name || 'document.pdf').replace(/\.pdf$/i, '');
+    try {
+      if (typeof window.removeDiacritics === 'function') base = window.removeDiacritics(base);
+    } catch (_) {}
+    base = base.replace(/_EAR$/i, '');
+    return base + '_EAR.pdf';
+  }
   function toast(msg, bad=false) {
     const el = document.getElementById('auth-toast');
     if (!el) return;
@@ -66,7 +74,7 @@
       .auth-file:hover{border-color:#d4cc5d;background:#fffef3}.auth-file.active{border-color:#18181b;box-shadow:0 0 0 1px #18181b inset}
       .auth-file-top{display:flex;justify-content:space-between;gap:8px}.auth-file-name{font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:175px}
       .auth-file-meta{font-size:9px;color:var(--muted);margin-top:3px}.auth-dot{width:8px;height:8px;border-radius:50%;background:#a1a1aa;flex:0 0 auto;margin-top:3px}
-      .auth-dot.ready{background:#eab308}.auth-dot.signed{background:#16a34a}.auth-dot.error{background:#dc2626}
+      .auth-dot.ready{background:#eab308}.auth-dot.converting{background:#2563eb}.auth-dot.signed{background:#16a34a}.auth-dot.error{background:#dc2626}
       .auth-viewer{height:650px;display:flex;flex-direction:column;background:#e4e4e7}
       .auth-toolbar{padding:7px 8px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
       .auth-toolbar button{border:1px solid var(--border);background:#fff;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:10px;color:var(--text)}
@@ -119,7 +127,7 @@
     view.innerHTML = `
       <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
       <h1>Autorizace PDF <small class="menu-status">BETA</small></h1>
-      <div class="muted">Hromadné rozmístění podpisového razítka a skutečný elektronický podpis PDF. Kryptografický podpis probíhá lokálně přes <b>AuthorizationBridge</b>; PFX/P12 a heslo se neposílají na webový server.</div>
+      <div class="muted">Hromadné rozmístění podpisového razítka a skutečný elektronický podpis PDF. Před podpisem se každý dokument lokálně převede stejným Ghostscript enginem jako modul PDF/A na <b>PDF/A-3b</b>; teprve potom se kryptograficky podepíše. Výstup má vždy příponu <b>_EAR.pdf</b>. PFX/P12 a heslo se neposílají na webový server.</div>
 
       <div id="auth-health" class="auth-health warn">
         <div class="auth-health-copy"><b>AuthorizationBridge se kontroluje…</b><span>Lokální služba na 127.0.0.1:8094.</span></div>
@@ -132,7 +140,7 @@
 
       <div id="auth-drop" class="auth-drop">
         <b>Přetáhni sem PDF nebo klikni pro výběr</b><br>
-        <span class="auth-small">Lze vložit více PDF najednou. Každý dokument má vlastní stránku a pozici razítka.</span>
+        <span class="auth-small">Lze vložit více PDF najednou — kliknutím nebo drag & drop kamkoli do této aplikace. Každý dokument má vlastní stránku a pozici razítka.</span>
         <input id="auth-files" type="file" accept=".pdf,application/pdf" multiple hidden>
       </div>
 
@@ -199,9 +207,14 @@
               <div class="auth-field"><label>Kontakt</label><input id="auth-contact" placeholder="volitelné"></div>
             </div>
 
+            <div class="auth-box">
+              <h3>VÝSTUP</h3>
+              <div class="auth-cert-card ok"><b>PDF/A-3b + PAdES</b><br>Každý soubor bude exportovaný jako <b>název_EAR.pdf</b>. Pořadí je záměrně PDF/A-3b → podpis, aby se podpis následnou konverzí nezneplatnil.</div>
+            </div>
+
             <div class="auth-warn">Soubor s certifikátem ani heslo se neukládají do localStorage. Při podepisování jsou odeslány pouze lokální službě na <b>127.0.0.1</b>. Výsledná právní úroveň podpisu závisí také na typu certifikátu a způsobu jeho vydání/uložení.</div>
 
-            <button id="auth-sign-btn" class="auth-primary" onclick="signAuthorizationBatch()">Podepsat a stáhnout celý balík ZIP</button>
+            <button id="auth-sign-btn" class="auth-primary" onclick="signAuthorizationBatch()">PDF/A-3b + podepsat + stáhnout ZIP</button>
             <button class="auth-secondary" onclick="authClearAll()">Vyčistit dokumenty</button>
           </div>
         </section>
@@ -526,6 +539,11 @@
   window.signAuthorizationBatch = async function() {
     if (!state.files.length) { toast('Nejdřív nahraj PDF.', true); return; }
     if (!state.certFile) { toast('Vyber PFX/P12 certifikát.', true); return; }
+    if (typeof window.convertPdfToPdfa !== 'function') {
+      toast('PDF/A engine z hlavního Toolboxu není dostupný. Obnov stránku přes Ctrl+F5.', true);
+      return;
+    }
+
     const profile = document.getElementById('auth-profile').value;
     const tsa = document.getElementById('auth-tsa').value.trim();
     if (profile==='bt' && !tsa) { toast('Pro PAdES B-T zadej RFC 3161 TSA server.', true); return; }
@@ -534,47 +552,84 @@
 
     persistOverlay();
     const btn = document.getElementById('auth-sign-btn');
-    btn.disabled = true; btn.textContent = 'Podepisuji balík…';
+    btn.disabled = true;
+
     try {
+      // DŮLEŽITÉ: PDF/A konverze musí proběhnout PŘED kryptografickým podpisem.
+      // Převod podepsaného PDF přes Ghostscript by existující podpis zneplatnil.
       const docs = [];
+      const convertedFiles = [];
+
       for (let i=0;i<state.files.length;i++) {
-        const r=state.files[i];
-        docs.push({index:i,name:r.name,placement:await absolutePlacement(r)});
+        const rec = state.files[i];
+        rec.status = 'converting';
+        renderFileList();
+        btn.textContent = 'PDF/A-3b ' + (i+1) + '/' + state.files.length + '…';
+
+        await new Promise(resolve => setTimeout(resolve, 20));
+        const sourceBytes = new Uint8Array(await rec.file.arrayBuffer());
+        const pdfaBytes = await window.convertPdfToPdfa(sourceBytes, '3');
+        const outputName = earOutputName(rec.name);
+        const converted = new File([pdfaBytes], outputName, {
+          type:'application/pdf',
+          lastModified:Date.now()
+        });
+
+        docs.push({
+          index:i,
+          name:rec.name,
+          output_name:outputName,
+          pdfa:'3b',
+          placement:await absolutePlacement(rec)
+        });
+        convertedFiles.push(converted);
+        rec.status = 'ready';
+        renderFileList();
       }
+
+      btn.textContent = 'Podepisuji PDF/A-3b…';
       const meta = {
         profile,
         tsa_url: tsa,
         reason: document.getElementById('auth-reason').value.trim(),
         location: document.getElementById('auth-location').value.trim(),
         contact: document.getElementById('auth-contact').value.trim(),
+        output_standard:'PDF/A-3b',
         documents: docs
       };
+
       const fd = new FormData();
       fd.append('certificate', state.certFile, state.certFile.name);
       fd.append('password', document.getElementById('auth-cert-pass').value || '');
       fd.append('metadata', JSON.stringify(meta));
       if (state.stampFile) fd.append('stamp', state.stampFile, state.stampFile.name);
-      state.files.forEach(r => fd.append('pdfs', r.file, r.name));
+      convertedFiles.forEach((file, i) => fd.append('pdfs', file, docs[i].output_name));
 
-      const resp = await bridgeFetch('/sign-batch', {method:'POST', body:fd}, 180000);
+      const resp = await bridgeFetch('/sign-batch', {method:'POST', body:fd}, 240000);
       if (!resp.ok) {
         let msg='Podepisování selhalo.';
         try { const j=await resp.json(); msg=j.error || j.detail || msg; } catch {}
         throw new Error(msg);
       }
+
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href=url; a.download='autorizovane_pdf_'+new Date().toISOString().slice(0,10)+'.zip';
+      a.href=url;
+      a.download='autorizovane_PDF-A-3b_EAR_'+new Date().toISOString().slice(0,10)+'.zip';
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),4000);
-      state.files.forEach(r=>r.status='signed'); renderFileList();
-      toast('Hotovo — celý podepsaný balík byl stažen jako ZIP.');
+
+      state.files.forEach(r=>r.status='signed');
+      renderFileList();
+      toast('Hotovo — PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.');
     } catch (e) {
-      state.files.forEach(r=>{ if(r.status!=='signed') r.status='error'; }); renderFileList();
+      state.files.forEach(r=>{ if(r.status!=='signed') r.status='error'; });
+      renderFileList();
       toast(e.message || String(e), true);
     } finally {
-      btn.disabled = false; btn.textContent = 'Podepsat a stáhnout celý balík ZIP';
+      btn.disabled = false;
+      btn.textContent = 'PDF/A-3b + podepsat + stáhnout ZIP';
     }
   };
 
@@ -591,13 +646,34 @@
   }
 
   function wireInputs() {
+    const view = document.getElementById('tool-authorization');
     const drop = document.getElementById('auth-drop');
     const inp = document.getElementById('auth-files');
+
     drop.addEventListener('click', e => { if (e.target !== inp) inp.click(); });
     inp.addEventListener('change', async () => { await addFiles(inp.files); inp.value=''; });
-    ['dragenter','dragover'].forEach(type => drop.addEventListener(type, e => {e.preventDefault();drop.classList.add('over');}));
-    ['dragleave','drop'].forEach(type => drop.addEventListener(type, e => {e.preventDefault();drop.classList.remove('over');}));
-    drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+
+    const markDrag = e => {
+      if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      drop.classList.add('over');
+    };
+    const receiveDrop = e => {
+      e.preventDefault();
+      e.stopPropagation();
+      drop.classList.remove('over');
+      const files = e.dataTransfer?.files;
+      if (files?.length) addFiles(files);
+    };
+
+    // Drag & drop funguje nad celou aplikací Autorizace, nejen nad malým boxem.
+    ['dragenter','dragover'].forEach(type => view.addEventListener(type, markDrag));
+    view.addEventListener('drop', receiveDrop);
+    view.addEventListener('dragleave', e => {
+      if (!view.contains(e.relatedTarget)) drop.classList.remove('over');
+    });
 
     document.getElementById('auth-cert-file').addEventListener('change', e => {
       state.certFile = e.target.files?.[0] || null; state.certInfo=null;
