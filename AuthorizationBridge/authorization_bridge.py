@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
 
-APP_VERSION = "1.8.4"
+APP_VERSION = "1.8.5"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -181,17 +181,19 @@ $store = New-Object System.Security.Cryptography.X509Certificates.X509Store('My'
 $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
 try {
   foreach ($cert in $store.Certificates) {
-    $rsa = $null
-    $keyType = 'UNKNOWN'
-    $keyBits = 0
-    $supported = $false
     try {
-      $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
-      if ($null -ne $rsa) {
+      $oid = ''
+      $friendly = ''
+      try { $oid = [string]$cert.PublicKey.Oid.Value } catch {}
+      try { $friendly = [string]$cert.PublicKey.Oid.FriendlyName } catch {}
+
+      $keyType = 'UNKNOWN'
+      if ($oid -eq '1.2.840.113549.1.1.1' -or $friendly -match 'RSA') {
         $keyType = 'RSA'
-        $keyBits = $rsa.KeySize
-        $supported = [bool]$cert.HasPrivateKey
+      } elseif ($oid -eq '1.2.840.10045.2.1' -or $friendly -match 'ECC|ECDSA') {
+        $keyType = 'ECDSA'
       }
+
       $items += [pscustomobject]@{
         thumbprint = ($cert.Thumbprint -replace ' ','').ToUpperInvariant()
         display_name = $cert.GetNameInfo([System.Security.Cryptography.X509Certificates.X509NameType]::SimpleName,$false)
@@ -202,13 +204,14 @@ try {
         valid_to = $cert.NotAfter.ToString('o')
         has_private_key = [bool]$cert.HasPrivateKey
         key_type = $keyType
-        key_bits = $keyBits
-        supported = [bool]$supported
+        key_bits = 0
+        supported = [bool]($cert.HasPrivateKey -and $keyType -eq 'RSA')
         store_location = 'CurrentUser'
         store_name = 'My'
       }
-    } finally {
-      if ($null -ne $rsa) { $rsa.Dispose() }
+    } catch {
+      # Jeden problematický certifikát nesmí shodit výpis celého úložiště.
+      continue
     }
   }
   @($items | Sort-Object valid_to -Descending) | ConvertTo-Json -Compress -Depth 4
