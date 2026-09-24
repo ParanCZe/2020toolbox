@@ -23,6 +23,7 @@
     stampSourceName: '',
     placementPreviewUrl: null,
     previousProfile: 'bt',
+    settingsRestored: false,
     initialized: false,
   };
   window.authorizationState = state;
@@ -56,6 +57,237 @@
     clearTimeout(toast._t);
     toast._t = setTimeout(() => el.classList.remove('show'), 5200);
   }
+
+  const AUTH_SETTINGS_KEY = '2020toolbox.authorization.settings.v2';
+  const AUTH_DB_NAME = '20-20-toolbox-authorization';
+  const AUTH_DB_STORE = 'file-handles';
+
+  function authRememberEnabled() {
+    return document.getElementById('auth-remember-settings')?.checked !== false;
+  }
+
+  function authOpenDb() {
+    return new Promise((resolve, reject) => {
+      if (!window.indexedDB) return reject(new Error('IndexedDB není dostupné.'));
+      const req = indexedDB.open(AUTH_DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(AUTH_DB_STORE)) db.createObjectStore(AUTH_DB_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('Lokální databázi nelze otevřít.'));
+    });
+  }
+
+  async function authDbSet(key, value) {
+    const db = await authOpenDb();
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(AUTH_DB_STORE, 'readwrite');
+        tx.objectStore(AUTH_DB_STORE).put(value, key);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } finally { db.close(); }
+  }
+
+  async function authDbGet(key) {
+    const db = await authOpenDb();
+    try {
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(AUTH_DB_STORE, 'readonly');
+        const req = tx.objectStore(AUTH_DB_STORE).get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    } finally { db.close(); }
+  }
+
+  async function authDbDelete(key) {
+    const db = await authOpenDb();
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(AUTH_DB_STORE, 'readwrite');
+        tx.objectStore(AUTH_DB_STORE).delete(key);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    } finally { db.close(); }
+  }
+
+  function authCollectSettings() {
+    return {
+      remember: authRememberEnabled(),
+      visible: !!document.getElementById('auth-visible')?.checked,
+      addArchitect: !!document.getElementById('auth-add-architect')?.checked,
+      architectName: document.getElementById('auth-architect-name')?.value || '',
+      addDateTime: !!document.getElementById('auth-add-datetime')?.checked,
+      profile: document.getElementById('auth-profile')?.value || 'bt',
+      tsa: document.getElementById('auth-tsa')?.value || '',
+      reason: document.getElementById('auth-reason')?.value || '',
+      location: document.getElementById('auth-location')?.value || '',
+      contact: document.getElementById('auth-contact')?.value || '',
+      stampName: state.stampSourceName || '',
+      certName: state.certFile?.name || ''
+    };
+  }
+
+  function authUpdateLocalStatus(extra='') {
+    const el = document.getElementById('auth-local-status');
+    if (!el) return;
+    const bits = [];
+    if (state.stampSourceName) bits.push('Razítko: '+state.stampSourceName);
+    if (state.certFile?.name) bits.push('Certifikát: '+state.certFile.name);
+    bits.push('Heslo se neukládá.');
+    if (extra) bits.push(extra);
+    el.textContent = bits.join(' · ');
+  }
+
+  window.authSaveSettings = async function(showToast=false) {
+    if (!authRememberEnabled()) {
+      if (showToast) toast('Zapni „zapamatovat nastavení na tomto PC“.', true);
+      return;
+    }
+    try {
+      localStorage.setItem(AUTH_SETTINGS_KEY, JSON.stringify(authCollectSettings()));
+      authUpdateLocalStatus('Nastavení uloženo lokálně.');
+      if (showToast) toast('Nastavení Autorizace bylo uloženo na tomto PC.');
+    } catch (e) {
+      if (showToast) toast('Nastavení se nepodařilo uložit: '+(e.message||e), true);
+    }
+  };
+
+  async function authSetStampSource(source) {
+    state.stampFile = null;
+    state.stampSourceName = source?.name || '';
+    const info = document.getElementById('auth-stamp-info');
+    if (!source) {
+      if (info) info.textContent = 'U PDF se jako grafika razítka použije první strana.';
+      await renderStampPreview();
+      return;
+    }
+    try {
+      if (info) info.textContent = /\.pdf$/i.test(source.name) || source.type==='application/pdf' ? 'Převádím 1. stranu PDF razítka…' : 'Načítám grafiku razítka…';
+      state.stampFile = (/\.pdf$/i.test(source.name) || source.type==='application/pdf') ? await pdfStampToPng(source) : source;
+      if (info) info.textContent = 'Použije se: '+source.name + ((/\.pdf$/i.test(source.name) || source.type==='application/pdf') ? ' · 1. strana PDF' : '');
+      await renderStampPreview();
+      authUpdateLocalStatus();
+      if (authRememberEnabled()) authSaveSettings(false);
+    } catch (err) {
+      state.stampFile = null;
+      if (info) info.textContent = 'Chyba: '+(err.message || err);
+      toast('Razítko se nepodařilo načíst.', true);
+    }
+  }
+
+  function authSetCertSource(source) {
+    state.certFile = source || null;
+    state.certInfo = null;
+    const box = document.getElementById('auth-cert-info');
+    if (box && !authIsTestMode()) {
+      box.className = 'auth-cert-card';
+      box.textContent = state.certFile ? 'Vybráno: '+state.certFile.name+'. Klikni na Ověřit certifikát.' : 'Certifikát zatím nebyl načten.';
+    }
+    authUpdateLocalStatus();
+    if (authRememberEnabled()) authSaveSettings(false);
+  }
+
+  async function authPermissionForHandle(handle, requestPermission=false) {
+    if (!handle) return false;
+    try {
+      let perm = await handle.queryPermission({mode:'read'});
+      if (perm === 'granted') return true;
+      if (perm === 'prompt' && requestPermission) perm = await handle.requestPermission({mode:'read'});
+      return perm === 'granted';
+    } catch { return false; }
+  }
+
+  async function authLoadHandle(kind, requestPermission=false) {
+    const key = kind === 'stamp' ? 'stampHandle' : 'certHandle';
+    let handle = null;
+    try { handle = await authDbGet(key); } catch {}
+    if (!handle) return false;
+    const allowed = await authPermissionForHandle(handle, requestPermission);
+    if (!allowed) {
+      authUpdateLocalStatus('Soubor '+handle.name+' je zapamatovaný; klikni „Načíst uložené“ pro povolení přístupu.');
+      return false;
+    }
+    try {
+      const file = await handle.getFile();
+      if (kind === 'stamp') await authSetStampSource(file);
+      else authSetCertSource(file);
+      return true;
+    } catch {
+      authUpdateLocalStatus('Uložený soubor už není dostupný v původním umístění.');
+      return false;
+    }
+  }
+
+  window.authPickRememberedFile = async function(kind) {
+    if (!window.showOpenFilePicker) {
+      const input = document.getElementById(kind === 'stamp' ? 'auth-stamp-file' : 'auth-cert-file');
+      input?.click();
+      toast('Tento prohlížeč neumí trvale pamatovat umístění souboru; vyber ho běžným dialogem.', true);
+      return;
+    }
+    try {
+      const opts = kind === 'stamp'
+        ? {multiple:false, types:[{description:'Razítko / podpis', accept:{'application/pdf':['.pdf'],'image/png':['.png'],'image/jpeg':['.jpg','.jpeg']}}]}
+        : {multiple:false, types:[{description:'PKCS#12 certifikát', accept:{'application/x-pkcs12':['.pfx','.p12']}}]};
+      const handles = await window.showOpenFilePicker(opts);
+      const handle = handles?.[0];
+      if (!handle) return;
+      if (authRememberEnabled()) await authDbSet(kind === 'stamp' ? 'stampHandle' : 'certHandle', handle);
+      const file = await handle.getFile();
+      if (kind === 'stamp') await authSetStampSource(file);
+      else authSetCertSource(file);
+      if (authRememberEnabled()) await authSaveSettings(false);
+      toast((kind === 'stamp' ? 'Grafika razítka' : 'Certifikát')+' byla vybrána a její umístění zapamatováno.');
+    } catch (e) {
+      if (e?.name !== 'AbortError') toast('Soubor se nepodařilo vybrat: '+(e.message||e), true);
+    }
+  };
+
+  window.authLoadSavedSettings = async function(requestFilePermission=false) {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(AUTH_SETTINGS_KEY) || 'null'); } catch {}
+    if (saved) {
+      const setChecked=(id,v)=>{const el=document.getElementById(id);if(el)el.checked=!!v};
+      const setValue=(id,v)=>{const el=document.getElementById(id);if(el && v!=null)el.value=String(v)};
+      setChecked('auth-remember-settings', saved.remember !== false);
+      setChecked('auth-visible', saved.visible !== false);
+      setChecked('auth-add-architect', saved.addArchitect);
+      setValue('auth-architect-name', saved.architectName || '');
+      setChecked('auth-add-datetime', saved.addDateTime);
+      setValue('auth-profile', saved.profile || 'bt');
+      setValue('auth-tsa', saved.tsa || '');
+      setValue('auth-reason', saved.reason || 'Autorizace dokumentace');
+      setValue('auth-location', saved.location || '');
+      setValue('auth-contact', saved.contact || '');
+      state.stampSourceName = saved.stampName || state.stampSourceName || '';
+      authProfileChanged();
+      authStampOptionsChanged();
+      authToggleVisible();
+    }
+    await authLoadHandle('stamp', !!requestFilePermission);
+    await authLoadHandle('cert', !!requestFilePermission);
+    state.settingsRestored = true;
+    authUpdateLocalStatus(saved ? 'Uložené nastavení načteno.' : 'Žádné uložené nastavení.');
+    if (requestFilePermission) toast(saved ? 'Uložené nastavení bylo načteno.' : 'Žádné uložené nastavení nebylo nalezeno.');
+  };
+
+  window.authClearSavedSettings = async function() {
+    try { localStorage.removeItem(AUTH_SETTINGS_KEY); } catch {}
+    try { await authDbDelete('stampHandle'); } catch {}
+    try { await authDbDelete('certHandle'); } catch {}
+    authUpdateLocalStatus('Uložené nastavení bylo smazáno.');
+    toast('Lokálně uložené nastavení Autorizace bylo smazáno.');
+  };
+
+  window.authRememberSettingsChanged = function() {
+    if (authRememberEnabled()) authSaveSettings(false);
+  };
 
   function injectStyles() {
     if (document.getElementById('auth-pdf-styles')) return;
@@ -126,6 +358,10 @@
       .auth-stamp-preview{display:flex;align-items:center;gap:10px;padding:8px;border:1px dashed var(--border);border-radius:7px;background:#fafafa;min-height:54px}
       .auth-stamp-preview img{max-width:90px;max-height:54px;object-fit:contain}
       .auth-stamp-preview-text{font-size:10px;line-height:1.35}
+      .auth-local-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:7px}
+      .auth-local-actions .auth-secondary{margin:0}
+      .auth-local-status{margin-top:7px;padding:7px 8px;border:1px solid var(--border);border-radius:7px;background:#fafafa;font-size:9.5px;line-height:1.45;color:var(--muted)}
+      .auth-file-memory-btn{margin-top:6px}
       @media(max-width:1050px){#tool-authorization{width:calc(100vw - 16px);padding:12px}.auth-shell{grid-template-columns:210px minmax(0,1fr)}.auth-pane.auth-settings{grid-column:1/-1}.auth-side{max-height:none;min-height:0;grid-template-columns:repeat(2,minmax(0,1fr))}.auth-file-list{min-height:0}.auth-viewer{min-height:620px}}
       @media(max-width:760px){#tool-authorization{width:100vw;border-radius:0}.auth-shell{grid-template-columns:1fr}.auth-viewer{height:620px;min-height:620px}.auth-side{grid-template-columns:1fr}.auth-file-list{max-height:240px;min-height:0}}
     `;
@@ -215,9 +451,21 @@
           <div class="auth-pane-head"><b>PODPIS A CERTIFIKÁT</b><span class="auth-small">PAdES</span></div>
           <div class="auth-side">
             <div class="auth-box">
+              <h3>LOKÁLNÍ NASTAVENÍ</h3>
+              <label class="auth-check"><input id="auth-remember-settings" type="checkbox" checked onchange="authRememberSettingsChanged()"> zapamatovat nastavení na tomto PC</label>
+              <div class="auth-local-actions">
+                <button class="auth-secondary" type="button" onclick="authSaveSettings(true)">Uložit teď</button>
+                <button class="auth-secondary" type="button" onclick="authLoadSavedSettings(true)">Načíst uložené</button>
+              </div>
+              <button class="auth-secondary" style="margin-top:6px" type="button" onclick="authClearSavedSettings()">Smazat uložené nastavení</button>
+              <div id="auth-local-status" class="auth-local-status">Nastavení se ukládá jen v tomto prohlížeči. Heslo certifikátu se nikdy neukládá.</div>
+            </div>
+
+            <div class="auth-box">
               <h3>VIDITELNÉ RAZÍTKO</h3>
               <label class="auth-check"><input id="auth-visible" type="checkbox" checked onchange="authToggleVisible()"> zobrazit podpis na stránce</label>
               <div class="auth-field"><label>Grafika razítka / podpisu (PNG, JPG nebo PDF)</label><input id="auth-stamp-file" type="file" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"></div>
+              <button class="auth-secondary auth-file-memory-btn" type="button" onclick="authPickRememberedFile('stamp')">Vybrat + zapamatovat soubor</button>
               <div id="auth-stamp-info" class="auth-small">U PDF se jako grafika razítka použije první strana.</div>
               <div class="auth-stamp-layout-options">
                 <label class="auth-check"><input id="auth-add-architect" type="checkbox" onchange="authStampOptionsChanged()"> přidat jméno architekta vedle razítka</label>
@@ -230,6 +478,7 @@
             <div id="auth-cert-box" class="auth-box">
               <h3>CERTIFIKÁT</h3>
               <div class="auth-field"><label>PFX / P12 s privátním klíčem</label><input id="auth-cert-file" type="file" accept=".pfx,.p12,application/x-pkcs12"></div>
+              <button class="auth-secondary auth-file-memory-btn" type="button" onclick="authPickRememberedFile('cert')">Vybrat + zapamatovat soubor</button>
               <div class="auth-field"><label>Heslo k certifikátu</label><input id="auth-cert-pass" type="password" autocomplete="off" placeholder="Heslo se nikam neukládá"></div>
               <button class="auth-secondary" onclick="inspectAuthorizationCertificate()">Ověřit certifikát</button>
               <div id="auth-cert-info" class="auth-cert-card" style="margin-top:7px">Certifikát zatím nebyl načten.</div>
@@ -403,7 +652,17 @@
     try {
       const doc = await getPdf(rec);
       const page = await doc.getPage(rec.page);
-      const stage = document.getElementById('auth-stage');
+      [
+      'auth-visible','auth-add-architect','auth-architect-name','auth-add-datetime',
+      'auth-profile','auth-tsa','auth-reason','auth-location','auth-contact'
+    ].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const eventName = (el.tagName === 'INPUT' && !['checkbox'].includes(el.type)) ? 'input' : 'change';
+      el.addEventListener(eventName, () => { if (authRememberEnabled()) authSaveSettings(false); });
+    });
+
+    const stage = document.getElementById('auth-stage');
       const base = page.getViewport({scale:1});
       const maxW = Math.max(260, (stage?.clientWidth || 700) - 28);
       const fitScale = Math.max(.15, Math.min(2.2, maxW/base.width));
@@ -954,30 +1213,12 @@
     });
 
     document.getElementById('auth-cert-file').addEventListener('change', e => {
-      state.certFile = e.target.files?.[0] || null; state.certInfo=null;
-      const box=document.getElementById('auth-cert-info'); box.className='auth-cert-card'; box.textContent=state.certFile?'Vybráno: '+state.certFile.name+'. Klikni na Ověřit certifikát.':'Certifikát zatím nebyl načten.';
+      authSetCertSource(e.target.files?.[0] || null);
     });
     document.getElementById('auth-stamp-file').addEventListener('change', async e => {
-      const source = e.target.files?.[0] || null;
-      state.stampFile = null;
-      state.stampSourceName = source?.name || '';
-      const info = document.getElementById('auth-stamp-info');
-      if (!source) {
-        info.textContent = 'U PDF se jako grafika razítka použije první strana.';
-        renderStampPreview();
-        return;
-      }
-      try {
-        info.textContent = /\.pdf$/i.test(source.name) || source.type==='application/pdf' ? 'Převádím 1. stranu PDF razítka…' : 'Načítám grafiku razítka…';
-        state.stampFile = (/\.pdf$/i.test(source.name) || source.type==='application/pdf') ? await pdfStampToPng(source) : source;
-        info.textContent = 'Použije se: '+source.name + ((/\.pdf$/i.test(source.name) || source.type==='application/pdf') ? ' · 1. strana PDF' : '');
-        await renderStampPreview();
-      } catch(err) {
-        state.stampFile = null;
-        info.textContent = 'Chyba: '+(err.message || err);
-        toast('Razítko se nepodařilo načíst.', true);
-      }
+      await authSetStampSource(e.target.files?.[0] || null);
     });
+
     const stage = document.getElementById('auth-stage');
     stage.addEventListener('wheel', e => {
       if (!e.ctrlKey) return;
@@ -1017,6 +1258,7 @@
       state.initialized = true;
       authTestModeChanged();
       authStampOptionsChanged();
+      authLoadSavedSettings(false);
       checkAuthorizationBridge(true);
     }
     renderFileList();
