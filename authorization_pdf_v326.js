@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.28
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.29
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Privátní klíč / PFX zůstává v počítači uživatele a posílá se pouze na 127.0.0.1.
 
@@ -372,7 +372,8 @@
       .auth-stamp-layout-options{display:grid;gap:7px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
       .auth-stamp-preview{display:flex;align-items:center;gap:10px;padding:8px;border:1px dashed var(--border);border-radius:7px;background:#fafafa;min-height:54px}
       .auth-stamp-preview img{max-width:90px;max-height:54px;object-fit:contain}
-      .auth-stamp-preview-text{font-size:10px;line-height:1.35}
+      .auth-stamp-preview-text{font-size:10px;line-height:1.35;min-width:0;flex:1;overflow-wrap:anywhere}
+      .auth-stamp-preview-text b{display:block;max-width:100%;font-size:clamp(7px,1.15vw,10px);line-height:1.25}
       .auth-local-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:7px}
       .auth-local-actions .auth-secondary{margin:0}
       .auth-local-status{margin-top:7px;padding:7px 8px;border:1px solid var(--border);border-radius:7px;background:#fafafa;font-size:9.5px;line-height:1.45;color:var(--muted)}
@@ -1022,6 +1023,21 @@
     return lines;
   }
 
+  function fitCanvasFontSize(ctx, text, weight, maxSize, maxWidth, family='Arial, sans-serif') {
+    const value = String(text || '');
+    let size = Math.max(1, Number(maxSize) || 1);
+    ctx.font = weight+' '+size+'px '+family;
+    const measured = ctx.measureText(value).width || 1;
+    if (measured > maxWidth) size = Math.max(6, Math.floor(size * (maxWidth / measured)));
+    // Po zaokrouhlení ještě ověř, že se text skutečně vejde.
+    while (size > 6) {
+      ctx.font = weight+' '+size+'px '+family;
+      if (ctx.measureText(value).width <= maxWidth) break;
+      size -= 1;
+    }
+    return size;
+  }
+
   async function buildCompositeStamp(signTime) {
     const lines = signatureDisplayLines(signTime);
     if (!state.stampFile && !lines.length) return null;
@@ -1045,14 +1061,18 @@
       if (graphic) ctx.drawImage(graphic.img,0,0,drawnW,h);
       if (lines.length) {
         const x = drawnW + gap;
-        const mainSize = Math.max(30, Math.round(h * .18));
-        const subSize = Math.max(24, Math.round(h * .135));
+        const rightPadding = 28;
+        const maxTextWidth = Math.max(40, canvas.width - x - rightPadding);
+        const baseMainSize = Math.max(30, Math.round(h * .18));
+        const baseSubSize = Math.max(24, Math.round(h * .135));
+        const mainSize = fitCanvasFontSize(ctx, lines[0], '600', baseMainSize, maxTextWidth);
         ctx.fillStyle = '#18181b';
         ctx.textBaseline = 'middle';
         ctx.font = '600 '+mainSize+'px Arial, sans-serif';
         const startY = lines.length===2 ? h*.40 : h*.50;
         ctx.fillText(lines[0], x, startY);
         if (lines.length===2) {
+          const subSize = fitCanvasFontSize(ctx, lines[1], '400', baseSubSize, maxTextWidth);
           ctx.font = '400 '+subSize+'px Arial, sans-serif';
           ctx.fillText(lines[1], x, h*.66);
         }
