@@ -1,9 +1,10 @@
-$ErrorActionPreference = 'SilentlyContinue'
 param(
     [string]$PythonExe,
     [string]$BridgeScript,
     [string]$LogFile
-)
+) 
+
+$ErrorActionPreference = 'SilentlyContinue'
 
 # Kill any process that currently owns port 8094.
 try {
