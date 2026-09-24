@@ -1,0 +1,100 @@
+name: Build Model Library RBZ
+
+on:
+  push:
+    paths:
+      - '.github/workflows/build-model-library.yml'
+      - 'SketchUpPlugins/ModelLibrarySource/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Validate Ruby syntax
+        run: |
+          ruby -c SketchUpPlugins/ModelLibrarySource/twentytwenty_model_library.rb
+          ruby -c SketchUpPlugins/ModelLibrarySource/twentytwenty_model_library/main_v020.rb
+
+      - name: Read plugin version
+        id: version
+        shell: bash
+        run: |
+          VER="$(grep -m1 "EXTENSION.version" SketchUpPlugins/ModelLibrarySource/twentytwenty_model_library.rb | cut -d"'" -f2)"
+          test -n "$VER"
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+
+      - name: Build RBZ
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+        run: |
+          cd SketchUpPlugins/ModelLibrarySource
+          rm -f "../20-20_Model_Library_v${VER}.rbz"
+          zip -r "../20-20_Model_Library_v${VER}.rbz" twentytwenty_model_library.rb twentytwenty_model_library
+
+      - name: Update Toolbox catalog
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+        run: |
+          python - <<'PY'
+          import os, re
+          ver=os.environ["VER"]
+          path="index.html"
+          rbz=f"SketchUpPlugins/20-20_Model_Library_v{ver}.rbz"
+          size=os.path.getsize(rbz)
+          s=open(path,"r",encoding="utf-8").read()
+
+          start=s.index("    id:'model-library'")
+          end=s.index("\n  },\n  {\n    id:'texture-library'",start)
+          block=s[start:end]
+
+          block=re.sub(r"current:'[^']+'",f"current:'{ver}'",block,count=1)
+          block=re.sub(
+            r"description:'[^']*'",
+            "description:'Parametrická knihovna pro SketchUp: elektro, 2D cutout vegetace, okna, dveře a hostované stavební objekty s Cut Opening.'",
+            block,count=1
+          )
+          block=re.sub(
+            r"meta:'[^']*'",
+            "meta:'V0.2.0 zachovává elektro, mění stromy na lehké 2D billboard cutouty a přidává keře + vysokou trávu. Nově obsahuje parametrické okno, dveře a VELUX-ready střešní okno. Rozměry lze měnit a hostované objekty používají SketchUp glue + Cut Opening.'",
+            block,count=1
+          )
+
+          entry=f'{{"version":"{ver}","file":"20-20_Model_Library_v{ver}.rbz","size":{size},"repo_file":"SketchUpPlugins/20-20_Model_Library_v{ver}.rbz"}}'
+          if f'"version":"{ver}"' not in block:
+            pos=block.rfind("]")
+            if pos<0: raise RuntimeError("Model Library versions list end not found")
+            block=block[:pos]+","+entry+block[pos:]
+
+          s=s[:start]+block+s[end:]
+          open(path,"w",encoding="utf-8").write(s)
+          print(f"Model Library v{ver}: {size} bytes")
+          PY
+
+      - name: Commit RBZ and catalog
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          FILE="SketchUpPlugins/20-20_Model_Library_v${VER}.rbz"
+          git add "$FILE" index.html
+          if git diff --cached --quiet; then
+            echo "Nothing changed"
+            exit 0
+          fi
+          git commit -m "Build Model Library v${VER}"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
