@@ -8,6 +8,7 @@ set "VENV=%DIR%\venv"
 set "RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/AuthorizationBridge"
 set "PYFINDER=%DIR%\find_python.ps1"
 set "PYFILE=%TEMP%\2020toolbox_python_path.txt"
+set "PY_EXE="
 
 if not exist "%DIR%" mkdir "%DIR%"
 
@@ -17,11 +18,11 @@ echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
 echo [1/6] Stahuji bridge a instalacni soubory...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/authorization_bridge.py' -OutFile '%DIR%\authorization_bridge.py'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/authorization_bridge.py?cb=3' -OutFile '%DIR%\authorization_bridge.py'"
 if errorlevel 1 goto :download_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/requirements.txt' -OutFile '%DIR%\requirements.txt'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/requirements.txt?cb=3' -OutFile '%DIR%\requirements.txt'"
 if errorlevel 1 goto :download_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/find_python.ps1' -OutFile '%PYFINDER%'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/find_python.ps1?cb=3' -OutFile '%PYFINDER%'"
 if errorlevel 1 goto :download_error
 
 echo [2/6] Hledam existujici Python 3...
@@ -29,7 +30,7 @@ call :find_python
 if defined PY_EXE goto :python_ready
 
 echo.
-echo Python 3 nebyl nalezen. Zkusim ho automaticky nainstalovat.
+echo Python 3 nebyl nalezen. Nainstaluji ho automaticky.
 where winget >nul 2>nul
 if errorlevel 1 goto :python_auto_install_failed
 
@@ -41,12 +42,21 @@ if errorlevel 1 (
 )
 if errorlevel 1 goto :python_auto_install_failed
 
-echo Python byl nainstalovan. Znovu hledam skutecny python.exe...
-timeout /t 2 /nobreak >nul
-call :find_python
+echo.
+echo Python byl nainstalovan. Overuji standardni instalacni cestu...
+set "PY_EXE="
+
+if exist "%LOCALAPPDATA%\Programs\Python\Python314\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python314\python.exe"
+if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
+if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
+
+rem Jen pokud winget pouzil nestandardni cestu, spustime rychly finder.
+if not defined PY_EXE call :find_python
 if not defined PY_EXE goto :python_auto_install_failed
 
 :python_ready
+echo.
 echo Nalezen Python:
 echo   %PY_EXE%
 "%PY_EXE%" --version
@@ -96,26 +106,29 @@ exit /b 0
 :python_auto_install_failed
 echo.
 echo CHYBA: Python 3 se nepodarilo najit ani automaticky nainstalovat.
+echo Microsoft Store alias WindowsApps se zamerne ignoruje.
 echo Automaticka instalace pouziva oficialni Python balicek pres winget.
-echo Pokud winget na tomto PC neni, nainstaluj Windows App Installer nebo Python rucne.
 echo.
 pause
 exit /b 1
 
 :download_error
+echo.
 echo CHYBA: nepodarilo se stahnout soubory bridge z GitHubu.
 pause
 exit /b 1
 
 :python_error
+echo.
 echo CHYBA: nepodarilo se vytvorit Python prostredi.
 echo Pouzity Python: %PY_EXE%
 pause
 exit /b 1
 
 :pip_error
+echo.
 echo CHYBA: nepodarilo se nainstalovat pyHanko/Flask.
 echo Pouzity Python: %PY_EXE%
-echo Zkontroluj internet a log v prikazovem radku.
+echo Zkontroluj internetove pripojeni.
 pause
 exit /b 1
