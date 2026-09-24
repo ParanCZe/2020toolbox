@@ -1252,6 +1252,10 @@
       toast('Pro export bez _EAR aktualizuj AuthorizationBridge přes Instalátor a potom dej Zkontrolovat.', true);
       return;
     }
+    if (!testMode && profile === 'bt' && tsaUser && !bridge.features?.tsa_basic_auth) {
+      toast('Pro přihlášení k PostSignum TSA aktualizuj AuthorizationBridge přes Instalátor a potom dej Zkontrolovat.', true);
+      return;
+    }
     if (testMode && !bridge.features?.test_signing) {
       toast('Běží bridge bez podpory TEST podpisu. Spusť znovu aktuální Instalátor.', true);
       return;
