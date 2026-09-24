@@ -3733,7 +3733,7 @@ function printDrawingList(){
   </div>
 </div>
 <h1>Seznam výkresů</h1><table><thead><tr><th>Poř.</th><th>List</th><th>Číslo výkresu</th><th>Název výkresu</th><th>Měřítko</th><th>Stupeň dokumentace</th><th>Formát</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script><script src="sketchup_plugin_status_v360.js"></script>
-</body></html>`);w.document.close();
+<script src="authorization_pdf_v326.js?v=326"></script>\n</body></html>`);w.document.close();
 }
 
 function useDrawingListForRenamer(){const files=[];const seen=new Set();for(const r of docsData.drawingRows){const f=r.file;if(!f)continue;const k=`${f.name}|${f.size}|${f.lastModified}`;if(!seen.has(k)){seen.add(k);files.push(f);}} if(!files.length){alert('V seznamu výkresů zatím nejsou načtené soubory.');return;}docsData.renamer=files;document.getElementById('btn-renamer').disabled=false;document.getElementById('st-renamer').textContent=`${files.length} PDF převzato ze seznamu výkresů`;refreshRenameSuggestions();openDocsSection('renamer');}
