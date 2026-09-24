@@ -19,13 +19,13 @@ echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
 echo [1/6] Stahuji aktualni AuthorizationBridge...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/authorization_bridge.py?cb=6' -OutFile '%DIR%\authorization_bridge.py'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/authorization_bridge.py?cb=7' -OutFile '%DIR%\authorization_bridge.py'"
 if errorlevel 1 goto :download_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/requirements.txt?cb=6' -OutFile '%DIR%\requirements.txt'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/requirements.txt?cb=7' -OutFile '%DIR%\requirements.txt'"
 if errorlevel 1 goto :download_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/find_python.ps1?cb=6' -OutFile '%PYFINDER%'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/find_python.ps1?cb=7' -OutFile '%PYFINDER%'"
 if errorlevel 1 goto :download_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/restart_bridge.ps1?cb=6' -OutFile '%RESTARTER%'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/restart_bridge.ps1?cb=7' -OutFile '%RESTARTER%'"
 if errorlevel 1 goto :download_error
 
 echo [2/6] Hledam existujici Python 3...
@@ -94,7 +94,7 @@ if errorlevel 1 goto :bridge_start_error
 echo.
 echo HOTOVO.
 echo AuthorizationBridge byl aktualizovan a restartovan.
-echo V Toolboxu musi byt videt verze 1.6.0 nebo novejsi.
+echo V Toolboxu musi byt videt verze 1.7.0 nebo novejsi.
 echo.
 pause
 exit /b 0
