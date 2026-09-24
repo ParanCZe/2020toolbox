@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.30
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.31
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Privátní klíč / PFX zůstává v počítači uživatele a posílá se pouze na 127.0.0.1.
 
@@ -130,6 +130,7 @@
       addDateTime: !!document.getElementById('auth-add-datetime')?.checked,
       profile: document.getElementById('auth-profile')?.value || 'bt',
       tsa: document.getElementById('auth-tsa')?.value || '',
+      tsaUser: document.getElementById('auth-tsa-user')?.value || '',
       reason: document.getElementById('auth-reason')?.value || '',
       location: document.getElementById('auth-location')?.value || '',
       contact: document.getElementById('auth-contact')?.value || '',
@@ -281,7 +282,8 @@
       setValue('auth-architect-name', saved.architectName || '');
       setChecked('auth-add-datetime', saved.addDateTime);
       setValue('auth-profile', saved.profile || 'bt');
-      setValue('auth-tsa', saved.tsa || '');
+      setValue('auth-tsa', saved.tsa || 'https://www3.postsignum.cz/TSS/TSS_user/');
+      setValue('auth-tsa-user', saved.tsaUser || '');
       setValue('auth-reason', saved.reason || 'Autorizace dokumentace');
       setValue('auth-location', saved.location || '');
       setValue('auth-contact', saved.contact || '');
@@ -512,8 +514,12 @@
                   <option value="bb">PAdES B-B · podpis bez TSA</option>
                 </select>
               </div>
-              <div id="auth-tsa-wrap" class="auth-field"><label>RFC 3161 TSA server</label><input id="auth-tsa" type="url" placeholder="https://tsa.example.cz/..."></div>
-              <div class="auth-note">Pro B-T musí TSA URL odpovídat serveru, který poskytuje RFC 3161 časová razítka. Toolbox žádný cizí server nenastavuje automaticky.</div>
+              <div id="auth-tsa-wrap">
+                <div class="auth-field"><label>RFC 3161 TSA server</label><input id="auth-tsa" type="url" value="https://www3.postsignum.cz/TSS/TSS_user/" placeholder="https://www3.postsignum.cz/TSS/TSS_user/"></div>
+                <div class="auth-field"><label>PostSignum login</label><input id="auth-tsa-user" type="text" autocomplete="username" placeholder="uživatelské jméno"></div>
+                <div class="auth-field"><label>PostSignum heslo</label><input id="auth-tsa-pass" type="password" autocomplete="off" placeholder="Heslo k TSA se neukládá"></div>
+                <div class="auth-note">Údaje slouží pouze pro přihlášení k serveru časových razítek. Login lze uložit lokálně s nastavením, heslo k TSA se neukládá.</div>
+              </div>
             </div>
 
             <div class="auth-box">
@@ -529,7 +535,7 @@
               <div id="auth-output-name-info" class="auth-cert-card ok"><b>PDF/A-3b + PAdES</b><br>Každý soubor bude exportovaný jako <b>název_EAR.pdf</b>. Pořadí je záměrně PDF/A-3b → podpis, aby se podpis následnou konverzí nezneplatnil.</div>
             </div>
 
-            <div class="auth-warn">PFX/P12 ani heslo se trvale neukládají. Certifikát je dostupný jen v aktuální relaci prohlížeče a při podepisování se posílá pouze lokální službě na <b>127.0.0.1</b>. Výsledná právní úroveň podpisu závisí také na typu certifikátu a způsobu jeho vydání/uložení.</div>
+            <div class="auth-warn">PFX/P12, heslo k certifikátu ani heslo k TSA se trvale neukládají. Certifikát je dostupný jen v aktuální relaci prohlížeče a při podepisování se posílá pouze lokální službě na <b>127.0.0.1</b>. TSA login/heslo používá lokální bridge pouze pro přihlášení k nastavenému serveru časových razítek.</div>
 
             <button id="auth-sign-btn" class="auth-primary" onclick="signAuthorizationBatch()">PDF/A-3b + podepsat + stáhnout ZIP</button>
             <button class="auth-secondary" onclick="authClearAll()">Vyčistit dokumenty</button>
@@ -725,7 +731,7 @@
       const page = await doc.getPage(1);
       [
       'auth-visible','auth-add-architect','auth-architect-name','auth-add-datetime',
-      'auth-profile','auth-tsa','auth-reason','auth-location','auth-contact'
+      'auth-profile','auth-tsa','auth-tsa-user','auth-reason','auth-location','auth-contact'
     ].forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -1229,7 +1235,13 @@
 
     const profile = testMode ? 'bb' : document.getElementById('auth-profile').value;
     const tsa = testMode ? '' : document.getElementById('auth-tsa').value.trim();
+    const tsaUser = testMode ? '' : document.getElementById('auth-tsa-user')?.value.trim() || '';
+    const tsaPass = testMode ? '' : document.getElementById('auth-tsa-pass')?.value || '';
     if (!testMode && profile==='bt' && !tsa) { toast('Pro PAdES B-T zadej RFC 3161 TSA server.', true); return; }
+    if (!testMode && profile==='bt' && (!!tsaUser !== !!tsaPass)) {
+      toast('Pro přihlášení k TSA vyplň login i heslo, nebo nech obě pole prázdná.', true);
+      return;
+    }
     const bridge = await checkAuthorizationBridge(true);
     if (!bridge) { toast('AuthorizationBridge neběží.', true); return; }
     if (!authVersionAtLeast(bridge.version, '1.5.0') || !bridge.features?.origin_lock || !bridge.features?.session_token) {
@@ -1324,6 +1336,8 @@
         profile,
         test_mode: testMode,
         tsa_url: tsa,
+        tsa_user: tsaUser,
+        tsa_password: tsaPass,
         reason: (testMode ? 'TEST – ' : '') + document.getElementById('auth-reason').value.trim(),
         location: document.getElementById('auth-location').value.trim(),
         contact: document.getElementById('auth-contact').value.trim(),
