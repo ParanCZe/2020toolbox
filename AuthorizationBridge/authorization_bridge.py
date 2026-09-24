@@ -126,7 +126,10 @@ def _unique_name(name: str, used: set[str]) -> str:
     candidate = base
     n = 2
     while candidate.lower() in used:
-        candidate = f"{stem}_{n}{ext}"
+        if stem.lower().endswith("_ear"):
+            candidate = f"{stem[:-4]}_{n}_EAR{ext}"
+        else:
+            candidate = f"{stem}_{n}{ext}"
         n += 1
     used.add(candidate.lower())
     return candidate
