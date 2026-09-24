@@ -23,7 +23,7 @@ import traceback
 import zipfile
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Dict, List, Tuple
 
 from flask import Flask, jsonify, request, send_file
 import pyhanko
@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
 
-APP_VERSION = "1.8.3"
+APP_VERSION = "1.8.4"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -66,7 +66,7 @@ _TRUSTED_ORIGINS = {
 _SESSION_TOKEN = secrets.token_urlsafe(32)
 
 
-def _origin_allowed(origin: str | None) -> bool:
+def _origin_allowed(origin: Optional[str]) -> bool:
     if not origin:
         return False
     origin = origin.rstrip("/")
@@ -153,7 +153,7 @@ def _fmt_dt(value: Any) -> str:
 
 
 
-def _run_powershell(script: str, env_extra: dict[str, str] | None = None, timeout: int = 30) -> str:
+def _run_powershell(script: str, env_extra: Optional[Dict[str, str]] = None, timeout: int = 30) -> str:
     if os.name != "nt":
         raise RuntimeError("Windows Certificate Store je dostupný pouze ve Windows.")
     env = os.environ.copy()
@@ -264,7 +264,7 @@ try {
 """
 
 
-def _windows_certificates() -> list[dict[str, Any]]:
+def _windows_certificates() -> List[Dict[str, Any]]:
     raw = _run_powershell(_WINDOWS_CERT_LIST_PS, timeout=20)
     if not raw:
         return []
@@ -274,7 +274,7 @@ def _windows_certificates() -> list[dict[str, Any]]:
     if not isinstance(data, list):
         return []
     now = datetime.now(timezone.utc)
-    out: list[dict[str, Any]] = []
+    out: List[Dict[str, Any]] = []
     for item in data:
         if not isinstance(item, dict):
             continue
@@ -442,7 +442,7 @@ def _unique_name(name: str, used: set[str]) -> str:
     return candidate
 
 
-def _validate_box(box: Any) -> tuple[int, int, int, int]:
+def _validate_box(box: Any) -> Tuple[int, int, int, int]:
     if not isinstance(box, list) or len(box) != 4:
         raise ValueError("Neplatný obdélník viditelného podpisu.")
     vals = [float(x) for x in box]
@@ -454,7 +454,7 @@ def _validate_box(box: Any) -> tuple[int, int, int, int]:
     return tuple(int(round(x)) for x in vals)  # type: ignore[return-value]
 
 
-def _stamp_style(stamp_path: str | None):
+def _stamp_style(stamp_path: Optional[str]):
     if stamp_path:
         # Static image appearance: the image itself is the signature appearance.
         return stamp.StaticStampStyle(
@@ -476,7 +476,7 @@ def _sign_one(
     document_meta: dict[str, Any],
     common_meta: dict[str, Any],
     timestamper,
-    stamp_path: str | None,
+    stamp_path: Optional[str],
 ) -> bytes:
     field_name = "Signature_2020_" + os.urandom(8).hex()
     placement = document_meta.get("placement")
