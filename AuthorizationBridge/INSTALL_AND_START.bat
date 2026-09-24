@@ -19,13 +19,13 @@ echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
 echo [1/6] Stahuji aktualni AuthorizationBridge...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/authorization_bridge.py?cb=12' -OutFile '%DIR%\authorization_bridge.py'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/authorization_bridge.py?cb=13' -OutFile '%DIR%\authorization_bridge.py'"
 if errorlevel 1 goto :download_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/requirements.txt?cb=12' -OutFile '%DIR%\requirements.txt'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/requirements.txt?cb=13' -OutFile '%DIR%\requirements.txt'"
 if errorlevel 1 goto :download_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/find_python.ps1?cb=12' -OutFile '%PYFINDER%'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/find_python.ps1?cb=13' -OutFile '%PYFINDER%'"
 if errorlevel 1 goto :download_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/restart_bridge.ps1?cb=12' -OutFile '%RESTARTER%'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/restart_bridge.ps1?cb=13' -OutFile '%RESTARTER%'"
 if errorlevel 1 goto :download_error
 
 echo [2/6] Hledam existujici Python 3...
@@ -61,12 +61,26 @@ echo   %PY_EXE%
 "%PY_EXE%" --version
 if errorlevel 1 goto :python_auto_install_failed
 
-if not exist "%VENV%\Scripts\python.exe" (
-  echo [3/6] Vytvarim lokalni Python prostredi...
+set "RECREATE_VENV=0"
+if exist "%VENV%\Scripts\python.exe" (
+  "%VENV%\Scripts\python.exe" -c "import sys; raise SystemExit(0 if sys.version_info >= (3,10) else 1)" >nul 2>nul
+  if errorlevel 1 set "RECREATE_VENV=1"
+) else (
+  set "RECREATE_VENV=1"
+)
+
+if "%RECREATE_VENV%"=="1" (
+  echo [3/6] Vytvarim ciste lokalni Python prostredi...
+  if exist "%VENV%" rmdir /s /q "%VENV%"
+  "%PY_EXE%" -c "import sys; raise SystemExit(0 if sys.version_info >= (3,10) else 1)" >nul 2>nul
+  if errorlevel 1 (
+    echo Nalezeny Python je prilis stary. Je potreba Python 3.10 nebo novejsi.
+    goto :python_auto_install_failed
+  )
   "%PY_EXE%" -m venv "%VENV%"
   if errorlevel 1 goto :python_error
 ) else (
-  echo [3/6] Lokalni Python prostredi uz existuje.
+  echo [3/6] Lokalni Python prostredi je v poradku.
 )
 
 echo [4/6] Instaluji / aktualizuji podpisove knihovny...
@@ -94,7 +108,7 @@ if errorlevel 1 goto :bridge_start_error
 echo.
 echo HOTOVO.
 echo AuthorizationBridge byl aktualizovan a restartovan.
-echo V Toolboxu musi byt videt verze 1.8.3 nebo novejsi.
+echo V Toolboxu musi byt videt verze 1.8.4 nebo novejsi.
 echo.
 pause
 exit /b 0
