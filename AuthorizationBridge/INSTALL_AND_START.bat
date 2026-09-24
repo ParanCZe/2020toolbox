@@ -7,6 +7,7 @@ set "DIR=%LOCALAPPDATA%\20-20-TOOLBOX\AuthorizationBridge"
 set "VENV=%DIR%\venv"
 set "RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/AuthorizationBridge"
 set "PYFINDER=%DIR%\find_python.ps1"
+set "RESTARTER=%DIR%\restart_bridge.ps1"
 set "PYFILE=%TEMP%\2020toolbox_python_path.txt"
 set "PY_EXE="
 
@@ -17,12 +18,14 @@ echo 20-20 TOOLBOX - instalace AuthorizationBridge
 echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
-echo [1/6] Stahuji bridge a instalacni soubory...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/authorization_bridge.py?cb=3' -OutFile '%DIR%\authorization_bridge.py'"
+echo [1/6] Stahuji aktualni AuthorizationBridge...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/authorization_bridge.py?cb=4' -OutFile '%DIR%\authorization_bridge.py'"
 if errorlevel 1 goto :download_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/requirements.txt?cb=3' -OutFile '%DIR%\requirements.txt'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/requirements.txt?cb=4' -OutFile '%DIR%\requirements.txt'"
 if errorlevel 1 goto :download_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/find_python.ps1?cb=3' -OutFile '%PYFINDER%'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/find_python.ps1?cb=4' -OutFile '%PYFINDER%'"
+if errorlevel 1 goto :download_error
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/restart_bridge.ps1?cb=4' -OutFile '%RESTARTER%'"
 if errorlevel 1 goto :download_error
 
 echo [2/6] Hledam existujici Python 3...
@@ -44,14 +47,10 @@ if errorlevel 1 goto :python_auto_install_failed
 
 echo.
 echo Python byl nainstalovan. Overuji standardni instalacni cestu...
-set "PY_EXE="
-
 if exist "%LOCALAPPDATA%\Programs\Python\Python314\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python314\python.exe"
 if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
 if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
 if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
-
-rem Jen pokud winget pouzil nestandardni cestu, spustime rychly finder.
 if not defined PY_EXE call :find_python
 if not defined PY_EXE goto :python_auto_install_failed
 
@@ -74,14 +73,10 @@ echo [4/6] Instaluji / aktualizuji podpisove knihovny...
 "%VENV%\Scripts\python.exe" -m pip install --disable-pip-version-check --quiet --upgrade -r "%DIR%\requirements.txt"
 if errorlevel 1 goto :pip_error
 
-echo [5/6] Vytvarim lokalni spoustec...
+echo [5/6] Vytvarim spoustec s automatickym restartem...
 (
   echo @echo off
-  echo setlocal
-  echo rem Ukonci pouze predchozi 20-20 AuthorizationBridge, ne jine Python procesy.
-  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$p=Get-CimInstance Win32_Process -Filter \"Name='python.exe' OR Name='pythonw.exe'\" ^| Where-Object { $_.CommandLine -like '*authorization_bridge.py*' }; foreach($x in $p){ Stop-Process -Id $x.ProcessId -Force -ErrorAction SilentlyContinue }" ^>nul 2^>nul
-  echo timeout /t 1 /nobreak ^>nul
-  echo start "" /min cmd /c ""%VENV%\Scripts\python.exe" "%DIR%\authorization_bridge.py" ^>^>"%DIR%\bridge.log" 2^>^&1"
+  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RESTARTER%" -PythonExe "%VENV%\Scripts\python.exe" -BridgeScript "%DIR%\authorization_bridge.py" -LogFile "%DIR%\bridge.log"
 ) > "%DIR%\start_bridge.cmd"
 
 echo [6/6] Registruji spousteni z Toolboxu...
@@ -89,16 +84,15 @@ reg add "HKCU\Software\Classes\twentytwentyauth" /ve /d "URL:20-20 Authorization
 reg add "HKCU\Software\Classes\twentytwentyauth" /v "URL Protocol" /d "" /f >nul
 reg add "HKCU\Software\Classes\twentytwentyauth\shell\open\command" /ve /d "\"%DIR%\start_bridge.cmd\" \"%%1\"" /f >nul
 
-echo Restartuji pripadnou starsi verzi AuthorizationBridge...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$p=Get-CimInstance Win32_Process -Filter \"Name='python.exe' OR Name='pythonw.exe'\" | Where-Object { $_.CommandLine -like '*authorization_bridge.py*' }; foreach($x in $p){ Stop-Process -Id $x.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>nul
-timeout /t 1 /nobreak >nul
+echo.
+echo Restartuji AuthorizationBridge a uvolnuji port 8094...
 call "%DIR%\start_bridge.cmd"
-timeout /t 2 /nobreak >nul
+if errorlevel 1 goto :bridge_start_error
 
 echo.
 echo HOTOVO.
-echo AuthorizationBridge bezi pouze na 127.0.0.1:8094.
-echo Vrat se do 20-20 TOOLBOXu a klikni na "Zkontrolovat".
+echo AuthorizationBridge byl aktualizovan a restartovan.
+echo V Toolboxu musi byt videt verze 1.4.0 nebo novejsi.
 echo.
 pause
 exit /b 0
@@ -122,7 +116,7 @@ exit /b 1
 
 :download_error
 echo.
-echo CHYBA: nepodarilo se stahnout soubory bridge z GitHubu.
+echo CHYBA: nepodarilo se stahnout aktualni soubory bridge z GitHubu.
 pause
 exit /b 1
 
@@ -135,8 +129,18 @@ exit /b 1
 
 :pip_error
 echo.
-echo CHYBA: nepodarilo se nainstalovat pyHanko/Flask.
+echo CHYBA: nepodarilo se nainstalovat pyHanko/Flask/cryptography.
 echo Pouzity Python: %PY_EXE%
-echo Zkontroluj internetove pripojeni.
+pause
+exit /b 1
+
+:bridge_start_error
+echo.
+echo CHYBA: novy AuthorizationBridge se nepodarilo spustit.
+echo Podivej se do:
+echo   %DIR%\bridge.error.log
+echo a
+echo   %DIR%\bridge.log
+echo.
 pause
 exit /b 1
