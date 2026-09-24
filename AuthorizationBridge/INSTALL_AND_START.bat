@@ -77,6 +77,10 @@ if errorlevel 1 goto :pip_error
 echo [5/6] Vytvarim lokalni spoustec...
 (
   echo @echo off
+  echo setlocal
+  echo rem Ukonci pouze predchozi 20-20 AuthorizationBridge, ne jine Python procesy.
+  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$p=Get-CimInstance Win32_Process -Filter \"Name='python.exe' OR Name='pythonw.exe'\" ^| Where-Object { $_.CommandLine -like '*authorization_bridge.py*' }; foreach($x in $p){ Stop-Process -Id $x.ProcessId -Force -ErrorAction SilentlyContinue }" ^>nul 2^>nul
+  echo timeout /t 1 /nobreak ^>nul
   echo start "" /min cmd /c ""%VENV%\Scripts\python.exe" "%DIR%\authorization_bridge.py" ^>^>"%DIR%\bridge.log" 2^>^&1"
 ) > "%DIR%\start_bridge.cmd"
 
@@ -85,7 +89,11 @@ reg add "HKCU\Software\Classes\twentytwentyauth" /ve /d "URL:20-20 Authorization
 reg add "HKCU\Software\Classes\twentytwentyauth" /v "URL Protocol" /d "" /f >nul
 reg add "HKCU\Software\Classes\twentytwentyauth\shell\open\command" /ve /d "\"%DIR%\start_bridge.cmd\" \"%%1\"" /f >nul
 
+echo Restartuji pripadnou starsi verzi AuthorizationBridge...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$p=Get-CimInstance Win32_Process -Filter \"Name='python.exe' OR Name='pythonw.exe'\" | Where-Object { $_.CommandLine -like '*authorization_bridge.py*' }; foreach($x in $p){ Stop-Process -Id $x.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>nul
+timeout /t 1 /nobreak >nul
 call "%DIR%\start_bridge.cmd"
+timeout /t 2 /nobreak >nul
 
 echo.
 echo HOTOVO.
