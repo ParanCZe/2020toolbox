@@ -6,6 +6,8 @@ title 20-20 TOOLBOX - AuthorizationBridge
 set "DIR=%LOCALAPPDATA%\20-20-TOOLBOX\AuthorizationBridge"
 set "VENV=%DIR%\venv"
 set "RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/AuthorizationBridge"
+set "PYFINDER=%DIR%\find_python.ps1"
+set "PYFILE=%TEMP%\2020toolbox_python_path.txt"
 
 if not exist "%DIR%" mkdir "%DIR%"
 
@@ -14,50 +16,51 @@ echo 20-20 TOOLBOX - instalace AuthorizationBridge
 echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
-where py >nul 2>nul
-if %errorlevel%==0 (
-  set "PY=py -3"
-) else (
-  where python >nul 2>nul
-  if %errorlevel%==0 (
-    set "PY=python"
-  ) else (
-    echo CHYBA: Python 3 nebyl nalezen.
-    echo Nainstaluj Python 3 z https://www.python.org/downloads/windows/
-    echo Pri instalaci zaskrtni "Add python.exe to PATH".
-    pause
-    exit /b 1
-  )
-)
-
-echo [1/5] Stahuji bridge...
+echo [1/6] Stahuji bridge a instalacni soubory...
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/authorization_bridge.py' -OutFile '%DIR%\authorization_bridge.py'"
 if errorlevel 1 goto :download_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/requirements.txt' -OutFile '%DIR%\requirements.txt'"
 if errorlevel 1 goto :download_error
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/find_python.ps1' -OutFile '%PYFINDER%'"
+if errorlevel 1 goto :download_error
+
+echo [2/6] Hledam existujici Python 3...
+del /q "%PYFILE%" >nul 2>nul
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PYFINDER%" > "%PYFILE%"
+set "PY_EXE="
+if exist "%PYFILE%" set /p "PY_EXE="<"%PYFILE%"
+del /q "%PYFILE%" >nul 2>nul
+
+if not defined PY_EXE goto :python_not_found
+if not exist "%PY_EXE%" goto :python_not_found
+
+echo Nalezen Python:
+echo   %PY_EXE%
+"%PY_EXE%" --version
+if errorlevel 1 goto :python_not_found
 
 if not exist "%VENV%\Scripts\python.exe" (
-  echo [2/5] Vytvarim lokalni Python prostredi...
-  %PY% -m venv "%VENV%"
+  echo [3/6] Vytvarim lokalni Python prostredi...
+  "%PY_EXE%" -m venv "%VENV%"
   if errorlevel 1 goto :python_error
 ) else (
-  echo [2/5] Lokalni Python prostredi uz existuje.
+  echo [3/6] Lokalni Python prostredi uz existuje.
 )
 
-echo [3/5] Instaluji / aktualizuji podpisove knihovny...
+echo [4/6] Instaluji / aktualizuji podpisove knihovny...
 "%VENV%\Scripts\python.exe" -m pip install --disable-pip-version-check --quiet --upgrade -r "%DIR%\requirements.txt"
 if errorlevel 1 goto :pip_error
 
-echo [4/5] Vytvarim lokalni spoustec...
+echo [5/6] Vytvarim lokalni spoustec...
 (
   echo @echo off
   echo start "" /min cmd /c ""%VENV%\Scripts\python.exe" "%DIR%\authorization_bridge.py" ^>^>"%DIR%\bridge.log" 2^>^&1"
 ) > "%DIR%\start_bridge.cmd"
 
-echo [5/5] Registruji jednorazove spousteni z Toolboxu...
+echo [6/6] Registruji spousteni z Toolboxu...
 reg add "HKCU\Software\Classes\twentytwentyauth" /ve /d "URL:20-20 AuthorizationBridge" /f >nul
 reg add "HKCU\Software\Classes\twentytwentyauth" /v "URL Protocol" /d "" /f >nul
-reg add "HKCU\Software\Classes\twentytwentyauth\shell\open\command" /ve /d ""%DIR%\start_bridge.cmd" "%%1"" /f >nul
+reg add "HKCU\Software\Classes\twentytwentyauth\shell\open\command" /ve /d "\"%DIR%\start_bridge.cmd\" \"%%1\"" /f >nul
 
 call "%DIR%\start_bridge.cmd"
 
@@ -69,6 +72,20 @@ echo.
 pause
 exit /b 0
 
+:python_not_found
+echo.
+echo CHYBA: Python 3 se nepodarilo najit.
+echo Instalator zkontroloval PATH, Python Launcher, Windows registry,
+echo %%LOCALAPPDATA%%\Programs\Python, Program Files, Miniconda a Anaconda.
+echo.
+echo Pro diagnostiku muzes v CMD zkusit:
+echo   where python
+echo   where py
+echo   py -0p
+echo.
+pause
+exit /b 1
+
 :download_error
 echo CHYBA: nepodarilo se stahnout soubory bridge z GitHubu.
 pause
@@ -76,11 +93,13 @@ exit /b 1
 
 :python_error
 echo CHYBA: nepodarilo se vytvorit Python prostredi.
+echo Pouzity Python: %PY_EXE%
 pause
 exit /b 1
 
 :pip_error
 echo CHYBA: nepodarilo se nainstalovat pyHanko/Flask.
+echo Pouzity Python: %PY_EXE%
 echo Zkontroluj internet a log v prikazovem radku.
 pause
 exit /b 1
