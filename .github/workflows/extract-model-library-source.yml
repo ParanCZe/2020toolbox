@@ -1,0 +1,32 @@
+name: Extract Model Library Source
+
+on:
+  push:
+    paths:
+      - '.github/workflows/extract-model-library-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract current Model Library RBZ
+        run: |
+          rm -rf SketchUpPlugins/ModelLibrarySource
+          mkdir -p SketchUpPlugins/ModelLibrarySource
+          unzip -o SketchUpPlugins/20-20_Model_Library_v0.1.1.rbz -d SketchUpPlugins/ModelLibrarySource
+      - name: Commit extracted source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/ModelLibrarySource
+          if git diff --cached --quiet; then
+            echo "Source already extracted"
+            exit 0
+          fi
+          git commit -m "Extract Model Library v0.1.1 source"
+          git push
