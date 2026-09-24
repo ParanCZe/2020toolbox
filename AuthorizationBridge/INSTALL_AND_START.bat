@@ -25,19 +25,32 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -U
 if errorlevel 1 goto :download_error
 
 echo [2/6] Hledam existujici Python 3...
-del /q "%PYFILE%" >nul 2>nul
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PYFINDER%" > "%PYFILE%"
-set "PY_EXE="
-if exist "%PYFILE%" set /p "PY_EXE="<"%PYFILE%"
-del /q "%PYFILE%" >nul 2>nul
+call :find_python
+if defined PY_EXE goto :python_ready
 
-if not defined PY_EXE goto :python_not_found
-if not exist "%PY_EXE%" goto :python_not_found
+echo.
+echo Python 3 nebyl nalezen. Zkusim ho automaticky nainstalovat.
+where winget >nul 2>nul
+if errorlevel 1 goto :python_auto_install_failed
 
+echo Instaluji Python 3.13 pres Windows Package Manager...
+winget install --id Python.Python.3.13 -e --source winget --scope user --silent --accept-package-agreements --accept-source-agreements
+if errorlevel 1 (
+  echo Python 3.13 se nepodarilo nainstalovat. Zkousim Python 3.12...
+  winget install --id Python.Python.3.12 -e --source winget --scope user --silent --accept-package-agreements --accept-source-agreements
+)
+if errorlevel 1 goto :python_auto_install_failed
+
+echo Python byl nainstalovan. Znovu hledam skutecny python.exe...
+timeout /t 2 /nobreak >nul
+call :find_python
+if not defined PY_EXE goto :python_auto_install_failed
+
+:python_ready
 echo Nalezen Python:
 echo   %PY_EXE%
 "%PY_EXE%" --version
-if errorlevel 1 goto :python_not_found
+if errorlevel 1 goto :python_auto_install_failed
 
 if not exist "%VENV%\Scripts\python.exe" (
   echo [3/6] Vytvarim lokalni Python prostredi...
@@ -72,16 +85,19 @@ echo.
 pause
 exit /b 0
 
-:python_not_found
+:find_python
+set "PY_EXE="
+del /q "%PYFILE%" >nul 2>nul
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PYFINDER%" > "%PYFILE%"
+if exist "%PYFILE%" set /p "PY_EXE="<"%PYFILE%"
+del /q "%PYFILE%" >nul 2>nul
+exit /b 0
+
+:python_auto_install_failed
 echo.
-echo CHYBA: Python 3 se nepodarilo najit.
-echo Instalator zkontroloval PATH, Python Launcher, Windows registry,
-echo %%LOCALAPPDATA%%\Programs\Python, Program Files, Miniconda a Anaconda.
-echo.
-echo Pro diagnostiku muzes v CMD zkusit:
-echo   where python
-echo   where py
-echo   py -0p
+echo CHYBA: Python 3 se nepodarilo najit ani automaticky nainstalovat.
+echo Automaticka instalace pouziva oficialni Python balicek pres winget.
+echo Pokud winget na tomto PC neni, nainstaluj Windows App Installer nebo Python rucne.
 echo.
 pause
 exit /b 1
