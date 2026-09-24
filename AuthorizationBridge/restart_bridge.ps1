@@ -43,15 +43,59 @@ $workDir = Split-Path -Parent $BridgeScript
 $stdout = $LogFile
 $stderr = [System.IO.Path]::ChangeExtension($LogFile, '.error.log')
 
-Start-Process -FilePath $PythonExe -ArgumentList @($BridgeScript) -WorkingDirectory $workDir -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-Start-Sleep -Milliseconds 900
-
-try {
-    $r = Invoke-RestMethod -Uri 'http://127.0.0.1:8094/status' -TimeoutSec 4
-    if (-not $r.ok) { throw 'Bridge status returned not-ok' }
-    Write-Output ("AuthorizationBridge " + $r.version + " running")
-    exit 0
-} catch {
-    Write-Error "AuthorizationBridge did not start correctly. Check logs in $workDir"
+# Preflight: catch syntax/import errors before launching the hidden process.
+$preflightOut = [System.IO.Path]::ChangeExtension($LogFile, '.preflight.log')
+& $PythonExe -c "import runpy; runpy.run_path(r'$BridgeScript', run_name='__bridge_preflight__')" *> $preflightOut
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "CHYBA PRI NACTENI AUTHORIZATION BRIDGE:" -ForegroundColor Red
+    if (Test-Path -LiteralPath $preflightOut) {
+        Get-Content -LiteralPath $preflightOut -ErrorAction SilentlyContinue | Select-Object -Last 80
+    }
     exit 1
 }
+
+Start-Process -FilePath $PythonExe -ArgumentList @($BridgeScript) -WorkingDirectory $workDir -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+
+# pyHanko + cryptography can take several seconds to import on some PCs.
+# Poll the health endpoint instead of assuming the process is ready after 900 ms.
+$lastError = $null
+for ($i = 0; $i -lt 20; $i++) {
+    Start-Sleep -Seconds 1
+    try {
+        $r = Invoke-RestMethod -Uri 'http://127.0.0.1:8094/status' -TimeoutSec 2
+        if ($r.ok) {
+            Write-Output ("AuthorizationBridge " + $r.version + " running")
+            exit 0
+        }
+    } catch {
+        $lastError = $_
+    }
+
+    # If the Python process already exited, no reason to wait the full 20 s.
+    $running = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -and $_.CommandLine -like '*authorization_bridge.py*' }
+    if (-not $running) { break }
+}
+
+Write-Host ""
+Write-Host "AuthorizationBridge se nespustil." -ForegroundColor Red
+if (Test-Path -LiteralPath $stderr) {
+    $errLines = Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue
+    if ($errLines) {
+        Write-Host "---- bridge.error.log ----" -ForegroundColor Yellow
+        $errLines | Select-Object -Last 100
+    }
+}
+if (Test-Path -LiteralPath $stdout) {
+    $outLines = Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue
+    if ($outLines) {
+        Write-Host "---- bridge.log ----" -ForegroundColor Yellow
+        $outLines | Select-Object -Last 60
+    }
+}
+if ($lastError) {
+    Write-Host ("Health-check: " + $lastError.Exception.Message)
+}
+Write-Error "AuthorizationBridge did not start correctly."
+exit 1
