@@ -36,7 +36,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
 
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -289,6 +289,7 @@ def certificate_info():
 
 
 @app.post("/sign-batch")
+@app.post("/sign-batch-test")
 def sign_batch():
     stamp_path = None
     try:
@@ -304,7 +305,7 @@ def sign_batch():
         except Exception:
             return jsonify(ok=False, error="Metadata požadavku nejsou platný JSON."), 400
 
-        test_mode = bool(meta.get("test_mode"))
+        test_mode = request.path.endswith("/sign-batch-test") or bool(meta.get("test_mode"))
         if not test_mode and cert is None:
             return jsonify(ok=False, error="Chybí PFX/P12 certifikát."), 400
 
