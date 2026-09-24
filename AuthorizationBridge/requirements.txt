@@ -1,5 +1,4 @@
 Flask>=3.1,<4
 pyHanko==0.37.0
 Pillow>=10,<13
-
-cryptography>=43,<48
+cryptography>=48.0.0
