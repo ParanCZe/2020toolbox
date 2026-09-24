@@ -30,7 +30,7 @@ from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign import fields, signers, timestamps
 
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -110,6 +110,14 @@ def _safe_name(name: str, fallback: str = "document.pdf") -> str:
     if not name.lower().endswith(".pdf"):
         name += ".pdf"
     return name
+
+
+def _ear_name(name: str) -> str:
+    base = _safe_name(name)
+    stem, _ext = os.path.splitext(base)
+    if not stem.lower().endswith("_ear"):
+        stem += "_EAR"
+    return stem + ".pdf"
 
 
 def _unique_name(name: str, used: set[str]) -> str:
@@ -298,12 +306,14 @@ def sign_batch():
                     timestamper=timestamper,
                     stamp_path=stamp_path,
                 )
-                out_name = _unique_name(original_name, used_names)
+                requested_output = str(doc_meta.get("output_name") or original_name)
+                out_name = _unique_name(_ear_name(requested_output), used_names)
                 zf.writestr(out_name, signed)
                 manifest_files.append(
                     {
-                        "source": original_name,
+                        "source": str(doc_meta.get("name") or original_name),
                         "output": out_name,
+                        "standard": str(meta.get("output_standard") or "PDF/A-3b"),
                         "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
                         "visible": bool(doc_meta.get("placement")),
                     }
@@ -314,6 +324,7 @@ def sign_batch():
                 "bridge_version": APP_VERSION,
                 "created_utc": datetime.now(timezone.utc).isoformat(),
                 "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
+                "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
                 "tsa_url": tsa_url if profile == "bt" else None,
                 "certificate": cert_info,
                 "files": manifest_files,
