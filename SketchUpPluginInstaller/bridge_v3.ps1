@@ -47,15 +47,36 @@ sh.Run cmd, 0, False
 }
 Register-HiddenProtocol
 
+function Get-Installed($plugins){
+ $out=@{}
+ if(-not(Test-Path $plugins)){return $out}
+ foreach($p in Get-ChildItem $plugins -File -Filter '*.rb' -ErrorAction SilentlyContinue){
+  $name=$p.Name.ToLowerInvariant()
+  if($name -notmatch '^(twentytwenty_|2020_)'){continue}
+  $txt=Get-Content $p.FullName -Raw -ErrorAction SilentlyContinue
+  if([string]::IsNullOrWhiteSpace($txt)){continue}
+  $m=[regex]::Match($txt,'(?im)(?:EXTENSION|extension)\.version\s*=\s*[''\"]([^''\"]+)[''\"]')
+  if(-not $m.Success){$m=[regex]::Match($txt,'(?im)^\s*VERSION\s*=\s*[''\"]([^''\"]+)[''\"]')}
+  $out[$p.Name]=if($m.Success){$m.Groups[1].Value}else{'?'}
+ }
+ $out
+}
 function Get-SketchUp {
  $root=Join-Path $env:APPDATA 'SketchUp';if(-not(Test-Path $root)){return $null}
  $dirs=Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | Where-Object {$_.Name -match '^SketchUp\s+(\d{4})$'} | Sort-Object {[int]([regex]::Match($_.Name,'\d{4}').Value)} -Descending
- if(-not $dirs){return $null};$plugins=Join-Path $dirs[0].FullName 'SketchUp\Plugins';New-Item -ItemType Directory -Force -Path $plugins|Out-Null
- [pscustomobject]@{Name=$dirs[0].Name;Plugins=$plugins}
-}
-function Get-Installed($plugins){
- $names=@('twentytwenty_live_mirror.rb','twentytwenty_nano_banana_exporter.rb','twentytwenty_model_library.rb','twentytwenty_texture_library.rb');$out=@{}
- foreach($name in $names){$p=Join-Path $plugins $name;if(Test-Path $p){$txt=Get-Content $p -Raw -ErrorAction SilentlyContinue;$m=[regex]::Match($txt,'(?im)(?:EXTENSION|extension)\.version\s*=\s*[''\"]([^''\"]+)[''\"]');if($m.Success){$out[$name]=$m.Groups[1].Value}else{$out[$name]='?'}}};$out
+ if(-not $dirs){return $null}
+ $candidates=@()
+ foreach($d in $dirs){
+  $plugins=Join-Path $d.FullName 'SketchUp\Plugins';New-Item -ItemType Directory -Force -Path $plugins|Out-Null
+  $installed=Get-Installed $plugins
+  $score=@($installed.Keys).Count
+  $year=[int]([regex]::Match($d.Name,'\d{4}').Value)
+  $candidates += [pscustomobject]@{Name=$d.Name;Plugins=$plugins;Installed=$installed;Score=$score;Year=$year}
+ }
+ # Prefer the SketchUp version that already contains 20-20 plugins.
+ # If none contains them, fall back to the newest installed SketchUp.
+ $best=$candidates | Sort-Object @{Expression='Score';Descending=$true},@{Expression='Year';Descending=$true} | Select-Object -First 1
+ [pscustomobject]@{Name=$best.Name;Plugins=$best.Plugins;Installed=$best.Installed}
 }
 function Install-Rbz([string]$file,$su){
  Log ('INSTALL '+$file+' -> '+$su.Plugins)
@@ -102,7 +123,7 @@ while([DateTime]::UtcNow -lt $expires){
  try{
   $req=Read-RequestHead $s;if($null -eq $req){continue};$method=$req.Method;$path=$req.Path;$len=$req.ContentLength
   if($method -eq 'OPTIONS'){Reply $s 204 @{};continue}
-  if($method -eq 'GET' -and $path.StartsWith('/status')){$left=[Math]::Max(0,[int][Math]::Ceiling(($expires-[DateTime]::UtcNow).TotalSeconds));Reply $s 200 @{ok=$true;sketchup=$su.Name;remaining_seconds=$left;installed=(Get-Installed $su.Plugins)};continue}
+  if($method -eq 'GET' -and $path.StartsWith('/status')){$left=[Math]::Max(0,[int][Math]::Ceiling(($expires-[DateTime]::UtcNow).TotalSeconds));Reply $s 200 @{ok=$true;sketchup=$su.Name;remaining_seconds=$left;installed=(Get-Installed $su.Plugins);bridge_version='3.2'};continue}
   if($method -eq 'POST' -and $path.StartsWith('/install')){
    $file='plugin.rbz';if($path -match '[?&]file=([^&]+)'){$file=[Uri]::UnescapeDataString($Matches[1])};if($file -notmatch '^[A-Za-z0-9._-]+\.rbz$'){Reply $s 400 @{ok=$false;error='Invalid RBZ'};continue}
    if($len -le 0){Reply $s 400 @{ok=$false;error='Empty RBZ body'};continue}
@@ -110,7 +131,7 @@ while([DateTime]::UtcNow -lt $expires){
    if($off -ne $len){Reply $s 400 @{ok=$false;error=('Incomplete RBZ body '+$off+'/'+$len)};continue}
    $tmp=Join-Path $env:TEMP ('2020toolbox_post_'+[Guid]::NewGuid().ToString('N'));$rbz=Join-Path $tmp $file;$ext=Join-Path $tmp 'extract';New-Item -ItemType Directory -Force -Path $ext|Out-Null;[IO.File]::WriteAllBytes($rbz,$body);[IO.Compression.ZipFile]::ExtractToDirectory($rbz,$ext)
    foreach($item in Get-ChildItem $ext -Force){if($item.Name -eq '__MACOSX'){continue};if($item.PSIsContainer){$dst=Join-Path $su.Plugins $item.Name;if(Test-Path $dst){Remove-Item $dst -Recurse -Force};Copy-Item $item.FullName $dst -Recurse -Force}elseif($item.Extension.ToLowerInvariant() -eq '.rb'){Copy-Item $item.FullName (Join-Path $su.Plugins $item.Name) -Force}}
-   Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue;Log ('POST INSTALLED '+$file);Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins)};continue
+   Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue;Log ('POST INSTALLED '+$file);Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins);bridge_version='3.2'};continue
   }
   Reply $s 404 @{ok=$false;error='Unknown endpoint'}
  }catch{Log ('SERVER ERROR '+$_.Exception.Message);try{Reply $s 500 @{ok=$false;error=$_.Exception.Message}}catch{}}finally{try{$s.Close()}catch{};try{$client.Close()}catch{}}
