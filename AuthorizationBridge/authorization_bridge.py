@@ -15,6 +15,7 @@ import io
 import json
 import os
 import re
+import secrets
 import tempfile
 import traceback
 import zipfile
@@ -36,7 +37,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
 
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.5.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -44,17 +45,83 @@ MAX_BYTES = 600 * 1024 * 1024
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_BYTES
 
+# Browser security boundary. The bridge is localhost-only, but localhost services
+# can still be targeted by arbitrary websites unless Origin + an unguessable
+# per-process token are enforced.
+_DEFAULT_TRUSTED_ORIGINS = {
+    "https://parancze.github.io",
+    "https://20-20.cz",
+    "https://www.20-20.cz",
+}
+_TRUSTED_ORIGINS = {
+    x.strip().rstrip("/")
+    for x in os.environ.get("TWENTY20_AUTH_ORIGINS", ",".join(sorted(_DEFAULT_TRUSTED_ORIGINS))).split(",")
+    if x.strip()
+}
+_SESSION_TOKEN = secrets.token_urlsafe(32)
+
+
+def _origin_allowed(origin: str | None) -> bool:
+    if not origin:
+        return False
+    origin = origin.rstrip("/")
+    if origin in _TRUSTED_ORIGINS:
+        return True
+    return bool(re.match(r"^http://(?:127\.0\.0\.1|localhost)(?::\d+)?$", origin, re.I))
+
+
+def _request_token_ok() -> bool:
+    supplied = request.headers.get("X-20-20-Session", "")
+    return bool(supplied) and secrets.compare_digest(supplied, _SESSION_TOKEN)
+
+
+@app.before_request
+def protect_local_bridge():
+    origin = request.headers.get("Origin")
+
+    # Native health checks (PowerShell installer) carry no Origin and are safe.
+    if request.path == "/status" and request.method == "GET" and not origin:
+        return None
+
+    # Browser access is restricted to the Toolbox origins.
+    if origin and not _origin_allowed(origin):
+        return jsonify(ok=False, error="Nepovolený webový původ požadavku."), 403
+
+    if request.method == "OPTIONS":
+        if not origin or not _origin_allowed(origin):
+            return jsonify(ok=False, error="Nepovolený CORS požadavek."), 403
+        return ("", 204)
+
+    if request.path == "/session":
+        if not origin or not _origin_allowed(origin):
+            return jsonify(ok=False, error="Session lze vytvořit pouze z důvěryhodného Toolboxu."), 403
+        return None
+
+    if request.path == "/status" and request.method == "GET":
+        if origin and not _origin_allowed(origin):
+            return jsonify(ok=False, error="Nepovolený webový původ požadavku."), 403
+        return None
+
+    # Every operation that can inspect a certificate or sign documents requires
+    # both a trusted browser Origin and an in-memory session token.
+    if not origin or not _origin_allowed(origin):
+        return jsonify(ok=False, error="AuthorizationBridge přijímá podpisové požadavky pouze z důvěryhodného Toolboxu."), 403
+    if not _request_token_ok():
+        return jsonify(ok=False, error="Neplatná nebo expirovaná lokální session."), 401
+    return None
+
 
 @app.after_request
 def cors(response):
-    # The service stores no credentials and only signs data explicitly supplied
-    # in the same request, so wildcard CORS is acceptable for this localhost-only
-    # bridge. Private Network Access is explicitly enabled for Chromium.
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    response.headers["Access-Control-Allow-Private-Network"] = "true"
+    origin = request.headers.get("Origin")
+    if origin and _origin_allowed(origin):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-20-20-Session"
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
     response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
 
@@ -62,6 +129,11 @@ def cors(response):
 @app.route("/", methods=["OPTIONS"])
 def options(_path: str = ""):
     return ("", 204)
+
+
+@app.get("/session")
+def session():
+    return jsonify(ok=True, token=_SESSION_TOKEN)
 
 
 def _fmt_dt(value: Any) -> str:
@@ -273,6 +345,9 @@ def status():
             "test_signing": True,
             "dedicated_test_endpoint": True,
             "pdfa3_input": True,
+            "origin_lock": True,
+            "session_token": True,
+            "fast_zip": True,
         },
     )
 
@@ -346,7 +421,9 @@ def sign_batch():
         used_names: set[str] = set()
         manifest_files = []
 
-        with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        # PDFs are already compressed internally; recompressing them inside ZIP
+        # burns CPU for very little size reduction. STORE changes no PDF bytes.
+        with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_STORED) as zf:
             for idx, uploaded in enumerate(pdfs):
                 original_name = uploaded.filename or f"document_{idx+1}.pdf"
                 raw_pdf = uploaded.read()
