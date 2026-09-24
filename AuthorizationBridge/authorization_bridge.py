@@ -18,7 +18,7 @@ import re
 import tempfile
 import traceback
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -29,8 +29,14 @@ from pyhanko.pdf_utils import images
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign import fields, signers, timestamps
 
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.serialization import pkcs12
+from cryptography.x509.oid import NameOID
 
-APP_VERSION = "1.2.0"
+
+APP_VERSION = "1.3.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -88,6 +94,37 @@ def _load_signer(pfx_bytes: bytes, password: str) -> signers.SimpleSigner:
                 os.remove(path)
             except OSError:
                 pass
+
+
+def _make_test_signer() -> signers.SimpleSigner:
+    """Create a short-lived local self-signed certificate for TEST mode."""
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = issuer = x509.Name(
+        [
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "20-20 TOOLBOX"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "20-20 TOOLBOX TEST SIGNATURE"),
+        ]
+    )
+    now = datetime.now(timezone.utc)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(minutes=5))
+        .not_valid_after(now + timedelta(days=1))
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .sign(key, hashes.SHA256())
+    )
+    pfx_bytes = pkcs12.serialize_key_and_certificates(
+        name=b"20-20 TOOLBOX TEST",
+        key=key,
+        cert=cert,
+        cas=None,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    return _load_signer(pfx_bytes, "")
 
 
 def _cert_payload(signer: signers.SimpleSigner) -> dict[str, Any]:
@@ -260,14 +297,16 @@ def sign_batch():
         metadata_raw = request.form.get("metadata", "")
         password = request.form.get("password", "")
 
-        if cert is None:
-            return jsonify(ok=False, error="Chybí PFX/P12 certifikát."), 400
         if not pdfs:
             return jsonify(ok=False, error="Nebyla odeslána žádná PDF."), 400
         try:
             meta = json.loads(metadata_raw)
         except Exception:
             return jsonify(ok=False, error="Metadata požadavku nejsou platný JSON."), 400
+
+        test_mode = bool(meta.get("test_mode"))
+        if not test_mode and cert is None:
+            return jsonify(ok=False, error="Chybí PFX/P12 certifikát."), 400
 
         docs_meta = meta.get("documents")
         if not isinstance(docs_meta, list) or len(docs_meta) != len(pdfs):
@@ -285,7 +324,7 @@ def sign_batch():
         else:
             timestamper = None
 
-        signer = _load_signer(cert.read(), password)
+        signer = _make_test_signer() if test_mode else _load_signer(cert.read(), password)
         cert_info = _cert_payload(signer)
 
         stamp_file = request.files.get("stamp")
@@ -335,6 +374,7 @@ def sign_batch():
                 "bridge_version": APP_VERSION,
                 "created_utc": datetime.now(timezone.utc).isoformat(),
                 "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
+                "test_mode": test_mode,
                 "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
                 "tsa_url": tsa_url if profile == "bt" else None,
                 "certificate": cert_info,
