@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.27
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.28
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Privátní klíč / PFX zůstává v počítači uživatele a posílá se pouze na 127.0.0.1.
 
@@ -1146,24 +1146,38 @@
     }
   };
 
-  async function absolutePlacement(rec) {
-    if (!document.getElementById('auth-visible')?.checked) return null;
-    const doc = await getPdf(rec);
-    const page = await doc.getPage(1);
-    const vp = page.getViewport({scale:1});
-    const p = rec.placement;
-    const left=p.x*vp.width, top=p.y*vp.height, right=(p.x+p.w)*vp.width, bottom=(p.y+p.h)*vp.height;
-    const a = vp.convertToPdfPoint(left, bottom);
-    const b = vp.convertToPdfPoint(right, top);
-    return {
-      page: 0,
-      box: [
-        Math.round(Math.min(a[0],b[0])*100)/100,
-        Math.round(Math.min(a[1],b[1])*100)/100,
-        Math.round(Math.max(a[0],b[0])*100)/100,
-        Math.round(Math.max(a[1],b[1])*100)/100
-      ]
-    };
+  async function absolutePlacementForPdfFile(file, metrics) {
+    if (!document.getElementById('auth-visible')?.checked || !metrics) return null;
+    if (!window.pdfjsLib) throw new Error('PDF.js není dostupné.');
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const doc = await pdfjsLib.getDocument({data:bytes}).promise;
+    try {
+      const page = await doc.getPage(1);
+      // DŮLEŽITÉ: souřadnice se počítají až z FINÁLNÍHO PDF/A, které jde do podpisu.
+      // Ghostscript může u některých výkresů změnit MediaBox/CropBox/Rotate/UserUnit.
+      // PDF.js viewport + convertToPdfPoint tak mapuje přesně souřadný systém
+      // výsledného souboru, ne původního náhledu.
+      const vp = page.getViewport({scale:1});
+      const width = Math.min(Math.max(1, metrics.width), vp.width);
+      const height = Math.min(Math.max(1, metrics.height), vp.height);
+      const left = Math.max(0, Math.min(vp.width - width, vp.width - metrics.right - width));
+      const top = Math.max(0, Math.min(vp.height - height, vp.height - metrics.bottom - height));
+      const right = left + width;
+      const bottom = top + height;
+      const a = vp.convertToPdfPoint(left, bottom);
+      const b = vp.convertToPdfPoint(right, top);
+      return {
+        page: 0,
+        box: [
+          Math.round(Math.min(a[0],b[0])*100)/100,
+          Math.round(Math.min(a[1],b[1])*100)/100,
+          Math.round(Math.max(a[0],b[0])*100)/100,
+          Math.round(Math.max(a[1],b[1])*100)/100
+        ]
+      };
+    } finally {
+      try { await doc.destroy(); } catch {}
+    }
   }
 
   window.signAuthorizationBatch = async function() {
@@ -1198,9 +1212,16 @@
       // Převod podepsaného PDF přes Ghostscript by existující podpis zneplatnil.
       const docs = new Array(state.files.length);
       const convertedFiles = new Array(state.files.length);
+      const placementMetrics = new Array(state.files.length);
 
+      // Ulož fyzickou velikost razítka a vzdálenost od pravého/spodního okraje
+      // z náhledu. Absolutní PDF souřadnice se ZÁMĚRNĚ dopočítají až po PDF/A
+      // konverzi, protože konverze může změnit page boxy nebo jednotky.
       for (let i=0;i<state.files.length;i++) {
         const rec = state.files[i];
+        placementMetrics[i] = document.getElementById('auth-visible')?.checked
+          ? await bottomRightPlacementMetrics(rec)
+          : null;
         docs[i] = {
           index:i,
           name:rec.name,
@@ -1208,7 +1229,7 @@
           pdfa:'3b',
           page_count: rec.pages || null,
           preview_page: 1,
-          placement:await absolutePlacement(rec)
+          placement:null
         };
         rec.status = 'converting';
       }
@@ -1245,6 +1266,12 @@
           rec.status = 'ready';
           renderFileList();
         }
+      }
+      // Teprve teď máme přesně ty PDF/A soubory, které bridge podepíše.
+      // Přepočítej box razítka proti jejich skutečnému MediaBox/CropBox/Rotate/UserUnit.
+      btn.textContent = 'Přepočítávám pozici razítka…';
+      for (let i=0;i<convertedFiles.length;i++) {
+        docs[i].placement = await absolutePlacementForPdfFile(convertedFiles[i], placementMetrics[i]);
       }
       renderFileList();
 
