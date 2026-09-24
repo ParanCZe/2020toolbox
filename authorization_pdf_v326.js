@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.26
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.27
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Privátní klíč / PFX zůstává v počítači uživatele a posílá se pouze na 127.0.0.1.
 
@@ -129,8 +129,7 @@
       reason: document.getElementById('auth-reason')?.value || '',
       location: document.getElementById('auth-location')?.value || '',
       contact: document.getElementById('auth-contact')?.value || '',
-      stampName: state.stampSourceName || '',
-      certName: state.certFile?.name || ''
+      stampName: state.stampSourceName || ''
     };
   }
 
@@ -139,8 +138,8 @@
     if (!el) return;
     const bits = [];
     if (state.stampSourceName) bits.push('Razítko: '+state.stampSourceName);
-    if (state.certFile?.name) bits.push('Certifikát: '+state.certFile.name);
-    bits.push('Heslo se neukládá.');
+    if (state.certFile?.name) bits.push('Certifikát: '+state.certFile.name+' (jen tato relace)');
+    bits.push('Certifikát ani heslo se trvale neukládají.');
     if (extra) bits.push(extra);
     el.textContent = bits.join(' · ');
   }
@@ -155,9 +154,7 @@
       let fileNote = '';
       try {
         const sh = await authDbGet('stampHandle');
-        const ch = await authDbGet('certHandle');
         if (state.stampSourceName && !sh) fileNote += ' Grafiku razítka vyber přes „Vybrat + zapamatovat soubor“.';
-        if (state.certFile?.name && !ch) fileNote += ' Certifikát vyber přes „Vybrat + zapamatovat soubor“.';
       } catch (_) {}
       authUpdateLocalStatus('Nastavení uloženo lokálně.' + fileNote);
       if (showToast) toast('Nastavení Autorizace bylo uloženo na tomto PC.' + fileNote);
@@ -212,7 +209,8 @@
   }
 
   async function authLoadHandle(kind, requestPermission=false) {
-    const key = kind === 'stamp' ? 'stampHandle' : 'certHandle';
+    if (kind === 'cert') return false;
+    const key = 'stampHandle';
     let handle = null;
     try { handle = await authDbGet(key); } catch {}
     if (!handle) return false;
@@ -246,12 +244,18 @@
       const handles = await window.showOpenFilePicker(opts);
       const handle = handles?.[0];
       if (!handle) return;
-      if (authRememberEnabled()) await authDbSet(kind === 'stamp' ? 'stampHandle' : 'certHandle', handle);
+      if (kind === 'stamp' && authRememberEnabled()) await authDbSet('stampHandle', handle);
       const file = await handle.getFile();
-      if (kind === 'stamp') await authSetStampSource(file);
-      else authSetCertSource(file);
-      if (authRememberEnabled()) await authSaveSettings(false);
-      toast((kind === 'stamp' ? 'Grafika razítka' : 'Certifikát')+' byla vybrána a její umístění zapamatováno.');
+      if (kind === 'stamp') {
+        await authSetStampSource(file);
+        if (authRememberEnabled()) await authSaveSettings(false);
+        toast('Grafika razítka byla vybrána a její umístění zapamatováno.');
+      } else {
+        authSetCertSource(file);
+        // PFX/P12 je citlivý soubor: jeho FileSystemFileHandle záměrně neukládáme.
+        try { await authDbDelete('certHandle'); } catch {}
+        toast('Certifikát byl vybrán jen pro tuto relaci. Jeho umístění se z bezpečnostních důvodů neukládá.');
+      }
     } catch (e) {
       if (e?.name !== 'AbortError') toast('Soubor se nepodařilo vybrat: '+(e.message||e), true);
     }
@@ -279,7 +283,7 @@
       authToggleVisible();
     }
     await authLoadHandle('stamp', !!requestFilePermission);
-    await authLoadHandle('cert', !!requestFilePermission);
+    // Certifikát se z bezpečnostních důvodů mezi relacemi automaticky nenačítá.
     state.settingsRestored = true;
     authUpdateLocalStatus(saved ? 'Uložené nastavení načteno.' : 'Žádné uložené nastavení.');
     if (requestFilePermission) toast(saved ? 'Uložené nastavení bylo načteno.' : 'Žádné uložené nastavení nebylo nalezeno.');
@@ -421,7 +425,7 @@
 
       <div id="auth-drop" class="auth-drop">
         <b>Přetáhni sem PDF nebo klikni pro výběr</b><br>
-        <span class="auth-small">Lze vložit více PDF najednou — kliknutím nebo drag & drop kamkoli do této aplikace. Každý dokument má vlastní stránku a pozici razítka.</span>
+        <span class="auth-small">Lze vložit více PDF najednou — kliknutím nebo drag & drop kamkoli do této aplikace. U vícestránkového PDF se zobrazuje jen 1. strana; export zůstává kompletní vícestránkový dokument.</span>
         <input id="auth-files" type="file" accept=".pdf,application/pdf" multiple hidden>
       </div>
 
@@ -433,15 +437,12 @@
 
         <section class="auth-pane auth-viewer">
           <div class="auth-toolbar">
-            <button id="auth-prev" onclick="authPrevPage()">←</button>
-            <select id="auth-page-select" onchange="authSetPage(Number(this.value))"></select>
-            <button id="auth-next" onclick="authNextPage()">→</button>
-            <span id="auth-page-info" class="auth-small">–</span>
+            <span id="auth-page-info" class="auth-small">Náhled 1. strany</span>
             <button onclick="authZoomOut()" title="Oddálit">−</button>
             <span id="auth-zoom-readout" class="auth-zoom-readout">100 %</span>
             <button onclick="authZoomIn()" title="Přiblížit">+</button>
             <button onclick="authZoomFit()" title="Přizpůsobit šířce">Přizpůsobit</button>
-            <button style="margin-left:auto" onclick="authApplyPlacementToAll()">Použít pozici na všechny</button>
+            <button style="margin-left:auto" onclick="authApplyPlacementToAll()">Nastavit tuto pozici všem</button>
           </div>
           <div id="auth-stage" class="auth-stage">
             <div id="auth-page-wrap" class="auth-page-wrap" style="display:none">
@@ -486,7 +487,7 @@
             <div id="auth-cert-box" class="auth-box">
               <h3>CERTIFIKÁT</h3>
               <div class="auth-field"><label>PFX / P12 s privátním klíčem</label><input id="auth-cert-file" type="file" accept=".pfx,.p12,application/x-pkcs12"></div>
-              <button class="auth-secondary auth-file-memory-btn" type="button" onclick="authPickRememberedFile('cert')">Vybrat + zapamatovat soubor</button>
+              <button class="auth-secondary auth-file-memory-btn" type="button" onclick="authPickRememberedFile('cert')">Vybrat certifikát</button>
               <div class="auth-field"><label>Heslo k certifikátu</label><input id="auth-cert-pass" type="password" autocomplete="off" placeholder="Heslo se nikam neukládá"></div>
               <button class="auth-secondary" onclick="inspectAuthorizationCertificate()">Ověřit certifikát</button>
               <div id="auth-cert-info" class="auth-cert-card" style="margin-top:7px">Certifikát zatím nebyl načten.</div>
@@ -516,7 +517,7 @@
               <div class="auth-cert-card ok"><b>PDF/A-3b + PAdES</b><br>Každý soubor bude exportovaný jako <b>název_EAR.pdf</b>. Pořadí je záměrně PDF/A-3b → podpis, aby se podpis následnou konverzí nezneplatnil.</div>
             </div>
 
-            <div class="auth-warn">Soubor s certifikátem ani heslo se neukládají do localStorage. Při podepisování jsou odeslány pouze lokální službě na <b>127.0.0.1</b>. Výsledná právní úroveň podpisu závisí také na typu certifikátu a způsobu jeho vydání/uložení.</div>
+            <div class="auth-warn">PFX/P12 ani heslo se trvale neukládají. Certifikát je dostupný jen v aktuální relaci prohlížeče a při podepisování se posílá pouze lokální službě na <b>127.0.0.1</b>. Výsledná právní úroveň podpisu závisí také na typu certifikátu a způsobu jeho vydání/uložení.</div>
 
             <button id="auth-sign-btn" class="auth-primary" onclick="signAuthorizationBatch()">PDF/A-3b + podepsat + stáhnout ZIP</button>
             <button class="auth-secondary" onclick="authClearAll()">Vyčistit dokumenty</button>
@@ -671,7 +672,7 @@
     list.innerHTML = state.files.map((r,i) => `
       <button class="auth-file ${i===state.current?'active':''}" onclick="authSelectFile(${i})" title="${esc(r.name)}">
         <div class="auth-file-top"><span class="auth-file-name">${esc(r.name)}</span><span class="auth-dot ${esc(r.status)}"></span></div>
-        <div class="auth-file-meta">${fmtSize(r.size)} · ${r.pages ? r.pages + ' str.' : 'načítám…'} · podpis str. ${r.page}</div>
+        <div class="auth-file-meta">${fmtSize(r.size)} · ${r.pages ? r.pages + ' str.' : 'načítám…'} · razítko: 1. strana</div>
       </button>`).join('');
   }
 
@@ -708,7 +709,8 @@
     const rec = state.files[state.current];
     try {
       const doc = await getPdf(rec);
-      const page = await doc.getPage(rec.page);
+      rec.page = 1;
+      const page = await doc.getPage(1);
       [
       'auth-visible','auth-add-architect','auth-architect-name','auth-add-datetime',
       'auth-profile','auth-tsa','auth-reason','auth-location','auth-contact'
@@ -752,23 +754,24 @@
 
   function updatePageControls() {
     const rec = state.files[state.current];
-    const sel = document.getElementById('auth-page-select');
     const info = document.getElementById('auth-page-info');
-    if (!rec || !rec.pages) return;
-    sel.innerHTML = Array.from({length:rec.pages}, (_,i) => '<option value="'+(i+1)+'">Strana '+(i+1)+'</option>').join('');
-    sel.value = String(rec.page);
-    info.textContent = rec.page + ' / ' + rec.pages;
-    document.getElementById('auth-prev').disabled = rec.page <= 1;
-    document.getElementById('auth-next').disabled = rec.page >= rec.pages;
+    if (!rec || !rec.pages || !info) return;
+    rec.page = 1;
+    info.textContent = rec.pages > 1
+      ? 'Náhled: 1. strana · dokument má ' + rec.pages + ' stran'
+      : 'Náhled: 1. strana · 1 strana';
   }
 
-  window.authSetPage = async function(p) {
+  // Vícestránkové PDF se záměrně chová jako jeden dokument.
+  // V editoru je vidět pouze titulní / první strana; ostatní stránky zůstávají
+  // v původním PDF a při exportu se nijak neodstraňují.
+  window.authSetPage = async function() {
     const rec = state.files[state.current]; if (!rec) return;
-    rec.page = Math.max(1, Math.min(rec.pages || 1, Number(p)||1));
-    renderFileList(); await renderCurrent();
+    rec.page = 1;
+    await renderCurrent();
   };
-  window.authPrevPage = () => { const r=state.files[state.current]; if(r && r.page>1) authSetPage(r.page-1); };
-  window.authNextPage = () => { const r=state.files[state.current]; if(r && r.page<(r.pages||1)) authSetPage(r.page+1); };
+  window.authPrevPage = () => {};
+  window.authNextPage = () => {};
 
   function placeOverlay(rec) {
     const box = document.getElementById('auth-sig-box');
@@ -852,16 +855,51 @@
     if (rec) placeOverlay(rec);
   };
 
-  window.authApplyPlacementToAll = function() {
+  async function bottomRightPlacementMetrics(rec) {
+    const doc = await getPdf(rec);
+    const page = await doc.getPage(1);
+    const vp = page.getViewport({scale:1});
+    const p = rec.placement || {x:.64,y:.78,w:.30,h:.12};
+    const width = Math.max(1, p.w * vp.width);
+    const height = Math.max(1, p.h * vp.height);
+    return {
+      width,
+      height,
+      right: Math.max(0, vp.width - ((p.x + p.w) * vp.width)),
+      bottom: Math.max(0, vp.height - ((p.y + p.h) * vp.height))
+    };
+  }
+
+  async function applyBottomRightPlacement(rec, metrics) {
+    const doc = await getPdf(rec);
+    const page = await doc.getPage(1);
+    const vp = page.getViewport({scale:1});
+    const width = Math.min(Math.max(1, metrics.width), vp.width);
+    const height = Math.min(Math.max(1, metrics.height), vp.height);
+    const left = Math.max(0, Math.min(vp.width - width, vp.width - metrics.right - width));
+    const top = Math.max(0, Math.min(vp.height - height, vp.height - metrics.bottom - height));
+    rec.page = 1;
+    rec.placement = {
+      x: left / vp.width,
+      y: top / vp.height,
+      w: width / vp.width,
+      h: height / vp.height
+    };
+  }
+
+  window.authApplyPlacementToAll = async function() {
     const src = state.files[state.current];
     if (!src) return;
     persistOverlay();
-    for (const r of state.files) {
-      r.placement = {...src.placement};
-      r.page = Math.min(src.page, r.pages || src.page);
+    try {
+      const metrics = await bottomRightPlacementMetrics(src);
+      for (const r of state.files) await applyBottomRightPlacement(r, metrics);
+      renderFileList();
+      placeOverlay(src);
+      toast('Pozice byla nastavena všem podle pravého dolního rohu — stejný fyzický odstup i velikost razítka.');
+    } catch (e) {
+      toast('Pozici se nepodařilo přenést na všechny dokumenty: ' + (e.message || e), true);
     }
-    renderFileList();
-    toast('Pozice a číslo stránky byly přeneseny na všechny dokumenty.');
   };
 
   function authIsTestMode() {
@@ -1108,14 +1146,14 @@
   async function absolutePlacement(rec) {
     if (!document.getElementById('auth-visible')?.checked) return null;
     const doc = await getPdf(rec);
-    const page = await doc.getPage(rec.page);
+    const page = await doc.getPage(1);
     const vp = page.getViewport({scale:1});
     const p = rec.placement;
     const left=p.x*vp.width, top=p.y*vp.height, right=(p.x+p.w)*vp.width, bottom=(p.y+p.h)*vp.height;
     const a = vp.convertToPdfPoint(left, bottom);
     const b = vp.convertToPdfPoint(right, top);
     return {
-      page: rec.page-1,
+      page: 0,
       box: [
         Math.round(Math.min(a[0],b[0])*100)/100,
         Math.round(Math.min(a[1],b[1])*100)/100,
@@ -1165,6 +1203,8 @@
           name:rec.name,
           output_name:earOutputName(rec.name),
           pdfa:'3b',
+          page_count: rec.pages || null,
+          preview_page: 1,
           placement:await absolutePlacement(rec)
         };
         rec.status = 'converting';
