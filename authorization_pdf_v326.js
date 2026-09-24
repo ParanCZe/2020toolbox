@@ -152,8 +152,15 @@
     }
     try {
       localStorage.setItem(AUTH_SETTINGS_KEY, JSON.stringify(authCollectSettings()));
-      authUpdateLocalStatus('Nastavení uloženo lokálně.');
-      if (showToast) toast('Nastavení Autorizace bylo uloženo na tomto PC.');
+      let fileNote = '';
+      try {
+        const sh = await authDbGet('stampHandle');
+        const ch = await authDbGet('certHandle');
+        if (state.stampSourceName && !sh) fileNote += ' Grafiku razítka vyber přes „Vybrat + zapamatovat soubor“.';
+        if (state.certFile?.name && !ch) fileNote += ' Certifikát vyber přes „Vybrat + zapamatovat soubor“.';
+      } catch (_) {}
+      authUpdateLocalStatus('Nastavení uloženo lokálně.' + fileNote);
+      if (showToast) toast('Nastavení Autorizace bylo uloženo na tomto PC.' + fileNote);
     } catch (e) {
       if (showToast) toast('Nastavení se nepodařilo uložit: '+(e.message||e), true);
     }
@@ -1332,14 +1339,16 @@
     };
   }
 
-  window.initAuthorizationApp = function() {
+  window.initAuthorizationApp = async function() {
     if (!state.initialized) {
       state.initialized = true;
       authTestModeChanged();
       authStampOptionsChanged();
-      authLoadSavedSettings(false);
       checkAuthorizationBridge(true);
     }
+    // Reload saved values every time the tool is opened, not only on the first
+    // visit in the current page session. This fixes "Uložit -> zavřít -> otevřít".
+    await authLoadSavedSettings(false);
     renderFileList();
   };
 
