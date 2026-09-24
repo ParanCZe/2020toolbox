@@ -30,3 +30,10 @@ Při dalších použitích stačí v Toolboxu **Spustit bridge**.
 ## Poznámka k platnosti podpisu
 
 Aplikace vytvoří kryptografický PAdES podpis. To, zda jde současně o kvalifikovaný elektronický podpis podle eIDAS, závisí také na použitém certifikátu, privátním klíči / podpisovém prostředku a poskytovateli důvěryhodných služeb. Samotná aplikace kvalifikovaný status certifikátu nevytváří.
+
+
+## PDF/A-3b workflow v1.1
+
+Autorizace v Toolboxu používá stejný Ghostscript/WASM převod jako samostatný modul **Konverze do PDF/A**. Každý vstup se nejprve převede na **PDF/A-3b** a až poté se pošle lokálnímu bridge k PAdES podpisu. Toto pořadí je záměrné: převod přes Ghostscript po podpisu by kryptografický podpis zneplatnil.
+
+Výstupní soubory mají vždy suffix `_EAR.pdf`; bridge suffix kontroluje i na backendu, aby se nepřidal dvakrát.
