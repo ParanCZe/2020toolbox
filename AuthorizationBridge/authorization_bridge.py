@@ -37,7 +37,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
 
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.6.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -348,6 +348,7 @@ def status():
             "origin_lock": True,
             "session_token": True,
             "fast_zip": True,
+            "optional_ear_suffix": True,
         },
     )
 
@@ -440,7 +441,9 @@ def sign_batch():
                     stamp_path=stamp_path,
                 )
                 requested_output = str(doc_meta.get("output_name") or original_name)
-                out_name = _unique_name(_ear_name(requested_output), used_names)
+                append_ear = bool(meta.get("append_ear", True))
+                requested_output = _ear_name(requested_output) if append_ear else _safe_name(requested_output)
+                out_name = _unique_name(requested_output, used_names)
                 zf.writestr(out_name, signed)
                 manifest_files.append(
                     {
@@ -459,6 +462,7 @@ def sign_batch():
                 "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
                 "test_mode": test_mode,
                 "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
+                "append_ear": bool(meta.get("append_ear", True)),
                 "tsa_url": tsa_url if profile == "bt" else None,
                 "certificate": cert_info,
                 "files": manifest_files,
