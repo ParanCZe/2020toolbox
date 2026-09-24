@@ -1,6 +1,6 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.31
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.32
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
-// Privátní klíč / PFX zůstává v počítači uživatele a posílá se pouze na 127.0.0.1.
+// Podpis používá certifikát přímo z Windows Certificate Store; privátní klíč neopouští Windows.
 
 (() => {
   'use strict';
@@ -16,6 +16,8 @@
     renderTask: null,
     viewport: null,
     certFile: null,
+    windowsCerts: [],
+    selectedCertThumbprint: '',
     stampFile: null,
     certInfo: null,
     bridge: null,
@@ -131,6 +133,7 @@
       profile: document.getElementById('auth-profile')?.value || 'bt',
       tsa: document.getElementById('auth-tsa')?.value || '',
       tsaUser: document.getElementById('auth-tsa-user')?.value || '',
+      certificateThumbprint: state.selectedCertThumbprint || '',
       reason: document.getElementById('auth-reason')?.value || '',
       location: document.getElementById('auth-location')?.value || '',
       contact: document.getElementById('auth-contact')?.value || '',
@@ -144,8 +147,8 @@
     if (!el) return;
     const bits = [];
     if (state.stampSourceName) bits.push('Razítko: '+state.stampSourceName);
-    if (state.certFile?.name) bits.push('Certifikát: '+state.certFile.name+' (jen tato relace)');
-    bits.push('Certifikát ani heslo se trvale neukládají.');
+    if (state.certInfo?.display_name) bits.push('Certifikát Windows: '+state.certInfo.display_name);
+    bits.push('Privátní klíč zůstává ve Windows Certificate Store.');
     if (extra) bits.push(extra);
     el.textContent = bits.join(' · ');
   }
@@ -284,6 +287,7 @@
       setValue('auth-profile', saved.profile || 'bt');
       setValue('auth-tsa', saved.tsa || 'https://www3.postsignum.cz/TSS/TSS_user/');
       setValue('auth-tsa-user', saved.tsaUser || '');
+      state.selectedCertThumbprint = saved.certificateThumbprint || state.selectedCertThumbprint || '';
       setValue('auth-reason', saved.reason || 'Autorizace dokumentace');
       setValue('auth-location', saved.location || '');
       setValue('auth-contact', saved.contact || '');
@@ -498,12 +502,16 @@
             </div>
 
             <div id="auth-cert-box" class="auth-box">
-              <h3>CERTIFIKÁT</h3>
-              <div class="auth-field"><label>PFX / P12 s privátním klíčem</label><input id="auth-cert-file" type="file" accept=".pfx,.p12,application/x-pkcs12"></div>
-              <button class="auth-secondary auth-file-memory-btn" type="button" onclick="authPickRememberedFile('cert')">Vybrat certifikát</button>
-              <div class="auth-field"><label>Heslo k certifikátu</label><input id="auth-cert-pass" type="password" autocomplete="off" placeholder="Heslo se nikam neukládá"></div>
-              <button class="auth-secondary" onclick="inspectAuthorizationCertificate()">Ověřit certifikát</button>
-              <div id="auth-cert-info" class="auth-cert-card" style="margin-top:7px">Certifikát zatím nebyl načten.</div>
+              <h3>CERTIFIKÁT Z WINDOWS</h3>
+              <div class="auth-field">
+                <label>Podpisový certifikát</label>
+                <select id="auth-win-cert" onchange="authWindowsCertificateChanged()">
+                  <option value="">Načítám certifikáty z Windows…</option>
+                </select>
+              </div>
+              <button class="auth-secondary" type="button" onclick="authLoadWindowsCertificates(true)">↻ Načíst certifikáty z Windows</button>
+              <div id="auth-cert-info" class="auth-cert-card" style="margin-top:7px">Toolbox načte certifikáty s privátním klíčem z úložiště Windows CurrentUser\\My.</div>
+              <div class="auth-note">Privátní klíč se neexportuje do PFX a neopouští Windows. Toolbox přes lokální bridge pouze požádá Windows o provedení kryptografického podpisu.</div>
             </div>
 
             <div id="auth-sign-level-box" class="auth-box">
@@ -535,7 +543,7 @@
               <div id="auth-output-name-info" class="auth-cert-card ok"><b>PDF/A-3b + PAdES</b><br>Každý soubor bude exportovaný jako <b>název_EAR.pdf</b>. Pořadí je záměrně PDF/A-3b → podpis, aby se podpis následnou konverzí nezneplatnil.</div>
             </div>
 
-            <div class="auth-warn">PFX/P12, heslo k certifikátu ani heslo k TSA se trvale neukládají. Certifikát je dostupný jen v aktuální relaci prohlížeče a při podepisování se posílá pouze lokální službě na <b>127.0.0.1</b>. TSA login/heslo používá lokální bridge pouze pro přihlášení k nastavenému serveru časových razítek.</div>
+            <div class="auth-warn">Podpisový certifikát se používá přímo z Windows Certificate Store a jeho privátní klíč se neexportuje ani neposílá do prohlížeče. Heslo k TSA se trvale neukládá. TSA login/heslo používá pouze lokální bridge pro přihlášení k nastavenému serveru časových razítek.</div>
 
             <button id="auth-sign-btn" class="auth-primary" onclick="signAuthorizationBatch()">PDF/A-3b + podepsat + stáhnout ZIP</button>
             <button class="auth-secondary" onclick="authClearAll()">Vyčistit dokumenty</button>
@@ -930,6 +938,90 @@
     }
   };
 
+  function authSelectedWindowsCertificate() {
+    return state.windowsCerts.find(c => String(c.thumbprint || '').toUpperCase() === String(state.selectedCertThumbprint || '').toUpperCase()) || null;
+  }
+
+  function authRenderWindowsCertificateInfo() {
+    const box = document.getElementById('auth-cert-info');
+    if (!box || authIsTestMode()) return;
+    const cert = authSelectedWindowsCertificate();
+    state.certInfo = cert;
+    if (!cert) {
+      box.className = 'auth-cert-card';
+      box.textContent = state.windowsCerts.length
+        ? 'Vyber podpisový certifikát z Windows.'
+        : 'Nebyl nalezen žádný podporovaný RSA certifikát s privátním klíčem.';
+      authUpdateLocalStatus();
+      return;
+    }
+    const until = cert.valid_to ? new Date(cert.valid_to).toLocaleDateString('cs-CZ') : '–';
+    box.className = 'auth-cert-card ' + (cert.expired ? 'bad' : 'ok');
+    box.innerHTML = '<b>'+esc(cert.display_name || cert.subject || 'Windows certifikát')+'</b><br>' +
+      'Vydavatel: '+esc(cert.issuer || '–')+'<br>Platnost do: '+esc(until)+'<br>' +
+      'RSA: '+esc(cert.key_bits || '–')+' bit · Windows Certificate Store';
+    const architect = document.getElementById('auth-architect-name');
+    if (architect && !architect.value.trim() && cert.display_name) {
+      architect.value = cert.display_name;
+      authStampOptionsChanged();
+    }
+    authUpdateLocalStatus();
+  }
+
+  window.authWindowsCertificateChanged = function() {
+    const sel = document.getElementById('auth-win-cert');
+    state.selectedCertThumbprint = sel?.value || '';
+    authRenderWindowsCertificateInfo();
+    if (authRememberEnabled()) authSaveSettings(false);
+  };
+
+  window.authLoadWindowsCertificates = async function(showToast=false) {
+    if (authIsTestMode()) return;
+    const sel = document.getElementById('auth-win-cert');
+    const box = document.getElementById('auth-cert-info');
+    if (sel) {
+      sel.disabled = true;
+      sel.innerHTML = '<option value="">Načítám certifikáty z Windows…</option>';
+    }
+    try {
+      const bridge = state.bridge || await checkAuthorizationBridge(true);
+      if (!bridge) throw new Error('AuthorizationBridge neběží.');
+      if (!bridge.features?.windows_cert_store) {
+        throw new Error('Aktualizuj AuthorizationBridge přes Instalátor na verzi 1.8.0+.');
+      }
+      const r = await bridgeFetch('/windows-certificates', {method:'GET'}, 20000);
+      const j = await r.json().catch(()=>({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || 'Certifikáty z Windows se nepodařilo načíst.');
+      state.windowsCerts = Array.isArray(j.certificates) ? j.certificates : [];
+      if (sel) {
+        const available = state.windowsCerts.filter(c => !c.expired);
+        sel.innerHTML = '<option value="">— vyber certifikát —</option>' + available.map(cert => {
+          const until = cert.valid_to ? new Date(cert.valid_to).toLocaleDateString('cs-CZ') : '–';
+          const label = (cert.display_name || cert.subject || 'Certifikát') + ' · do ' + until;
+          return '<option value="'+esc(cert.thumbprint || '')+'">'+esc(label)+'</option>';
+        }).join('');
+        if (state.selectedCertThumbprint && available.some(c => String(c.thumbprint).toUpperCase() === String(state.selectedCertThumbprint).toUpperCase())) {
+          sel.value = state.selectedCertThumbprint;
+        } else if (available.length === 1) {
+          state.selectedCertThumbprint = available[0].thumbprint;
+          sel.value = available[0].thumbprint;
+        } else {
+          state.selectedCertThumbprint = sel.value || '';
+        }
+      }
+      authRenderWindowsCertificateInfo();
+      if (showToast) toast(state.windowsCerts.length ? 'Certifikáty z Windows byly načteny.' : 'Ve Windows nebyl nalezen podporovaný podpisový certifikát.', !state.windowsCerts.length);
+    } catch (e) {
+      state.windowsCerts = [];
+      state.certInfo = null;
+      if (sel) sel.innerHTML = '<option value="">Certifikáty se nepodařilo načíst</option>';
+      if (box) { box.className='auth-cert-card bad'; box.textContent=e.message || String(e); }
+      if (showToast) toast(e.message || String(e), true);
+    } finally {
+      if (sel) sel.disabled = false;
+    }
+  };
+
   function authIsTestMode() {
     return !!document.getElementById('auth-test-mode')?.checked;
   }
@@ -959,7 +1051,7 @@
       }
     }
 
-    const certControls = certBox ? certBox.querySelectorAll('input,button') : [];
+    const certControls = certBox ? certBox.querySelectorAll('input,button,select') : [];
     certControls.forEach(el => { el.disabled = on; });
 
     if (certInfo) {
@@ -967,8 +1059,7 @@
         certInfo.className = 'auth-cert-card ok';
         certInfo.innerHTML = '<b>TEST certifikát se vytvoří automaticky</b><br>Dočasný self-signed certifikát vznikne pouze lokálně při exportu a nebude důvěryhodný.';
       } else {
-        certInfo.className = 'auth-cert-card';
-        certInfo.textContent = state.certFile ? 'Vybráno: '+state.certFile.name+'. Klikni na Ověřit certifikát.' : 'Certifikát zatím nebyl načten.';
+        authRenderWindowsCertificateInfo();
       }
     }
 
@@ -976,7 +1067,9 @@
     const signBtn = document.getElementById('auth-sign-btn');
     if (signBtn) signBtn.textContent = on ? 'TEST · PDF/A-3b + podepsat + stáhnout ZIP' : 'PDF/A-3b + podepsat + stáhnout ZIP';
     updatePlacementStampPreview();
-    checkAuthorizationBridge(true);
+    checkAuthorizationBridge(true).then(b => {
+      if (!on && b?.features?.windows_cert_store) authLoadWindowsCertificates(false);
+    });
   };
 
   window.authProfileChanged = function() {
@@ -1161,34 +1254,9 @@
   };
 
   window.inspectAuthorizationCertificate = async function() {
-    if (authIsTestMode()) { toast('V TEST režimu se certifikát vytváří automaticky.'); return; }
-    const f = state.certFile;
-    const pass = document.getElementById('auth-cert-pass')?.value || '';
-    const info = document.getElementById('auth-cert-info');
-    if (!f) { toast('Vyber PFX nebo P12.', true); return; }
-    const bridge = await checkAuthorizationBridge(true);
-    if (!bridge) { toast('AuthorizationBridge neběží.', true); return; }
-    info.className = 'auth-cert-card'; info.textContent = 'Ověřuji certifikát…';
-    try {
-      const fd = new FormData();
-      fd.append('certificate', f, f.name);
-      fd.append('password', pass);
-      const r = await bridgeFetch('/certificate-info', {method:'POST', body:fd}, 15000);
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.ok) throw new Error(j.error || 'Certifikát se nepodařilo načíst.');
-      state.certInfo = j;
-      const architect = document.getElementById('auth-architect-name');
-      if (architect && !architect.value.trim() && j.display_name) architect.value = j.display_name;
-      info.className = 'auth-cert-card ok';
-      info.innerHTML = '<b>'+esc(j.subject || 'Certifikát načten')+'</b><br>Vydavatel: '+esc(j.issuer || '–')+'<br>Platnost: '+esc(j.valid_from || '–')+' → '+esc(j.valid_to || '–')+'<br>Serial: '+esc(j.serial || '–');
-      toast('Certifikát je čitelný a obsahuje privátní klíč.');
-    } catch (e) {
-      state.certInfo = null;
-      info.className = 'auth-cert-card bad';
-      info.textContent = e.message || String(e);
-      toast('Certifikát se nepodařilo ověřit.', true);
-    }
+    await authLoadWindowsCertificates(true);
   };
+
 
   async function absolutePlacementForPdfFile(file, metrics) {
     if (!document.getElementById('auth-visible')?.checked || !metrics) return null;
@@ -1227,7 +1295,7 @@
   window.signAuthorizationBatch = async function() {
     if (!state.files.length) { toast('Nejdřív nahraj PDF.', true); return; }
     const testMode = authIsTestMode();
-    if (!testMode && !state.certFile) { toast('Vyber PFX/P12 certifikát.', true); return; }
+    if (!testMode && !state.selectedCertThumbprint) { toast('Vyber podpisový certifikát z Windows.', true); return; }
     if (typeof window.convertPdfToPdfa !== 'function') {
       toast('PDF/A engine z hlavního Toolboxu není dostupný. Obnov stránku přes Ctrl+F5.', true);
       return;
@@ -1246,6 +1314,10 @@
     if (!bridge) { toast('AuthorizationBridge neběží.', true); return; }
     if (!authVersionAtLeast(bridge.version, '1.5.0') || !bridge.features?.origin_lock || !bridge.features?.session_token) {
       toast('Kvůli bezpečnosti je potřeba AuthorizationBridge 1.5.0+. Spusť aktuální Instalátor a potom Zkontrolovat.', true);
+      return;
+    }
+    if (!testMode && !bridge.features?.windows_cert_store) {
+      toast('Pro podpis certifikátem z Windows aktualizuj AuthorizationBridge přes Instalátor na verzi 1.8.0+.', true);
       return;
     }
     if (!authAppendEarEnabled() && !bridge.features?.optional_ear_suffix) {
@@ -1342,6 +1414,7 @@
         tsa_url: tsa,
         tsa_user: tsaUser,
         tsa_password: tsaPass,
+        certificate_thumbprint: testMode ? '' : state.selectedCertThumbprint,
         reason: (testMode ? 'TEST – ' : '') + document.getElementById('auth-reason').value.trim(),
         location: document.getElementById('auth-location').value.trim(),
         contact: document.getElementById('auth-contact').value.trim(),
@@ -1351,10 +1424,6 @@
       };
 
       const fd = new FormData();
-      if (!testMode) {
-        fd.append('certificate', state.certFile, state.certFile.name);
-        fd.append('password', document.getElementById('auth-cert-pass').value || '');
-      }
       fd.append('metadata', JSON.stringify(meta));
       if (appearanceFile) fd.append('stamp', appearanceFile, appearanceFile.name);
       convertedFiles.forEach((file, i) => fd.append('pdfs', file, docs[i].output_name));
@@ -1433,9 +1502,6 @@
       if (!view.contains(e.relatedTarget)) drop.classList.remove('over');
     });
 
-    document.getElementById('auth-cert-file').addEventListener('change', e => {
-      authSetCertSource(e.target.files?.[0] || null);
-    });
     document.getElementById('auth-stamp-file').addEventListener('change', async e => {
       await authSetStampSource(e.target.files?.[0] || null);
     });
@@ -1484,6 +1550,8 @@
     // Reload saved values every time the tool is opened, not only on the first
     // visit in the current page session. This fixes "Uložit -> zavřít -> otevřít".
     await authLoadSavedSettings(false);
+    const bridge = await checkAuthorizationBridge(true);
+    if (!authIsTestMode() && bridge?.features?.windows_cert_store) await authLoadWindowsCertificates(false);
     renderFileList();
   };
 
