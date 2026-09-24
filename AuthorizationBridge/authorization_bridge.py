@@ -30,7 +30,7 @@ from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign import fields, signers, timestamps
 
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -93,8 +93,16 @@ def _load_signer(pfx_bytes: bytes, password: str) -> signers.SimpleSigner:
 def _cert_payload(signer: signers.SimpleSigner) -> dict[str, Any]:
     cert = signer.signing_cert
     validity = cert["tbs_certificate"]["validity"]
+    subject_native = cert.subject.native or {}
+    display_name = (
+        subject_native.get("common_name")
+        or subject_native.get("name")
+        or subject_native.get("organization_name")
+        or ""
+    )
     return {
         "subject": cert.subject.human_friendly,
+        "display_name": str(display_name or ""),
         "issuer": cert.issuer.human_friendly,
         "serial": str(cert.serial_number),
         "valid_from": _fmt_dt(validity["not_before"].native),
