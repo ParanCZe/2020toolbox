@@ -4198,6 +4198,100 @@ async function convertPdfToPdfa(inputBytes, version) {
   return new Uint8Array(result);
 }
 
+async function convertPdfBatchToPdfaFast(files, version, onProgress) {
+  const list = Array.from(files || []);
+  if (!list.length) return [];
+
+  const deviceMemory = Number(navigator.deviceMemory || 8);
+  const cpuCount = Number(navigator.hardwareConcurrency || 4);
+  const totalBytes = list.reduce((sum, f) => sum + (Number(f?.size) || Number(f?.byteLength) || 0), 0);
+  const workerCount = (typeof Worker !== 'undefined' && list.length > 1 && deviceMemory >= 6 && cpuCount >= 4 && totalBytes < 350*1024*1024) ? 2 : 1;
+
+  if (workerCount === 1) {
+    const out = new Array(list.length);
+    for (let i=0;i<list.length;i++) {
+      const source = list[i];
+      const bytes = source instanceof Blob
+        ? new Uint8Array(await source.arrayBuffer())
+        : source instanceof Uint8Array
+          ? source
+          : new Uint8Array(source);
+      out[i] = await convertPdfToPdfa(bytes, version);
+      try { onProgress?.({index:i, completed:i+1, total:list.length, parallelism:1}); } catch (_) {}
+    }
+    return out;
+  }
+
+  return await new Promise((resolve, reject) => {
+    const results = new Array(list.length);
+    const workers = [];
+    let next = 0;
+    let completed = 0;
+    let stopped = false;
+
+    const stopAll = () => {
+      for (const w of workers) {
+        try { w.terminate(); } catch (_) {}
+      }
+    };
+
+    const fail = (err) => {
+      if (stopped) return;
+      stopped = true;
+      stopAll();
+      reject(err instanceof Error ? err : new Error(String(err)));
+    };
+
+    const dispatch = async (worker) => {
+      if (stopped) return;
+      if (next >= list.length) {
+        if (completed >= list.length) {
+          stopped = true;
+          stopAll();
+          resolve(results);
+        }
+        return;
+      }
+
+      const index = next++;
+      try {
+        const source = list[index];
+        let buffer;
+        if (source instanceof Blob) buffer = await source.arrayBuffer();
+        else if (source instanceof Uint8Array) buffer = source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength);
+        else if (source instanceof ArrayBuffer) buffer = source.slice(0);
+        else throw new Error('Nepodporovaný vstup PDF/A workeru.');
+
+        worker.__busyIndex = index;
+        worker.postMessage({id:index, inputBuffer:buffer, version:String(version || '3')}, [buffer]);
+      } catch (e) {
+        fail(e);
+      }
+    };
+
+    for (let n=0;n<workerCount;n++) {
+      const worker = new Worker('pdfa_worker.js?v=1', {type:'module'});
+      workers.push(worker);
+      worker.onmessage = (event) => {
+        if (stopped) return;
+        const data = event.data || {};
+        if (!data.ok) {
+          fail(new Error(data.error || 'PDF/A worker selhal.'));
+          return;
+        }
+        const index = Number(data.id);
+        results[index] = new Uint8Array(data.outputBuffer);
+        completed++;
+        try { onProgress?.({index, completed, total:list.length, parallelism:workerCount}); } catch (_) {}
+        dispatch(worker);
+      };
+      worker.onerror = (event) => fail(new Error(event.message || 'PDF/A Web Worker se nepodařilo spustit.'));
+      dispatch(worker);
+    }
+  });
+}
+window.convertPdfBatchToPdfaFast = convertPdfBatchToPdfaFast;
+
 async function startConversion() {
   if (!filesData.pdfa.length) return;
   const button = document.getElementById('btn-pdfa');
