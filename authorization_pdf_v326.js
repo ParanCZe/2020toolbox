@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.38
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.39
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Podpis používá certifikát přímo z Windows Certificate Store; privátní klíč neopouští Windows.
 
@@ -1500,9 +1500,12 @@
       }
       renderFileList();
 
+      const signTime = new Intl.DateTimeFormat('cs-CZ',{dateStyle:'short',timeStyle:'short'}).format(new Date());
+      const appearanceFile = await buildCompositeStamp(signTime);
+
       // Ostrý podpis vyžaduje druhé, lokální Windows potvrzení nad přesnými
-      // SHA-256 otisky finálních PDF/A souborů. Tím nejde po potvrzení
-      // vyměnit obsah dokumentů za jiný.
+      // SHA-256 otisky finálních PDF/A souborů a nad podpisovým záměrem
+      // (metadata, pozice, výstupní názvy a grafika razítka).
       if (!testMode) {
         btn.textContent = 'Připravuji bezpečné potvrzení podpisu…';
         const approvedDocs = [];
@@ -1512,12 +1515,39 @@
           approvedDocs.push({name:file.name, size:file.size, sha256:hex});
         }
 
+        let stampSha256 = '';
+        let stampSize = 0;
+        if (appearanceFile) {
+          const stampBytes = await appearanceFile.arrayBuffer();
+          const stampDigest = await crypto.subtle.digest('SHA-256', stampBytes);
+          stampSha256 = Array.from(new Uint8Array(stampDigest), b => b.toString(16).padStart(2,'0')).join('');
+          stampSize = appearanceFile.size;
+        } else {
+          const emptyDigest = await crypto.subtle.digest('SHA-256', new Uint8Array());
+          stampSha256 = Array.from(new Uint8Array(emptyDigest), b => b.toString(16).padStart(2,'0')).join('');
+        }
+
+        const signingIntent = {
+          reason: document.getElementById('auth-reason').value.trim(),
+          location: document.getElementById('auth-location').value.trim(),
+          contact: document.getElementById('auth-contact').value.trim(),
+          append_ear: authAppendEarEnabled(),
+          documents: docs.map(d => ({
+            name: String(d.name || ''),
+            output_name: String(d.output_name || ''),
+            placement: d.placement && typeof d.placement === 'object' ? d.placement : null
+          })),
+          stamp_sha256: stampSha256,
+          stamp_size: stampSize
+        };
+
         const approveResp = await bridgeFetch('/approve-sign', {
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
             preflight_token: preflightToken,
-            documents: approvedDocs
+            documents: approvedDocs,
+            signing_intent: signingIntent
           })
         }, 120000);
         const approved = await approveResp.json().catch(()=>({}));
@@ -1528,8 +1558,6 @@
       }
 
       btn.textContent = 'Podepisuji PDF/A-3b…';
-      const signTime = new Intl.DateTimeFormat('cs-CZ',{dateStyle:'short',timeStyle:'short'}).format(new Date());
-      const appearanceFile = await buildCompositeStamp(signTime);
       const meta = {
         profile,
         test_mode: testMode,
