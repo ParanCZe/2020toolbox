@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.37
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.38
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Podpis používá certifikát přímo z Windows Certificate Store; privátní klíč neopouští Windows.
 
@@ -1399,6 +1399,7 @@
     btn.disabled = true;
 
     try {
+      let preflightToken = '';
       let approvalToken = '';
 
       // Než se začne převádět jediné PDF, ověř certifikát, privátní klíč
@@ -1424,10 +1425,10 @@
           body:JSON.stringify(preflightPayload)
         }, 45000);
         const preflight = await preflightResp.json().catch(()=>({}));
-        if (!preflightResp.ok || !preflight.ok || !preflight.approval_token) {
+        if (!preflightResp.ok || !preflight.ok || !preflight.preflight_token) {
           throw new Error(preflight.error || 'Kontrola certifikátu / TSA před exportem selhala.');
         }
-        approvalToken = preflight.approval_token;
+        preflightToken = preflight.preflight_token;
         toast(profile === 'bt'
           ? 'Certifikát i TSA jsou ověřené. Spouštím PDF/A konverzi.'
           : 'Podpisový certifikát je ověřený. Spouštím PDF/A konverzi.');
@@ -1498,6 +1499,33 @@
         docs[i].placement = await absolutePlacementForPdfFile(convertedFiles[i], placementMetrics[i]);
       }
       renderFileList();
+
+      // Ostrý podpis vyžaduje druhé, lokální Windows potvrzení nad přesnými
+      // SHA-256 otisky finálních PDF/A souborů. Tím nejde po potvrzení
+      // vyměnit obsah dokumentů za jiný.
+      if (!testMode) {
+        btn.textContent = 'Připravuji bezpečné potvrzení podpisu…';
+        const approvedDocs = [];
+        for (const file of convertedFiles) {
+          const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+          const hex = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2,'0')).join('');
+          approvedDocs.push({name:file.name, size:file.size, sha256:hex});
+        }
+
+        const approveResp = await bridgeFetch('/approve-sign', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            preflight_token: preflightToken,
+            documents: approvedDocs
+          })
+        }, 120000);
+        const approved = await approveResp.json().catch(()=>({}));
+        if (!approveResp.ok || !approved.ok || !approved.approval_token) {
+          throw new Error(approved.error || 'Lokální potvrzení podpisové dávky selhalo.');
+        }
+        approvalToken = approved.approval_token;
+      }
 
       btn.textContent = 'Podepisuji PDF/A-3b…';
       const signTime = new Intl.DateTimeFormat('cs-CZ',{dateStyle:'short',timeStyle:'short'}).format(new Date());
