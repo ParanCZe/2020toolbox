@@ -138,7 +138,14 @@ def health_payload() -> dict:
     tel = gpu_telemetry()
     return {
         "name": "20-20 Toolbox VOSR Bridge",
-        "version": "1.3.4",
+        "version": "1.3.5",
+        "advanced_settings": True,
+        "vosr_defaults": {
+            "tile": 512,
+            "tile_overlap": 32,
+            "vae_tile": 1024,
+            "vae_overlap": 32,
+        },
         "ready": bool(mready and gpu),
         "models_ready": mready,
         "gpu_detected": gpu,
@@ -153,7 +160,7 @@ def health_payload() -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ToolboxVOSR/1.3.4"
+    server_version = "ToolboxVOSR/1.3.5"
 
     def log_message(self, fmt: str, *args) -> None:
         print(f"[VOSR Bridge] {self.address_string()} - {fmt % args}")
@@ -269,6 +276,24 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"error": "Podporovaný scale je 2 nebo 4."})
             return
 
+        def query_choice(name: str, default: int, allowed: tuple[int, ...]) -> int:
+            try:
+                value = int(query.get(name, [str(default)])[0])
+            except (TypeError, ValueError):
+                return default
+            return value if value in allowed else default
+
+        # Advanced settings are opt-in. These defaults reproduce the clean/original
+        # VOSR path exactly: DiT 512 / overlap 32 + VAE 1024 / overlap 32.
+        tile_size = query_choice("tile", 512, (128, 256, 384, 512, 768, 1024))
+        tile_overlap = query_choice("tile_overlap", 32, (0, 16, 32, 64, 96, 128))
+        vae_tile_size = query_choice("vae_tile", 1024, (512, 768, 1024, 1536, 2048))
+        vae_tile_overlap = query_choice("vae_overlap", 32, (0, 16, 32, 64, 96, 128))
+        if tile_overlap >= tile_size:
+            tile_overlap = 32
+        if vae_tile_overlap >= vae_tile_size:
+            vae_tile_overlap = 32
+
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
@@ -314,16 +339,20 @@ class Handler(BaseHTTPRequestHandler):
                     "-u", str(scale),
                     "--force_rerun",
                 ]
-                # Clean original VOSR path: 512 DiT tile + 1024 VAE tile.
-                if target_max > 512:
-                    cmd += ["--tile_size", "512", "--tile_overlap", "32"]
+                # Defaults keep the clean/original VOSR path. Custom values are
+                # only used when the advanced controls explicitly send them.
+                if target_max > tile_size:
+                    cmd += ["--tile_size", str(tile_size), "--tile_overlap", str(tile_overlap)]
                 if target_max > 4096:
-                    cmd += ["--vae_tile_size", "1024", "--vae_tile_overlap", "32"]
+                    cmd += ["--vae_tile_size", str(vae_tile_size), "--vae_tile_overlap", str(vae_tile_overlap)]
 
                 env = os.environ.copy()
                 env["PYTHONUTF8"] = "1"
                 env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
-                print(f"[VOSR Bridge] Scene {scale}x · tile 512 · VAE tile 1024 · overlap 32")
+                print(
+                    f"[VOSR Bridge] Scene {scale}x · tile {tile_size} / overlap {tile_overlap} · "
+                    f"VAE tile {vae_tile_size} / overlap {vae_tile_overlap}"
+                )
                 print("[VOSR Bridge] Spouštím:", " ".join(f'"{x}"' if " " in x else x for x in cmd))
 
                 CANCEL_REQUESTED.clear()
@@ -380,8 +409,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(payload)))
                 self.send_header("X-Toolbox-Engine", "VOSR-2.0")
                 self.send_header("X-Toolbox-Scale", str(scale))
-                self.send_header("X-Toolbox-Tile", "512")
-                self.send_header("X-Toolbox-VAE-Tile", "1024")
+                self.send_header("X-Toolbox-Tile", str(tile_size))
+                self.send_header("X-Toolbox-Tile-Overlap", str(tile_overlap))
+                self.send_header("X-Toolbox-VAE-Tile", str(vae_tile_size))
+                self.send_header("X-Toolbox-VAE-Overlap", str(vae_tile_overlap))
                 self.end_headers()
                 self.wfile.write(payload)
         except BrokenPipeError:
