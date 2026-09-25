@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "1.9.1"
+APP_VERSION = "1.9.2"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -720,17 +720,32 @@ def sign_batch():
         tsa_url = str(meta.get("tsa_url") or "").strip()
         tsa_user = str(meta.get("tsa_user") or "").strip()
         tsa_password = str(meta.get("tsa_password") or "")
+        tsa_test_mode = bool(meta.get("tsa_test_mode", False))
         if profile == "bt":
             if not re.match(r"^https?://", tsa_url, re.I):
                 return jsonify(ok=False, error="Pro PAdES B-T je nutná platná HTTP(S) adresa RFC 3161 TSA serveru."), 400
             if bool(tsa_user) != bool(tsa_password):
                 return jsonify(ok=False, error="Pro přihlášení k TSA musí být vyplněn login i heslo."), 400
-            auth = BasicAuth(tsa_user, tsa_password) if tsa_user else None
-            timestamper = timestamps.HTTPTimeStamper(
-                tsa_url,
-                auth=auth,
-                timeout=15,
-            )
+
+            if tsa_test_mode:
+                if tsa_url != "http://127.0.0.1:8094/test-tsa":
+                    return jsonify(ok=False, error="TEST TSA musí používat lokální adresu 127.0.0.1:8094/test-tsa."), 400
+                if not (
+                    secrets.compare_digest(tsa_user, _TEST_TSA_USER)
+                    and secrets.compare_digest(tsa_password, _TEST_TSA_PASSWORD)
+                ):
+                    return jsonify(ok=False, error="Neplatný TEST TSA login nebo heslo."), 401
+                # Generate the RFC3161 token directly in-process. This avoids a
+                # fragile HTTP loopback while preserving the exact timestamp
+                # token format that pyHanko embeds into PAdES B-T.
+                timestamper = _get_test_tsa()
+            else:
+                auth = BasicAuth(tsa_user, tsa_password) if tsa_user else None
+                timestamper = timestamps.HTTPTimeStamper(
+                    tsa_url,
+                    auth=auth,
+                    timeout=15,
+                )
         else:
             timestamper = None
 
