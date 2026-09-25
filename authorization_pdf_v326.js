@@ -7,7 +7,7 @@
 
   const BRIDGE_URL = 'http://127.0.0.1:8094';
   const BRIDGE_SCHEME = 'twentytwentyauth://start';
-  const INSTALLER_URL = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/0979e071c2d2809b68f59e4fab189a7c9b9d5961/AuthorizationBridge/INSTALL_AND_START.bat';
+  const INSTALLER_URL = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/19c6e1a81ba30c02d57b0a976dd1d0f684d76a9b/AuthorizationBridge/INSTALL_AND_START.bat';
 
   const state = {
     files: [],
