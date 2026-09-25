@@ -1,0 +1,149 @@
+name: Publish 20-20 RM Checker v0.2.0
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publish-rm-checker-v020.yml'
+      - '.github/tmp/rm-checker-v020.part1'
+      - '.github/tmp/rm-checker-v020.part2'
+      - '.github/tmp/rm-checker-v020.part3'
+      - '.github/tmp/rm-checker-v020.part4'
+      - '.github/tmp/rm-checker-v020.part5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Rebuild and validate RBZ
+        run: |
+          cat .github/tmp/rm-checker-v020.part1 \
+              .github/tmp/rm-checker-v020.part2 \
+              .github/tmp/rm-checker-v020.part3 \
+              .github/tmp/rm-checker-v020.part4 \
+              .github/tmp/rm-checker-v020.part5 | base64 -d > /tmp/20-20_RM_Checker_v0.2.0.rbz
+          echo "ea7aa95b1ff809b47a023e02466f909133594cf0928fef22154caa3199a5296b  /tmp/20-20_RM_Checker_v0.2.0.rbz" | sha256sum -c -
+          rm -rf /tmp/rmchecker-check
+          mkdir -p /tmp/rmchecker-check
+          unzip -q /tmp/20-20_RM_Checker_v0.2.0.rbz -d /tmp/rmchecker-check
+          ruby -c /tmp/rmchecker-check/twentytwenty_rm_checker.rb
+          ruby -c /tmp/rmchecker-check/twentytwenty_rm_checker/main.rb
+          cp /tmp/20-20_RM_Checker_v0.2.0.rbz SketchUpPlugins/20-20_RM_Checker_v0.2.0.rbz
+
+      - name: Update Toolbox plugin catalog
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path=Path("index.html")
+          text=path.read_text(encoding="utf-8")
+          needle="const SU_PLUGIN_CATALOG = ["
+          pos=text.find(needle)
+          if pos < 0:
+              raise SystemExit("SU_PLUGIN_CATALOG not found")
+
+          arr_start=text.find("[",pos)
+          depth=0
+          quote=None
+          escape=False
+          arr_end=None
+          for i in range(arr_start,len(text)):
+              ch=text[i]
+              if quote:
+                  if escape:
+                      escape=False
+                  elif ch=="\\":
+                      escape=True
+                  elif ch==quote:
+                      quote=None
+                  continue
+              if ch in ("'", '"', "`"):
+                  quote=ch
+                  continue
+              if ch=="[":
+                  depth+=1
+              elif ch=="]":
+                  depth-=1
+                  if depth==0:
+                      arr_end=i
+                      break
+          if arr_end is None:
+              raise SystemExit("catalog closing bracket not found")
+
+          obj="""  {
+            id:'rm-checker',
+            loader:'twentytwenty_rm_checker.rb',
+            name:'20-20 RM Checker',
+            current:'0.2.0',
+            description:'Automatická kontrola a potvrzované opravy SketchUp modelu před přenosem do RENDERMAKERu.',
+            meta:'V0.2.0: AI navrhne jen kontrolované opravné akce. Přímo v odpovědi lze zaškrtnout akce, upravit navržené názvy tagů nebo komponent a potvrdit je. Ruby provede změny až po potvrzení v jedné undo operaci. Přidáno měření tokenů a přibližné ceny; AI běží na GPT-6 Luna.',
+            icon:'library',
+            versions:[
+              {"version":"0.1.0","file":"20-20_RM_Checker_v0.1.0.rbz","size":14076,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.1.0.rbz"},
+              {"version":"0.2.0","file":"20-20_RM_Checker_v0.2.0.rbz","size":21512,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.2.0.rbz"}
+            ]
+          }"""
+
+          obj_pos=text.find("id:'rm-checker'",arr_start,arr_end)
+          if obj_pos >= 0:
+              start=text.rfind("\n  {",arr_start,obj_pos)
+              start=start+1 if start>=0 else text.rfind("{",arr_start,obj_pos)
+              depth=0
+              quote=None
+              escape=False
+              end=None
+              for i in range(start,arr_end):
+                  ch=text[i]
+                  if quote:
+                      if escape:
+                          escape=False
+                      elif ch=="\\":
+                          escape=True
+                      elif ch==quote:
+                          quote=None
+                      continue
+                  if ch in ("'", '"', "`"):
+                      quote=ch
+                      continue
+                  if ch=="{":
+                      depth+=1
+                  elif ch=="}":
+                      depth-=1
+                      if depth==0:
+                          end=i+1
+                          break
+              if end is None:
+                  raise SystemExit("existing rm-checker object end not found")
+              text=text[:start]+obj+text[end:]
+          else:
+              prefix=text[:arr_end].rstrip()
+              comma="" if prefix.endswith("[") else ","
+              text=prefix+comma+"\n"+obj+"\n"+text[arr_end:]
+
+          path.write_text(text,encoding="utf-8")
+          PY
+
+      - name: Commit package and catalog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_Checker_v0.2.0.rbz index.html
+          if git diff --cached --quiet; then
+            echo "Already published"
+            exit 0
+          fi
+          git commit -m "Publish 20-20 RM Checker v0.2.0"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
