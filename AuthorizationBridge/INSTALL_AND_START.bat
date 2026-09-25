@@ -35,13 +35,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -U
 if errorlevel 1 goto :download_error
 
 echo Overuji SHA-256 vsech souboru...
-call :verify_sha256 "%STAGE%\authorization_bridge.py" "63c01cf2ba353097a58182a03c1f586260fc6fc9b7b641a333053434a5093407"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\authorization_bridge.py').Hash.ToLowerInvariant(); if($h -ne '63c01cf2ba353097a58182a03c1f586260fc6fc9b7b641a333053434a5093407'){Write-Error ('SHA-256 nesouhlasi: authorization_bridge.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
-call :verify_sha256 "%STAGE%\requirements.txt" "c567e2afd9cdb0930735ff0eb6c3b384bf22bf965d02d9e1ca1981f9875579f3"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\requirements.txt').Hash.ToLowerInvariant(); if($h -ne 'c567e2afd9cdb0930735ff0eb6c3b384bf22bf965d02d9e1ca1981f9875579f3'){Write-Error ('SHA-256 nesouhlasi: requirements.txt = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
-call :verify_sha256 "%STAGE%\find_python.ps1" "ea6b7f6334753f7394966e09fda98fa7a12b4a87a34e0c6c95eb0edbae5b39b0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\find_python.ps1').Hash.ToLowerInvariant(); if($h -ne 'ea6b7f6334753f7394966e09fda98fa7a12b4a87a34e0c6c95eb0edbae5b39b0'){Write-Error ('SHA-256 nesouhlasi: find_python.ps1 = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
-call :verify_sha256 "%STAGE%\restart_bridge.ps1" "8382fa19af65cee482a1e9333a1ee11157d585dadd412b364ee7c630ec90596e"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\restart_bridge.ps1').Hash.ToLowerInvariant(); if($h -ne '8382fa19af65cee482a1e9333a1ee11157d585dadd412b364ee7c630ec90596e'){Write-Error ('SHA-256 nesouhlasi: restart_bridge.ps1 = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
 
 copy /y "%STAGE%\authorization_bridge.py" "%DIR%\authorization_bridge.py" >nul
@@ -55,22 +55,32 @@ if errorlevel 1 goto :integrity_error
 rmdir /s /q "%STAGE%" >nul 2>nul
 
 echo [2/6] Hledam existujici Python 3...
-call :verify_sha256
-set "VERIFY_FILE=%~1"
-set "VERIFY_EXPECTED=%~2"
-for /f "usebackq delims=" %%H in (`powershell.exe -NoProfile -Command "(Get-FileHash -Algorithm SHA256 -LiteralPath '%VERIFY_FILE%').Hash.ToLowerInvariant()"`) do set "VERIFY_ACTUAL=%%H"
-if /i not "%VERIFY_ACTUAL%"=="%VERIFY_EXPECTED%" (
-  echo.
-  echo CHYBA INTEGRITY: SHA-256 nesouhlasi.
-  echo Soubor: %VERIFY_FILE%
-  echo Ocekavano: %VERIFY_EXPECTED%
-  echo Skutecnost: %VERIFY_ACTUAL%
-  exit /b 1
-)
-exit /b 0
-
-:find_python
+call :find_python
 if defined PY_EXE goto :python_ready
+
+echo.
+echo Python 3 nebyl nalezen. Nainstaluji ho automaticky.
+where winget >nul 2>nul
+if errorlevel 1 goto :python_auto_install_failed
+
+echo Instaluji Python 3.13 pres Windows Package Manager...
+winget install --id Python.Python.3.13 -e --source winget --scope user --silent --accept-package-agreements --accept-source-agreements
+if errorlevel 1 (
+  echo Python 3.13 se nepodarilo nainstalovat. Zkousim Python 3.12...
+  winget install --id Python.Python.3.12 -e --source winget --scope user --silent --accept-package-agreements --accept-source-agreements
+)
+if errorlevel 1 goto :python_auto_install_failed
+
+echo.
+echo Python byl nainstalovan. Overuji standardni instalacni cestu...
+if exist "%LOCALAPPDATA%\Programs\Python\Python314\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python314\python.exe"
+if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
+if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
+if not defined PY_EXE call :find_python
+if not defined PY_EXE goto :python_auto_install_failed
+
+:python_ready
 
 echo.
 echo Python 3 nebyl nalezen. Nainstaluji ho automaticky.
