@@ -5,7 +5,7 @@ title 20-20 TOOLBOX - AuthorizationBridge
 
 set "DIR=%LOCALAPPDATA%\20-20-TOOLBOX\AuthorizationBridge"
 set "VENV=%DIR%\venv"
-set "PAYLOAD_REF=68e3b351f1f365bf7955f02efdae1a5cd07f02c4"
+set "PAYLOAD_REF=9d02c496d53627352dc6e1454737b42870c1edbe"
 set "RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/%PAYLOAD_REF%/AuthorizationBridge"
 set "STAGE=%TEMP%\20-20-auth-stage-%RANDOM%-%RANDOM%"
 set "PYFINDER=%DIR%\find_python.ps1"
@@ -20,7 +20,7 @@ echo 20-20 TOOLBOX - instalace AuthorizationBridge
 echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
-echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.1.5...
+echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.1.6...
 if exist "%STAGE%" rmdir /s /q "%STAGE%" >nul 2>nul
 mkdir "%STAGE%" >nul 2>nul
 if errorlevel 1 goto :download_error
@@ -35,13 +35,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -U
 if errorlevel 1 goto :download_error
 
 echo Overuji SHA-256 vsech souboru...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\authorization_bridge.py').Hash.ToLowerInvariant(); if($h -ne '773c57987a2036865027fcf9e9e7e1b50fbd6fd765fffe7bdc62448fbd1319c7'){Write-Error ('SHA-256 nesouhlasi: authorization_bridge.py = '+$h); exit 1}"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\authorization_bridge.py').Hash.ToLowerInvariant(); if($h -ne '179c2f71b4869197305da83af797465a40120efa001993d6ba1b550f06ebbc3f'){Write-Error ('SHA-256 nesouhlasi: authorization_bridge.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\requirements.txt').Hash.ToLowerInvariant(); if($h -ne 'c567e2afd9cdb0930735ff0eb6c3b384bf22bf965d02d9e1ca1981f9875579f3'){Write-Error ('SHA-256 nesouhlasi: requirements.txt = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\find_python.ps1').Hash.ToLowerInvariant(); if($h -ne 'ea6b7f6334753f7394966e09fda98fa7a12b4a87a34e0c6c95eb0edbae5b39b0'){Write-Error ('SHA-256 nesouhlasi: find_python.ps1 = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\restart_bridge.ps1').Hash.ToLowerInvariant(); if($h -ne '18950356fa8dd810b4657ec02abf0be14d3433576f6504bea19e98c332105140'){Write-Error ('SHA-256 nesouhlasi: restart_bridge.ps1 = '+$h); exit 1}"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\restart_bridge.ps1').Hash.ToLowerInvariant(); if($h -ne 'c506152a187120728061bd5e81c92a98cc57a70bcaffebae32e9f1cf47b2cd34'){Write-Error ('SHA-256 nesouhlasi: restart_bridge.ps1 = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
 
 copy /y "%STAGE%\authorization_bridge.py" "%DIR%\authorization_bridge.py" >nul
@@ -115,7 +115,7 @@ if errorlevel 1 goto :pip_error
 echo [5/6] Vytvarim spoustec s automatickym restartem...
 (
   echo @echo off
-  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RESTARTER%" -PythonExe "%VENV%\Scripts\python.exe" -BridgeScript "%DIR%\authorization_bridge.py" -LogFile "%DIR%\bridge.log" -ExpectedVersion "2.1.5"
+  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RESTARTER%" -PythonExe "%VENV%\Scripts\python.exe" -BridgeScript "%DIR%\authorization_bridge.py" -LogFile "%DIR%\bridge.log" -ExpectedVersion "2.1.6"
 ) > "%DIR%\start_bridge.cmd"
 
 echo [6/6] Registruji spousteni z Toolboxu...
@@ -131,7 +131,7 @@ if errorlevel 1 goto :bridge_start_error
 echo.
 echo HOTOVO.
 echo AuthorizationBridge byl aktualizovan a restartovan.
-echo V Toolboxu musi byt videt verze 2.1.5.
+echo V Toolboxu musi byt videt verze 2.1.6.
 echo Payload commit: %PAYLOAD_REF%
 echo.
 pause
