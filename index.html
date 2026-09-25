@@ -2726,13 +2726,14 @@ const SU_PLUGIN_CATALOG = [
   id:'rm-checker',
   loader:'twentytwenty_rm_checker.rb',
   name:'20-20 RM Checker',
-  current:'0.2.0',
-  description:'Automatická kontrola a potvrzované opravy SketchUp modelu před přenosem do RENDERMAKERu.',
-  meta:'V0.2.0: AI navrhne jen kontrolované opravné akce. Přímo v odpovědi lze zaškrtnout akce, upravit navržené názvy tagů nebo komponent a potvrdit je. Ruby provede změny až po potvrzení v jedné undo operaci. Přidáno měření tokenů a přibližné ceny; AI běží na GPT-6 Luna.',
+  current:'0.2.1',
+  description:'Automatická kontrola, potvrzované opravy a tvorba prázdné RM šablony SketchUpu.',
+  meta:'V0.2.1 přidává tlačítko RM šablona .skp. Ve SketchUpu vytvoří skutečný prázdný soubor s doporučenou strukturou tagů z RM manuálu, pomocné tagy nastaví jako skryté, zapne stíny a založí startovní pojmenovanou scénu. Geolokaci, sever a číslo zakázky záměrně nepředvyplňuje, protože jsou projektové.',
   icon:'library',
   versions:[
     {"version":"0.1.0","file":"20-20_RM_Checker_v0.1.0.rbz","size":14076,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.1.0.rbz"},
-    {"version":"0.2.0","file":"20-20_RM_Checker_v0.2.0.rbz","size":21512,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.2.0.rbz"}
+    {"version":"0.2.0","file":"20-20_RM_Checker_v0.2.0.rbz","size":21512,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.2.0.rbz"},
+    {"version":"0.2.1","file":"20-20_RM_Checker_v0.2.1.rbz","size":23276,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.2.1.rbz"}
   ]
 }
 ];
