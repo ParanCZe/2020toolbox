@@ -392,26 +392,60 @@ $ErrorActionPreference = 'Stop'
 $thumb = ($env:TWENTY20_CERT_THUMBPRINT -replace ' ','').ToUpperInvariant()
 if ($thumb -notmatch '^[0-9A-F]{40,128}$') { throw 'Neplatný thumbprint certifikátu.' }
 $data = [Convert]::FromBase64String($env:TWENTY20_SIGN_DATA)
-$store = New-Object System.Security.Cryptography.X509Certificates.X509Store('My','CurrentUser')
-$store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
+
+$cert = Get-ChildItem -Path 'Cert:\CurrentUser\My' -ErrorAction Stop |
+  Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+  Select-Object -First 1
+
+if ($null -eq $cert) {
+  $cert = Get-ChildItem -Path 'Cert:\LocalMachine\My' -ErrorAction SilentlyContinue |
+    Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+    Select-Object -First 1
+}
+
+if ($null -eq $cert) { throw 'Vybraný certifikát už není ve Windows úložišti.' }
+if (-not $cert.HasPrivateKey) { throw 'Privátní klíč vybraného certifikátu není dostupný.' }
+
+$rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
+if ($null -eq $rsa) { throw 'Toolbox zatím podporuje podpis certifikátem s RSA privátním klíčem.' }
 try {
-  $cert = $store.Certificates | Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } | Select-Object -First 1
-  if ($null -eq $cert) { throw 'Vybraný certifikát už není ve Windows úložišti.' }
-  if (-not $cert.HasPrivateKey) { throw 'Privátní klíč vybraného certifikátu není dostupný.' }
-  $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
-  if ($null -eq $rsa) { throw 'Toolbox zatím podporuje podpis certifikátem s RSA privátním klíčem.' }
-  try {
-    $sig = $rsa.SignData(
-      $data,
-      [System.Security.Cryptography.HashAlgorithmName]::SHA256,
-      [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
-    )
-    [Convert]::ToBase64String($sig)
-  } finally {
-    $rsa.Dispose()
-  }
+  $sig = $rsa.SignData(
+    $data,
+    [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+    [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
+  )
+  [Convert]::ToBase64String($sig)
 } finally {
-  $store.Close()
+  $rsa.Dispose()
+}
+"""
+
+
+_WINDOWS_KEY_PROBE_PS = r"""
+$ErrorActionPreference = 'Stop'
+$thumb = ($env:TWENTY20_CERT_THUMBPRINT -replace ' ','').ToUpperInvariant()
+if ($thumb -notmatch '^[0-9A-F]{40,128}$') { throw 'Neplatný thumbprint certifikátu.' }
+
+$cert = Get-ChildItem -Path 'Cert:\CurrentUser\My' -ErrorAction Stop |
+  Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+  Select-Object -First 1
+
+if ($null -eq $cert) {
+  $cert = Get-ChildItem -Path 'Cert:\LocalMachine\My' -ErrorAction SilentlyContinue |
+    Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+    Select-Object -First 1
+}
+
+if ($null -eq $cert) { throw 'Vybraný certifikát nebyl nalezen ve Windows úložišti.' }
+if (-not $cert.HasPrivateKey) { throw 'Vybraný certifikát nemá dostupný privátní klíč.' }
+
+$rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
+if ($null -eq $rsa) { throw 'Privátní RSA klíč není dostupný přes Windows provider.' }
+try {
+  if ($rsa.KeySize -lt 2048) { throw 'RSA klíč je kratší než 2048 bitů.' }
+  Write-Output $rsa.KeySize
+} finally {
+  $rsa.Dispose()
 }
 """
 
@@ -486,7 +520,24 @@ def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
         },
         timeout=120,
     )
-    return base64.b64decode(raw, validate=True)
+    cleaned = (raw or "").replace("\x00", "").replace("\ufeff", "").strip()
+    candidates = re.findall(r"[A-Za-z0-9+/=]{128,}", cleaned)
+    if not candidates:
+        raise ValueError("Windows nevrátil čitelný RSA podpis.")
+    return base64.b64decode(max(candidates, key=len), validate=True)
+
+
+def _verify_windows_private_key_available(signer: "WindowsStoreSigner") -> None:
+    raw = _run_powershell(
+        _WINDOWS_KEY_PROBE_PS,
+        {"TWENTY20_CERT_THUMBPRINT": signer.thumbprint},
+        timeout=30,
+    )
+    match = re.search(r"\d{4,5}", raw or "")
+    if not match or int(match.group(0)) < 2048:
+        raise ValueError(
+            "Windows nepotvrdil dostupný RSA privátní klíč o délce alespoň 2048 bitů."
+        )
 
 
 class WindowsStoreSigner(signers.ExternalSigner):
