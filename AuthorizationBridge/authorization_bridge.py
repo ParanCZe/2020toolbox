@@ -71,6 +71,7 @@ _SESSION_TOKEN = secrets.token_urlsafe(32)
 _TEST_TSA_USER = "TEST"
 _TEST_TSA_PASSWORD = "TEST-ONLY"
 _TEST_TSA = None
+_PREFLIGHTS: Dict[str, Dict[str, Any]] = {}
 _SIGN_APPROVALS: Dict[str, Dict[str, Any]] = {}
 _APPROVAL_TTL_SECONDS = 600
 
@@ -157,20 +158,25 @@ def session():
 
 def _cleanup_approvals() -> None:
     now = datetime.now(timezone.utc).timestamp()
-    stale = [
-        token for token, item in _SIGN_APPROVALS.items()
-        if float(item.get("expires", 0)) <= now or bool(item.get("used"))
-    ]
-    for token in stale:
-        _SIGN_APPROVALS.pop(token, None)
+    for store in (_PREFLIGHTS, _SIGN_APPROVALS):
+        stale = [
+            token for token, item in store.items()
+            if float(item.get("expires", 0)) <= now or bool(item.get("used"))
+        ]
+        for token in stale:
+            store.pop(token, None)
 
 
 def _approval_context(meta: Dict[str, Any], document_count: int) -> Dict[str, Any]:
+    tsa_password = str(meta.get("tsa_password") or "")
     return {
         "certificate_thumbprint": re.sub(r"\s+", "", str(meta.get("certificate_thumbprint") or "")).upper(),
         "profile": str(meta.get("profile") or "bt").lower(),
         "tsa_url": str(meta.get("tsa_url") or "").strip(),
         "tsa_user": str(meta.get("tsa_user") or "").strip(),
+        "tsa_credential_hash": hashlib.sha256(
+            (str(meta.get("tsa_user") or "") + "\0" + tsa_password).encode("utf-8")
+        ).hexdigest(),
         "tsa_test_mode": bool(meta.get("tsa_test_mode", False)),
         "document_count": int(document_count),
     }
@@ -845,6 +851,7 @@ def preflight_sign():
         if profile not in {"bb", "bt"}:
             return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
 
+        approval = None
         if not test_mode:
             _cleanup_approvals()
             approval_token = str(meta.get("approval_token") or "")
@@ -854,7 +861,9 @@ def preflight_sign():
             expected = _approval_context(meta, len(pdfs))
             if approval.get("context") != expected:
                 return jsonify(ok=False, error="Podpisová dávka neodpovídá lokálně potvrzenému požadavku."), 403
-            approval["used"] = True
+            expected_docs = approval.get("documents") or []
+            if len(expected_docs) != len(pdfs):
+                return jsonify(ok=False, error="Počet PDF neodpovídá lokálně potvrzené dávce."), 403
 
         # 1) Certifikát + privátní klíč ověřit ještě před PDF/A konverzí.
         signer = WindowsStoreSigner(cert_thumbprint)
@@ -870,33 +879,77 @@ def preflight_sign():
         except Exception as exc:
             return jsonify(ok=False, error="TSA ověření selhalo: " + str(exc)), 400
 
-        # 3) Native confirmation is outside the browser trust boundary.
-        cert_name = str(cert_info.get("display_name") or cert_info.get("subject") or "Windows certifikát")
-        if not _native_sign_confirmation(
-            cert_name,
-            document_count,
-            profile,
-            str(meta.get("tsa_url") or ""),
-        ):
-            return jsonify(ok=False, error="Podpisová dávka nebyla ve Windows potvrzena."), 403
-
+        # 3) Issue a short-lived preflight token. No document conversion has
+        # happened yet, so this token only proves cert/TSA readiness.
         _cleanup_approvals()
-        approval_token = secrets.token_urlsafe(32)
+        preflight_token = secrets.token_urlsafe(32)
         context = _approval_context(meta, document_count)
-        _SIGN_APPROVALS[approval_token] = {
+        _PREFLIGHTS[preflight_token] = {
             "context": context,
+            "certificate_name": str(cert_info.get("display_name") or cert_info.get("subject") or "Windows certifikát"),
             "expires": datetime.now(timezone.utc).timestamp() + _APPROVAL_TTL_SECONDS,
             "used": False,
         }
         return jsonify(
             ok=True,
-            approval_token=approval_token,
+            preflight_token=preflight_token,
             expires_in=_APPROVAL_TTL_SECONDS,
             certificate=cert_info,
             tsa_verified=(profile == "bt"),
         )
     except Exception as exc:
         print("[AuthorizationBridge] preflight error:", traceback.format_exc(), flush=True)
+        return jsonify(ok=False, error=str(exc)), 400
+
+
+@app.post("/approve-sign")
+def approve_sign():
+    try:
+        payload = request.get_json(silent=True) or {}
+        preflight_token = str(payload.get("preflight_token") or "")
+        documents = payload.get("documents")
+        if not isinstance(documents, list) or not documents:
+            return jsonify(ok=False, error="Chybí finální dokumenty k potvrzení."), 400
+
+        _cleanup_approvals()
+        preflight = _PREFLIGHTS.get(preflight_token)
+        if not preflight or bool(preflight.get("used")):
+            return jsonify(ok=False, error="Preflight vypršel nebo není platný. Spusť export znovu."), 403
+
+        context = preflight.get("context") or {}
+        if int(context.get("document_count") or 0) != len(documents):
+            return jsonify(ok=False, error="Počet finálních PDF neodpovídá předběžné kontrole."), 403
+
+        clean_docs = []
+        for item in documents:
+            if not isinstance(item, dict):
+                return jsonify(ok=False, error="Neplatný popis finálního PDF."), 400
+            name = str(item.get("name") or "")
+            digest = str(item.get("sha256") or "").lower()
+            size = int(item.get("size") or 0)
+            if not name or not re.fullmatch(r"[0-9a-f]{64}", digest) or size < 1:
+                return jsonify(ok=False, error="Neplatný SHA-256 otisk finálního PDF."), 400
+            clean_docs.append({"name": name, "sha256": digest, "size": size})
+
+        if not _native_sign_confirmation(
+            str(preflight.get("certificate_name") or "Windows certifikát"),
+            len(clean_docs),
+            str(context.get("profile") or "bt"),
+            str(context.get("tsa_url") or ""),
+        ):
+            return jsonify(ok=False, error="Podpisová dávka nebyla ve Windows potvrzena."), 403
+
+        preflight["used"] = True
+        approval_token = secrets.token_urlsafe(32)
+        _SIGN_APPROVALS[approval_token] = {
+            "context": context,
+            "documents": clean_docs,
+            "expires": datetime.now(timezone.utc).timestamp() + _APPROVAL_TTL_SECONDS,
+            "used": False,
+        }
+        return jsonify(ok=True, approval_token=approval_token, expires_in=_APPROVAL_TTL_SECONDS)
+    except Exception as exc:
+        print("[AuthorizationBridge] approval error:", traceback.format_exc(), flush=True)
         return jsonify(ok=False, error=str(exc)), 400
 
 
@@ -964,6 +1017,18 @@ def sign_batch():
                 if not raw_pdf.startswith(b"%PDF-"):
                     raise ValueError(f"{original_name}: soubor nevypadá jako PDF.")
 
+                if approval is not None:
+                    expected_doc = (approval.get("documents") or [])[idx]
+                    actual_hash = hashlib.sha256(raw_pdf).hexdigest()
+                    if (
+                        str(expected_doc.get("name") or "") != original_name
+                        or int(expected_doc.get("size") or 0) != len(raw_pdf)
+                        or str(expected_doc.get("sha256") or "").lower() != actual_hash
+                    ):
+                        raise PermissionError(
+                            f"{original_name}: obsah PDF se po lokálním potvrzení změnil."
+                        )
+
                 doc_meta = docs_meta[idx] if isinstance(docs_meta[idx], dict) else {}
                 try:
                     signed = _sign_one(
@@ -990,6 +1055,9 @@ def sign_batch():
                         "visible": bool(doc_meta.get("placement")),
                     }
                 )
+
+            if approval is not None:
+                approval["used"] = True
 
             manifest = {
                 "tool": "20-20 TOOLBOX · Autorizace PDF",
