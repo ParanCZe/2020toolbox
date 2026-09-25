@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.33
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.34
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Podpis používá certifikát přímo z Windows Certificate Store; privátní klíč neopouští Windows.
 
@@ -133,6 +133,7 @@
       profile: document.getElementById('auth-profile')?.value || 'bt',
       tsa: document.getElementById('auth-tsa')?.value || '',
       tsaUser: document.getElementById('auth-tsa-user')?.value || '',
+      localTestTsa: !!document.getElementById('auth-local-test-tsa')?.checked,
       certificateThumbprint: state.selectedCertThumbprint || '',
       reason: document.getElementById('auth-reason')?.value || '',
       location: document.getElementById('auth-location')?.value || '',
@@ -287,6 +288,7 @@
       setValue('auth-profile', saved.profile || 'bt');
       setValue('auth-tsa', saved.tsa || 'https://www3.postsignum.cz/TSS/TSS_user/');
       setValue('auth-tsa-user', saved.tsaUser || '');
+      setChecked('auth-local-test-tsa', !!saved.localTestTsa);
       state.selectedCertThumbprint = saved.certificateThumbprint || state.selectedCertThumbprint || '';
       setValue('auth-reason', saved.reason || 'Autorizace dokumentace');
       setValue('auth-location', saved.location || '');
@@ -294,6 +296,7 @@
       setChecked('auth-append-ear', saved.appendEar !== false);
       state.stampSourceName = saved.stampName || state.stampSourceName || '';
       authProfileChanged();
+      authLocalTestTsaChanged();
       authStampOptionsChanged();
       authToggleVisible();
       authOutputNamingChanged();
@@ -526,6 +529,8 @@
                 <div class="auth-field"><label>RFC 3161 TSA server</label><input id="auth-tsa" type="url" value="https://www3.postsignum.cz/TSS/TSS_user/" placeholder="https://www3.postsignum.cz/TSS/TSS_user/"></div>
                 <div class="auth-field"><label>PostSignum login</label><input id="auth-tsa-user" type="text" autocomplete="username" placeholder="uživatelské jméno"></div>
                 <div class="auth-field"><label>PostSignum heslo</label><input id="auth-tsa-pass" type="password" autocomplete="off" placeholder="Heslo k TSA se neukládá"></div>
+                <label class="auth-check"><input id="auth-local-test-tsa" type="checkbox" onchange="authLocalTestTsaChanged()"> použít <b>TEST TEST TEST</b> lokální časové razítko</label>
+                <div id="auth-test-tsa-note" class="auth-note" style="display:none">TEST TSA běží pouze lokálně na 127.0.0.1. Není kvalifikovaná ani důvěryhodná mimo tento testovací počítač.</div>
                 <div class="auth-note">Údaje slouží pouze pro přihlášení k serveru časových razítek. Login lze uložit lokálně s nastavením, heslo k TSA se neukládá.</div>
               </div>
             </div>
@@ -739,7 +744,7 @@
       const page = await doc.getPage(1);
       [
       'auth-visible','auth-add-architect','auth-architect-name','auth-add-datetime',
-      'auth-profile','auth-tsa','auth-tsa-user','auth-reason','auth-location','auth-contact'
+      'auth-profile','auth-tsa','auth-tsa-user','auth-local-test-tsa','auth-reason','auth-location','auth-contact'
     ].forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -1097,6 +1102,30 @@
     if (wrap) wrap.style.display = bt ? 'grid' : 'none';
   };
 
+  window.authLocalTestTsaChanged = function() {
+    const on = !!document.getElementById('auth-local-test-tsa')?.checked;
+    const profile = document.getElementById('auth-profile');
+    const tsa = document.getElementById('auth-tsa');
+    const user = document.getElementById('auth-tsa-user');
+    const pass = document.getElementById('auth-tsa-pass');
+    const note = document.getElementById('auth-test-tsa-note');
+
+    if (on) {
+      if (profile) profile.value = 'bt';
+      if (tsa) tsa.value = 'http://127.0.0.1:8094/test-tsa';
+      if (user) user.value = 'TEST';
+      if (pass) pass.value = 'TEST-ONLY';
+      if (note) note.style.display = 'block';
+    } else {
+      if (tsa && tsa.value === 'http://127.0.0.1:8094/test-tsa') tsa.value = 'https://www3.postsignum.cz/TSS/TSS_user/';
+      if (user && user.value === 'TEST') user.value = '';
+      if (pass && pass.value === 'TEST-ONLY') pass.value = '';
+      if (note) note.style.display = 'none';
+    }
+    authProfileChanged();
+    if (authRememberEnabled()) authSaveSettings(false);
+  };
+
   async function fileToImageElement(file) {
     const url = URL.createObjectURL(file);
     try {
@@ -1324,6 +1353,7 @@
     const tsa = testMode ? '' : document.getElementById('auth-tsa').value.trim();
     const tsaUser = testMode ? '' : document.getElementById('auth-tsa-user')?.value.trim() || '';
     const tsaPass = testMode ? '' : document.getElementById('auth-tsa-pass')?.value || '';
+    const localTestTsa = !testMode && !!document.getElementById('auth-local-test-tsa')?.checked;
     if (!testMode && profile==='bt' && !tsa) { toast('Pro PAdES B-T zadej RFC 3161 TSA server.', true); return; }
     if (!testMode && profile==='bt' && (!!tsaUser !== !!tsaPass)) {
       toast('Pro přihlášení k TSA vyplň login i heslo, nebo nech obě pole prázdná.', true);
@@ -1344,7 +1374,11 @@
       return;
     }
     if (!testMode && profile === 'bt' && tsaUser && !bridge.features?.tsa_basic_auth) {
-      toast('Pro přihlášení k PostSignum TSA aktualizuj AuthorizationBridge přes Instalátor a potom dej Zkontrolovat.', true);
+      toast('Pro přihlášení k TSA aktualizuj AuthorizationBridge přes Instalátor a potom dej Zkontrolovat.', true);
+      return;
+    }
+    if (localTestTsa && !bridge.features?.local_test_tsa) {
+      toast('Pro lokální TEST časové razítko aktualizuj AuthorizationBridge na 1.9.0+.', true);
       return;
     }
     if (testMode && !bridge.features?.test_signing) {
@@ -1433,6 +1467,7 @@
         tsa_url: tsa,
         tsa_user: tsaUser,
         tsa_password: tsaPass,
+        tsa_test_mode: localTestTsa,
         certificate_thumbprint: testMode ? '' : state.selectedCertThumbprint,
         reason: (testMode ? 'TEST – ' : '') + document.getElementById('auth-reason').value.trim(),
         location: document.getElementById('auth-location').value.trim(),
@@ -1466,9 +1501,11 @@
       renderFileList();
       toast(testMode
         ? 'Hotovo — TEST PDF/A-3b jsou digitálně podepsaná testovacím certifikátem a stažená v ZIPu.'
-        : (authAppendEarEnabled()
+        : (localTestTsa
+          ? 'Hotovo — PDF/A-3b je podepsané a obsahuje TEST TEST TEST lokální časové razítko.'
+          : (authAppendEarEnabled()
           ? 'Hotovo — PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.'
-          : 'Hotovo — PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.'));
+          : 'Hotovo — PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.')));
     } catch (e) {
       state.files.forEach(r=>{ if(r.status!=='signed') r.status='error'; });
       renderFileList();
