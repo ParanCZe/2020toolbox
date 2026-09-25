@@ -80,25 +80,41 @@ $preflightOut = [System.IO.Path]::ChangeExtension($LogFile, '.preflight.log')
 
 Remove-Item -LiteralPath $stdout,$stderr,$preflightOut -Force -ErrorAction SilentlyContinue
 
-# Syntax/import preflight. Capture stdout and stderr separately so PowerShell
-# cannot swallow the Python traceback as a NativeCommandError.
+# Syntax/import preflight. Use a temporary .py file instead of Python -c.
+# This avoids PowerShell/Start-Process quoting ambiguities completely.
 $preflightErr = [System.IO.Path]::ChangeExtension($LogFile, '.preflight.error.log')
-Remove-Item -LiteralPath $preflightErr -Force -ErrorAction SilentlyContinue
-$preflightProc = Start-Process -FilePath $PythonExe -ArgumentList @(
-    '-c',
-    "import runpy; runpy.run_path(r'$BridgeScript', run_name='__bridge_preflight__')"
-) -WorkingDirectory $workDir -WindowStyle Hidden -RedirectStandardOutput $preflightOut -RedirectStandardError $preflightErr -Wait -PassThru
+$preflightScript = Join-Path $workDir '__bridge_preflight__.py'
+Remove-Item -LiteralPath $preflightErr,$preflightScript -Force -ErrorAction SilentlyContinue
 
-if ($preflightProc.ExitCode -ne 0) {
-    Write-Host ""
-    Write-Host "CHYBA PRI NACTENI AUTHORIZATION BRIDGE:" -ForegroundColor Red
-    if (Test-Path -LiteralPath $preflightErr) {
-        Get-Content -LiteralPath $preflightErr -ErrorAction SilentlyContinue | Select-Object -Last 120
+$escapedBridge = $BridgeScript.Replace("'", "''")
+$preflightCode = @"
+import runpy
+runpy.run_path(r'''$escapedBridge''', run_name='__bridge_preflight__')
+"@
+[System.IO.File]::WriteAllText(
+    $preflightScript,
+    $preflightCode,
+    [System.Text.UTF8Encoding]::new($false)
+)
+
+try {
+    $preflightProc = Start-Process -FilePath $PythonExe -ArgumentList @(
+        $preflightScript
+    ) -WorkingDirectory $workDir -WindowStyle Hidden -RedirectStandardOutput $preflightOut -RedirectStandardError $preflightErr -Wait -PassThru
+
+    if ($preflightProc.ExitCode -ne 0) {
+        Write-Host ""
+        Write-Host "CHYBA PRI NACTENI AUTHORIZATION BRIDGE:" -ForegroundColor Red
+        if (Test-Path -LiteralPath $preflightErr) {
+            Get-Content -LiteralPath $preflightErr -ErrorAction SilentlyContinue | Select-Object -Last 120
+        }
+        if (Test-Path -LiteralPath $preflightOut) {
+            Get-Content -LiteralPath $preflightOut -ErrorAction SilentlyContinue | Select-Object -Last 80
+        }
+        exit 1
     }
-    if (Test-Path -LiteralPath $preflightOut) {
-        Get-Content -LiteralPath $preflightOut -ErrorAction SilentlyContinue | Select-Object -Last 80
-    }
-    exit 1
+} finally {
+    Remove-Item -LiteralPath $preflightScript -Force -ErrorAction SilentlyContinue
 }
 
 $newProc = Start-Process -FilePath $PythonExe -ArgumentList @($BridgeScript) -WorkingDirectory $workDir -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
