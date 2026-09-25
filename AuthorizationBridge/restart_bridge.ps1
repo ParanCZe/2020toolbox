@@ -1,43 +1,68 @@
 param(
     [string]$PythonExe,
     [string]$BridgeScript,
-    [string]$LogFile
-) 
+    [string]$LogFile,
+    [string]$ExpectedVersion = "2.1.1"
+)
 
-$ErrorActionPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'Stop'
 
-# Never kill an arbitrary process merely because it owns port 8094.
-# Only stop a listener if it is one of our AuthorizationBridge Python processes.
-try {
-    $owners = Get-NetTCPConnection -LocalPort 8094 -State Listen -ErrorAction SilentlyContinue |
-        Select-Object -ExpandProperty OwningProcess -Unique
-    foreach ($pidValue in $owners) {
-        if (-not $pidValue -or $pidValue -eq $PID) { continue }
-        $procInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $pidValue" -ErrorAction SilentlyContinue
-        if ($procInfo -and $procInfo.CommandLine -and $procInfo.CommandLine -like '*authorization_bridge.py*') {
-            Stop-Process -Id $pidValue -Force -ErrorAction SilentlyContinue
-        } else {
-            Write-Error "Port 8094 pouziva jiny proces. Z bezpecnostnich duvodu ho AuthorizationBridge nebude ukoncovat."
-            exit 1
-        }
+function Get-Port8094Owner {
+    try {
+        return @(Get-NetTCPConnection -LocalPort 8094 -State Listen -ErrorAction Stop |
+            Select-Object -ExpandProperty OwningProcess -Unique)
+    } catch {
+        return @()
     }
-} catch {
-    Write-Error "Nepodarilo se bezpecne overit vlastnika portu 8094."
-    exit 1
 }
 
-# Also kill stale AuthorizationBridge python processes that may not currently be listening.
-try {
-    $procs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -and $_.CommandLine -like '*authorization_bridge.py*' }
-    foreach ($proc in $procs) {
-        if ($proc.ProcessId -and $proc.ProcessId -ne $PID) {
-            Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
-        }
+function Get-ProcessInfoSafe([int]$ProcessId) {
+    try {
+        return Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction Stop
+    } catch {
+        return $null
     }
-} catch {}
+}
 
-Start-Sleep -Milliseconds 700
+# Stop only an existing AuthorizationBridge that actually owns port 8094.
+$owners = @(Get-Port8094Owner)
+foreach ($pidValue in $owners) {
+    if (-not $pidValue -or $pidValue -eq $PID) { continue }
+    $procInfo = Get-ProcessInfoSafe $pidValue
+    if ($procInfo -and $procInfo.CommandLine -and $procInfo.CommandLine -like '*authorization_bridge.py*') {
+        Stop-Process -Id $pidValue -Force -ErrorAction Stop
+    } else {
+        Write-Error "Port 8094 pouziva jiny proces (PID $pidValue). Z bezpecnostnich duvodu ho neukoncim."
+        exit 1
+    }
+}
+
+# Stop any stale AuthorizationBridge python process left from an older version.
+$stale = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+    Where-Object {
+        $_.ProcessId -ne $PID -and
+        $_.CommandLine -and
+        $_.CommandLine -like '*authorization_bridge.py*'
+    })
+foreach ($proc in $stale) {
+    try { Stop-Process -Id $proc.ProcessId -Force -ErrorAction Stop } catch {}
+}
+
+# Wait until the port is really free. Never start a second bridge on top of an old one.
+$portFree = $false
+for ($i = 0; $i -lt 30; $i++) {
+    Start-Sleep -Milliseconds 250
+    $owners = @(Get-Port8094Owner)
+    if ($owners.Count -eq 0) {
+        $portFree = $true
+        break
+    }
+}
+if (-not $portFree) {
+    $owners = @(Get-Port8094Owner)
+    Write-Error ("Port 8094 se neuvolnil. PID: " + ($owners -join ', '))
+    exit 1
+}
 
 if (-not (Test-Path -LiteralPath $PythonExe)) {
     Write-Error "Python executable not found: $PythonExe"
@@ -51,9 +76,11 @@ if (-not (Test-Path -LiteralPath $BridgeScript)) {
 $workDir = Split-Path -Parent $BridgeScript
 $stdout = $LogFile
 $stderr = [System.IO.Path]::ChangeExtension($LogFile, '.error.log')
-
-# Preflight: catch syntax/import errors before launching the hidden process.
 $preflightOut = [System.IO.Path]::ChangeExtension($LogFile, '.preflight.log')
+
+Remove-Item -LiteralPath $stdout,$stderr,$preflightOut -Force -ErrorAction SilentlyContinue
+
+# Syntax/import preflight.
 & $PythonExe -c "import runpy; runpy.run_path(r'$BridgeScript', run_name='__bridge_preflight__')" *> $preflightOut
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
@@ -64,31 +91,32 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Start-Process -FilePath $PythonExe -ArgumentList @($BridgeScript) -WorkingDirectory $workDir -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+$newProc = Start-Process -FilePath $PythonExe -ArgumentList @($BridgeScript) -WorkingDirectory $workDir -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
 
-# pyHanko + cryptography can take several seconds to import on some PCs.
-# Poll the health endpoint instead of assuming the process is ready after 900 ms.
 $lastError = $null
-for ($i = 0; $i -lt 20; $i++) {
+for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep -Seconds 1
+
+    if ($newProc.HasExited) {
+        break
+    }
+
     try {
         $r = Invoke-RestMethod -Uri 'http://127.0.0.1:8094/status' -TimeoutSec 2
-        if ($r.ok) {
+        if ($r.ok -and [string]$r.version -eq [string]$ExpectedVersion) {
             Write-Output ("AuthorizationBridge " + $r.version + " running")
             exit 0
         }
+        if ($r.ok -and [string]$r.version -ne [string]$ExpectedVersion) {
+            $lastError = "Na portu 8094 odpovida neocekavana verze " + $r.version + ", ocekavana je " + $ExpectedVersion
+        }
     } catch {
-        $lastError = $_
+        $lastError = $_.Exception.Message
     }
-
-    # If the Python process already exited, no reason to wait the full 20 s.
-    $running = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -and $_.CommandLine -like '*authorization_bridge.py*' }
-    if (-not $running) { break }
 }
 
 Write-Host ""
-Write-Host "AuthorizationBridge se nespustil." -ForegroundColor Red
+Write-Host "AuthorizationBridge se nespustil ve verzi $ExpectedVersion." -ForegroundColor Red
 if (Test-Path -LiteralPath $stderr) {
     $errLines = Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue
     if ($errLines) {
@@ -100,11 +128,15 @@ if (Test-Path -LiteralPath $stdout) {
     $outLines = Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue
     if ($outLines) {
         Write-Host "---- bridge.log ----" -ForegroundColor Yellow
-        $outLines | Select-Object -Last 60
+        $outLines | Select-Object -Last 80
     }
 }
 if ($lastError) {
-    Write-Host ("Health-check: " + $lastError.Exception.Message)
+    Write-Host ("Health-check: " + $lastError)
 }
-Write-Error "AuthorizationBridge did not start correctly."
+try {
+    if (-not $newProc.HasExited) {
+        Stop-Process -Id $newProc.Id -Force -ErrorAction SilentlyContinue
+    }
+} catch {}
 exit 1
