@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
 
-APP_VERSION = "1.8.5"
+APP_VERSION = "1.8.6"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -177,10 +177,20 @@ def _run_powershell(script: str, env_extra: Optional[Dict[str, str]] = None, tim
 _WINDOWS_CERT_LIST_PS = r"""
 $ErrorActionPreference = 'Stop'
 $items = @()
-$store = New-Object System.Security.Cryptography.X509Certificates.X509Store('My','CurrentUser')
-$store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
-try {
-  foreach ($cert in $store.Certificates) {
+
+$stores = @(
+  @{ Path = 'Cert:\CurrentUser\My'; Location = 'CurrentUser' },
+  @{ Path = 'Cert:\LocalMachine\My'; Location = 'LocalMachine' }
+)
+
+foreach ($entry in $stores) {
+  try {
+    $certs = @(Get-ChildItem -Path $entry.Path -ErrorAction Stop)
+  } catch {
+    continue
+  }
+
+  foreach ($cert in $certs) {
     try {
       $oid = ''
       $friendly = ''
@@ -194,30 +204,39 @@ try {
         $keyType = 'ECDSA'
       }
 
+      $keyBits = 0
+      if ($keyType -eq 'RSA') {
+        try {
+          $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
+          if ($null -ne $rsa) {
+            $keyBits = $rsa.KeySize
+            $rsa.Dispose()
+          }
+        } catch {}
+      }
+
       $items += [pscustomobject]@{
-        thumbprint = ($cert.Thumbprint -replace ' ','').ToUpperInvariant()
+        thumbprint = (($cert.Thumbprint -replace ' ','').ToUpperInvariant())
         display_name = $cert.GetNameInfo([System.Security.Cryptography.X509Certificates.X509NameType]::SimpleName,$false)
-        subject = $cert.Subject
-        issuer = $cert.Issuer
-        serial = $cert.SerialNumber
+        subject = [string]$cert.Subject
+        issuer = [string]$cert.Issuer
+        serial = [string]$cert.SerialNumber
         valid_from = $cert.NotBefore.ToString('o')
         valid_to = $cert.NotAfter.ToString('o')
         has_private_key = [bool]$cert.HasPrivateKey
         key_type = $keyType
-        key_bits = 0
+        key_bits = $keyBits
         supported = [bool]($cert.HasPrivateKey -and $keyType -eq 'RSA')
-        store_location = 'CurrentUser'
+        store_location = [string]$entry.Location
         store_name = 'My'
       }
     } catch {
-      # Jeden problematický certifikát nesmí shodit výpis celého úložiště.
       continue
     }
   }
-  @($items | Sort-Object valid_to -Descending) | ConvertTo-Json -Compress -Depth 4
-} finally {
-  $store.Close()
 }
+
+@($items | Sort-Object valid_to -Descending) | ConvertTo-Json -Compress -Depth 4
 """
 
 
