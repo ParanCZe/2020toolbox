@@ -1,0 +1,191 @@
+name: Publish 20-20 RM Checker v0.2.2
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publish-rm-checker-v022.yml'
+      - '.github/tmp/rm-checker-v022-ui.js'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Build v0.2.2 from v0.2.1
+        run: |
+          rm -rf /tmp/rmchecker-src
+          mkdir -p /tmp/rmchecker-src
+          unzip -q SketchUpPlugins/20-20_RM_Checker_v0.2.1.rbz -d /tmp/rmchecker-src
+
+          python - <<'PY'
+          from pathlib import Path
+
+          root=Path("/tmp/rmchecker-src")
+          loader=root/"twentytwenty_rm_checker.rb"
+          main=root/"twentytwenty_rm_checker"/"main.rb"
+
+          s=loader.read_text(encoding="utf-8")
+          s=s.replace("EXTENSION.version = '0.2.1'", "EXTENSION.version = '0.2.2'")
+          loader.write_text(s,encoding="utf-8")
+
+          s=main.read_text(encoding="utf-8")
+          replacements={
+            "VERSION = '0.2.1'.freeze":"VERSION = '0.2.2'.freeze",
+            "AI_INPUT_USD_PER_M = 0.10":"AI_INPUT_USD_PER_M = 0.05",
+            "AI_CACHED_INPUT_USD_PER_M = 0.01":"AI_CACHED_INPUT_USD_PER_M = 0.005",
+            "AI_OUTPUT_USD_PER_M = 0.50":"AI_OUTPUT_USD_PER_M = 0.25",
+            "MAX_UI_ISSUES = 300":"MAX_UI_ISSUES = 120",
+            'v0.2.1</span>':'v0.2.2</span>',
+            '<div class="chat-head"><b>Asistent modelu</b><span id="aiState" class="ai off">AI OFF</span><span style="color:var(--muted);font-size:11px">bez historie · zmeny az po potvrzeni</span><span id="chatCost" class="chat-cost"></span></div>':'<div class="chat-head"><b>Asistent modelu</b><span id="aiState" class="ai off">AI OFF</span><button type="button" class="scan" style="padding:4px 7px;font-size:10px" onclick="RMCheck.configureApiKey()">API klic</button><span style="color:var(--muted);font-size:11px">bez historie · zmeny az po potvrzeni</span><span id="chatCost" class="chat-cost"></span></div>'
+          }
+          for old,new in replacements.items():
+              if old not in s:
+                  raise SystemExit(f"Missing expected source fragment: {old}")
+              s=s.replace(old,new)
+
+          cb="@dialog.add_action_callback('createTemplate') { |_ctx| create_rm_template }"
+          if cb not in s:
+              raise SystemExit("createTemplate callback not found")
+          s=s.replace(cb, cb+"\n      @dialog.add_action_callback('configureApiKey') { |_ctx| configure_api_key }\n      @dialog.add_action_callback('jsError') { |_ctx, message| puts(\"[20-20 RM Checker JS] #{message}\") }")
+
+          start=s.find("          <script>\n            window.RMCheck=")
+          if start < 0:
+              raise SystemExit("old UI script start not found")
+          end=s.find("          </script>",start)
+          if end < 0:
+              raise SystemExit("old UI script end not found")
+          end += len("          </script>")
+          ui=Path(".github/tmp/rm-checker-v022-ui.js").read_text(encoding="utf-8").strip("\n")
+          indented="\n".join("            "+line for line in ui.splitlines())
+          new_script="          <script>\n"+indented+"\n          </script>"
+          s=s[:start]+new_script+s[end:]
+          main.write_text(s,encoding="utf-8")
+          PY
+
+          ruby -c /tmp/rmchecker-src/twentytwenty_rm_checker.rb
+          ruby -c /tmp/rmchecker-src/twentytwenty_rm_checker/main.rb
+
+          python - <<'PY'
+          from pathlib import Path
+          s=Path("/tmp/rmchecker-src/twentytwenty_rm_checker/main.rb").read_text(encoding="utf-8")
+          a=s.index("<script>")+len("<script>")
+          b=s.index("</script>",a)
+          Path("/tmp/rmchecker-ui.js").write_text(s[a:b],encoding="utf-8")
+          PY
+          node --check /tmp/rmchecker-ui.js
+
+          cd /tmp/rmchecker-src
+          zip -qr /tmp/20-20_RM_Checker_v0.2.2.rbz twentytwenty_rm_checker.rb twentytwenty_rm_checker
+          cd "$GITHUB_WORKSPACE"
+          cp /tmp/20-20_RM_Checker_v0.2.2.rbz SketchUpPlugins/20-20_RM_Checker_v0.2.2.rbz
+
+      - name: Update Toolbox plugin catalog
+        run: |
+          SIZE=$(stat -c%s SketchUpPlugins/20-20_RM_Checker_v0.2.2.rbz)
+          export SIZE
+          python - <<'PY'
+          from pathlib import Path
+          import os
+
+          path=Path("index.html")
+          text=path.read_text(encoding="utf-8")
+          needle="const SU_PLUGIN_CATALOG = ["
+          pos=text.find(needle)
+          if pos<0:
+              raise SystemExit("SU_PLUGIN_CATALOG not found")
+
+          arr_start=text.find("[",pos)
+          depth=0
+          quote=None
+          escape=False
+          arr_end=None
+          for i in range(arr_start,len(text)):
+              ch=text[i]
+              if quote:
+                  if escape:
+                      escape=False
+                  elif ch=="\\":
+                      escape=True
+                  elif ch==quote:
+                      quote=None
+                  continue
+              if ch in ("'", '"', "`"):
+                  quote=ch
+                  continue
+              if ch=="[":
+                  depth+=1
+              elif ch=="]":
+                  depth-=1
+                  if depth==0:
+                      arr_end=i
+                      break
+          if arr_end is None:
+              raise SystemExit("catalog closing bracket not found")
+
+          size=int(os.environ["SIZE"])
+          obj=f"""  {{
+            id:'rm-checker',
+            loader:'twentytwenty_rm_checker.rb',
+            name:'20-20 RM Checker',
+            current:'0.2.2',
+            description:'Automaticka kontrola, potvrzovane opravy a tvorba prazdne RM sablony SketchUpu.',
+            meta:'V0.2.2 opravuje nefunkcni UI v HtmlDialogu: checklist, nalezy, chat a AI ON/OFF se znovu nacitaji. Frontend je prepsany bez optional chaining/nullish operatoru kvuli kompatibilite se starsim Chromium ve SketchUpu. Pridano tlacitko API klic primo v okne, JS diagnostika a mensi davka nalezu pro spolehlivejsi prenos do UI.',
+            icon:'library',
+            versions:[
+              {{"version":"0.1.0","file":"20-20_RM_Checker_v0.1.0.rbz","size":14076,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.1.0.rbz"}},
+              {{"version":"0.2.0","file":"20-20_RM_Checker_v0.2.0.rbz","size":21512,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.2.0.rbz"}},
+              {{"version":"0.2.1","file":"20-20_RM_Checker_v0.2.1.rbz","size":23276,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.2.1.rbz"}},
+              {{"version":"0.2.2","file":"20-20_RM_Checker_v0.2.2.rbz","size":{size},"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.2.2.rbz"}}
+            ]
+          }}"""
+
+          obj_pos=text.find("id:'rm-checker'",arr_start,arr_end)
+          if obj_pos<0:
+              raise SystemExit("rm-checker object not found")
+          start=text.rfind("\n  {",arr_start,obj_pos)
+          start=start+1 if start>=0 else text.rfind("{",arr_start,obj_pos)
+          depth=0;quote=None;escape=False;end=None
+          for i in range(start,arr_end):
+              ch=text[i]
+              if quote:
+                  if escape: escape=False
+                  elif ch=="\\": escape=True
+                  elif ch==quote: quote=None
+                  continue
+              if ch in ("'", '"', "`"): quote=ch; continue
+              if ch=="{": depth+=1
+              elif ch=="}":
+                  depth-=1
+                  if depth==0:
+                      end=i+1
+                      break
+          if end is None:
+              raise SystemExit("existing rm-checker object end not found")
+          text=text[:start]+obj+text[end:]
+          path.write_text(text,encoding="utf-8")
+          PY
+
+      - name: Commit package and catalog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_Checker_v0.2.2.rbz index.html
+          if git diff --cached --quiet; then
+            echo "Already published"
+            exit 0
+          fi
+          git commit -m "Publish 20-20 RM Checker v0.2.2"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
