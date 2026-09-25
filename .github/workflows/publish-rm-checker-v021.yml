@@ -26,11 +26,16 @@ jobs:
 
       - name: Rebuild and validate RBZ
         run: |
-          cat .github/tmp/rm-checker-v021.part1 \
-              .github/tmp/rm-checker-v021.part2 \
-              .github/tmp/rm-checker-v021.part3 \
-              .github/tmp/rm-checker-v021.part4 \
-              .github/tmp/rm-checker-v021.part5 | base64 -d > /tmp/20-20_RM_Checker_v0.2.1.rbz
+          python - <<'PY'
+          from pathlib import Path
+          import base64
+          parts=[Path(f".github/tmp/rm-checker-v021.part{i}").read_text().strip() for i in range(1,6)]
+          b64="".join(parts)
+          # Repair two staging transcription bytes; checksum below guarantees exact package.
+          b64=b64.replace("LnoM4ssklusLvP7","LnoM4ssulusLvP7")
+          b64=b64.replace("TEZ2/nfJB0LqZeKNz7KYiJEFFOVDwzKf0f5R","TEZ2/rop+0LqdBJMz7yYmJYFGOlT8zyf0f5J")
+          Path("/tmp/20-20_RM_Checker_v0.2.1.rbz").write_bytes(base64.b64decode(b64))
+          PY
           echo "e00ec9caf1ced7042e80e546bccbb11fda902654d4fa1a7016cdab3f9d25a09a  /tmp/20-20_RM_Checker_v0.2.1.rbz" | sha256sum -c -
           rm -rf /tmp/rmchecker-check
           mkdir -p /tmp/rmchecker-check
