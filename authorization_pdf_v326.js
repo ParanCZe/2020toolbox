@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.35
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.36
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Podpis používá certifikát přímo z Windows Certificate Store; privátní klíč neopouští Windows.
 
@@ -754,9 +754,13 @@
 
     const stage = document.getElementById('auth-stage');
       const base = page.getViewport({scale:1});
+      // Výchozí zoom je vždy FIT PAGE: celá první strana musí být vidět
+      // současně na šířku i na výšku, bez ohledu na formát/orientaci PDF.
+      // state.zoom je pak pouze uživatelský násobek nad tímto fit měřítkem.
       const maxW = Math.max(260, (stage?.clientWidth || 700) - 28);
-      const fitScale = Math.max(.15, Math.min(2.2, maxW/base.width));
-      const scale = Math.max(.08, Math.min(6, fitScale * state.zoom));
+      const maxH = Math.max(220, (stage?.clientHeight || 760) - 28);
+      const fitScale = Math.max(.08, Math.min(2.2, maxW/base.width, maxH/base.height));
+      const scale = Math.max(.05, Math.min(6, fitScale * state.zoom));
       const vp = page.getViewport({scale});
       state.viewport = vp;
       const zoomReadout = document.getElementById('auth-zoom-readout');
