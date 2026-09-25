@@ -5,7 +5,7 @@ title 20-20 TOOLBOX - AuthorizationBridge
 
 set "DIR=%LOCALAPPDATA%\20-20-TOOLBOX\AuthorizationBridge"
 set "VENV=%DIR%\venv"
-set "PAYLOAD_REF=c096794894915d0bfa632f058f4730b9fca4ee63"
+set "PAYLOAD_REF=40c5bc244e7e5ac36448f1f8731748bf999d94cc"
 set "RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/%PAYLOAD_REF%/AuthorizationBridge"
 set "STAGE=%TEMP%\20-20-auth-stage-%RANDOM%-%RANDOM%"
 set "PYFINDER=%DIR%\find_python.ps1"
@@ -20,7 +20,7 @@ echo 20-20 TOOLBOX - instalace AuthorizationBridge
 echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
-echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.1.0...
+echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.1.1...
 if exist "%STAGE%" rmdir /s /q "%STAGE%"
 mkdir "%STAGE%" >nul 2>nul
 if errorlevel 1 goto :download_error
@@ -35,7 +35,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -U
 if errorlevel 1 goto :download_error
 
 echo Overuji SHA-256 vsech souboru...
-call :verify_sha256 "%STAGE%\authorization_bridge.py" "2c2df39ab009f0522306c47c932bbe59abfd92c0fea1f24f510dc71968b1ccee"
+call :verify_sha256 "%STAGE%\authorization_bridge.py" "63c01cf2ba353097a58182a03c1f586260fc6fc9b7b641a333053434a5093407"
 if errorlevel 1 goto :integrity_error
 call :verify_sha256 "%STAGE%\requirements.txt" "c567e2afd9cdb0930735ff0eb6c3b384bf22bf965d02d9e1ca1981f9875579f3"
 if errorlevel 1 goto :integrity_error
@@ -150,7 +150,7 @@ if errorlevel 1 goto :bridge_start_error
 echo.
 echo HOTOVO.
 echo AuthorizationBridge byl aktualizovan a restartovan.
-echo V Toolboxu musi byt videt verze 2.1.0.
+echo V Toolboxu musi byt videt verze 2.1.1.
 echo Payload commit: %PAYLOAD_REF%
 echo.
 pause
