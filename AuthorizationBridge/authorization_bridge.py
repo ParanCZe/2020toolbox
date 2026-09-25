@@ -46,7 +46,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.1.3"
+APP_VERSION = "2.1.4"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -392,6 +392,8 @@ $ErrorActionPreference = 'Stop'
 $thumb = ($env:TWENTY20_CERT_THUMBPRINT -replace ' ','').ToUpperInvariant()
 if ($thumb -notmatch '^[0-9A-F]{40,128}$') { throw 'Neplatný thumbprint certifikátu.' }
 $data = [Convert]::FromBase64String($env:TWENTY20_SIGN_DATA)
+$outFile = $env:TWENTY20_SIGN_FILE
+if ([string]::IsNullOrWhiteSpace($outFile)) { throw 'Chybí dočasná cesta pro RSA podpis.' }
 
 $cert = Get-ChildItem -Path 'Cert:\CurrentUser\My' -ErrorAction Stop |
   Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
@@ -414,7 +416,7 @@ try {
     [System.Security.Cryptography.HashAlgorithmName]::SHA256,
     [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
   )
-  [Convert]::ToBase64String($sig)
+  [System.IO.File]::WriteAllBytes($outFile, $sig)
 } finally {
   $rsa.Dispose()
 }
@@ -511,19 +513,38 @@ def _windows_cert_der(thumbprint: str) -> bytes:
 
 
 def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
-    raw = _run_powershell(
-        _WINDOWS_RSA_SIGN_PS,
-        {
-            "TWENTY20_CERT_THUMBPRINT": thumbprint,
-            "TWENTY20_SIGN_DATA": base64.b64encode(data).decode("ascii"),
-        },
-        timeout=120,
-    )
-    cleaned = (raw or "").replace("\x00", "").replace("\ufeff", "").strip()
-    candidates = re.findall(r"[A-Za-z0-9+/=]{128,}", cleaned)
-    if not candidates:
-        raise ValueError("Windows nevrátil čitelný RSA podpis.")
-    return base64.b64decode(max(candidates, key=len), validate=True)
+    signature_path = None
+    try:
+        fd, signature_path = tempfile.mkstemp(
+            prefix="2020-rsa-signature-",
+            suffix=".bin",
+        )
+        os.close(fd)
+
+        _run_powershell(
+            _WINDOWS_RSA_SIGN_PS,
+            {
+                "TWENTY20_CERT_THUMBPRINT": thumbprint,
+                "TWENTY20_SIGN_DATA": base64.b64encode(data).decode("ascii"),
+                "TWENTY20_SIGN_FILE": signature_path,
+            },
+            timeout=120,
+        )
+
+        with open(signature_path, "rb") as fh:
+            signature = fh.read()
+
+        if len(signature) < 128:
+            raise ValueError(
+                f"Windows vrátil neplatný RSA podpis ({len(signature)} B)."
+            )
+        return signature
+    finally:
+        if signature_path:
+            try:
+                os.remove(signature_path)
+            except OSError:
+                pass
 
 
 def _verify_windows_private_key_available(signer: "WindowsStoreSigner") -> None:
