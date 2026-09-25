@@ -631,6 +631,42 @@ def _get_test_tsa() -> DummyTimeStamper:
     return _TEST_TSA
 
 
+def _build_timestamper(meta: Dict[str, Any]):
+    profile = str(meta.get("profile") or "bt").lower()
+    tsa_url = str(meta.get("tsa_url") or "").strip()
+    tsa_user = str(meta.get("tsa_user") or "").strip()
+    tsa_password = str(meta.get("tsa_password") or "")
+    tsa_test_mode = bool(meta.get("tsa_test_mode", False))
+
+    if profile != "bt":
+        return None
+
+    if not re.match(r"^https?://", tsa_url, re.I):
+        raise ValueError("Pro PAdES B-T je nutná platná HTTP(S) adresa RFC 3161 TSA serveru.")
+    if bool(tsa_user) != bool(tsa_password):
+        raise ValueError("Pro přihlášení k TSA musí být vyplněn login i heslo.")
+
+    if tsa_test_mode:
+        if tsa_url != "http://127.0.0.1:8094/test-tsa":
+            raise ValueError("TEST TSA musí používat lokální adresu 127.0.0.1:8094/test-tsa.")
+        if not (
+            secrets.compare_digest(tsa_user, _TEST_TSA_USER)
+            and secrets.compare_digest(tsa_password, _TEST_TSA_PASSWORD)
+        ):
+            raise PermissionError("Neplatný TEST TSA login nebo heslo.")
+        return _get_test_tsa()
+
+    auth = BasicAuth(tsa_user, tsa_password) if tsa_user else None
+    return timestamps.HTTPTimeStamper(tsa_url, auth=auth, timeout=15)
+
+
+def _verify_tsa_login(timestamper) -> None:
+    if timestamper is None:
+        return
+    probe_digest = hashlib.sha256(b"20-20 TOOLBOX TSA PREFLIGHT").digest()
+    asyncio.run(timestamper.async_timestamp(probe_digest, "sha256"))
+
+
 @app.post("/test-tsa")
 def local_test_tsa():
     try:
@@ -832,7 +868,8 @@ def _sign_one(
         reason=common_meta.get("reason") or None,
         location=common_meta.get("location") or None,
         contact_info=common_meta.get("contact") or None,
-        certify=False,
+        certify=True,
+        docmdp_permissions=fields.MDPPerm.ANNOTATE,
     )
 
     input_stream = io.BytesIO(pdf_bytes)
@@ -869,6 +906,9 @@ def status():
             "tsa_basic_auth": True,
             "windows_cert_store": True,
             "local_test_tsa": True,
+            "tsa_preflight": True,
+            "local_sign_approval": True,
+            "docmdp_annotate": True,
         },
     )
 
