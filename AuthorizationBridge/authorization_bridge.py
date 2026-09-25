@@ -46,7 +46,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.1.6"
+APP_VERSION = "2.1.7"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -487,6 +487,72 @@ try {
 """
 
 
+_WINDOWS_RSA_BATCH_WORKER_PS = r"""
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+
+function Write-Protocol([string]$text) {
+  [Console]::Out.WriteLine($text)
+  [Console]::Out.Flush()
+}
+
+try {
+  $thumb = ($env:TWENTY20_CERT_THUMBPRINT -replace ' ','').ToUpperInvariant()
+  if ($thumb -notmatch '^[0-9A-F]{40,128}$') { throw 'Neplatný thumbprint certifikátu.' }
+
+  $cert = Get-ChildItem -Path 'Cert:\CurrentUser\My' -ErrorAction Stop |
+    Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+    Select-Object -First 1
+
+  if ($null -eq $cert) {
+    $cert = Get-ChildItem -Path 'Cert:\LocalMachine\My' -ErrorAction SilentlyContinue |
+      Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+      Select-Object -First 1
+  }
+
+  if ($null -eq $cert) { throw 'Vybraný certifikát už není ve Windows úložišti.' }
+  if (-not $cert.HasPrivateKey) { throw 'Privátní klíč vybraného certifikátu není dostupný.' }
+
+  $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
+  if ($null -eq $rsa) { throw 'Toolbox zatím podporuje podpis certifikátem s RSA privátním klíčem.' }
+  if ($rsa.KeySize -lt 2048) { throw 'RSA klíč je kratší než 2048 bitů.' }
+
+  Write-Protocol ('READY|' + $rsa.KeySize)
+
+  try {
+    while ($true) {
+      $line = [Console]::In.ReadLine()
+      if ($null -eq $line -or $line -eq 'QUIT') { break }
+      if ([string]::IsNullOrWhiteSpace($line)) { continue }
+
+      try {
+        $data = [Convert]::FromBase64String($line)
+        $sig = $rsa.SignData(
+          $data,
+          [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+          [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
+        )
+        if ($null -eq $sig -or $sig.Length -lt 128) {
+          throw 'Windows provider nevrátil platný RSA podpis.'
+        }
+        Write-Protocol ('OK|' + [Convert]::ToBase64String($sig))
+      } catch {
+        $msg = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($_.Exception.Message))
+        Write-Protocol ('ERR|' + $msg)
+      }
+    }
+  } finally {
+    $rsa.Dispose()
+  }
+} catch {
+  $msg = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($_.Exception.Message))
+  Write-Protocol ('FATAL|' + $msg)
+  exit 1
+}
+"""
+
+
 _WINDOWS_KEY_PROBE_PS = r"""
 $ErrorActionPreference = 'Stop'
 $thumb = ($env:TWENTY20_CERT_THUMBPRINT -replace ' ','').ToUpperInvariant()
@@ -621,8 +687,125 @@ def _verify_windows_private_key_available(signer: "WindowsStoreSigner") -> None:
         raise ValueError("RSA klíč je kratší než 2048 bitů.")
 
 
+class WindowsRsaBatchSession:
+    """Keep one Windows/QSCD RSA handle open for one signing batch."""
+
+    def __init__(self, thumbprint: str, expected_signature_size: int):
+        self.thumbprint = re.sub(r"\s+", "", str(thumbprint or "")).upper()
+        self.expected_signature_size = int(expected_signature_size)
+        self._proc = None
+        self._script_path = None
+
+    def open(self) -> "WindowsRsaBatchSession":
+        if os.name != "nt":
+            raise RuntimeError("Windows podpisová session je dostupná pouze ve Windows.")
+        if self._proc is not None:
+            return self
+
+        fd, self._script_path = tempfile.mkstemp(
+            prefix="2020-rsa-batch-", suffix=".ps1"
+        )
+        os.close(fd)
+        with open(self._script_path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(_WINDOWS_RSA_BATCH_WORKER_PS)
+
+        env = os.environ.copy()
+        env["TWENTY20_CERT_THUMBPRINT"] = self.thumbprint
+
+        self._proc = subprocess.Popen(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                self._script_path,
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+            env=env,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+
+        line = self._proc.stdout.readline().strip() if self._proc.stdout else ""
+        if not line.startswith("READY|"):
+            self.close()
+            if line.startswith("FATAL|"):
+                try:
+                    detail = base64.b64decode(line.split("|", 1)[1]).decode(
+                        "utf-8", "replace"
+                    )
+                except Exception:
+                    detail = "Windows podpisovou session se nepodařilo otevřít."
+                raise RuntimeError(detail)
+            raise RuntimeError("Windows podpisovou session se nepodařilo inicializovat.")
+        return self
+
+    def sign(self, data: bytes) -> bytes:
+        if self._proc is None or self._proc.poll() is not None:
+            raise RuntimeError("Windows podpisová session není aktivní.")
+        if not self._proc.stdin or not self._proc.stdout:
+            raise RuntimeError("Windows podpisová session nemá komunikační kanál.")
+
+        self._proc.stdin.write(base64.b64encode(data).decode("ascii") + "\n")
+        self._proc.stdin.flush()
+
+        line = self._proc.stdout.readline().strip()
+        if line.startswith("ERR|") or line.startswith("FATAL|"):
+            try:
+                detail = base64.b64decode(line.split("|", 1)[1]).decode(
+                    "utf-8", "replace"
+                )
+            except Exception:
+                detail = "Windows provider podpis odmítl."
+            raise RuntimeError(detail)
+        if not line.startswith("OK|"):
+            raise RuntimeError("Windows provider vrátil neplatnou odpověď.")
+
+        signature = base64.b64decode(line.split("|", 1)[1], validate=True)
+        if len(signature) != self.expected_signature_size:
+            raise RuntimeError(
+                f"Windows provider vrátil podpis neočekávané délky "
+                f"({len(signature)} B, očekáváno {self.expected_signature_size} B)."
+            )
+        return signature
+
+    def close(self) -> None:
+        proc = self._proc
+        self._proc = None
+        if proc is not None:
+            try:
+                if proc.poll() is None and proc.stdin:
+                    proc.stdin.write("QUIT\n")
+                    proc.stdin.flush()
+            except Exception:
+                pass
+            try:
+                proc.wait(timeout=3)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+        if self._script_path:
+            try:
+                os.remove(self._script_path)
+            except OSError:
+                pass
+            self._script_path = None
+
+
 class WindowsStoreSigner(signers.ExternalSigner):
-    def __init__(self, thumbprint: str):
+    def __init__(
+        self,
+        thumbprint: str,
+        sign_session: Optional[WindowsRsaBatchSession] = None,
+    ):
         try:
             cert_der = _windows_cert_der(thumbprint)
         except Exception as exc:
@@ -636,6 +819,7 @@ class WindowsStoreSigner(signers.ExternalSigner):
             raise ValueError("Toolbox zatím podporuje Windows podpisové certifikáty s RSA klíčem.")
         self.thumbprint = re.sub(r"\s+", "", thumbprint).upper()
         self.signature_size = (public_key.key_size + 7) // 8
+        self.sign_session = sign_session
         super().__init__(
             signing_cert=asn1_x509.Certificate.load(cert_der),
             cert_registry=None,
@@ -648,6 +832,8 @@ class WindowsStoreSigner(signers.ExternalSigner):
             return b"\x00" * self.signature_size
         if str(digest_algorithm or "").lower().replace("-", "") != "sha256":
             raise ValueError("Windows signer je nastavený na SHA-256.")
+        if self.sign_session is not None:
+            return self.sign_session.sign(data)
         return _windows_sign_data(self.thumbprint, data)
 
 
@@ -1046,6 +1232,7 @@ def status():
             "docmdp_annotate": True,
             "tsa_nonconsuming_preflight": True,
             "fixed_signature_reservation": True,
+            "persistent_qscd_batch_session": True,
         },
     )
 
@@ -1205,6 +1392,7 @@ def approve_sign():
 @app.post("/sign-batch-test")
 def sign_batch():
     stamp_path = None
+    rsa_batch_session = None
     try:
         pdfs = request.files.getlist("pdfs")
         metadata_raw = request.form.get("metadata", "")
@@ -1260,6 +1448,14 @@ def sign_batch():
         if not test_mode:
             cert_info["thumbprint"] = re.sub(r"\s+", "", cert_thumbprint).upper()
             cert_info["source"] = "Windows Certificate Store"
+
+            # One provider handle for the whole request. This is the best chance
+            # for QSCD middleware to ask for the PIN only once per batch.
+            rsa_batch_session = WindowsRsaBatchSession(
+                cert_thumbprint,
+                signer.signature_size,
+            ).open()
+            signer.sign_session = rsa_batch_session
 
         stamp_file = request.files.get("stamp")
         stamp_bytes = b""
@@ -1367,6 +1563,8 @@ def sign_batch():
         print("[AuthorizationBridge] signing error:", traceback.format_exc(), flush=True)
         return jsonify(ok=False, error=str(exc)), 400
     finally:
+        if rsa_batch_session is not None:
+            rsa_batch_session.close()
         if stamp_path:
             try:
                 os.remove(stamp_path)
