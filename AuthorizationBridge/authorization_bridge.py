@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "1.9.4"
+APP_VERSION = "1.9.5"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -329,11 +329,21 @@ def _windows_cert_der(thumbprint: str) -> bytes:
         timeout=20,
     )
 
-    # PowerShell can prepend/append host noise on some PCs. Extract the
-    # certificate payload instead of decoding the entire stdout blindly.
-    candidates = re.findall(r"[A-Za-z0-9+/=]{128,}", output or "")
+    # Windows PowerShell may emit redirected stdout as UTF-16LE on some
+    # installations. When Python decodes that through the local code page, NUL
+    # characters can end up between every Base64 character. Normalise these
+    # transport artefacts before extracting the certificate payload.
+    cleaned = (output or "").replace("\x00", "").replace("\ufeff", "").strip()
+    candidates = re.findall(r"[A-Za-z0-9+/=]{128,}", cleaned)
     if not candidates:
-        raise ValueError("Windows nevrátil čitelná data certifikátu.")
+        compact = re.sub(r"[^A-Za-z0-9+/=]", "", cleaned)
+        if len(compact) >= 128:
+            candidates = [compact]
+    if not candidates:
+        raise ValueError(
+            "Windows nevrátil čitelná data certifikátu "
+            f"(stdout {len(output or '')} znaků, po normalizaci {len(cleaned)})."
+        )
     encoded = max(candidates, key=len)
     raw = base64.b64decode(encoded, validate=True)
     if len(raw) < 128 or not raw.startswith(b"0"):
