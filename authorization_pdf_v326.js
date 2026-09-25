@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.36
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.37
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Podpis používá certifikát přímo z Windows Certificate Store; privátní klíč neopouští Windows.
 
@@ -1389,12 +1389,49 @@
       toast('Běží bridge bez podpory TEST podpisu. Spusť znovu aktuální Instalátor.', true);
       return;
     }
+    if (!testMode && (!authVersionAtLeast(bridge.version, '2.0.0') || !bridge.features?.tsa_preflight || !bridge.features?.local_sign_approval)) {
+      toast('Kvůli bezpečnému podpisu a kontrole TSA před konverzí aktualizuj AuthorizationBridge na 2.0.0+.', true);
+      return;
+    }
 
     persistOverlay();
     const btn = document.getElementById('auth-sign-btn');
     btn.disabled = true;
 
     try {
+      let approvalToken = '';
+
+      // Než se začne převádět jediné PDF, ověř certifikát, privátní klíč
+      // a u PAdES B-T skutečně otestuj přihlášení k TSA.
+      // U ostrého Windows podpisu zároveň proběhne lokální potvrzení mimo web.
+      if (!testMode) {
+        btn.textContent = profile === 'bt'
+          ? 'Ověřuji certifikát a TSA…'
+          : 'Ověřuji podpisový certifikát…';
+
+        const preflightPayload = {
+          profile,
+          tsa_url: tsa,
+          tsa_user: tsaUser,
+          tsa_password: tsaPass,
+          tsa_test_mode: localTestTsa,
+          certificate_thumbprint: state.selectedCertThumbprint,
+          document_count: state.files.length
+        };
+        const preflightResp = await bridgeFetch('/preflight-sign', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(preflightPayload)
+        }, 45000);
+        const preflight = await preflightResp.json().catch(()=>({}));
+        if (!preflightResp.ok || !preflight.ok || !preflight.approval_token) {
+          throw new Error(preflight.error || 'Kontrola certifikátu / TSA před exportem selhala.');
+        }
+        approvalToken = preflight.approval_token;
+        toast(profile === 'bt'
+          ? 'Certifikát i TSA jsou ověřené. Spouštím PDF/A konverzi.'
+          : 'Podpisový certifikát je ověřený. Spouštím PDF/A konverzi.');
+      }
       // DŮLEŽITÉ: PDF/A konverze musí proběhnout PŘED kryptografickým podpisem.
       // Převod podepsaného PDF přes Ghostscript by existující podpis zneplatnil.
       const docs = new Array(state.files.length);
@@ -1473,6 +1510,7 @@
         tsa_password: tsaPass,
         tsa_test_mode: localTestTsa,
         certificate_thumbprint: testMode ? '' : state.selectedCertThumbprint,
+        approval_token: testMode ? '' : approvalToken,
         reason: (testMode ? 'TEST – ' : '') + document.getElementById('auth-reason').value.trim(),
         location: document.getElementById('auth-location').value.trim(),
         contact: document.getElementById('auth-contact').value.trim(),
