@@ -6,16 +6,25 @@ param(
 
 $ErrorActionPreference = 'SilentlyContinue'
 
-# Kill any process that currently owns port 8094.
+# Never kill an arbitrary process merely because it owns port 8094.
+# Only stop a listener if it is one of our AuthorizationBridge Python processes.
 try {
     $owners = Get-NetTCPConnection -LocalPort 8094 -State Listen -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty OwningProcess -Unique
     foreach ($pidValue in $owners) {
-        if ($pidValue -and $pidValue -ne $PID) {
+        if (-not $pidValue -or $pidValue -eq $PID) { continue }
+        $procInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $pidValue" -ErrorAction SilentlyContinue
+        if ($procInfo -and $procInfo.CommandLine -and $procInfo.CommandLine -like '*authorization_bridge.py*') {
             Stop-Process -Id $pidValue -Force -ErrorAction SilentlyContinue
+        } else {
+            Write-Error "Port 8094 pouziva jiny proces. Z bezpecnostnich duvodu ho AuthorizationBridge nebude ukoncovat."
+            exit 1
         }
     }
-} catch {}
+} catch {
+    Write-Error "Nepodarilo se bezpecne overit vlastnika portu 8094."
+    exit 1
+}
 
 # Also kill stale AuthorizationBridge python processes that may not currently be listening.
 try {
