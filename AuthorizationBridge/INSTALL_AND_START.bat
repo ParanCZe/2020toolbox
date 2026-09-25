@@ -21,7 +21,7 @@ echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
 echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.1.1...
-if exist "%STAGE%" rmdir /s /q "%STAGE%"
+if exist "%STAGE%" rmdir /s /q "%STAGE%" >nul 2>nul
 mkdir "%STAGE%" >nul 2>nul
 if errorlevel 1 goto :download_error
 
@@ -71,32 +71,6 @@ if errorlevel 1 (
 )
 if errorlevel 1 goto :python_auto_install_failed
 
-echo.
-echo Python byl nainstalovan. Overuji standardni instalacni cestu...
-if exist "%LOCALAPPDATA%\Programs\Python\Python314\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python314\python.exe"
-if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
-if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
-if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
-if not defined PY_EXE call :find_python
-if not defined PY_EXE goto :python_auto_install_failed
-
-:python_ready
-
-echo.
-echo Python 3 nebyl nalezen. Nainstaluji ho automaticky.
-where winget >nul 2>nul
-if errorlevel 1 goto :python_auto_install_failed
-
-echo Instaluji Python 3.13 pres Windows Package Manager...
-winget install --id Python.Python.3.13 -e --source winget --scope user --silent --accept-package-agreements --accept-source-agreements
-if errorlevel 1 (
-  echo Python 3.13 se nepodarilo nainstalovat. Zkousim Python 3.12...
-  winget install --id Python.Python.3.12 -e --source winget --scope user --silent --accept-package-agreements --accept-source-agreements
-)
-if errorlevel 1 goto :python_auto_install_failed
-
-echo.
-echo Python byl nainstalovan. Overuji standardni instalacni cestu...
 if exist "%LOCALAPPDATA%\Programs\Python\Python314\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python314\python.exe"
 if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
 if not defined PY_EXE if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
@@ -123,10 +97,7 @@ if "%RECREATE_VENV%"=="1" (
   echo [3/6] Vytvarim ciste lokalni Python prostredi...
   if exist "%VENV%" rmdir /s /q "%VENV%"
   "%PY_EXE%" -c "import sys; raise SystemExit(0 if sys.version_info >= (3,10) else 1)" >nul 2>nul
-  if errorlevel 1 (
-    echo Nalezeny Python je prilis stary. Je potreba Python 3.10 nebo novejsi.
-    goto :python_auto_install_failed
-  )
+  if errorlevel 1 goto :python_auto_install_failed
   "%PY_EXE%" -m venv "%VENV%"
   if errorlevel 1 goto :python_error
 ) else (
@@ -153,7 +124,7 @@ reg add "HKCU\Software\Classes\twentytwentyauth" /v "URL Protocol" /d "" /f >nul
 reg add "HKCU\Software\Classes\twentytwentyauth\shell\open\command" /ve /d "\"%DIR%\start_bridge.cmd\" \"%%1\"" /f >nul
 
 echo.
-echo Restartuji AuthorizationBridge a uvolnuji port 8094...
+echo Restartuji AuthorizationBridge...
 call "%DIR%\start_bridge.cmd"
 if errorlevel 1 goto :bridge_start_error
 
@@ -177,15 +148,13 @@ exit /b 0
 :python_auto_install_failed
 echo.
 echo CHYBA: Python 3 se nepodarilo najit ani automaticky nainstalovat.
-echo Microsoft Store alias WindowsApps se zamerne ignoruje.
-echo Automaticka instalace pouziva oficialni Python balicek pres winget.
 echo.
 pause
 exit /b 1
 
 :download_error
 echo.
-echo CHYBA: nepodarilo se stahnout release soubory bridge z GitHubu.
+echo CHYBA: nepodarilo se stahnout pripnute soubory bridge z GitHubu.
 if exist "%STAGE%" rmdir /s /q "%STAGE%" >nul 2>nul
 pause
 exit /b 1
@@ -201,38 +170,31 @@ exit /b 1
 :python_error
 echo.
 echo CHYBA: nepodarilo se vytvorit Python prostredi.
-echo Pouzity Python: %PY_EXE%
+echo.
 pause
 exit /b 1
 
 :pip_error
 echo.
-echo CHYBA: nepodarilo se nainstalovat pyHanko/Flask/cryptography.
-echo Pouzity Python: %PY_EXE%
+echo CHYBA: nepodarilo se nainstalovat podpisove knihovny.
+echo.
 pause
 exit /b 1
 
 :bridge_start_error
 echo.
-echo CHYBA: novy AuthorizationBridge se nepodarilo spustit.
-echo.
+echo CHYBA: AuthorizationBridge se nepodarilo spustit.
 if exist "%DIR%\bridge.preflight.log" (
   echo ===== BRIDGE PREFLIGHT =====
   powershell.exe -NoProfile -Command "Get-Content -LiteralPath '%DIR%\bridge.preflight.log' -Tail 80"
-  echo.
 )
 if exist "%DIR%\bridge.error.log" (
   echo ===== BRIDGE ERROR LOG =====
   powershell.exe -NoProfile -Command "Get-Content -LiteralPath '%DIR%\bridge.error.log' -Tail 100"
-  echo.
 )
 if exist "%DIR%\bridge.log" (
   echo ===== BRIDGE LOG =====
   powershell.exe -NoProfile -Command "Get-Content -LiteralPath '%DIR%\bridge.log' -Tail 60"
-  echo.
 )
-echo Logy zustavaji v:
-echo   %DIR%
-echo.
 pause
 exit /b 1
