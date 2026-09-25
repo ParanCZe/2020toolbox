@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.50
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.51
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Podpis používá certifikát přímo z Windows Certificate Store; privátní klíč neopouští Windows.
 
@@ -26,6 +26,8 @@
     stampSourceName: '',
     placementPreviewUrl: null,
     previousProfile: 'bt',
+    testTsaBackup: null,
+    testTsaIssued: 0,
     settingsRestored: false,
     initialized: false,
   };
@@ -334,11 +336,22 @@
       .auth-test-switch input{position:absolute;opacity:0;pointer-events:none}
       .auth-test-slider{position:absolute;inset:0;border-radius:999px;background:#d4d4d8;cursor:pointer;transition:.16s}
       .auth-test-slider:before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:.16s}
-      .auth-test-switch input:checked+.auth-test-slider{background:#eab308}
+      .auth-test-switch input:checked+.auth-test-slider{background:#dc2626}
       .auth-test-switch input:checked+.auth-test-slider:before{transform:translateX(20px)}
       .auth-test-state{min-width:26px;font-size:10px;font-weight:700}
-      .auth-test-banner{display:none;margin:0 0 10px;padding:8px 10px;border:1px solid #facc15;border-radius:8px;background:#fffbea;color:#854d0e;font-size:10px;line-height:1.45}
+      .auth-test-banner{display:none;margin:0 0 10px;padding:8px 10px;border:1px solid #fca5a5;border-radius:8px;background:#fff1f2;color:#b91c1c;font-size:10px;line-height:1.45}
       .auth-test-banner.active{display:block}
+      .auth-test-control.active{border-color:#ef4444;background:#fff1f2;color:#b91c1c}
+      .auth-test-panel{display:none;margin:0 0 10px;padding:10px 12px;border:1px solid #fca5a5;border-radius:9px;background:#fff7f7;color:#b91c1c}
+      .auth-test-panel.active{display:block}
+      .auth-test-panel,.auth-test-panel *{color:#b91c1c}
+      .auth-test-panel input,.auth-test-panel button{accent-color:#dc2626}
+      .auth-test-panel .auth-secondary{border-color:#fca5a5;background:#fff;color:#b91c1c}
+      .auth-test-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:8px}
+      .auth-test-stat{border:1px solid #fecaca;border-radius:7px;background:#fff;padding:8px}
+      .auth-test-stat b{display:block;font-size:15px;line-height:1.1;margin-bottom:3px}
+      .auth-test-stat span{font-size:9px;line-height:1.25}
+      .auth-test-diff.ok{color:#15803d}.auth-test-diff.bad{color:#b91c1c}
       .auth-disabled{opacity:.48;filter:grayscale(.15)}
       .auth-disabled *{pointer-events:none}
       .auth-health{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:#fafafa;margin:10px 0 12px;flex-wrap:wrap}
@@ -422,7 +435,7 @@
       <button class="back-btn" onclick="closeTool()">← Zpět do menu</button>
       <div class="auth-titlebar">
         <h1>Autorizace PDF <small class="menu-status">BETA</small></h1>
-        <div class="auth-test-control" title="Testovací režim použije dočasný lokální self-signed certifikát.">
+        <div id="auth-test-control" class="auth-test-control" title="Zapne testovací nástroje. Produkční testovací volby jsou jinak skryté.">
           <b>TEST</b>
           <label class="auth-test-switch">
             <input id="auth-test-mode" type="checkbox" onchange="authTestModeChanged()">
@@ -431,7 +444,19 @@
           <span id="auth-test-state" class="auth-test-state">OFF</span>
         </div>
       </div>
-      <div id="auth-test-banner" class="auth-test-banner"><b>TEST MODE:</b> certifikát ani TSA nejsou potřeba. PDF bude skutečně digitálně podepsané dočasným lokálním testovacím certifikátem, který nebude důvěryhodný. V PDF prohlížeči se proto zobrazí informace o podpisu, ale ne jako platná autorizace.</div>
+      <div id="auth-test-banner" class="auth-test-banner"><b>TEST ON:</b> testovací nástroje jsou aktivní. Všechny testovací volby jsou označené červeně. Doporučený test používá pravý Windows/QSCD certifikát, ale lokální TEST TSA — nespotřebuje žádné PostSignum časové razítko.</div>
+      <div id="auth-test-panel" class="auth-test-panel">
+        <b>TESTOVACÍ NÁSTROJE</b>
+        <label class="auth-check"><input id="auth-local-test-tsa" type="checkbox" onchange="authLocalTestTsaChanged()"> použít <b>lokální TEST TSA</b> · žádná placená PostSignum razítka</label>
+        <div id="auth-test-tsa-note" class="auth-note">Doporučeno: pravý Windows/QSCD certifikát + lokální TEST TSA. Otestuje PIN, batch podpis i PAdES bez spotřeby ostrých TSA razítek.</div>
+        <label class="auth-check"><input id="auth-full-test-signing" type="checkbox" onchange="authFullTestSigningChanged()"> plně lokální TEST certifikát · bez QSCD / bez PIN</label>
+        <div class="auth-test-stats">
+          <div class="auth-test-stat"><b id="auth-test-expected">0</b><span>očekávaných TEST timestampů</span></div>
+          <div class="auth-test-stat"><b id="auth-test-issued">0</b><span>skutečně vydaných TEST timestampů</span></div>
+          <div class="auth-test-stat"><b id="auth-test-diff" class="auth-test-diff ok">0</b><span>rozdíl</span></div>
+        </div>
+        <button class="auth-secondary" style="margin-top:8px" type="button" onclick="authResetTestTsaCounter(true)">Resetovat TEST TSA počítadlo</button>
+      </div>
       <div class="muted">Hromadné rozmístění podpisového razítka a skutečný elektronický podpis PDF. Před podpisem se každý dokument lokálně převede stejným Ghostscript enginem jako modul PDF/A na <b>PDF/A-3b</b>; teprve potom se kryptograficky podepíše. Výstup má vždy příponu <b>_EAR.pdf</b>. PFX/P12 a heslo se neposílají na webový server.</div>
 
       <div id="auth-health" class="auth-health warn">
@@ -529,8 +554,6 @@
                 <div class="auth-field"><label>RFC 3161 TSA server</label><input id="auth-tsa" type="url" value="https://www3.postsignum.cz/TSS/TSS_user/" placeholder="https://www3.postsignum.cz/TSS/TSS_user/"></div>
                 <div class="auth-field"><label>PostSignum login</label><input id="auth-tsa-user" type="text" autocomplete="username" placeholder="uživatelské jméno"></div>
                 <div class="auth-field"><label>PostSignum heslo</label><input id="auth-tsa-pass" type="password" autocomplete="off" placeholder="Heslo k TSA se neukládá"></div>
-                <label class="auth-check"><input id="auth-local-test-tsa" type="checkbox" onchange="authLocalTestTsaChanged()"> použít <b>TEST TEST TEST</b> lokální časové razítko</label>
-                <div id="auth-test-tsa-note" class="auth-note" style="display:none">TEST TSA běží pouze lokálně na 127.0.0.1. Není kvalifikovaná ani důvěryhodná mimo tento testovací počítač.</div>
                 <div class="auth-note">Údaje slouží pouze pro přihlášení k serveru časových razítek. Login lze uložit lokálně s nastavením, heslo k TSA se neukládá.</div>
               </div>
             </div>
@@ -689,6 +712,7 @@
     renderFileList();
     if (state.current < 0) await selectFile(0);
     updateSessionOverview();
+    authRenderTestTsaStats();
   }
 
   function renderFileList() {
@@ -1050,42 +1074,137 @@
     }
   };
 
-  function authIsTestMode() {
+  function authTestToolsEnabled() {
     return !!document.getElementById('auth-test-mode')?.checked;
   }
 
+  function authIsTestMode() {
+    return authTestToolsEnabled() && !!document.getElementById('auth-full-test-signing')?.checked;
+  }
+
+  function authExpectedTestTsaCount() {
+    const local = authTestToolsEnabled() &&
+      !authIsTestMode() &&
+      !!document.getElementById('auth-local-test-tsa')?.checked &&
+      document.getElementById('auth-profile')?.value === 'bt';
+    return local ? state.files.length : 0;
+  }
+
+  function authRenderTestTsaStats(issued=state.testTsaIssued) {
+    state.testTsaIssued = Number(issued) || 0;
+    const expected = authExpectedTestTsaCount();
+    const diff = state.testTsaIssued - expected;
+    const expEl = document.getElementById('auth-test-expected');
+    const issuedEl = document.getElementById('auth-test-issued');
+    const diffEl = document.getElementById('auth-test-diff');
+    if (expEl) expEl.textContent = String(expected);
+    if (issuedEl) issuedEl.textContent = String(state.testTsaIssued);
+    if (diffEl) {
+      diffEl.textContent = (diff > 0 ? '+' : '') + String(diff);
+      diffEl.className = 'auth-test-diff ' + (diff === 0 ? 'ok' : 'bad');
+    }
+  }
+
+  window.authRefreshTestTsaCounter = async function(silent=true) {
+    try {
+      const bridge = state.bridge || await checkAuthorizationBridge(true);
+      if (!bridge?.features?.test_tsa_counter) {
+        if (!silent) toast('TEST TSA počítadlo vyžaduje AuthorizationBridge 2.1.8+.', true);
+        return null;
+      }
+      const r = await bridgeFetch('/test-tsa-stats', {method:'GET'}, 5000);
+      const j = await r.json().catch(()=>({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || 'TEST TSA počítadlo není dostupné.');
+      authRenderTestTsaStats(j.issued);
+      return j;
+    } catch (e) {
+      if (!silent) toast(e.message || String(e), true);
+      return null;
+    }
+  };
+
+  window.authResetTestTsaCounter = async function(showToast=false) {
+    try {
+      const bridge = state.bridge || await checkAuthorizationBridge(true);
+      if (!bridge?.features?.test_tsa_counter) throw new Error('TEST TSA počítadlo vyžaduje AuthorizationBridge 2.1.8+.');
+      const r = await bridgeFetch('/test-tsa-stats/reset', {method:'POST'}, 5000);
+      const j = await r.json().catch(()=>({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || 'TEST TSA počítadlo se nepodařilo resetovat.');
+      authRenderTestTsaStats(0);
+      if (showToast) toast('TEST TSA počítadlo resetováno.');
+      return true;
+    } catch (e) {
+      if (showToast) toast(e.message || String(e), true);
+      return false;
+    }
+  };
+
   window.authTestModeChanged = function() {
-    const on = authIsTestMode();
+    const on = authTestToolsEnabled();
     const stateLabel = document.getElementById('auth-test-state');
     const banner = document.getElementById('auth-test-banner');
-    const certBox = document.getElementById('auth-cert-box');
-    const levelBox = document.getElementById('auth-sign-level-box');
-    const profile = document.getElementById('auth-profile');
-    const certInfo = document.getElementById('auth-cert-info');
+    const panel = document.getElementById('auth-test-panel');
+    const control = document.getElementById('auth-test-control');
+    const localTsa = document.getElementById('auth-local-test-tsa');
+    const fullTest = document.getElementById('auth-full-test-signing');
 
     if (stateLabel) stateLabel.textContent = on ? 'ON' : 'OFF';
     if (banner) banner.classList.toggle('active', on);
-    if (certBox) certBox.classList.toggle('auth-disabled', on);
-    if (levelBox) levelBox.classList.toggle('auth-disabled', on);
+    if (panel) panel.classList.toggle('active', on);
+    if (control) control.classList.toggle('active', on);
+
+    if (on) {
+      if (localTsa && !localTsa.checked && !fullTest?.checked) {
+        localTsa.checked = true;
+        authLocalTestTsaChanged();
+      }
+      authRefreshTestTsaCounter(true);
+    } else {
+      if (fullTest) fullTest.checked = false;
+      if (localTsa?.checked) {
+        localTsa.checked = false;
+        authLocalTestTsaChanged();
+      }
+      authFullTestSigningChanged();
+    }
+
+    authFullTestSigningChanged();
+    authRenderTestTsaStats();
+    updatePlacementStampPreview();
+    checkAuthorizationBridge(true).then(b => {
+      if (!authIsTestMode() && b?.features?.windows_cert_store) authLoadWindowsCertificates(false);
+    });
+  };
+
+  window.authFullTestSigningChanged = function() {
+    const fake = authIsTestMode();
+    const certBox = document.getElementById('auth-cert-box');
+    const profile = document.getElementById('auth-profile');
+    const certInfo = document.getElementById('auth-cert-info');
+    const localTsa = document.getElementById('auth-local-test-tsa');
+
+    if (certBox) certBox.classList.toggle('auth-disabled', fake);
+    const certControls = certBox ? certBox.querySelectorAll('input,button,select') : [];
+    certControls.forEach(el => { el.disabled = fake; });
 
     if (profile) {
-      if (on) {
-        state.previousProfile = profile.value || 'bt';
+      if (fake) {
+        if (profile.value !== 'bb') state.previousProfile = profile.value || 'bt';
         profile.value = 'bb';
         profile.disabled = true;
       } else {
         profile.disabled = false;
-        profile.value = state.previousProfile || 'bt';
+        if (authTestToolsEnabled() && localTsa?.checked) profile.value = 'bt';
+        else if (profile.value === 'bb' && state.previousProfile) profile.value = state.previousProfile;
       }
     }
 
-    const certControls = certBox ? certBox.querySelectorAll('input,button,select') : [];
-    certControls.forEach(el => { el.disabled = on; });
+    if (localTsa) localTsa.disabled = fake;
 
     if (certInfo) {
-      if (on) {
+      if (fake) {
         certInfo.className = 'auth-cert-card ok';
-        certInfo.innerHTML = '<b>TEST certifikát se vytvoří automaticky</b><br>Dočasný self-signed certifikát vznikne pouze lokálně při exportu a nebude důvěryhodný.';
+        certInfo.innerHTML = '<b>PLNĚ LOKÁLNÍ TEST CERTIFIKÁT</b><br>QSCD ani PIN se nepoužijí. Výstup není určený k ostré autorizaci.';
       } else {
         authRenderWindowsCertificateInfo();
       }
@@ -1093,17 +1212,21 @@
 
     authProfileChanged();
     const signBtn = document.getElementById('auth-sign-btn');
-    if (signBtn) signBtn.textContent = on ? 'TEST · PDF/A-3b + podepsat + stáhnout ZIP' : 'PDF/A-3b + podepsat + stáhnout ZIP';
-    updatePlacementStampPreview();
-    checkAuthorizationBridge(true).then(b => {
-      if (!on && b?.features?.windows_cert_store) authLoadWindowsCertificates(false);
-    });
+    if (signBtn) {
+      signBtn.textContent = authTestToolsEnabled()
+        ? (fake
+          ? 'TEST · lokální certifikát + export ZIP'
+          : 'TEST · pravý certifikát + lokální TSA + export ZIP')
+        : 'PDF/A-3b + podepsat + stáhnout ZIP';
+    }
+    authRenderTestTsaStats();
   };
 
   window.authProfileChanged = function() {
     const bt = !authIsTestMode() && document.getElementById('auth-profile')?.value === 'bt';
     const wrap = document.getElementById('auth-tsa-wrap');
     if (wrap) wrap.style.display = bt ? 'grid' : 'none';
+    authRenderTestTsaStats();
   };
 
   window.authLocalTestTsaChanged = function() {
@@ -1112,22 +1235,34 @@
     const tsa = document.getElementById('auth-tsa');
     const user = document.getElementById('auth-tsa-user');
     const pass = document.getElementById('auth-tsa-pass');
-    const note = document.getElementById('auth-test-tsa-note');
 
     if (on) {
+      if (!state.testTsaBackup) {
+        state.testTsaBackup = {
+          profile: profile?.value || 'bt',
+          tsa: tsa?.value || 'https://www3.postsignum.cz/TSS/TSS_user/',
+          user: user?.value || '',
+          pass: pass?.value || ''
+        };
+      }
       if (profile) profile.value = 'bt';
       if (tsa) tsa.value = 'http://127.0.0.1:8094/test-tsa';
       if (user) user.value = 'TEST';
       if (pass) pass.value = 'TEST-ONLY';
-      if (note) note.style.display = 'block';
+    } else if (state.testTsaBackup) {
+      if (profile) profile.value = state.testTsaBackup.profile || 'bt';
+      if (tsa) tsa.value = state.testTsaBackup.tsa || 'https://www3.postsignum.cz/TSS/TSS_user/';
+      if (user) user.value = state.testTsaBackup.user || '';
+      if (pass) pass.value = state.testTsaBackup.pass || '';
+      state.testTsaBackup = null;
     } else {
       if (tsa && tsa.value === 'http://127.0.0.1:8094/test-tsa') tsa.value = 'https://www3.postsignum.cz/TSS/TSS_user/';
       if (user && user.value === 'TEST') user.value = '';
       if (pass && pass.value === 'TEST-ONLY') pass.value = '';
-      if (note) note.style.display = 'none';
     }
+
     authProfileChanged();
-    if (authRememberEnabled()) authSaveSettings(false);
+    authRenderTestTsaStats();
   };
 
   async function fileToImageElement(file) {
@@ -1389,18 +1524,29 @@
       toast('Běží bridge bez podpory TEST podpisu. Spusť znovu aktuální Instalátor.', true);
       return;
     }
-    if (!testMode && (!authVersionAtLeast(bridge.version, '2.1.7') || !bridge.features?.tsa_preflight || !bridge.features?.local_sign_approval || !bridge.features?.docmdp_annotate)) {
-      toast('Kvůli bezpečnému podpisu a správnému DocMDP omezení aktualizuj AuthorizationBridge na 2.1.7.', true);
+    if (!testMode && (!authVersionAtLeast(bridge.version, '2.1.8') || !bridge.features?.tsa_preflight || !bridge.features?.local_sign_approval || !bridge.features?.docmdp_annotate)) {
+      toast('Kvůli bezpečnému podpisu a správnému DocMDP omezení aktualizuj AuthorizationBridge na 2.1.8.', true);
+      return;
+    }
+    if (authTestToolsEnabled() && localTestTsa && !bridge.features?.test_tsa_counter) {
+      toast('Pro přesné TEST TSA počítadlo aktualizuj AuthorizationBridge na 2.1.8.', true);
       return;
     }
 
     persistOverlay();
     const btn = document.getElementById('auth-sign-btn');
     btn.disabled = true;
+    let testCounterArmed = false;
 
     try {
       let preflightToken = '';
       let approvalToken = '';
+
+      if (authTestToolsEnabled() && localTestTsa && !testMode) {
+        btn.textContent = 'Resetuji TEST TSA počítadlo…';
+        testCounterArmed = await authResetTestTsaCounter(false);
+        if (!testCounterArmed) throw new Error('TEST TSA počítadlo se před exportem nepodařilo resetovat.');
+      }
 
       // Než se začne převádět jediné PDF, ověř certifikát, privátní klíč
       // a u PAdES B-T skutečně otestuj přihlášení k TSA.
@@ -1597,20 +1743,33 @@
 
       state.files.forEach(r=>r.status='signed');
       renderFileList();
-      toast(testMode
-        ? 'Hotovo — TEST PDF/A-3b jsou digitálně podepsaná testovacím certifikátem a stažená v ZIPu.'
-        : (localTestTsa
-          ? 'Hotovo — PDF/A-3b je podepsané a obsahuje TEST TEST TEST lokální časové razítko.'
-          : (authAppendEarEnabled()
-          ? 'Hotovo — PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.'
-          : 'Hotovo — PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.')));
+
+      if (testCounterArmed) {
+        const stats = await authRefreshTestTsaCounter(true);
+        const expected = authExpectedTestTsaCount();
+        const issued = Number(stats?.issued ?? state.testTsaIssued) || 0;
+        toast(issued === expected
+          ? 'TEST OK — '+expected+' PDF = '+issued+' TEST TSA timestampů. Žádný extra request.'
+          : 'TEST VAROVÁNÍ — očekáváno '+expected+' timestampů, TEST TSA vydala '+issued+'. Rozdíl '+(issued-expected)+'.',
+          issued !== expected
+        );
+      } else {
+        toast(testMode
+          ? 'Hotovo — PDF/A-3b jsou podepsaná plně lokálním TEST certifikátem.'
+          : (localTestTsa
+            ? 'Hotovo — PDF/A-3b jsou podepsaná pravým certifikátem a lokální TEST TSA.'
+            : (authAppendEarEnabled()
+            ? 'Hotovo — PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.'
+            : 'Hotovo — PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.')));
+      }
     } catch (e) {
       state.files.forEach(r=>{ if(r.status!=='signed') r.status='error'; });
       renderFileList();
+      if (testCounterArmed) await authRefreshTestTsaCounter(true);
       toast(e.message || String(e), true);
     } finally {
       btn.disabled = false;
-      btn.textContent = authIsTestMode() ? 'TEST · PDF/A-3b + podepsat + stáhnout ZIP' : 'PDF/A-3b + podepsat + stáhnout ZIP';
+      authFullTestSigningChanged();
     }
   };
 
@@ -1619,7 +1778,7 @@
     state.pdfCache.forEach(d=>{ try{d.destroy()}catch{} });
     state.pdfCache.clear();
     state.files=[];state.current=-1;
-    renderFileList();renderCurrent();updateSessionOverview();
+    renderFileList();renderCurrent();updateSessionOverview();authRenderTestTsaStats();
   };
 
   function updateSessionOverview() {
