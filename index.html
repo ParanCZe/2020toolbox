@@ -2721,7 +2721,17 @@ const SU_PLUGIN_CATALOG = [
   meta:'V0.4.2: při startu SketchUpu se automaticky spustí adapter agent, pokud už neběží. Výchozí cesta je C:/2020agent/dist/adapter-agent.exe; pokud tam soubor není, plugin se zeptá na umístění. V Extensions > 20-20 AI-TOOLS lze agenta ručně spustit, změnit cestu a zobrazit aktuálně uloženou cestu. Most se načítá dál bez Ruby Console.',
   icon:'library',
   versions:[{"version":"0.4.2","file":"20-20_AI-TOOLS_v0.4.2.rbz","size":20679,"repo_file":"SketchUpPlugins/20-20_AI-TOOLS_v0.4.2.rbz"}]
-}
+},
+  {
+    id:'rm-checker',
+    loader:'twentytwenty_rm_checker.rb',
+    name:'20-20 RM Checker',
+    current:'0.1.0',
+    description:'Automatická kontrola SketchUp modelu před přenosem do RENDERMAKERu. Projde tagy, materiály, vnoření, scény, pomocné prvky, geolokaci a další body RM checklistu.',
+    meta:'V0.1.0: po otevření automaticky projde aktuální model a scénu, ukáže chyby / upozornění / OK body, umí problém vybrat v modelu a u chybně tagované vnitřní geometrie nabídne bezpečnou opravu na Untagged. Dole je čistý chat bez historie; bez API klíče vysvětluje nálezy lokálně, s OpenAI API klíčem lze zapnout GPT vysvětlení.',
+    icon:'library',
+    versions:[{"version":"0.1.0","file":"20-20_RM_Checker_v0.1.0.rbz","size":14076,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.1.0.rbz"}]
+  }
 ];
 function suPluginIcon(type){
   if(type==='texture')return `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="8" width="24" height="24" rx="3" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M8 20h24M20 8v24" stroke="currentColor" stroke-width="2"/><path d="M34 20c4 4 6 7 6 10a6 6 0 1 1-12 0c0-3 2-6 6-10z" fill="none" stroke="currentColor" stroke-width="2.5"/></svg>`;
