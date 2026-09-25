@@ -46,7 +46,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.0.1"
+APP_VERSION = "2.1.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -183,6 +183,40 @@ def _approval_context(meta: Dict[str, Any], document_count: int) -> Dict[str, An
         "tsa_test_mode": bool(meta.get("tsa_test_mode", False)),
         "document_count": int(document_count),
     }
+
+
+def _canonical_signing_intent(meta: Dict[str, Any], stamp_bytes: bytes) -> Dict[str, Any]:
+    docs = meta.get("documents")
+    if not isinstance(docs, list):
+        docs = []
+    clean_docs = []
+    for item in docs:
+        item = item if isinstance(item, dict) else {}
+        placement = item.get("placement")
+        clean_docs.append({
+            "name": str(item.get("name") or ""),
+            "output_name": str(item.get("output_name") or ""),
+            "placement": placement if isinstance(placement, dict) else None,
+        })
+    return {
+        "reason": str(meta.get("reason") or ""),
+        "location": str(meta.get("location") or ""),
+        "contact": str(meta.get("contact") or ""),
+        "append_ear": bool(meta.get("append_ear", True)),
+        "documents": clean_docs,
+        "stamp_sha256": hashlib.sha256(stamp_bytes or b"").hexdigest(),
+        "stamp_size": len(stamp_bytes or b""),
+    }
+
+
+def _intent_digest(intent: Dict[str, Any]) -> str:
+    payload = json.dumps(
+        intent,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _native_sign_confirmation(
@@ -940,8 +974,11 @@ def approve_sign():
         payload = request.get_json(silent=True) or {}
         preflight_token = str(payload.get("preflight_token") or "")
         documents = payload.get("documents")
+        signing_intent = payload.get("signing_intent")
         if not isinstance(documents, list) or not documents:
             return jsonify(ok=False, error="Chybí finální dokumenty k potvrzení."), 400
+        if not isinstance(signing_intent, dict):
+            return jsonify(ok=False, error="Chybí podpisový záměr k potvrzení."), 400
 
         _cleanup_approvals()
         preflight = _PREFLIGHTS.get(preflight_token)
@@ -977,6 +1014,7 @@ def approve_sign():
         _SIGN_APPROVALS[approval_token] = {
             "context": context,
             "documents": clean_docs,
+            "intent_digest": _intent_digest(signing_intent),
             "expires": datetime.now(timezone.utc).timestamp() + _APPROVAL_TTL_SECONDS,
             "used": False,
         }
@@ -1029,12 +1067,24 @@ def sign_batch():
             cert_info["source"] = "Windows Certificate Store · CurrentUser\\My"
 
         stamp_file = request.files.get("stamp")
+        stamp_bytes = b""
+        stamp_ext = ""
         if stamp_file and stamp_file.filename:
-            ext = Path(stamp_file.filename).suffix.lower()
-            if ext not in {".png", ".jpg", ".jpeg"}:
+            stamp_ext = Path(stamp_file.filename).suffix.lower()
+            if stamp_ext not in {".png", ".jpg", ".jpeg"}:
                 return jsonify(ok=False, error="Obrázek razítka musí být PNG nebo JPG."), 400
-            with tempfile.NamedTemporaryFile(prefix="2020-stamp-", suffix=ext, delete=False) as tmp:
-                tmp.write(stamp_file.read())
+            stamp_bytes = stamp_file.read()
+            if len(stamp_bytes) > 25 * 1024 * 1024:
+                return jsonify(ok=False, error="Obrázek razítka je příliš velký."), 400
+
+        if approval is not None:
+            actual_intent = _canonical_signing_intent(meta, stamp_bytes)
+            if _intent_digest(actual_intent) != str(approval.get("intent_digest") or ""):
+                return jsonify(ok=False, error="Podpisová metadata nebo grafika se po lokálním potvrzení změnily."), 403
+
+        if stamp_bytes:
+            with tempfile.NamedTemporaryFile(prefix="2020-stamp-", suffix=stamp_ext, delete=False) as tmp:
+                tmp.write(stamp_bytes)
                 stamp_path = tmp.name
 
         out_zip = io.BytesIO()
@@ -1043,25 +1093,32 @@ def sign_batch():
 
         # PDFs are already compressed internally; recompressing them inside ZIP
         # burns CPU for very little size reduction. STORE changes no PDF bytes.
+        buffered_pdfs = []
+        for idx, uploaded in enumerate(pdfs):
+            original_name = uploaded.filename or f"document_{idx+1}.pdf"
+            raw_pdf = uploaded.read()
+            if not raw_pdf.startswith(b"%PDF-"):
+                raise ValueError(f"{original_name}: soubor nevypadá jako PDF.")
+            if approval is not None:
+                expected_doc = (approval.get("documents") or [])[idx]
+                actual_hash = hashlib.sha256(raw_pdf).hexdigest()
+                if (
+                    str(expected_doc.get("name") or "") != original_name
+                    or int(expected_doc.get("size") or 0) != len(raw_pdf)
+                    or str(expected_doc.get("sha256") or "").lower() != actual_hash
+                ):
+                    raise PermissionError(
+                        f"{original_name}: obsah PDF se po lokálním potvrzení změnil."
+                    )
+            buffered_pdfs.append((original_name, raw_pdf))
+
+        # Approval is strictly one-shot: consume it before the private key can
+        # be used. Any failure after this point requires a fresh confirmation.
+        if approval is not None:
+            approval["used"] = True
+
         with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_STORED) as zf:
-            for idx, uploaded in enumerate(pdfs):
-                original_name = uploaded.filename or f"document_{idx+1}.pdf"
-                raw_pdf = uploaded.read()
-                if not raw_pdf.startswith(b"%PDF-"):
-                    raise ValueError(f"{original_name}: soubor nevypadá jako PDF.")
-
-                if approval is not None:
-                    expected_doc = (approval.get("documents") or [])[idx]
-                    actual_hash = hashlib.sha256(raw_pdf).hexdigest()
-                    if (
-                        str(expected_doc.get("name") or "") != original_name
-                        or int(expected_doc.get("size") or 0) != len(raw_pdf)
-                        or str(expected_doc.get("sha256") or "").lower() != actual_hash
-                    ):
-                        raise PermissionError(
-                            f"{original_name}: obsah PDF se po lokálním potvrzení změnil."
-                        )
-
+            for idx, (original_name, raw_pdf) in enumerate(buffered_pdfs):
                 doc_meta = docs_meta[idx] if isinstance(docs_meta[idx], dict) else {}
                 try:
                     signed = _sign_one(
@@ -1088,9 +1145,6 @@ def sign_batch():
                         "visible": bool(doc_meta.get("placement")),
                     }
                 )
-
-            if approval is not None:
-                approval["used"] = True
 
             manifest = {
                 "tool": "20-20 TOOLBOX · Autorizace PDF",
