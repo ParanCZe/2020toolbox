@@ -46,7 +46,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.1.4"
+APP_VERSION = "2.1.5"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -416,7 +416,20 @@ try {
     [System.Security.Cryptography.HashAlgorithmName]::SHA256,
     [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
   )
-  [System.IO.File]::WriteAllBytes($outFile, $sig)
+
+  if ($null -eq $sig) { throw 'Windows provider nevrátil žádný RSA podpis.' }
+  if ($sig.Length -lt 128) { throw ('Windows provider vrátil příliš krátký RSA podpis: ' + $sig.Length + ' B.') }
+
+  [System.IO.File]::WriteAllBytes($outFile, [byte[]]$sig)
+
+  if (-not (Test-Path -LiteralPath $outFile)) {
+    throw 'RSA podpisový soubor se nepodařilo vytvořit.'
+  }
+
+  $written = [System.IO.File]::ReadAllBytes($outFile)
+  if ($written.Length -ne $sig.Length) {
+    throw ('RSA podpis nebyl zapsán celý: provider=' + $sig.Length + ' B, soubor=' + $written.Length + ' B.')
+  }
 } finally {
   $rsa.Dispose()
 }
@@ -513,13 +526,11 @@ def _windows_cert_der(thumbprint: str) -> bytes:
 
 
 def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
-    signature_path = None
-    try:
-        fd, signature_path = tempfile.mkstemp(
-            prefix="2020-rsa-signature-",
-            suffix=".bin",
-        )
-        os.close(fd)
+    # Use a unique directory but do NOT pre-create the output file.
+    # This makes "provider never wrote anything" distinguishable from a real
+    # zero-length result and avoids transient locks on a pre-created temp file.
+    with tempfile.TemporaryDirectory(prefix="2020-rsa-signature-") as temp_dir:
+        signature_path = os.path.join(temp_dir, "signature.bin")
 
         _run_powershell(
             _WINDOWS_RSA_SIGN_PS,
@@ -531,6 +542,11 @@ def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
             timeout=120,
         )
 
+        if not os.path.exists(signature_path):
+            raise ValueError(
+                "Windows provider podpis vytvořil bez chyby, ale nevznikl podpisový soubor."
+            )
+
         with open(signature_path, "rb") as fh:
             signature = fh.read()
 
@@ -539,12 +555,6 @@ def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
                 f"Windows vrátil neplatný RSA podpis ({len(signature)} B)."
             )
         return signature
-    finally:
-        if signature_path:
-            try:
-                os.remove(signature_path)
-            except OSError:
-                pass
 
 
 def _verify_windows_private_key_available(signer: "WindowsStoreSigner") -> None:
