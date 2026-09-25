@@ -16,12 +16,16 @@ import json
 import os
 import re
 import secrets
+import asyncio
+import hashlib
+import ctypes
 import subprocess
 import base64
 import tempfile
 import traceback
 import zipfile
 from datetime import datetime, timezone, timedelta
+from urllib.parse import urlparse
 from pathlib import Path
 from typing import Any, Optional, Dict, List, Tuple
 
@@ -42,7 +46,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "1.9.6"
+APP_VERSION = "2.0.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -67,6 +71,8 @@ _SESSION_TOKEN = secrets.token_urlsafe(32)
 _TEST_TSA_USER = "TEST"
 _TEST_TSA_PASSWORD = "TEST-ONLY"
 _TEST_TSA = None
+_SIGN_APPROVALS: Dict[str, Dict[str, Any]] = {}
+_APPROVAL_TTL_SECONDS = 600
 
 
 def _origin_allowed(origin: Optional[str]) -> bool:
@@ -147,6 +153,100 @@ def options(_path: str = ""):
 @app.get("/session")
 def session():
     return jsonify(ok=True, token=_SESSION_TOKEN)
+
+
+def _cleanup_approvals() -> None:
+    now = datetime.now(timezone.utc).timestamp()
+    stale = [
+        token for token, item in _SIGN_APPROVALS.items()
+        if float(item.get("expires", 0)) <= now or bool(item.get("used"))
+    ]
+    for token in stale:
+        _SIGN_APPROVALS.pop(token, None)
+
+
+def _approval_context(meta: Dict[str, Any], document_count: int) -> Dict[str, Any]:
+    return {
+        "certificate_thumbprint": re.sub(r"\s+", "", str(meta.get("certificate_thumbprint") or "")).upper(),
+        "profile": str(meta.get("profile") or "bt").lower(),
+        "tsa_url": str(meta.get("tsa_url") or "").strip(),
+        "tsa_user": str(meta.get("tsa_user") or "").strip(),
+        "tsa_test_mode": bool(meta.get("tsa_test_mode", False)),
+        "document_count": int(document_count),
+    }
+
+
+def _native_sign_confirmation(cert_name: str, document_count: int, profile: str, tsa_url: str) -> bool:
+    if os.name != "nt":
+        return False
+    tsa_label = "bez TSA"
+    if profile == "bt":
+        parsed = urlparse(tsa_url)
+        tsa_label = parsed.netloc or tsa_url
+    message = (
+        "20-20 TOOLBOX chce použít váš podpisový certifikát.\n\n"
+        f"Certifikát: {cert_name}\n"
+        f"Počet PDF: {document_count}\n"
+        f"Profil: {'PAdES B-T' if profile == 'bt' else 'PAdES B-B'}\n"
+        f"TSA: {tsa_label}\n\n"
+        "Povolit tuto jednu podpisovou dávku?"
+    )
+    MB_YESNO = 0x00000004
+    MB_ICONWARNING = 0x00000030
+    MB_TOPMOST = 0x00040000
+    result = ctypes.windll.user32.MessageBoxW(
+        None,
+        message,
+        "20-20 TOOLBOX · Potvrzení podpisu",
+        MB_YESNO | MB_ICONWARNING | MB_TOPMOST,
+    )
+    return result == 6
+
+
+def _verify_windows_private_key(signer: "WindowsStoreSigner") -> None:
+    challenge = secrets.token_bytes(48)
+    signature = _windows_sign_data(signer.thumbprint, challenge)
+    crypto_cert = x509.load_der_x509_certificate(signer.signing_cert.dump())
+    public_key = crypto_cert.public_key()
+    if not isinstance(public_key, rsa.RSAPublicKey):
+        raise ValueError("Vybraný certifikát nepoužívá podporovaný RSA klíč.")
+    from cryptography.hazmat.primitives.asymmetric import padding
+    public_key.verify(signature, challenge, padding.PKCS1v15(), hashes.SHA256())
+
+
+def _build_timestamper(meta: Dict[str, Any]):
+    profile = str(meta.get("profile") or "bt").lower()
+    tsa_url = str(meta.get("tsa_url") or "").strip()
+    tsa_user = str(meta.get("tsa_user") or "").strip()
+    tsa_password = str(meta.get("tsa_password") or "")
+    tsa_test_mode = bool(meta.get("tsa_test_mode", False))
+
+    if profile != "bt":
+        return None
+    if not re.match(r"^https?://", tsa_url, re.I):
+        raise ValueError("Pro PAdES B-T je nutná platná HTTP(S) adresa RFC 3161 TSA serveru.")
+    if bool(tsa_user) != bool(tsa_password):
+        raise ValueError("Pro přihlášení k TSA musí být vyplněn login i heslo.")
+
+    if tsa_test_mode:
+        if tsa_url != "http://127.0.0.1:8094/test-tsa":
+            raise ValueError("TEST TSA musí používat lokální adresu 127.0.0.1:8094/test-tsa.")
+        if not (
+            secrets.compare_digest(tsa_user, _TEST_TSA_USER)
+            and secrets.compare_digest(tsa_password, _TEST_TSA_PASSWORD)
+        ):
+            raise PermissionError("Neplatný TEST TSA login nebo heslo.")
+        return _get_test_tsa()
+
+    auth = BasicAuth(tsa_user, tsa_password) if tsa_user else None
+    return timestamps.HTTPTimeStamper(tsa_url, auth=auth, timeout=15)
+
+
+def _verify_tsa_login(timestamper) -> None:
+    if timestamper is None:
+        return
+    probe_digest = hashlib.sha256(b"20-20 TOOLBOX TSA PREFLIGHT").digest()
+    asyncio.run(timestamper.async_timestamp(probe_digest, "sha256"))
 
 
 def _fmt_dt(value: Any) -> str:
@@ -704,6 +804,8 @@ def status():
             "tsa_basic_auth": True,
             "windows_cert_store": True,
             "local_test_tsa": True,
+            "tsa_preflight": True,
+            "local_sign_approval": True,
         },
     )
 
@@ -724,6 +826,77 @@ def windows_certificate_info():
         signer = WindowsStoreSigner(thumbprint)
         return jsonify(ok=True, thumbprint=thumbprint, **_cert_payload(signer))
     except Exception as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+
+
+@app.post("/preflight-sign")
+def preflight_sign():
+    try:
+        meta = request.get_json(silent=True) or {}
+        document_count = int(meta.get("document_count") or 0)
+        if document_count < 1 or document_count > 10000:
+            return jsonify(ok=False, error="Neplatný počet dokumentů pro podpis."), 400
+
+        cert_thumbprint = str(meta.get("certificate_thumbprint") or "").strip()
+        if not cert_thumbprint:
+            return jsonify(ok=False, error="Vyber podpisový certifikát z Windows."), 400
+
+        profile = str(meta.get("profile") or "bt").lower()
+        if profile not in {"bb", "bt"}:
+            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
+
+        if not test_mode:
+            _cleanup_approvals()
+            approval_token = str(meta.get("approval_token") or "")
+            approval = _SIGN_APPROVALS.get(approval_token)
+            if not approval or bool(approval.get("used")):
+                return jsonify(ok=False, error="Chybí platné lokální potvrzení podpisové dávky."), 403
+            expected = _approval_context(meta, len(pdfs))
+            if approval.get("context") != expected:
+                return jsonify(ok=False, error="Podpisová dávka neodpovídá lokálně potvrzenému požadavku."), 403
+            approval["used"] = True
+
+        # 1) Certifikát + privátní klíč ověřit ještě před PDF/A konverzí.
+        signer = WindowsStoreSigner(cert_thumbprint)
+        cert_info = _cert_payload(signer)
+        _verify_windows_private_key(signer)
+
+        # 2) U B-T skutečně kontaktovat TSA a ověřit credentials + RFC3161 odpověď.
+        try:
+            timestamper = _build_timestamper(meta)
+            _verify_tsa_login(timestamper)
+        except PermissionError as exc:
+            return jsonify(ok=False, error=str(exc)), 401
+        except Exception as exc:
+            return jsonify(ok=False, error="TSA ověření selhalo: " + str(exc)), 400
+
+        # 3) Native confirmation is outside the browser trust boundary.
+        cert_name = str(cert_info.get("display_name") or cert_info.get("subject") or "Windows certifikát")
+        if not _native_sign_confirmation(
+            cert_name,
+            document_count,
+            profile,
+            str(meta.get("tsa_url") or ""),
+        ):
+            return jsonify(ok=False, error="Podpisová dávka nebyla ve Windows potvrzena."), 403
+
+        _cleanup_approvals()
+        approval_token = secrets.token_urlsafe(32)
+        context = _approval_context(meta, document_count)
+        _SIGN_APPROVALS[approval_token] = {
+            "context": context,
+            "expires": datetime.now(timezone.utc).timestamp() + _APPROVAL_TTL_SECONDS,
+            "used": False,
+        }
+        return jsonify(
+            ok=True,
+            approval_token=approval_token,
+            expires_in=_APPROVAL_TTL_SECONDS,
+            certificate=cert_info,
+            tsa_verified=(profile == "bt"),
+        )
+    except Exception as exc:
+        print("[AuthorizationBridge] preflight error:", traceback.format_exc(), flush=True)
         return jsonify(ok=False, error=str(exc)), 400
 
 
@@ -757,38 +930,11 @@ def sign_batch():
 
         tsa_url = str(meta.get("tsa_url") or "").strip()
         tsa_user = str(meta.get("tsa_user") or "").strip()
-        tsa_password = str(meta.get("tsa_password") or "")
         tsa_test_mode = bool(meta.get("tsa_test_mode", False))
-        if profile == "bt":
-            if not re.match(r"^https?://", tsa_url, re.I):
-                return jsonify(ok=False, error="Pro PAdES B-T je nutná platná HTTP(S) adresa RFC 3161 TSA serveru."), 400
-            if bool(tsa_user) != bool(tsa_password):
-                return jsonify(ok=False, error="Pro přihlášení k TSA musí být vyplněn login i heslo."), 400
-
-            if tsa_test_mode:
-                if tsa_url != "http://127.0.0.1:8094/test-tsa":
-                    return jsonify(ok=False, error="TEST TSA musí používat lokální adresu 127.0.0.1:8094/test-tsa."), 400
-                if not (
-                    secrets.compare_digest(tsa_user, _TEST_TSA_USER)
-                    and secrets.compare_digest(tsa_password, _TEST_TSA_PASSWORD)
-                ):
-                    return jsonify(ok=False, error="Neplatný TEST TSA login nebo heslo."), 401
-                # Generate the RFC3161 token directly in-process. This avoids a
-                # fragile HTTP loopback while preserving the exact timestamp
-                # token format that pyHanko embeds into PAdES B-T.
-                try:
-                    timestamper = _get_test_tsa()
-                except Exception as exc:
-                    raise RuntimeError("TEST TSA INIT: " + str(exc)) from exc
-            else:
-                auth = BasicAuth(tsa_user, tsa_password) if tsa_user else None
-                timestamper = timestamps.HTTPTimeStamper(
-                    tsa_url,
-                    auth=auth,
-                    timeout=15,
-                )
-        else:
-            timestamper = None
+        try:
+            timestamper = _build_timestamper(meta)
+        except PermissionError as exc:
+            return jsonify(ok=False, error=str(exc)), 401
 
         signer = _make_test_signer() if test_mode else WindowsStoreSigner(cert_thumbprint)
         cert_info = _cert_payload(signer)
