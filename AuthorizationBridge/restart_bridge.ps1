@@ -2,7 +2,7 @@ param(
     [string]$PythonExe,
     [string]$BridgeScript,
     [string]$LogFile,
-    [string]$ExpectedVersion = "2.1.1"
+    [string]$ExpectedVersion = "2.1.2"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -80,11 +80,21 @@ $preflightOut = [System.IO.Path]::ChangeExtension($LogFile, '.preflight.log')
 
 Remove-Item -LiteralPath $stdout,$stderr,$preflightOut -Force -ErrorAction SilentlyContinue
 
-# Syntax/import preflight.
-& $PythonExe -c "import runpy; runpy.run_path(r'$BridgeScript', run_name='__bridge_preflight__')" *> $preflightOut
-if ($LASTEXITCODE -ne 0) {
+# Syntax/import preflight. Capture stdout and stderr separately so PowerShell
+# cannot swallow the Python traceback as a NativeCommandError.
+$preflightErr = [System.IO.Path]::ChangeExtension($LogFile, '.preflight.error.log')
+Remove-Item -LiteralPath $preflightErr -Force -ErrorAction SilentlyContinue
+$preflightProc = Start-Process -FilePath $PythonExe -ArgumentList @(
+    '-c',
+    "import runpy; runpy.run_path(r'$BridgeScript', run_name='__bridge_preflight__')"
+) -WorkingDirectory $workDir -WindowStyle Hidden -RedirectStandardOutput $preflightOut -RedirectStandardError $preflightErr -Wait -PassThru
+
+if ($preflightProc.ExitCode -ne 0) {
     Write-Host ""
     Write-Host "CHYBA PRI NACTENI AUTHORIZATION BRIDGE:" -ForegroundColor Red
+    if (Test-Path -LiteralPath $preflightErr) {
+        Get-Content -LiteralPath $preflightErr -ErrorAction SilentlyContinue | Select-Object -Last 120
+    }
     if (Test-Path -LiteralPath $preflightOut) {
         Get-Content -LiteralPath $preflightOut -ErrorAction SilentlyContinue | Select-Object -Last 80
     }
