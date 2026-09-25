@@ -33,7 +33,6 @@ from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign import fields, signers, timestamps
 from pyhanko.sign.timestamps.dummy_client import DummyTimeStamper
 from asn1crypto import x509 as asn1_x509, algos, keys as asn1_keys, tsp
-from pyhanko.sign.timestamps.aiohttp_client import AIOHttpTimeStamper
 from aiohttp import BasicAuth
 
 from cryptography import x509
@@ -43,7 +42,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "1.9.0"
+APP_VERSION = "1.9.1"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -727,7 +726,11 @@ def sign_batch():
             if bool(tsa_user) != bool(tsa_password):
                 return jsonify(ok=False, error="Pro přihlášení k TSA musí být vyplněn login i heslo."), 400
             auth = BasicAuth(tsa_user, tsa_password) if tsa_user else None
-            timestamper = AIOHttpTimeStamper(tsa_url, auth=auth)
+            timestamper = timestamps.HTTPTimeStamper(
+                tsa_url,
+                auth=auth,
+                timeout=15,
+            )
         else:
             timestamper = None
 
