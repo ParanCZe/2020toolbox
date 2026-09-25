@@ -16,12 +16,16 @@ import json
 import os
 import re
 import secrets
+import asyncio
+import hashlib
+import ctypes
 import subprocess
 import base64
 import tempfile
 import traceback
 import zipfile
 from datetime import datetime, timezone, timedelta
+from urllib.parse import urlparse
 from pathlib import Path
 from typing import Any, Optional, Dict, List, Tuple
 
@@ -42,7 +46,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "1.9.6"
+APP_VERSION = "2.1.2"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -64,9 +68,13 @@ _TRUSTED_ORIGINS = {
     if x.strip()
 }
 _SESSION_TOKEN = secrets.token_urlsafe(32)
+_ALLOW_LOCALHOST_ORIGINS = os.environ.get("TWENTY20_AUTH_ALLOW_LOCALHOST", "").strip() == "1"
 _TEST_TSA_USER = "TEST"
 _TEST_TSA_PASSWORD = "TEST-ONLY"
 _TEST_TSA = None
+_PREFLIGHTS: Dict[str, Dict[str, Any]] = {}
+_SIGN_APPROVALS: Dict[str, Dict[str, Any]] = {}
+_APPROVAL_TTL_SECONDS = 600
 
 
 def _origin_allowed(origin: Optional[str]) -> bool:
@@ -75,7 +83,9 @@ def _origin_allowed(origin: Optional[str]) -> bool:
     origin = origin.rstrip("/")
     if origin in _TRUSTED_ORIGINS:
         return True
-    return bool(re.match(r"^http://(?:127\.0\.0\.1|localhost)(?::\d+)?$", origin, re.I))
+    if _ALLOW_LOCALHOST_ORIGINS:
+        return bool(re.match(r"^http://(?:127\.0\.0\.1|localhost)(?::\d+)?$", origin, re.I))
+    return False
 
 
 def _request_token_ok() -> bool:
@@ -147,6 +157,110 @@ def options(_path: str = ""):
 @app.get("/session")
 def session():
     return jsonify(ok=True, token=_SESSION_TOKEN)
+
+
+def _cleanup_approvals() -> None:
+    now = datetime.now(timezone.utc).timestamp()
+    for store in (_PREFLIGHTS, _SIGN_APPROVALS):
+        stale = [
+            token for token, item in store.items()
+            if float(item.get("expires", 0)) <= now or bool(item.get("used"))
+        ]
+        for token in stale:
+            store.pop(token, None)
+
+
+def _approval_context(meta: Dict[str, Any], document_count: int) -> Dict[str, Any]:
+    tsa_user = str(meta.get("tsa_user") or "")
+    tsa_password = str(meta.get("tsa_password") or "")
+    return {
+        "certificate_thumbprint": re.sub(r"\s+", "", str(meta.get("certificate_thumbprint") or "")).upper(),
+        "profile": str(meta.get("profile") or "bt").lower(),
+        "tsa_url": str(meta.get("tsa_url") or "").strip(),
+        "tsa_user": tsa_user.strip(),
+        "tsa_credential_hash": hashlib.sha256((tsa_user + "\0" + tsa_password).encode("utf-8")).hexdigest(),
+        "tsa_test_mode": bool(meta.get("tsa_test_mode", False)),
+        "document_count": int(document_count),
+    }
+
+
+def _canonical_signing_intent(meta: Dict[str, Any], stamp_bytes: bytes) -> Dict[str, Any]:
+    docs = meta.get("documents")
+    if not isinstance(docs, list):
+        docs = []
+    clean_docs = []
+    for item in docs:
+        item = item if isinstance(item, dict) else {}
+        placement = item.get("placement")
+        clean_docs.append({
+            "name": str(item.get("name") or ""),
+            "output_name": str(item.get("output_name") or ""),
+            "placement": placement if isinstance(placement, dict) else None,
+        })
+    return {
+        "reason": str(meta.get("reason") or ""),
+        "location": str(meta.get("location") or ""),
+        "contact": str(meta.get("contact") or ""),
+        "append_ear": bool(meta.get("append_ear", True)),
+        "documents": clean_docs,
+        "stamp_sha256": hashlib.sha256(stamp_bytes or b"").hexdigest(),
+        "stamp_size": len(stamp_bytes or b""),
+    }
+
+
+def _intent_digest(intent: Dict[str, Any]) -> str:
+    payload = json.dumps(intent, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _native_sign_confirmation(
+    cert_name: str,
+    document_count: int,
+    profile: str,
+    tsa_url: str,
+    documents: Optional[List[Dict[str, Any]]] = None,
+    signing_intent: Optional[Dict[str, Any]] = None,
+) -> bool:
+    if os.name != "nt":
+        return False
+    tsa_label = "bez TSA"
+    if profile == "bt":
+        parsed = urlparse(tsa_url)
+        tsa_label = parsed.netloc or tsa_url
+    docs = documents or []
+    names = [str(x.get("name") or "") for x in docs if isinstance(x, dict)]
+    shown = names[:6]
+    file_lines = "\n".join(f"  • {name}" for name in shown if name)
+    if len(names) > len(shown):
+        file_lines += f"\n  … a dalších {len(names) - len(shown)}"
+    batch_material = "\n".join(
+        f"{str(x.get('name') or '')}|{int(x.get('size') or 0)}|{str(x.get('sha256') or '').lower()}"
+        for x in docs if isinstance(x, dict)
+    ).encode("utf-8")
+    batch_fingerprint = hashlib.sha256(batch_material).hexdigest().upper()
+    fingerprint_short = " ".join(batch_fingerprint[i:i+4] for i in range(0, 32, 4))
+    intent = signing_intent or {}
+    reason = str(intent.get("reason") or "")
+    location = str(intent.get("location") or "")
+    message = (
+        "20-20 TOOLBOX chce použít váš podpisový certifikát.\n\n"
+        f"Certifikát: {cert_name}\n"
+        f"Počet PDF: {document_count}\n"
+        f"Profil: {'PAdES B-T' if profile == 'bt' else 'PAdES B-B'}\n"
+        f"TSA: {tsa_label}\n"
+        f"Důvod: {reason or 'neuveden'}\n"
+        f"Místo: {location or 'neuvedeno'}\n"
+        f"Otisk dávky: {fingerprint_short}\n\n"
+        + (("Dokumenty:\n" + file_lines + "\n\n") if file_lines else "")
+        + "Povolit tuto jednu podpisovou dávku?"
+    )
+    result = ctypes.windll.user32.MessageBoxW(
+        None,
+        message,
+        "20-20 TOOLBOX · Potvrzení podpisu",
+        0x00000004 | 0x00000030 | 0x00040000,
+    )
+    return result == 6
 
 
 def _fmt_dt(value: Any) -> str:
