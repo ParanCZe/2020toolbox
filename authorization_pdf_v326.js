@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.34
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.35
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Podpis používá certifikát přímo z Windows Certificate Store; privátní klíč neopouští Windows.
 
@@ -355,8 +355,8 @@
       .auth-file-list{max-height:calc(100vh - 250px);min-height:620px;overflow:auto;padding:7px;display:grid;gap:6px}
       .auth-file{width:100%;border:1px solid var(--border);border-radius:7px;background:#fff;padding:8px;text-align:left;cursor:pointer;color:var(--text)}
       .auth-file:hover{border-color:#d4cc5d;background:#fffef3}.auth-file.active{border-color:#18181b;box-shadow:0 0 0 1px #18181b inset}
-      .auth-file-top{display:flex;justify-content:space-between;gap:8px}.auth-file-name{font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:175px}
-      .auth-file-meta{font-size:9px;color:var(--muted);margin-top:3px}.auth-dot{width:8px;height:8px;border-radius:50%;background:#a1a1aa;flex:0 0 auto;margin-top:3px}
+      .auth-file-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.auth-file-name{font-size:11px;font-weight:600;line-height:1.25;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;word-break:break-word;max-width:none;flex:1;min-width:0}
+      .auth-file-meta{font-size:9px;color:var(--muted);margin-top:4px;line-height:1.3}.auth-dot{width:8px;height:8px;border-radius:50%;background:#a1a1aa;flex:0 0 auto;margin-top:3px}
       .auth-dot.ready{background:#eab308}.auth-dot.converting{background:#2563eb}.auth-dot.signed{background:#16a34a}.auth-dot.error{background:#dc2626}
       .auth-viewer{height:calc(100vh - 205px);min-height:720px;display:flex;flex-direction:column;background:#e4e4e7}
       .auth-toolbar{padding:7px 8px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
