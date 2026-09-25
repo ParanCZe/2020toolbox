@@ -5,7 +5,7 @@ title 20-20 TOOLBOX - AuthorizationBridge
 
 set "DIR=%LOCALAPPDATA%\20-20-TOOLBOX\AuthorizationBridge"
 set "VENV=%DIR%\venv"
-set "PAYLOAD_REF=40c5bc244e7e5ac36448f1f8731748bf999d94cc"
+set "PAYLOAD_REF=67b6a97411abe829eeab038d727bbd7f52a92aa7"
 set "RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/%PAYLOAD_REF%/AuthorizationBridge"
 set "STAGE=%TEMP%\20-20-auth-stage-%RANDOM%-%RANDOM%"
 set "PYFINDER=%DIR%\find_python.ps1"
@@ -41,7 +41,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Al
 if errorlevel 1 goto :integrity_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\find_python.ps1').Hash.ToLowerInvariant(); if($h -ne 'ea6b7f6334753f7394966e09fda98fa7a12b4a87a34e0c6c95eb0edbae5b39b0'){Write-Error ('SHA-256 nesouhlasi: find_python.ps1 = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\restart_bridge.ps1').Hash.ToLowerInvariant(); if($h -ne '8382fa19af65cee482a1e9333a1ee11157d585dadd412b364ee7c630ec90596e'){Write-Error ('SHA-256 nesouhlasi: restart_bridge.ps1 = '+$h); exit 1}"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\restart_bridge.ps1').Hash.ToLowerInvariant(); if($h -ne '0652d446fa11ca1ef3fa269a67bcd89f590aebc9fc63b5cf9413be4b187ea686'){Write-Error ('SHA-256 nesouhlasi: restart_bridge.ps1 = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
 
 copy /y "%STAGE%\authorization_bridge.py" "%DIR%\authorization_bridge.py" >nul
@@ -115,7 +115,7 @@ if errorlevel 1 goto :pip_error
 echo [5/6] Vytvarim spoustec s automatickym restartem...
 (
   echo @echo off
-  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RESTARTER%" -PythonExe "%VENV%\Scripts\python.exe" -BridgeScript "%DIR%\authorization_bridge.py" -LogFile "%DIR%\bridge.log"
+  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RESTARTER%" -PythonExe "%VENV%\Scripts\python.exe" -BridgeScript "%DIR%\authorization_bridge.py" -LogFile "%DIR%\bridge.log" -ExpectedVersion "2.1.1"
 ) > "%DIR%\start_bridge.cmd"
 
 echo [6/6] Registruji spousteni z Toolboxu...
