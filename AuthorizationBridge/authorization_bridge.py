@@ -19,6 +19,7 @@ import secrets
 import asyncio
 import hashlib
 import ctypes
+import threading
 import subprocess
 import base64
 import tempfile
@@ -46,7 +47,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.1.7"
+APP_VERSION = "2.1.8"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -72,6 +73,8 @@ _ALLOW_LOCALHOST_ORIGINS = os.environ.get("TWENTY20_AUTH_ALLOW_LOCALHOST", "").s
 _TEST_TSA_USER = "TEST"
 _TEST_TSA_PASSWORD = "TEST-ONLY"
 _TEST_TSA = None
+_TEST_TSA_ISSUED = 0
+_TEST_TSA_COUNTER_LOCK = threading.Lock()
 _PREFLIGHTS: Dict[str, Dict[str, Any]] = {}
 _SIGN_APPROVALS: Dict[str, Dict[str, Any]] = {}
 _APPROVAL_TTL_SECONDS = 600
@@ -838,6 +841,17 @@ class WindowsStoreSigner(signers.ExternalSigner):
 
 
 
+class CountingDummyTimeStamper(DummyTimeStamper):
+    """Local TEST TSA with an exact counter of generated timestamp tokens."""
+
+    def request_tsa_response(self, req: tsp.TimeStampReq) -> tsp.TimeStampResp:
+        global _TEST_TSA_ISSUED
+        response = super().request_tsa_response(req)
+        with _TEST_TSA_COUNTER_LOCK:
+            _TEST_TSA_ISSUED += 1
+        return response
+
+
 def _get_test_tsa() -> DummyTimeStamper:
     global _TEST_TSA
     if _TEST_TSA is not None:
@@ -889,7 +903,7 @@ def _get_test_tsa() -> DummyTimeStamper:
         serialization.PrivateFormat.PKCS8,
         serialization.NoEncryption(),
     )
-    _TEST_TSA = DummyTimeStamper(
+    _TEST_TSA = CountingDummyTimeStamper(
         tsa_cert=asn1_x509.Certificate.load(cert_der),
         tsa_key=asn1_keys.PrivateKeyInfo.load(key_der),
         certs_to_embed=None,
@@ -979,6 +993,21 @@ async def _async_verify_tsa_credentials(meta: Dict[str, Any]) -> None:
 
 def _verify_tsa_login(meta: Dict[str, Any]) -> None:
     asyncio.run(_async_verify_tsa_credentials(meta))
+
+
+@app.get("/test-tsa-stats")
+def test_tsa_stats():
+    with _TEST_TSA_COUNTER_LOCK:
+        issued = int(_TEST_TSA_ISSUED)
+    return jsonify(ok=True, issued=issued)
+
+
+@app.post("/test-tsa-stats/reset")
+def reset_test_tsa_stats():
+    global _TEST_TSA_ISSUED
+    with _TEST_TSA_COUNTER_LOCK:
+        _TEST_TSA_ISSUED = 0
+    return jsonify(ok=True, issued=0)
 
 
 @app.post("/test-tsa")
@@ -1233,6 +1262,7 @@ def status():
             "tsa_nonconsuming_preflight": True,
             "fixed_signature_reservation": True,
             "persistent_qscd_batch_session": True,
+            "test_tsa_counter": True,
         },
     )
 
