@@ -46,7 +46,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.1.2"
+APP_VERSION = "2.1.3"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -348,7 +348,7 @@ foreach ($entry in $stores) {
         has_private_key = [bool]$cert.HasPrivateKey
         key_type = $keyType
         key_bits = $keyBits
-        supported = [bool]($cert.HasPrivateKey -and $keyType -eq 'RSA')
+        supported = [bool]($keyType -eq 'RSA')
         store_location = [string]$entry.Location
         store_name = 'My'
       }
@@ -443,7 +443,6 @@ $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]:
 if ($null -eq $rsa) { throw 'Privátní RSA klíč není dostupný přes Windows provider.' }
 try {
   if ($rsa.KeySize -lt 2048) { throw 'RSA klíč je kratší než 2048 bitů.' }
-  Write-Output $rsa.KeySize
 } finally {
   $rsa.Dispose()
 }
@@ -528,16 +527,16 @@ def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
 
 
 def _verify_windows_private_key_available(signer: "WindowsStoreSigner") -> None:
-    raw = _run_powershell(
+    # Success/failure is determined by the PowerShell exit code only.
+    # Do not parse stdout here: Windows PowerShell output encoding can vary
+    # by machine and provider (including QSCD/smart-card providers).
+    _run_powershell(
         _WINDOWS_KEY_PROBE_PS,
         {"TWENTY20_CERT_THUMBPRINT": signer.thumbprint},
         timeout=30,
     )
-    match = re.search(r"\d{4,5}", raw or "")
-    if not match or int(match.group(0)) < 2048:
-        raise ValueError(
-            "Windows nepotvrdil dostupný RSA privátní klíč o délce alespoň 2048 bitů."
-        )
+    if int(getattr(signer, "signature_size", 0)) * 8 < 2048:
+        raise ValueError("RSA klíč je kratší než 2048 bitů.")
 
 
 class WindowsStoreSigner(signers.ExternalSigner):
