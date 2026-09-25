@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "1.9.2"
+APP_VERSION = "1.9.3"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -345,8 +345,14 @@ def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
 
 class WindowsStoreSigner(signers.ExternalSigner):
     def __init__(self, thumbprint: str):
-        cert_der = _windows_cert_der(thumbprint)
-        crypto_cert = x509.load_der_x509_certificate(cert_der)
+        try:
+            cert_der = _windows_cert_der(thumbprint)
+        except Exception as exc:
+            raise RuntimeError("WINDOWS CERT READ: " + str(exc)) from exc
+        try:
+            crypto_cert = x509.load_der_x509_certificate(cert_der)
+        except Exception as exc:
+            raise RuntimeError("WINDOWS CERT ASN1: " + str(exc)) from exc
         public_key = crypto_cert.public_key()
         if not isinstance(public_key, rsa.RSAPublicKey):
             raise ValueError("Toolbox zatím podporuje Windows podpisové certifikáty s RSA klíčem.")
@@ -738,7 +744,10 @@ def sign_batch():
                 # Generate the RFC3161 token directly in-process. This avoids a
                 # fragile HTTP loopback while preserving the exact timestamp
                 # token format that pyHanko embeds into PAdES B-T.
-                timestamper = _get_test_tsa()
+                try:
+                    timestamper = _get_test_tsa()
+                except Exception as exc:
+                    raise RuntimeError("TEST TSA INIT: " + str(exc)) from exc
             else:
                 auth = BasicAuth(tsa_user, tsa_password) if tsa_user else None
                 timestamper = timestamps.HTTPTimeStamper(
@@ -778,14 +787,17 @@ def sign_batch():
                     raise ValueError(f"{original_name}: soubor nevypadá jako PDF.")
 
                 doc_meta = docs_meta[idx] if isinstance(docs_meta[idx], dict) else {}
-                signed = _sign_one(
-                    raw_pdf,
-                    signer=signer,
-                    document_meta=doc_meta,
-                    common_meta=meta,
-                    timestamper=timestamper,
-                    stamp_path=stamp_path,
-                )
+                try:
+                    signed = _sign_one(
+                        raw_pdf,
+                        signer=signer,
+                        document_meta=doc_meta,
+                        common_meta=meta,
+                        timestamper=timestamper,
+                        stamp_path=stamp_path,
+                    )
+                except Exception as exc:
+                    raise RuntimeError(f"PAdES SIGN [{original_name}]: {exc}") from exc
                 requested_output = str(doc_meta.get("output_name") or original_name)
                 append_ear = bool(meta.get("append_ear", True))
                 requested_output = _ear_name(requested_output) if append_ear else _safe_name(requested_output)
