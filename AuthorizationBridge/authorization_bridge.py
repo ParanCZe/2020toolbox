@@ -46,7 +46,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.1.5"
+APP_VERSION = "2.1.6"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -296,6 +296,57 @@ def _run_powershell(script: str, env_extra: Optional[Dict[str, str]] = None, tim
     return (proc.stdout or "").strip()
 
 
+def _run_powershell_file(
+    script: str,
+    env_extra: Optional[Dict[str, str]] = None,
+    timeout: int = 30,
+) -> str:
+    if os.name != "nt":
+        raise RuntimeError("Windows Certificate Store je dostupný pouze ve Windows.")
+
+    env = os.environ.copy()
+    if env_extra:
+        env.update(env_extra)
+
+    script_path = None
+    try:
+        fd, script_path = tempfile.mkstemp(
+            prefix="2020-auth-script-",
+            suffix=".ps1",
+            text=True,
+        )
+        os.close(fd)
+        with open(script_path, "w", encoding="utf-8-sig", newline="\r\n") as fh:
+            fh.write(script)
+
+        proc = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                script_path,
+            ],
+            text=True,
+            capture_output=True,
+            env=env,
+            timeout=timeout,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "PowerShell selhal.").strip()
+            raise RuntimeError(detail)
+        return (proc.stdout or "").strip()
+    finally:
+        if script_path:
+            try:
+                os.remove(script_path)
+            except OSError:
+                pass
+
+
 _WINDOWS_CERT_LIST_PS = r"""
 $ErrorActionPreference = 'Stop'
 $items = @()
@@ -532,7 +583,7 @@ def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
     with tempfile.TemporaryDirectory(prefix="2020-rsa-signature-") as temp_dir:
         signature_path = os.path.join(temp_dir, "signature.bin")
 
-        _run_powershell(
+        _run_powershell_file(
             _WINDOWS_RSA_SIGN_PS,
             {
                 "TWENTY20_CERT_THUMBPRINT": thumbprint,
