@@ -20,7 +20,7 @@ echo 20-20 TOOLBOX - instalace AuthorizationBridge
 echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
-echo [1/6] Stahuji podepsany release AuthorizationBridge 2.1.0...
+echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.1.0...
 if exist "%STAGE%" rmdir /s /q "%STAGE%"
 mkdir "%STAGE%" >nul 2>nul
 if errorlevel 1 goto :download_error
