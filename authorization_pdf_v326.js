@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.41
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.42
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Podpis používá certifikát přímo z Windows Certificate Store; privátní klíč neopouští Windows.
 
@@ -7,7 +7,7 @@
 
   const BRIDGE_URL = 'http://127.0.0.1:8094';
   const BRIDGE_SCHEME = 'twentytwentyauth://start';
-  const INSTALLER_URL = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/ced578063103ddfbb2a79c7fd8c916653f32bc40/AuthorizationBridge/INSTALL_AND_START.bat';
+  const INSTALLER_URL = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/dd78041bfefcd2d678d8893f12af027e9f125d3f/AuthorizationBridge/INSTALL_AND_START.bat';
 
   const state = {
     files: [],
@@ -1389,8 +1389,8 @@
       toast('Běží bridge bez podpory TEST podpisu. Spusť znovu aktuální Instalátor.', true);
       return;
     }
-    if (!testMode && (!authVersionAtLeast(bridge.version, '2.1.0') || !bridge.features?.tsa_preflight || !bridge.features?.local_sign_approval)) {
-      toast('Kvůli bezpečnému podpisu, kontrole TSA a integritě dávky aktualizuj AuthorizationBridge na 2.1.0.', true);
+    if (!testMode && (!authVersionAtLeast(bridge.version, '2.1.1') || !bridge.features?.tsa_preflight || !bridge.features?.local_sign_approval || !bridge.features?.docmdp_annotate)) {
+      toast('Kvůli bezpečnému podpisu a správnému DocMDP omezení aktualizuj AuthorizationBridge na 2.1.1.', true);
       return;
     }
 
