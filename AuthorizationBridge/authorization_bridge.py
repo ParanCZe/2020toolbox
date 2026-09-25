@@ -46,7 +46,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.1.0"
+APP_VERSION = "2.1.1"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -827,7 +827,8 @@ def _sign_one(
         reason=common_meta.get("reason") or None,
         location=common_meta.get("location") or None,
         contact_info=common_meta.get("contact") or None,
-        certify=False,
+        certify=True,
+        docmdp_permissions=fields.MDPPerm.ANNOTATE,
     )
 
     input_stream = io.BytesIO(pdf_bytes)
@@ -866,6 +867,7 @@ def status():
             "local_test_tsa": True,
             "tsa_preflight": True,
             "local_sign_approval": True,
+            "docmdp_annotate": True,
         },
     )
 
@@ -904,20 +906,6 @@ def preflight_sign():
         profile = str(meta.get("profile") or "bt").lower()
         if profile not in {"bb", "bt"}:
             return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
-
-        approval = None
-        if not test_mode:
-            _cleanup_approvals()
-            approval_token = str(meta.get("approval_token") or "")
-            approval = _SIGN_APPROVALS.get(approval_token)
-            if not approval or bool(approval.get("used")):
-                return jsonify(ok=False, error="Chybí platné lokální potvrzení podpisové dávky."), 403
-            expected = _approval_context(meta, len(pdfs))
-            if approval.get("context") != expected:
-                return jsonify(ok=False, error="Podpisová dávka neodpovídá lokálně potvrzenému požadavku."), 403
-            expected_docs = approval.get("documents") or []
-            if len(expected_docs) != len(pdfs):
-                return jsonify(ok=False, error="Počet PDF neodpovídá lokálně potvrzené dávce."), 403
 
         # 1) Certifikát + privátní klíč ověřit ještě před PDF/A konverzí.
         signer = WindowsStoreSigner(cert_thumbprint)
@@ -1052,6 +1040,20 @@ def sign_batch():
         if profile not in {"bb", "bt"}:
             return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
 
+        approval = None
+        if not test_mode:
+            _cleanup_approvals()
+            approval_token = str(meta.get("approval_token") or "")
+            approval = _SIGN_APPROVALS.get(approval_token)
+            if not approval or bool(approval.get("used")):
+                return jsonify(ok=False, error="Chybí platné lokální potvrzení podpisové dávky."), 403
+            expected = _approval_context(meta, len(pdfs))
+            if approval.get("context") != expected:
+                return jsonify(ok=False, error="Podpisová dávka neodpovídá lokálně potvrzenému požadavku."), 403
+            expected_docs = approval.get("documents") or []
+            if len(expected_docs) != len(pdfs):
+                return jsonify(ok=False, error="Počet PDF neodpovídá lokálně potvrzené dávce."), 403
+
         tsa_url = str(meta.get("tsa_url") or "").strip()
         tsa_user = str(meta.get("tsa_user") or "").strip()
         tsa_test_mode = bool(meta.get("tsa_test_mode", False))
@@ -1143,6 +1145,7 @@ def sign_batch():
                         "standard": str(meta.get("output_standard") or "PDF/A-3b"),
                         "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
                         "visible": bool(doc_meta.get("placement")),
+                        "docmdp": "ANNOTATE",
                     }
                 )
 
@@ -1154,6 +1157,7 @@ def sign_batch():
                 "test_mode": test_mode,
                 "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
                 "append_ear": bool(meta.get("append_ear", True)),
+                "docmdp": "ANNOTATE",
                 "tsa_url": tsa_url if profile == "bt" else None,
                 "tsa_authenticated": bool(tsa_user) if profile == "bt" else False,
                 "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile == "bt" else False,
