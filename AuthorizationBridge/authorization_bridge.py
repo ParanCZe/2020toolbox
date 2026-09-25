@@ -25,13 +25,14 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Optional, Dict, List, Tuple
 
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request, send_file, Response
 import pyhanko
 from pyhanko import stamp
 from pyhanko.pdf_utils import images
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign import fields, signers, timestamps
-from asn1crypto import x509 as asn1_x509, algos
+from pyhanko.sign.timestamps.dummy_client import DummyTimeStamper
+from asn1crypto import x509 as asn1_x509, algos, keys as asn1_keys, tsp
 from pyhanko.sign.timestamps.aiohttp_client import AIOHttpTimeStamper
 from aiohttp import BasicAuth
 
@@ -39,10 +40,10 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.serialization import pkcs12
-from cryptography.x509.oid import NameOID
+from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "1.8.6"
+APP_VERSION = "1.9.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -64,6 +65,9 @@ _TRUSTED_ORIGINS = {
     if x.strip()
 }
 _SESSION_TOKEN = secrets.token_urlsafe(32)
+_TEST_TSA_USER = "TEST"
+_TEST_TSA_PASSWORD = "TEST-ONLY"
+_TEST_TSA = None
 
 
 def _origin_allowed(origin: Optional[str]) -> bool:
@@ -86,6 +90,11 @@ def protect_local_bridge():
 
     # Native health checks (PowerShell installer) carry no Origin and are safe.
     if request.path == "/status" and request.method == "GET" and not origin:
+        return None
+
+    # Local RFC 3161 TEST TSA is called by the bridge itself over loopback.
+    # It has its own Basic Auth gate and never accepts non-loopback clients.
+    if request.path == "/test-tsa" and request.method == "POST" and not origin:
         return None
 
     # Browser access is restricted to the Toolbox origins.
@@ -359,6 +368,100 @@ class WindowsStoreSigner(signers.ExternalSigner):
         return _windows_sign_data(self.thumbprint, data)
 
 
+
+def _get_test_tsa() -> DummyTimeStamper:
+    global _TEST_TSA
+    if _TEST_TSA is not None:
+        return _TEST_TSA
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=3072)
+    subject = issuer = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "CZ"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "20-20 TEST TSA"),
+            x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, "TEST TEST TEST - NOT QUALIFIED"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "TEST TEST TEST - 20-20 LOCAL TSA"),
+        ]
+    )
+    now = datetime.now(timezone.utc)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(days=1))
+        .not_valid_after(now + timedelta(days=3650))
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=False,
+                crl_sign=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(
+            x509.ExtendedKeyUsage([ExtendedKeyUsageOID.TIME_STAMPING]),
+            critical=True,
+        )
+        .sign(key, hashes.SHA256())
+    )
+
+    cert_der = cert.public_bytes(serialization.Encoding.DER)
+    key_der = key.private_bytes(
+        serialization.Encoding.DER,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    _TEST_TSA = DummyTimeStamper(
+        tsa_cert=asn1_x509.Certificate.load(cert_der),
+        tsa_key=asn1_keys.PrivateKeyInfo.load(key_der),
+        certs_to_embed=None,
+        include_nonce=True,
+    )
+    return _TEST_TSA
+
+
+@app.post("/test-tsa")
+def local_test_tsa():
+    try:
+        if request.remote_addr not in {"127.0.0.1", "::1"}:
+            return Response("TEST TSA je dostupná jen lokálně.", status=403)
+
+        auth = request.authorization
+        user_ok = bool(auth) and secrets.compare_digest(auth.username or "", _TEST_TSA_USER)
+        pass_ok = bool(auth) and secrets.compare_digest(auth.password or "", _TEST_TSA_PASSWORD)
+        if not (user_ok and pass_ok):
+            return Response(
+                "TEST TEST TEST - neplatný login k lokální TSA.",
+                status=401,
+                headers={"WWW-Authenticate": 'Basic realm="20-20 TEST TSA"'},
+            )
+
+        raw = request.get_data(cache=False)
+        if not raw:
+            return Response("Prázdný RFC 3161 požadavek.", status=400)
+
+        ts_req = tsp.TimeStampReq.load(raw)
+        ts_resp = _get_test_tsa().request_tsa_response(ts_req)
+        return Response(
+            ts_resp.dump(),
+            status=200,
+            content_type="application/timestamp-reply",
+            headers={"X-20-20-Test-TSA": "TEST TEST TEST"},
+        )
+    except Exception as exc:
+        print("[AuthorizationBridge] TEST TSA error:", traceback.format_exc(), flush=True)
+        return Response("TEST TSA chyba: " + str(exc), status=400)
+
+
 def _load_signer(pfx_bytes: bytes, password: str) -> signers.SimpleSigner:
     path = None
     try:
@@ -563,6 +666,7 @@ def status():
             "optional_ear_suffix": True,
             "tsa_basic_auth": True,
             "windows_cert_store": True,
+            "local_test_tsa": True,
         },
     )
 
@@ -689,6 +793,7 @@ def sign_batch():
                 "append_ear": bool(meta.get("append_ear", True)),
                 "tsa_url": tsa_url if profile == "bt" else None,
                 "tsa_authenticated": bool(tsa_user) if profile == "bt" else False,
+                "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile == "bt" else False,
                 "certificate": cert_info,
                 "files": manifest_files,
             }
