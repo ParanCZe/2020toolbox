@@ -2726,15 +2726,16 @@ const SU_PLUGIN_CATALOG = [
   id:'rm-checker',
   loader:'twentytwenty_rm_checker.rb',
   name:'20-20 RM Checker',
-  current:'0.2.2',
-  description:'Automaticka kontrola, potvrzovane opravy a tvorba prazdne RM sablony SketchUpu.',
-  meta:'V0.2.2 opravuje nefunkcni UI v HtmlDialogu: checklist, nalezy, chat a AI ON/OFF se znovu nacitaji. Frontend je prepsany bez optional chaining/nullish operatoru kvuli kompatibilite se starsim Chromium ve SketchUpu. Pridano tlacitko API klic primo v okne, JS diagnostika a mensi davka nalezu pro spolehlivejsi prenos do UI.',
+  current:'0.3.0',
+  description:'Stabilni RM Checker postaveny z puvodni funkcni verze 0.1.0, doplneny o RM sablonu a potvrzovane AI opravy modelu.',
+  meta:'V0.3.0 se vraci k puvodnimu UI a scanneru z v0.1.0, ktery fungoval spravne. Navic pridava tlacitko RM sablona .skp a kontrolovane AI opravy: AI muze navrhnout rozdeleni tagu podle materialu, prejmenovani komponent, Untagged geometrii, pomocne prvky, stiny a scenu. Navrh se zobrazi primo v chatu jako zaskrtavaci a editovatelne volby; zmeny provede Ruby az po potvrzeni a cela davka jde vratit jednim Ctrl+Z.',
   icon:'library',
   versions:[
     {"version":"0.1.0","file":"20-20_RM_Checker_v0.1.0.rbz","size":14076,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.1.0.rbz"},
     {"version":"0.2.0","file":"20-20_RM_Checker_v0.2.0.rbz","size":21512,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.2.0.rbz"},
     {"version":"0.2.1","file":"20-20_RM_Checker_v0.2.1.rbz","size":23276,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.2.1.rbz"},
-    {"version":"0.2.2","file":"20-20_RM_Checker_v0.2.2.rbz","size":24252,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.2.2.rbz"}
+    {"version":"0.2.2","file":"20-20_RM_Checker_v0.2.2.rbz","size":24252,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.2.2.rbz"},
+    {"version":"0.3.0","file":"20-20_RM_Checker_v0.3.0.rbz","size":20625,"repo_file":"SketchUpPlugins/20-20_RM_Checker_v0.3.0.rbz"}
   ]
 }
 ];
