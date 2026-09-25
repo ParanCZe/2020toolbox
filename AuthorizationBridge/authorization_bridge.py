@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "1.9.3"
+APP_VERSION = "1.9.4"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -323,12 +323,25 @@ def _windows_cert_der(thumbprint: str) -> bytes:
     thumbprint = re.sub(r"\s+", "", str(thumbprint or "")).upper()
     if not re.fullmatch(r"[0-9A-F]{40,128}", thumbprint):
         raise ValueError("Neplatný thumbprint certifikátu.")
-    raw = _run_powershell(
+    output = _run_powershell(
         _WINDOWS_CERT_DER_PS,
         {"TWENTY20_CERT_THUMBPRINT": thumbprint},
         timeout=20,
     )
-    return base64.b64decode(raw, validate=True)
+
+    # PowerShell can prepend/append host noise on some PCs. Extract the
+    # certificate payload instead of decoding the entire stdout blindly.
+    candidates = re.findall(r"[A-Za-z0-9+/=]{128,}", output or "")
+    if not candidates:
+        raise ValueError("Windows nevrátil čitelná data certifikátu.")
+    encoded = max(candidates, key=len)
+    raw = base64.b64decode(encoded, validate=True)
+    if len(raw) < 128 or not raw.startswith(b"0"):
+        raise ValueError(
+            "Windows vrátil neplatný DER certifikát "
+            f"(velikost {len(raw)} B, začátek {raw[:8].hex()})."
+        )
+    return raw
 
 
 def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
