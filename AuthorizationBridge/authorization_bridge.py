@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "1.9.5"
+APP_VERSION = "1.9.6"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -251,17 +251,25 @@ foreach ($entry in $stores) {
 _WINDOWS_CERT_DER_PS = r"""
 $ErrorActionPreference = 'Stop'
 $thumb = ($env:TWENTY20_CERT_THUMBPRINT -replace ' ','').ToUpperInvariant()
+$outFile = $env:TWENTY20_CERT_FILE
+
 if ($thumb -notmatch '^[0-9A-F]{40,128}$') { throw 'Neplatný thumbprint certifikátu.' }
-$store = New-Object System.Security.Cryptography.X509Certificates.X509Store('My','CurrentUser')
-$store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
-try {
-  $cert = $store.Certificates | Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } | Select-Object -First 1
-  if ($null -eq $cert) { throw 'Vybraný certifikát už není ve Windows úložišti.' }
-  if (-not $cert.HasPrivateKey) { throw 'Vybraný certifikát nemá dostupný privátní klíč.' }
-  [Convert]::ToBase64String($cert.RawData)
-} finally {
-  $store.Close()
+if ([string]::IsNullOrWhiteSpace($outFile)) { throw 'Chybí dočasná cesta pro veřejný certifikát.' }
+
+$cert = Get-ChildItem -Path 'Cert:\CurrentUser\My' -ErrorAction Stop |
+  Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+  Select-Object -First 1
+
+if ($null -eq $cert) {
+  $cert = Get-ChildItem -Path 'Cert:\LocalMachine\My' -ErrorAction SilentlyContinue |
+    Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+    Select-Object -First 1
 }
+
+if ($null -eq $cert) { throw 'Vybraný certifikát nebyl nalezen ve Windows úložišti.' }
+if (-not $cert.HasPrivateKey) { throw 'Vybraný certifikát nemá dostupný privátní klíč.' }
+
+Export-Certificate -Cert $cert -FilePath $outFile -Type CERT -Force | Out-Null
 """
 
 
@@ -323,35 +331,36 @@ def _windows_cert_der(thumbprint: str) -> bytes:
     thumbprint = re.sub(r"\s+", "", str(thumbprint or "")).upper()
     if not re.fullmatch(r"[0-9A-F]{40,128}", thumbprint):
         raise ValueError("Neplatný thumbprint certifikátu.")
-    output = _run_powershell(
-        _WINDOWS_CERT_DER_PS,
-        {"TWENTY20_CERT_THUMBPRINT": thumbprint},
-        timeout=20,
-    )
 
-    # Windows PowerShell may emit redirected stdout as UTF-16LE on some
-    # installations. When Python decodes that through the local code page, NUL
-    # characters can end up between every Base64 character. Normalise these
-    # transport artefacts before extracting the certificate payload.
-    cleaned = (output or "").replace("\x00", "").replace("\ufeff", "").strip()
-    candidates = re.findall(r"[A-Za-z0-9+/=]{128,}", cleaned)
-    if not candidates:
-        compact = re.sub(r"[^A-Za-z0-9+/=]", "", cleaned)
-        if len(compact) >= 128:
-            candidates = [compact]
-    if not candidates:
-        raise ValueError(
-            "Windows nevrátil čitelná data certifikátu "
-            f"(stdout {len(output or '')} znaků, po normalizaci {len(cleaned)})."
+    temp_path = None
+    try:
+        fd, temp_path = tempfile.mkstemp(prefix="2020-public-cert-", suffix=".cer")
+        os.close(fd)
+
+        _run_powershell(
+            _WINDOWS_CERT_DER_PS,
+            {
+                "TWENTY20_CERT_THUMBPRINT": thumbprint,
+                "TWENTY20_CERT_FILE": temp_path,
+            },
+            timeout=20,
         )
-    encoded = max(candidates, key=len)
-    raw = base64.b64decode(encoded, validate=True)
-    if len(raw) < 128 or not raw.startswith(b"0"):
-        raise ValueError(
-            "Windows vrátil neplatný DER certifikát "
-            f"(velikost {len(raw)} B, začátek {raw[:8].hex()})."
-        )
-    return raw
+
+        with open(temp_path, "rb") as fh:
+            raw = fh.read()
+
+        if len(raw) < 128:
+            raise ValueError(
+                "Windows vyexportoval neplatný veřejný certifikát "
+                f"({len(raw)} B)."
+            )
+        return raw
+    finally:
+        if temp_path:
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
 
 
 def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
