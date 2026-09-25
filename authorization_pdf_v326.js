@@ -135,7 +135,8 @@
       profile: document.getElementById('auth-profile')?.value || 'bt',
       tsa: document.getElementById('auth-tsa')?.value || '',
       tsaUser: document.getElementById('auth-tsa-user')?.value || '',
-      localTestTsa: !!document.getElementById('auth-local-test-tsa')?.checked,
+      // Test-only state is deliberately not persisted into production settings.
+      localTestTsa: false,
       certificateThumbprint: state.selectedCertThumbprint || '',
       reason: document.getElementById('auth-reason')?.value || '',
       location: document.getElementById('auth-location')?.value || '',
@@ -290,7 +291,7 @@
       setValue('auth-profile', saved.profile || 'bt');
       setValue('auth-tsa', saved.tsa || 'https://www3.postsignum.cz/TSS/TSS_user/');
       setValue('auth-tsa-user', saved.tsaUser || '');
-      setChecked('auth-local-test-tsa', !!saved.localTestTsa);
+      setChecked('auth-local-test-tsa', false);
       state.selectedCertThumbprint = saved.certificateThumbprint || state.selectedCertThumbprint || '';
       setValue('auth-reason', saved.reason || 'Autorizace dokumentace');
       setValue('auth-location', saved.location || '');
@@ -1230,7 +1231,10 @@
   };
 
   window.authLocalTestTsaChanged = function() {
-    const on = !!document.getElementById('auth-local-test-tsa')?.checked;
+    const testTools = authTestToolsEnabled();
+    const localInput = document.getElementById('auth-local-test-tsa');
+    if (!testTools && localInput?.checked) localInput.checked = false;
+    const on = testTools && !!localInput?.checked;
     const profile = document.getElementById('auth-profile');
     const tsa = document.getElementById('auth-tsa');
     const user = document.getElementById('auth-tsa-user');
