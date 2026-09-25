@@ -68,6 +68,7 @@ _TRUSTED_ORIGINS = {
     if x.strip()
 }
 _SESSION_TOKEN = secrets.token_urlsafe(32)
+_ALLOW_LOCALHOST_ORIGINS = os.environ.get("TWENTY20_AUTH_ALLOW_LOCALHOST", "").strip() == "1"
 _TEST_TSA_USER = "TEST"
 _TEST_TSA_PASSWORD = "TEST-ONLY"
 _TEST_TSA = None
@@ -82,7 +83,9 @@ def _origin_allowed(origin: Optional[str]) -> bool:
     origin = origin.rstrip("/")
     if origin in _TRUSTED_ORIGINS:
         return True
-    return bool(re.match(r"^http://(?:127\.0\.0\.1|localhost)(?::\d+)?$", origin, re.I))
+    if _ALLOW_LOCALHOST_ORIGINS:
+        return bool(re.match(r"^http://(?:127\.0\.0\.1|localhost)(?::\d+)?$", origin, re.I))
+    return False
 
 
 def _request_token_ok() -> bool:
@@ -868,6 +871,18 @@ def preflight_sign():
         # 1) Certifikát + privátní klíč ověřit ještě před PDF/A konverzí.
         signer = WindowsStoreSigner(cert_thumbprint)
         cert_info = _cert_payload(signer)
+        crypto_cert = x509.load_der_x509_certificate(signer.signing_cert.dump())
+        now = datetime.now(timezone.utc)
+        valid_from = getattr(crypto_cert, "not_valid_before_utc", crypto_cert.not_valid_before.replace(tzinfo=timezone.utc))
+        valid_to = getattr(crypto_cert, "not_valid_after_utc", crypto_cert.not_valid_after.replace(tzinfo=timezone.utc))
+        if now < valid_from or now > valid_to:
+            return jsonify(ok=False, error="Vybraný podpisový certifikát není v tuto chvíli platný."), 400
+        try:
+            key_usage = crypto_cert.extensions.get_extension_for_class(x509.KeyUsage).value
+            if not (key_usage.digital_signature or key_usage.content_commitment):
+                return jsonify(ok=False, error="Vybraný certifikát nemá povolené použití pro elektronický podpis."), 400
+        except x509.ExtensionNotFound:
+            pass
         _verify_windows_private_key(signer)
 
         # 2) U B-T skutečně kontaktovat TSA a ověřit credentials + RFC3161 odpověď.
