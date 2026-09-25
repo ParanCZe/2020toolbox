@@ -37,7 +37,7 @@ from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign import fields, signers, timestamps
 from pyhanko.sign.timestamps.dummy_client import DummyTimeStamper
 from asn1crypto import x509 as asn1_x509, algos, keys as asn1_keys, tsp
-from aiohttp import BasicAuth
+from aiohttp import BasicAuth, ClientSession, ClientTimeout
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -741,11 +741,58 @@ def _build_timestamper(meta: Dict[str, Any]):
     return timestamps.HTTPTimeStamper(tsa_url, auth=auth, timeout=15)
 
 
-def _verify_tsa_login(timestamper) -> None:
-    if timestamper is None:
+async def _async_verify_tsa_credentials(meta: Dict[str, Any]) -> None:
+    profile = str(meta.get("profile") or "bt").lower()
+    if profile != "bt":
         return
-    probe_digest = hashlib.sha256(b"20-20 TOOLBOX TSA PREFLIGHT").digest()
-    asyncio.run(timestamper.async_timestamp(probe_digest, "sha256"))
+
+    tsa_url = str(meta.get("tsa_url") or "").strip()
+    tsa_user = str(meta.get("tsa_user") or "").strip()
+    tsa_password = str(meta.get("tsa_password") or "")
+    tsa_test_mode = bool(meta.get("tsa_test_mode", False))
+
+    if tsa_test_mode:
+        if not (
+            secrets.compare_digest(tsa_user, _TEST_TSA_USER)
+            and secrets.compare_digest(tsa_password, _TEST_TSA_PASSWORD)
+        ):
+            raise PermissionError("Neplatný TEST TSA login nebo heslo.")
+        return
+
+    auth = BasicAuth(tsa_user, tsa_password) if tsa_user else None
+    timeout = ClientTimeout(total=15)
+
+    # Deliberately malformed RFC 3161 body. This checks HTTPS reachability
+    # and HTTP Basic credentials without requesting a valid timestamp token.
+    # A valid TSA must reject this body, so no paid timestamp is issued.
+    headers = {
+        "Content-Type": "application/timestamp-query",
+        "Accept": "application/timestamp-reply",
+        "Cache-Control": "no-store",
+    }
+    async with ClientSession(timeout=timeout) as session:
+        async with session.post(
+            tsa_url,
+            data=b"\x30\x00",
+            headers=headers,
+            auth=auth,
+            allow_redirects=False,
+        ) as response:
+            await response.read()
+            if response.status in {401, 403}:
+                raise PermissionError("Neplatný login nebo heslo k TSA.")
+            if 300 <= response.status < 400:
+                raise ValueError(
+                    f"TSA server vrátil přesměrování HTTP {response.status}."
+                )
+            if response.status >= 500:
+                raise ValueError(
+                    f"TSA server je dočasně nedostupný (HTTP {response.status})."
+                )
+
+
+def _verify_tsa_login(meta: Dict[str, Any]) -> None:
+    asyncio.run(_async_verify_tsa_credentials(meta))
 
 
 @app.post("/test-tsa")
@@ -963,7 +1010,14 @@ def _sign_one(
         stamp_style=appearance,
         new_field_spec=new_field,
     )
-    pdf_signer.sign_pdf(writer, output=output_stream)
+    # Explicit reservation skips pyHanko's dummy CMS/timestamp size
+    # estimation. 262144 hex bytes leaves ample room for the signer CMS
+    # and qualified RFC 3161 timestamp without consuming an extra TSA token.
+    pdf_signer.sign_pdf(
+        writer,
+        output=output_stream,
+        bytes_reserved=262144,
+    )
     return output_stream.getvalue()
 
 
@@ -990,6 +1044,8 @@ def status():
             "tsa_preflight": True,
             "local_sign_approval": True,
             "docmdp_annotate": True,
+            "tsa_nonconsuming_preflight": True,
+            "fixed_signature_reservation": True,
         },
     )
 
@@ -1054,11 +1110,12 @@ def preflight_sign():
         except x509.ExtensionNotFound:
             pass
 
-        _verify_windows_private_key_available(signer)
-
+        # Do not acquire/use the private key during preflight.
+        # _windows_cert_der already verifies that Windows marks a private key
+        # as present; the QSCD is only activated during the actual signature.
         try:
-            timestamper = _build_timestamper(meta)
-            _verify_tsa_login(timestamper)
+            _build_timestamper(meta)
+            _verify_tsa_login(meta)
         except PermissionError as exc:
             return jsonify(ok=False, error=str(exc)), 401
         except Exception as exc:
