@@ -932,6 +932,137 @@ def windows_certificate_info():
         return jsonify(ok=False, error=str(exc)), 400
 
 
+@app.post("/preflight-sign")
+def preflight_sign():
+    try:
+        meta = request.get_json(silent=True) or {}
+        document_count = int(meta.get("document_count") or 0)
+        if document_count < 1 or document_count > 10000:
+            return jsonify(ok=False, error="Neplatný počet dokumentů pro podpis."), 400
+
+        cert_thumbprint = str(meta.get("certificate_thumbprint") or "").strip()
+        if not cert_thumbprint:
+            return jsonify(ok=False, error="Vyber podpisový certifikát z Windows."), 400
+
+        profile = str(meta.get("profile") or "bt").lower()
+        if profile not in {"bb", "bt"}:
+            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
+
+        signer = WindowsStoreSigner(cert_thumbprint)
+        cert_info = _cert_payload(signer)
+        crypto_cert = x509.load_der_x509_certificate(signer.signing_cert.dump())
+
+        now = datetime.now(timezone.utc)
+        valid_from = getattr(
+            crypto_cert,
+            "not_valid_before_utc",
+            crypto_cert.not_valid_before.replace(tzinfo=timezone.utc),
+        )
+        valid_to = getattr(
+            crypto_cert,
+            "not_valid_after_utc",
+            crypto_cert.not_valid_after.replace(tzinfo=timezone.utc),
+        )
+        if now < valid_from or now > valid_to:
+            return jsonify(ok=False, error="Vybraný podpisový certifikát není v tuto chvíli platný."), 400
+
+        try:
+            key_usage = crypto_cert.extensions.get_extension_for_class(x509.KeyUsage).value
+            if not (key_usage.digital_signature or key_usage.content_commitment):
+                return jsonify(ok=False, error="Vybraný certifikát nemá povolené použití pro elektronický podpis."), 400
+        except x509.ExtensionNotFound:
+            pass
+
+        _verify_windows_private_key_available(signer)
+
+        try:
+            timestamper = _build_timestamper(meta)
+            _verify_tsa_login(timestamper)
+        except PermissionError as exc:
+            return jsonify(ok=False, error=str(exc)), 401
+        except Exception as exc:
+            return jsonify(ok=False, error="TSA ověření selhalo: " + str(exc)), 400
+
+        _cleanup_approvals()
+        token = secrets.token_urlsafe(32)
+        _PREFLIGHTS[token] = {
+            "context": _approval_context(meta, document_count),
+            "certificate_name": str(cert_info.get("display_name") or cert_info.get("subject") or "Windows certifikát"),
+            "expires": datetime.now(timezone.utc).timestamp() + _APPROVAL_TTL_SECONDS,
+            "used": False,
+        }
+
+        return jsonify(
+            ok=True,
+            preflight_token=token,
+            expires_in=_APPROVAL_TTL_SECONDS,
+            certificate=cert_info,
+            tsa_verified=(profile == "bt"),
+        )
+    except Exception as exc:
+        print("[AuthorizationBridge] preflight error:", traceback.format_exc(), flush=True)
+        return jsonify(ok=False, error=str(exc)), 400
+
+
+@app.post("/approve-sign")
+def approve_sign():
+    try:
+        payload = request.get_json(silent=True) or {}
+        preflight_token = str(payload.get("preflight_token") or "")
+        documents = payload.get("documents")
+        signing_intent = payload.get("signing_intent")
+
+        if not isinstance(documents, list) or not documents:
+            return jsonify(ok=False, error="Chybí finální dokumenty k potvrzení."), 400
+        if not isinstance(signing_intent, dict):
+            return jsonify(ok=False, error="Chybí podpisový záměr k potvrzení."), 400
+
+        _cleanup_approvals()
+        preflight = _PREFLIGHTS.get(preflight_token)
+        if not preflight or bool(preflight.get("used")):
+            return jsonify(ok=False, error="Preflight vypršel nebo není platný. Spusť export znovu."), 403
+
+        context = preflight.get("context") or {}
+        if int(context.get("document_count") or 0) != len(documents):
+            return jsonify(ok=False, error="Počet finálních PDF neodpovídá předběžné kontrole."), 403
+
+        clean_docs = []
+        for item in documents:
+            if not isinstance(item, dict):
+                return jsonify(ok=False, error="Neplatný popis finálního PDF."), 400
+            name = str(item.get("name") or "")
+            digest = str(item.get("sha256") or "").lower()
+            size = int(item.get("size") or 0)
+            if not name or not re.fullmatch(r"[0-9a-f]{64}", digest) or size < 1:
+                return jsonify(ok=False, error="Neplatný SHA-256 otisk finálního PDF."), 400
+            clean_docs.append({"name": name, "sha256": digest, "size": size})
+
+        if not _native_sign_confirmation(
+            str(preflight.get("certificate_name") or "Windows certifikát"),
+            len(clean_docs),
+            str(context.get("profile") or "bt"),
+            str(context.get("tsa_url") or ""),
+            clean_docs,
+            signing_intent,
+        ):
+            return jsonify(ok=False, error="Podpisová dávka nebyla ve Windows potvrzena."), 403
+
+        preflight["used"] = True
+        approval_token = secrets.token_urlsafe(32)
+        _SIGN_APPROVALS[approval_token] = {
+            "context": context,
+            "documents": clean_docs,
+            "intent_digest": _intent_digest(signing_intent),
+            "expires": datetime.now(timezone.utc).timestamp() + _APPROVAL_TTL_SECONDS,
+            "used": False,
+        }
+
+        return jsonify(ok=True, approval_token=approval_token, expires_in=_APPROVAL_TTL_SECONDS)
+    except Exception as exc:
+        print("[AuthorizationBridge] approval error:", traceback.format_exc(), flush=True)
+        return jsonify(ok=False, error=str(exc)), 400
+
+
 @app.post("/sign-batch")
 @app.post("/sign-batch-test")
 def sign_batch():
@@ -942,6 +1073,7 @@ def sign_batch():
 
         if not pdfs:
             return jsonify(ok=False, error="Nebyla odeslána žádná PDF."), 400
+
         try:
             meta = json.loads(metadata_raw)
         except Exception:
@@ -949,6 +1081,7 @@ def sign_batch():
 
         test_mode = request.path.endswith("/sign-batch-test") or bool(meta.get("test_mode"))
         cert_thumbprint = str(meta.get("certificate_thumbprint") or "").strip()
+
         if not test_mode and not cert_thumbprint:
             return jsonify(ok=False, error="Vyber podpisový certifikát z Windows."), 400
 
@@ -960,70 +1093,86 @@ def sign_batch():
         if profile not in {"bb", "bt"}:
             return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
 
+        approval = None
+        if not test_mode:
+            _cleanup_approvals()
+            approval_token = str(meta.get("approval_token") or "")
+            approval = _SIGN_APPROVALS.get(approval_token)
+            if not approval or bool(approval.get("used")):
+                return jsonify(ok=False, error="Chybí platné lokální potvrzení podpisové dávky."), 403
+
+            if approval.get("context") != _approval_context(meta, len(pdfs)):
+                return jsonify(ok=False, error="Podpisová dávka neodpovídá lokálně potvrzenému požadavku."), 403
+
+            if len(approval.get("documents") or []) != len(pdfs):
+                return jsonify(ok=False, error="Počet PDF neodpovídá lokálně potvrzené dávce."), 403
+
         tsa_url = str(meta.get("tsa_url") or "").strip()
         tsa_user = str(meta.get("tsa_user") or "").strip()
-        tsa_password = str(meta.get("tsa_password") or "")
-        tsa_test_mode = bool(meta.get("tsa_test_mode", False))
-        if profile == "bt":
-            if not re.match(r"^https?://", tsa_url, re.I):
-                return jsonify(ok=False, error="Pro PAdES B-T je nutná platná HTTP(S) adresa RFC 3161 TSA serveru."), 400
-            if bool(tsa_user) != bool(tsa_password):
-                return jsonify(ok=False, error="Pro přihlášení k TSA musí být vyplněn login i heslo."), 400
 
-            if tsa_test_mode:
-                if tsa_url != "http://127.0.0.1:8094/test-tsa":
-                    return jsonify(ok=False, error="TEST TSA musí používat lokální adresu 127.0.0.1:8094/test-tsa."), 400
-                if not (
-                    secrets.compare_digest(tsa_user, _TEST_TSA_USER)
-                    and secrets.compare_digest(tsa_password, _TEST_TSA_PASSWORD)
-                ):
-                    return jsonify(ok=False, error="Neplatný TEST TSA login nebo heslo."), 401
-                # Generate the RFC3161 token directly in-process. This avoids a
-                # fragile HTTP loopback while preserving the exact timestamp
-                # token format that pyHanko embeds into PAdES B-T.
-                try:
-                    timestamper = _get_test_tsa()
-                except Exception as exc:
-                    raise RuntimeError("TEST TSA INIT: " + str(exc)) from exc
-            else:
-                auth = BasicAuth(tsa_user, tsa_password) if tsa_user else None
-                timestamper = timestamps.HTTPTimeStamper(
-                    tsa_url,
-                    auth=auth,
-                    timeout=15,
-                )
-        else:
-            timestamper = None
+        try:
+            timestamper = _build_timestamper(meta)
+        except PermissionError as exc:
+            return jsonify(ok=False, error=str(exc)), 401
+        except Exception as exc:
+            return jsonify(ok=False, error=str(exc)), 400
 
         signer = _make_test_signer() if test_mode else WindowsStoreSigner(cert_thumbprint)
         cert_info = _cert_payload(signer)
         if not test_mode:
             cert_info["thumbprint"] = re.sub(r"\s+", "", cert_thumbprint).upper()
-            cert_info["source"] = "Windows Certificate Store · CurrentUser\\My"
+            cert_info["source"] = "Windows Certificate Store"
 
         stamp_file = request.files.get("stamp")
+        stamp_bytes = b""
+        stamp_ext = ""
         if stamp_file and stamp_file.filename:
-            ext = Path(stamp_file.filename).suffix.lower()
-            if ext not in {".png", ".jpg", ".jpeg"}:
+            stamp_ext = Path(stamp_file.filename).suffix.lower()
+            if stamp_ext not in {".png", ".jpg", ".jpeg"}:
                 return jsonify(ok=False, error="Obrázek razítka musí být PNG nebo JPG."), 400
-            with tempfile.NamedTemporaryFile(prefix="2020-stamp-", suffix=ext, delete=False) as tmp:
-                tmp.write(stamp_file.read())
+            stamp_bytes = stamp_file.read()
+            if len(stamp_bytes) > 25 * 1024 * 1024:
+                return jsonify(ok=False, error="Obrázek razítka je příliš velký."), 400
+
+        if approval is not None:
+            if _intent_digest(_canonical_signing_intent(meta, stamp_bytes)) != str(approval.get("intent_digest") or ""):
+                return jsonify(ok=False, error="Podpisová metadata nebo grafika se po lokálním potvrzení změnily."), 403
+
+        if stamp_bytes:
+            with tempfile.NamedTemporaryFile(prefix="2020-stamp-", suffix=stamp_ext, delete=False) as tmp:
+                tmp.write(stamp_bytes)
                 stamp_path = tmp.name
+
+        buffered_pdfs = []
+        for idx, uploaded in enumerate(pdfs):
+            original_name = uploaded.filename or f"document_{idx + 1}.pdf"
+            raw_pdf = uploaded.read()
+
+            if not raw_pdf.startswith(b"%PDF-"):
+                raise ValueError(f"{original_name}: soubor nevypadá jako PDF.")
+
+            if approval is not None:
+                expected_doc = (approval.get("documents") or [])[idx]
+                if (
+                    str(expected_doc.get("name") or "") != original_name
+                    or int(expected_doc.get("size") or 0) != len(raw_pdf)
+                    or str(expected_doc.get("sha256") or "").lower() != hashlib.sha256(raw_pdf).hexdigest()
+                ):
+                    raise PermissionError(f"{original_name}: obsah PDF se po lokálním potvrzení změnil.")
+
+            buffered_pdfs.append((original_name, raw_pdf))
+
+        if approval is not None:
+            approval["used"] = True
 
         out_zip = io.BytesIO()
         used_names: set[str] = set()
         manifest_files = []
 
-        # PDFs are already compressed internally; recompressing them inside ZIP
-        # burns CPU for very little size reduction. STORE changes no PDF bytes.
         with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_STORED) as zf:
-            for idx, uploaded in enumerate(pdfs):
-                original_name = uploaded.filename or f"document_{idx+1}.pdf"
-                raw_pdf = uploaded.read()
-                if not raw_pdf.startswith(b"%PDF-"):
-                    raise ValueError(f"{original_name}: soubor nevypadá jako PDF.")
-
+            for idx, (original_name, raw_pdf) in enumerate(buffered_pdfs):
                 doc_meta = docs_meta[idx] if isinstance(docs_meta[idx], dict) else {}
+
                 try:
                     signed = _sign_one(
                         raw_pdf,
@@ -1035,20 +1184,20 @@ def sign_batch():
                     )
                 except Exception as exc:
                     raise RuntimeError(f"PAdES SIGN [{original_name}]: {exc}") from exc
+
                 requested_output = str(doc_meta.get("output_name") or original_name)
-                append_ear = bool(meta.get("append_ear", True))
-                requested_output = _ear_name(requested_output) if append_ear else _safe_name(requested_output)
+                requested_output = _ear_name(requested_output) if bool(meta.get("append_ear", True)) else _safe_name(requested_output)
                 out_name = _unique_name(requested_output, used_names)
+
                 zf.writestr(out_name, signed)
-                manifest_files.append(
-                    {
-                        "source": str(doc_meta.get("name") or original_name),
-                        "output": out_name,
-                        "standard": str(meta.get("output_standard") or "PDF/A-3b"),
-                        "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
-                        "visible": bool(doc_meta.get("placement")),
-                    }
-                )
+                manifest_files.append({
+                    "source": str(doc_meta.get("name") or original_name),
+                    "output": out_name,
+                    "standard": str(meta.get("output_standard") or "PDF/A-3b"),
+                    "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
+                    "visible": bool(doc_meta.get("placement")),
+                    "docmdp": "ANNOTATE",
+                })
 
             manifest = {
                 "tool": "20-20 TOOLBOX · Autorizace PDF",
@@ -1058,6 +1207,7 @@ def sign_batch():
                 "test_mode": test_mode,
                 "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
                 "append_ear": bool(meta.get("append_ear", True)),
+                "docmdp": "ANNOTATE",
                 "tsa_url": tsa_url if profile == "bt" else None,
                 "tsa_authenticated": bool(tsa_user) if profile == "bt" else False,
                 "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile == "bt" else False,
@@ -1067,12 +1217,11 @@ def sign_batch():
             zf.writestr("20-20_autorizace_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
 
         out_zip.seek(0)
-        name = "autorizovane_pdf_" + datetime.now().strftime("%Y-%m-%d_%H%M") + ".zip"
         return send_file(
             out_zip,
             mimetype="application/zip",
             as_attachment=True,
-            download_name=name,
+            download_name="autorizovane_pdf_" + datetime.now().strftime("%Y-%m-%d_%H%M") + ".zip",
             max_age=0,
         )
 
