@@ -456,7 +456,10 @@ class Handler(BaseHTTPRequestHandler):
                 # only used when the advanced controls explicitly send them.
                 if target_max > tile_size:
                     cmd += ["--tile_size", str(tile_size), "--tile_overlap", str(tile_overlap)]
-                if target_max > 4096:
+                # Qwen VAE full-image decode can OOM on 8 GB GPUs already around
+                # ~4K on the long edge. Enable tiled VAE earlier so RTX 4060-class
+                # cards do not hit a full-frame decode allocation spike.
+                if target_max > 2048:
                     cmd += ["--vae_tile_size", str(vae_tile_size), "--vae_tile_overlap", str(vae_tile_overlap)]
 
                 env = os.environ.copy()
