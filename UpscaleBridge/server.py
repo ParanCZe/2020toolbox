@@ -47,39 +47,73 @@ def models_ready() -> bool:
 
 
 def gpu_telemetry() -> dict:
-    exe = shutil.which("nvidia-smi")
-    if not exe:
-        return {"detected": False, "error": "nvidia-smi nebylo nalezeno"}
+    def safe_float(value, default=0.0):
+        try:
+            s = str(value).strip().strip('"').strip("'")
+            if not s or s.upper() in {"N/A", "[N/A]", "NA", "NONE", "-"}:
+                return default
+            return float(s.replace(",", "."))
+        except Exception:
+            return default
+
+    exe = shutil.which("nvidia-smi") or shutil.which("nvidia-smi.exe")
+    if not exe and os.name == "nt":
+        candidates = [
+            Path(os.environ.get("WINDIR", r"C:\\Windows")) / "System32" / "nvidia-smi.exe",
+            Path(r"C:\\Program Files\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe"),
+        ]
+        exe = next((str(p) for p in candidates if p.is_file()), None)
+
+    if exe:
+        try:
+            p = subprocess.run(
+                [
+                    exe,
+                    "--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw",
+                    "--format=csv,noheader,nounits",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=8,
+                check=False,
+            )
+            line = (p.stdout or "").strip().splitlines()[0] if p.stdout else ""
+            if p.returncode == 0 and line:
+                parts = [x.strip() for x in line.split(",")]
+                if len(parts) >= 6:
+                    name, util, mem_used, mem_total, temp, power = parts[:6]
+                    return {
+                        "detected": True,
+                        "name": name or "NVIDIA GPU",
+                        "utilization_gpu": safe_float(util),
+                        "memory_used_mb": safe_float(mem_used),
+                        "memory_total_mb": safe_float(mem_total),
+                        "temperature_c": safe_float(temp),
+                        "power_w": safe_float(power),
+                    }
+                return {"detected": True, "name": line}
+        except Exception:
+            pass
+
+    # Fallback: PyTorch CUDA is authoritative enough for VOSR execution even if
+    # nvidia-smi telemetry is unavailable or a driver field returns N/A.
     try:
-        p = subprocess.run(
-            [
-                exe,
-                "--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw",
-                "--format=csv,noheader,nounits",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=8,
-            check=False,
-        )
-        line = (p.stdout or "").strip().splitlines()[0] if p.stdout else ""
-        if p.returncode != 0 or not line:
-            return {"detected": False, "error": (p.stderr or "nvidia-smi selhalo").strip()}
-        parts = [x.strip() for x in line.split(",")]
-        if len(parts) < 6:
-            return {"detected": True, "name": line}
-        name, util, mem_used, mem_total, temp, power = parts[:6]
-        return {
-            "detected": True,
-            "name": name,
-            "utilization_gpu": float(util or 0),
-            "memory_used_mb": float(mem_used or 0),
-            "memory_total_mb": float(mem_total or 0),
-            "temperature_c": float(temp or 0),
-            "power_w": float(power or 0),
-        }
+        import torch
+        if torch.cuda.is_available():
+            props = torch.cuda.get_device_properties(0)
+            return {
+                "detected": True,
+                "name": torch.cuda.get_device_name(0),
+                "utilization_gpu": 0.0,
+                "memory_used_mb": float(torch.cuda.memory_allocated(0) / 1024 / 1024),
+                "memory_total_mb": float(props.total_memory / 1024 / 1024),
+                "temperature_c": 0.0,
+                "power_w": 0.0,
+            }
     except Exception as exc:
-        return {"detected": False, "error": str(exc)}
+        return {"detected": False, "error": f"GPU telemetry selhala: {exc}"}
+
+    return {"detected": False, "error": "NVIDIA GPU nebyla nalezena"}
 
 
 def gpu_info() -> tuple[bool, str]:
@@ -138,7 +172,7 @@ def health_payload() -> dict:
     tel = gpu_telemetry()
     return {
         "name": "20-20 Toolbox VOSR Bridge",
-        "version": "1.3.5",
+        "version": "1.3.6",
         "advanced_settings": True,
         "vosr_defaults": {
             "tile": 512,
@@ -160,7 +194,7 @@ def health_payload() -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ToolboxVOSR/1.3.5"
+    server_version = "ToolboxVOSR/1.3.6"
 
     def log_message(self, fmt: str, *args) -> None:
         print(f"[VOSR Bridge] {self.address_string()} - {fmt % args}")
