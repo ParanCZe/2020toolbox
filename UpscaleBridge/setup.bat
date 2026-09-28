@@ -76,6 +76,10 @@ if not exist "%VOSR_DIR%\inference_vosr_onestep.py" (
   echo [4/7] Pinned VOSR zdrojaky uz existuji.
 )
 
+echo [4.5/7] Aplikuji 20-20 performance patch pro tiled VOSR...
+"%PY%" "%CD%\optimize_runtime.py"
+if errorlevel 1 goto :fail
+
 echo [5/7] Instaluji PyTorch CUDA a VOSR zavislosti...
 
 rem PyTorch CUDA index nesmi byt extra-index pro cely requirements soubor:
