@@ -11,7 +11,7 @@
   const INVSR_SPACE='OAOA/InvSR';
   const SUPIR_SPACES=['NotSky/supir-demo','Fabrice-TIERCELIN/SUPIR'];
   const AI_MODEL_CACHE='toolbox-ai-models-v1';
-  const S={file:null,img:null,result:null,session:null,loadingModel:null,faceSession:null,loadingFaceModel:null,faceDetector:null,loadingFaceDetector:null,objectDetector:null,loadingObjectDetector:null,engine:'LOCAL',running:false,vosrOnline:false,vosrHealth:null,vosrTelemetryTimer:null,vosrRunStarted:0,vosrEtaSec:0,vosrStopPending:false,vosrAdvancedSupported:false,gradioModule:null,cloudClients:{},cloudApi:{}};
+  const S={file:null,img:null,result:null,session:null,loadingModel:null,faceSession:null,loadingFaceModel:null,faceDetector:null,loadingFaceDetector:null,objectDetector:null,loadingObjectDetector:null,engine:'LOCAL',running:false,vosrOnline:false,vosrHealth:null,vosrTelemetryTimer:null,vosrRunStarted:0,vosrEtaSec:0,vosrStopPending:false,vosrAdvancedSupported:false,vosrHasRealProgress:false,vosrLastProgress:null,gradioModule:null,cloudClients:{},cloudApi:{}};
   const $=s=>document.querySelector(s);
   const LOCAL_CORE={clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),clampByte:v=>Math.max(0,Math.min(255,Math.round(v))),tileStarts(size,tile=128,overlap=16){size=Math.max(1,Math.floor(size));if(size<=tile)return[0];const step=tile-overlap,out=[];for(let p=0;p<size-tile;p+=step)out.push(p);const last=size-tile;if(out[out.length-1]!==last)out.push(last);return out},outputScale:m=>m==='safe4'||m==='invsr4'||m==='ai4'||m==='vosr4'?4:m==='supirf'||m==='ai2'||m==='deblur2'||m==='vosr2'?2:1,sharpenAmount(v,m){const n=Math.max(0,Math.min(100,Number(v)||0))/100;return(m==='sharp'?0.35:0.18)+n*1.2},modeLabel:m=>({safe4:'SAFE UPSCALE 4× · REAL-ESRGAN',invsr4:'AI UPSCALE 4× · INVSR',supirf:'AI RESTORE FIDELITY · SUPIR v0F · ARCHVIZ',sharp:'SHARP FIX',clean:'CLEAN PHOTO',ai2:'AI UPSCALE 2× · LOCAL',ai4:'AI UPSCALE 4× · LOCAL',deblur2:'DEBLUR + AI 2×',vosr2:'VOSR 2.0 SCENE 2×',vosr4:'VOSR 2.0 SCENE 4×'})[m]||m};
   const core=()=>window.upscalerV359Core||LOCAL_CORE;
@@ -57,6 +57,7 @@
     #tool-upscaler .ups-vosr-advanced-grid .ups-control{margin-top:10px}
     #tool-upscaler .ups-vosr-advanced-hint{font-size:8.5px;line-height:1.45;color:var(--muted);margin-top:9px}
     #tool-upscaler .ups-vosr-reset{width:100%;margin-top:9px!important}
+    #tool-upscaler .ups-vosr-preset{margin-top:10px;padding-bottom:10px;border-bottom:1px dashed #e4e4e7}
     body:has(#tool-upscaler.active) .wrap{max-width:none;padding:0 18px}body:has(#tool-upscaler.active) .wrap>.card{padding:18px}#tool-upscaler{width:100%;max-width:none;margin:0}#tool-upscaler .ups-grid>section:nth-child(2){min-width:0;display:flex;flex-direction:column}#tool-upscaler .ups-grid>section:nth-child(2) .ups-preview{flex:1}@media(max-width:1400px){#tool-upscaler .ups-grid{grid-template-columns:270px minmax(0,1fr) 245px}}@media(max-width:1050px){#tool-upscaler .ups-grid{grid-template-columns:1fr;min-height:auto}#tool-upscaler .ups-preview{min-height:560px}body:has(#tool-upscaler.active) .wrap{padding:0 12px}}
   `;document.head.appendChild(s)}
 
@@ -72,17 +73,18 @@
           <div id="ups-drop" class="ups-drop"><b>Přetáhni obrázek</b><span>PNG / JPG / WEBP nebo klikni</span><input id="ups-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></div>
           <div class="ups-control"><label><span>Režim</span><span id="ups-mode-label"></span></label><select id="ups-mode"><option value="safe4">Safe Upscale 4× — Real-ESRGAN</option><option value="invsr4">AI Upscale 4× — InvSR</option><option value="supirf">AI Restore Fidelity — SUPIR v0F (Archviz Safe)</option><option value="ai2">Local AI Upscale 2×</option><option value="deblur2">Deblur + Local AI 2×</option><option value="sharp">Sharp Fix</option><option value="clean">Clean Photo</option><option value="vosr2">VOSR 2.0 Scene 2×</option><option value="vosr4">VOSR 2.0 Scene 4×</option></select></div>
           <div id="ups-cloud-note" class="ups-vosr-note" hidden></div>
-          <div id="ups-vosr-note" class="ups-vosr-note" hidden><b>VOSR 2.0 · generativní rekonstrukce celé scény</b><br>Obnovuje objekty, lidi, hrany, materiály a textury v jednom passu.<br><br><b>Jak funguje:</b> VOSR běží lokálně na tvém PC přes NVIDIA CUDA bridge. Obrázek se nikam neodesílá a neopouští počítač.<br><b>Místo na disku:</b> po instalaci počítej přibližně <b>14–18 GB</b>. Během první instalace může dočasně potřebovat i <b>20+ GB</b> kvůli staženým balíčkům a cache. Modely se stahují jen jednou.<br><b>Požadavky:</b> NVIDIA GPU + lokální VOSR Bridge.<br><a class="back-btn" style="display:inline-flex;margin-top:7px;text-decoration:none" href="UpscaleBridge/install.bat?v=20260925advanced135" download="20-20-TOOLBOX_VOSR_INSTALL.bat">↓ Stáhnout / aktualizovat VOSR Bridge</a></div>
+          <div id="ups-vosr-note" class="ups-vosr-note" hidden><b>VOSR 2.0 · generativní rekonstrukce celé scény</b><br>Obnovuje objekty, lidi, hrany, materiály a textury v jednom passu.<br><br><b>Jak funguje:</b> VOSR běží lokálně na tvém PC přes NVIDIA CUDA bridge. Obrázek se nikam neodesílá a neopouští počítač.<br><b>Místo na disku:</b> po instalaci počítej přibližně <b>14–18 GB</b>. Během první instalace může dočasně potřebovat i <b>20+ GB</b> kvůli staženým balíčkům a cache. Modely se stahují jen jednou.<br><b>Požadavky:</b> NVIDIA GPU + lokální VOSR Bridge.<br><a class="back-btn" style="display:inline-flex;margin-top:7px;text-decoration:none" href="UpscaleBridge/install.bat?v=20260928vosr140" download="20-20-TOOLBOX_VOSR_INSTALL.bat">↓ Stáhnout / aktualizovat VOSR Bridge</a></div>
           <details id="ups-vosr-advanced" class="ups-vosr-advanced" hidden>
             <summary>POKROČILÉ VOSR <span id="ups-vosr-advanced-summary">DEFAULT · 512 / 1024</span></summary>
             <div class="ups-vosr-advanced-body">
+              <div class="ups-control ups-vosr-preset"><label><span>Preset</span><span id="ups-vosr-preset-label">BALANCED</span></label><select id="ups-vosr-preset"><option value="fast4060">FAST · RTX 4060 / 8 GB</option><option value="balanced" selected>BALANCED · doporučeno</option><option value="quality">QUALITY · více překryvu</option><option value="lowvram">LOW VRAM · 6–8 GB</option><option value="custom">CUSTOM</option></select></div>
               <div class="ups-vosr-advanced-grid">
                 <div class="ups-control"><label><span>DiT tile</span><span>px</span></label><select id="ups-vosr-tile"><option value="128">128</option><option value="256">256</option><option value="384">384</option><option value="512" selected>512 · DEFAULT</option><option value="768">768</option><option value="1024">1024</option></select></div>
                 <div class="ups-control"><label><span>DiT overlap</span><span>px</span></label><select id="ups-vosr-tile-overlap"><option value="0">0</option><option value="16">16</option><option value="32" selected>32 · DEFAULT</option><option value="64">64</option><option value="96">96</option><option value="128">128</option></select></div>
                 <div class="ups-control"><label><span>VAE tile</span><span>px</span></label><select id="ups-vosr-vae-tile"><option value="512">512</option><option value="768">768</option><option value="1024" selected>1024 · DEFAULT</option><option value="1536">1536</option><option value="2048">2048</option></select></div>
                 <div class="ups-control"><label><span>VAE overlap</span><span>px</span></label><select id="ups-vosr-vae-overlap"><option value="0">0</option><option value="16">16</option><option value="32" selected>32 · DEFAULT</option><option value="64">64</option><option value="96">96</option><option value="128">128</option></select></div>
               </div>
-              <div id="ups-vosr-advanced-hint" class="ups-vosr-advanced-hint">Default je původní čistý VOSR: DiT 512 / 32 + VAE 1024 / 32. Menší tile šetří VRAM, větší tile dává modelu víc kontextu. VAE tiling se používá u velkých výstupů.</div>
+              <div id="ups-vosr-advanced-hint" class="ups-vosr-advanced-hint">BALANCED zachovává původní VOSR 512 / 32 + VAE 1024 / 32. FAST pro RTX 4060 snižuje overlap na 16, takže dělá méně překryvné práce. QUALITY používá vyšší overlap. Hlavní zrychlení dává nový shared-DINO backend.</div>
               <button type="button" class="back-btn ups-vosr-reset" id="ups-vosr-reset">Vrátit původní VOSR default</button>
             </div>
           </details>
@@ -97,7 +99,7 @@
           <div class="ups-actions"><button id="ups-run" class="action" disabled>Zpracovat</button><button id="ups-png" class="back-btn" disabled>Stáhnout PNG</button><button id="ups-jpg" class="back-btn" disabled>Stáhnout JPG</button></div>
         </section>
         <section><div id="ups-preview" class="ups-preview"><div id="ups-before-wrap"><canvas id="ups-before"></canvas></div><div id="ups-after-wrap"><canvas id="ups-after"></canvas></div><div id="ups-divider" class="ups-divider"></div></div><div class="ups-compare"><input id="ups-compare" type="range" min="0" max="100" value="50"></div></section>
-        <aside class="ups-panel"><h2>STAV</h2><div class="ups-stat"><span>Soubor</span><b id="ups-name">—</b></div><div class="ups-stat"><span>Vstup</span><b id="ups-in">—</b></div><div class="ups-stat"><span>Výstup</span><b id="ups-out">—</b></div><div class="ups-stat"><span>Engine</span><b id="ups-engine">LOCAL</b></div><div class="ups-stat"><span>Čas</span><b id="ups-time">—</b></div><div id="ups-status" class="ups-status">Nahraj obrázek.</div><div class="ups-progress"><i id="ups-progress"></i></div><div id="ups-vosr-bridge" class="ups-bridge warn"><b>VOSR Bridge:</b> kontroluji…</div><div id="ups-vosr-live" class="ups-vosr-live" hidden><div class="ups-live-title">VOSR LIVE</div><div class="ups-live-grid"><span>GPU</span><b id="ups-vosr-gpu">—</b><span>Vytížení GPU</span><b id="ups-vosr-util">—</b><span>VRAM</span><b id="ups-vosr-vram">—</b><span>Teplota</span><b id="ups-vosr-temp">—</b><span>Režim</span><b id="ups-vosr-live-mode">—</b><span>Uplynulo</span><b id="ups-vosr-elapsed">—</b><span>ETA</span><b id="ups-vosr-eta">—</b></div><button type="button" class="back-btn ups-stop" id="ups-vosr-stop" disabled>■ STOP VOSR</button></div><div class="muted" style="font-size:9px;margin:10px 0 0"><b>Safe 4×:</b> Real-ESRGAN lokálně, bez odesílání obrázku. <b>InvSR / SUPIR:</b> zdarma přes veřejné Hugging Face GPU Space — může být fronta nebo denní limit a obrázek je odeslán externí službě. <b>VOSR 2.0:</b> volitelně lokálně; cca 14–18 GB (při instalaci dočasně 20+ GB).</div><div class="ups-storage"><div class="ups-storage-title">AI STORAGE / CLEANUP</div><p>Skutečné lokální místo zabrané Toolbox AI daty. VOSR hodnotu lze načíst, když běží Bridge.</p><div class="ups-storage-stats"><span>Browser AI cache</span><b id="ups-ai-storage-browser">měřím…</b><span>VOSR runtime + modely</span><b id="ups-ai-storage-vosr">měřím…</b><span>Celkem AI data</span><b id="ups-ai-storage-total">měřím…</b></div><button type="button" class="back-btn" id="ups-ai-clean" style="margin:0;color:#b91c1c">Smazat stažená AI data</button></div></aside>
+        <aside class="ups-panel"><h2>STAV</h2><div class="ups-stat"><span>Soubor</span><b id="ups-name">—</b></div><div class="ups-stat"><span>Vstup</span><b id="ups-in">—</b></div><div class="ups-stat"><span>Výstup</span><b id="ups-out">—</b></div><div class="ups-stat"><span>Engine</span><b id="ups-engine">LOCAL</b></div><div class="ups-stat"><span>Čas</span><b id="ups-time">—</b></div><div id="ups-status" class="ups-status">Nahraj obrázek.</div><div class="ups-progress"><i id="ups-progress"></i></div><div id="ups-vosr-bridge" class="ups-bridge warn"><b>VOSR Bridge:</b> kontroluji…</div><div id="ups-vosr-live" class="ups-vosr-live" hidden><div class="ups-live-title">VOSR LIVE</div><div class="ups-live-grid"><span>GPU</span><b id="ups-vosr-gpu">—</b><span>Vytížení GPU</span><b id="ups-vosr-util">—</b><span>VRAM</span><b id="ups-vosr-vram">—</b><span>Teplota</span><b id="ups-vosr-temp">—</b><span>Režim</span><b id="ups-vosr-live-mode">—</b><span>Fáze</span><b id="ups-vosr-phase">—</b><span>Uplynulo</span><b id="ups-vosr-elapsed">—</b><span>ETA</span><b id="ups-vosr-eta">—</b></div><button type="button" class="back-btn ups-stop" id="ups-vosr-stop" disabled>■ STOP VOSR</button></div><div class="muted" style="font-size:9px;margin:10px 0 0"><b>Safe 4×:</b> Real-ESRGAN lokálně, bez odesílání obrázku. <b>InvSR / SUPIR:</b> zdarma přes veřejné Hugging Face GPU Space — může být fronta nebo denní limit a obrázek je odeslán externí službě. <b>VOSR 2.0:</b> volitelně lokálně; cca 14–18 GB (při instalaci dočasně 20+ GB).</div><div class="ups-storage"><div class="ups-storage-title">AI STORAGE / CLEANUP</div><p>Skutečné lokální místo zabrané Toolbox AI daty. VOSR hodnotu lze načíst, když běží Bridge.</p><div class="ups-storage-stats"><span>Browser AI cache</span><b id="ups-ai-storage-browser">měřím…</b><span>VOSR runtime + modely</span><b id="ups-ai-storage-vosr">měřím…</b><span>Celkem AI data</span><b id="ups-ai-storage-total">měřím…</b></div><button type="button" class="back-btn" id="ups-ai-clean" style="margin:0;color:#b91c1c">Smazat stažená AI data</button></div></aside>
       </div>`;anchor.parentNode.insertBefore(v,anchor)}
   }
 
@@ -109,8 +111,9 @@
     $('#ups-scene-strength').oninput=e=>$('#ups-scene-v').textContent=e.target.value;
     $('#ups-face-strength').oninput=e=>$('#ups-face-v').textContent=e.target.value;
     loadVosrAdvancedSettings();
-    for(const id of ['ups-vosr-tile','ups-vosr-tile-overlap','ups-vosr-vae-tile','ups-vosr-vae-overlap'])$('#'+id).onchange=()=>{saveVosrAdvancedSettings();syncVosrAdvancedUi()};
-    $('#ups-vosr-reset').onclick=()=>{resetVosrAdvancedSettings();saveVosrAdvancedSettings();syncVosrAdvancedUi()};
+    const presetEl=$('#ups-vosr-preset');if(presetEl)presetEl.onchange=()=>applyVosrPreset(presetEl.value);
+    for(const id of ['ups-vosr-tile','ups-vosr-tile-overlap','ups-vosr-vae-tile','ups-vosr-vae-overlap'])$('#'+id).onchange=()=>{markVosrPresetCustom();saveVosrAdvancedSettings();syncVosrAdvancedUi()};
+    $('#ups-vosr-reset').onclick=()=>{applyVosrPreset('balanced')};
     mode.onchange=()=>{const m=mode.value;$('#ups-mode-label').textContent=core()?.modeLabel(m)||m;syncModeUi(m)};mode.onchange();checkVosrBridge(true).then(()=>refreshAiStorage());
     compare.oninput=()=>{const v=Number(compare.value);$('#ups-after-wrap').style.clipPath=`inset(0 0 0 ${v}%)`;$('#ups-divider').style.left=v+'%'};compare.oninput();
     $('#ups-run').onclick=run;$('#ups-png').onclick=()=>save('image/png',1,'upscaled.png');$('#ups-jpg').onclick=()=>save('image/jpeg',.95,'upscaled.jpg');$('#ups-ai-clean').onclick=cleanupAiStorage;$('#ups-vosr-stop').onclick=stopVosrJob;
@@ -121,18 +124,33 @@
   function isFidelitySafeMode(mode){return mode==='safe4'||isCloudMode(mode)||isVosrMode(mode)}
   function versionAtLeast(v,min){const a=String(v||'0').split('.').map(x=>parseInt(x,10)||0),b=String(min||'0').split('.').map(x=>parseInt(x,10)||0);for(let i=0;i<Math.max(a.length,b.length);i++){const x=a[i]||0,y=b[i]||0;if(x>y)return true;if(x<y)return false}return true}
   const VOSR_ADV_DEFAULTS={tile:512,tile_overlap:32,vae_tile:1024,vae_overlap:32};
+  const VOSR_PRESETS={
+    fast4060:{label:'FAST · RTX 4060',tile:512,tile_overlap:16,vae_tile:1024,vae_overlap:16},
+    balanced:{label:'BALANCED',tile:512,tile_overlap:32,vae_tile:1024,vae_overlap:32},
+    quality:{label:'QUALITY',tile:512,tile_overlap:64,vae_tile:1024,vae_overlap:64},
+    lowvram:{label:'LOW VRAM',tile:384,tile_overlap:32,vae_tile:768,vae_overlap:32}
+  };
   function vosrAdvancedSettings(){return{tile:Number($('#ups-vosr-tile')?.value||512),tile_overlap:Number($('#ups-vosr-tile-overlap')?.value||32),vae_tile:Number($('#ups-vosr-vae-tile')?.value||1024),vae_overlap:Number($('#ups-vosr-vae-overlap')?.value||32)}}
-  function resetVosrAdvancedSettings(){const d=VOSR_ADV_DEFAULTS;if($('#ups-vosr-tile'))$('#ups-vosr-tile').value=String(d.tile);if($('#ups-vosr-tile-overlap'))$('#ups-vosr-tile-overlap').value=String(d.tile_overlap);if($('#ups-vosr-vae-tile'))$('#ups-vosr-vae-tile').value=String(d.vae_tile);if($('#ups-vosr-vae-overlap'))$('#ups-vosr-vae-overlap').value=String(d.vae_overlap)}
-  function loadVosrAdvancedSettings(){try{const j=JSON.parse(localStorage.getItem('toolbox-vosr-advanced-v1')||'null');if(!j)return;const sets=[['ups-vosr-tile','tile',[128,256,384,512,768,1024]],['ups-vosr-tile-overlap','tile_overlap',[0,16,32,64,96,128]],['ups-vosr-vae-tile','vae_tile',[512,768,1024,1536,2048]],['ups-vosr-vae-overlap','vae_overlap',[0,16,32,64,96,128]]];for(const [id,key,ok] of sets){const v=Number(j[key]);if(ok.includes(v)&&$('#'+id))$('#'+id).value=String(v)}}catch(_){}}
-  function saveVosrAdvancedSettings(){try{localStorage.setItem('toolbox-vosr-advanced-v1',JSON.stringify(vosrAdvancedSettings()))}catch(_){}}
+  function setVosrSettings(d){if($('#ups-vosr-tile'))$('#ups-vosr-tile').value=String(d.tile);if($('#ups-vosr-tile-overlap'))$('#ups-vosr-tile-overlap').value=String(d.tile_overlap);if($('#ups-vosr-vae-tile'))$('#ups-vosr-vae-tile').value=String(d.vae_tile);if($('#ups-vosr-vae-overlap'))$('#ups-vosr-vae-overlap').value=String(d.vae_overlap)}
+  function resetVosrAdvancedSettings(){setVosrSettings(VOSR_ADV_DEFAULTS)}
+  function markVosrPresetCustom(){const p=$('#ups-vosr-preset'),l=$('#ups-vosr-preset-label');if(p)p.value='custom';if(l)l.textContent='CUSTOM'}
+  function applyVosrPreset(name){
+    const p=VOSR_PRESETS[name]||VOSR_PRESETS.balanced;setVosrSettings(p);
+    const el=$('#ups-vosr-preset'),lab=$('#ups-vosr-preset-label');if(el)el.value=name in VOSR_PRESETS?name:'balanced';if(lab)lab.textContent=p.label;
+    saveVosrAdvancedSettings();syncVosrAdvancedUi();
+  }
+  function loadVosrAdvancedSettings(){try{const j=JSON.parse(localStorage.getItem('toolbox-vosr-advanced-v2')||localStorage.getItem('toolbox-vosr-advanced-v1')||'null');if(!j){applyVosrPreset('balanced');return}const sets=[['ups-vosr-tile','tile',[128,256,384,512,768,1024]],['ups-vosr-tile-overlap','tile_overlap',[0,16,32,64,96,128]],['ups-vosr-vae-tile','vae_tile',[512,768,1024,1536,2048]],['ups-vosr-vae-overlap','vae_overlap',[0,16,32,64,96,128]]];for(const [id,key,ok] of sets){const v=Number(j[key]);if(ok.includes(v)&&$('#'+id))$('#'+id).value=String(v)}const cfg=vosrAdvancedSettings();let match='custom';for(const [k,p] of Object.entries(VOSR_PRESETS))if(p.tile===cfg.tile&&p.tile_overlap===cfg.tile_overlap&&p.vae_tile===cfg.vae_tile&&p.vae_overlap===cfg.vae_overlap){match=k;break}const pe=$('#ups-vosr-preset'),pl=$('#ups-vosr-preset-label');if(pe)pe.value=match;if(pl)pl.textContent=match==='custom'?'CUSTOM':VOSR_PRESETS[match].label}catch(_){}}
+  function saveVosrAdvancedSettings(){try{localStorage.setItem('toolbox-vosr-advanced-v2',JSON.stringify(vosrAdvancedSettings()))}catch(_){}}
   function syncVosrAdvancedUi(){
-    const cfg=vosrAdvancedSettings(),def=cfg.tile===512&&cfg.tile_overlap===32&&cfg.vae_tile===1024&&cfg.vae_overlap===32,summary=$('#ups-vosr-advanced-summary'),hint=$('#ups-vosr-advanced-hint');
-    if(summary)summary.textContent=(def?'DEFAULT':'CUSTOM')+' · '+cfg.tile+' / '+cfg.vae_tile;
+    const cfg=vosrAdvancedSettings(),summary=$('#ups-vosr-advanced-summary'),hint=$('#ups-vosr-advanced-hint');
+    let preset='CUSTOM';for(const p of Object.values(VOSR_PRESETS))if(p.tile===cfg.tile&&p.tile_overlap===cfg.tile_overlap&&p.vae_tile===cfg.vae_tile&&p.vae_overlap===cfg.vae_overlap){preset=p.label;break}
+    if(summary)summary.textContent=preset+' · '+cfg.tile+' / '+cfg.vae_tile;
+    const pl=$('#ups-vosr-preset-label');if(pl)pl.textContent=preset;
     const oldBridge=!!S.vosrHealth&&!S.vosrAdvancedSupported;
-    for(const id of ['ups-vosr-tile','ups-vosr-tile-overlap','ups-vosr-vae-tile','ups-vosr-vae-overlap','ups-vosr-reset']){const el=$('#'+id);if(el)el.disabled=oldBridge}
+    for(const id of ['ups-vosr-preset','ups-vosr-tile','ups-vosr-tile-overlap','ups-vosr-vae-tile','ups-vosr-vae-overlap','ups-vosr-reset']){const el=$('#'+id);if(el)el.disabled=oldBridge}
     if(hint){
-      if(oldBridge)hint.innerHTML='<b>Bridge '+(S.vosrHealth?.version||'')+' nepodporuje pokročilé volby.</b> Klikni výše na Stáhnout / aktualizovat VOSR Bridge. Do té doby poběží původní 512 / 1024.';
-      else hint.textContent='Default je původní čistý VOSR: DiT 512 / 32 + VAE 1024 / 32. Menší tile šetří VRAM, větší tile dává modelu víc kontextu. VAE tiling se používá u velkých výstupů.';
+      if(oldBridge)hint.innerHTML='<b>Bridge '+(S.vosrHealth?.version||'')+' nepodporuje pokročilé volby.</b> Aktualizuj VOSR Bridge.';
+      else hint.textContent='FAST RTX 4060: 512 / 16 + VAE 1024 / 16. BALANCED: původní 512 / 32 + VAE 1024 / 32. QUALITY: vyšší overlap 64. Hlavní speed-up dává shared-DINO backend, který už nepouští DINOv2 znovu pro každou dlaždici.';
     }
   }
   function formatBytesAi(n){n=Number(n)||0;if(n<=0)return'0 B';const u=['B','KB','MB','GB','TB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return(n>=100||i===0?n.toFixed(0):n>=10?n.toFixed(1):n.toFixed(2))+' '+u[i]}
@@ -148,22 +166,41 @@
     try{const k=vosrRateKey(scale),old=Number(localStorage.getItem(k));localStorage.setItem(k,String(old>0?old*.65+rate*.35:rate))}catch(_){}
   }
   function updateVosrClock(){
-    if(!S.vosrRunStarted)return;const elapsed=(performance.now()-S.vosrRunStarted)/1000,eta=S.vosrEtaSec||0;
-    const ee=$('#ups-vosr-elapsed'),et=$('#ups-vosr-eta');if(ee)ee.textContent=formatDuration(elapsed);if(et)et.textContent=eta?(elapsed<eta?'~ '+formatDuration(eta-elapsed):'dokončuje…'):'měřím…';
-    if(S.running&&eta){const p=Math.min(90,22+68*Math.min(1,elapsed/eta));$('#ups-progress').style.width=p.toFixed(1)+'%'}
+    if(!S.vosrRunStarted)return;const elapsed=(performance.now()-S.vosrRunStarted)/1000;
+    const ee=$('#ups-vosr-elapsed'),et=$('#ups-vosr-eta');if(ee)ee.textContent=formatDuration(elapsed);
+    if(S.vosrHasRealProgress&&S.vosrLastProgress){
+      const p=Number(S.vosrLastProgress.percent)||0;
+      const remain=p>3&&p<100?elapsed*(100-p)/p:0;
+      if(et)et.textContent=remain?'~ '+formatDuration(remain):(p>=100?'hotovo':'počítám…');
+    }else{
+      const eta=S.vosrEtaSec||0;if(et)et.textContent=eta?(elapsed<eta?'~ '+formatDuration(eta-elapsed):'počítám…'):'měřím…';
+      if(S.running&&eta){const p=Math.min(90,22+68*Math.min(1,elapsed/eta));$('#ups-progress').style.width=p.toFixed(1)+'%'}
+    }
   }
   async function pollVosrTelemetry(){
     updateVosrClock();
     try{
-      const ctrl=new AbortController(),tm=setTimeout(()=>ctrl.abort(),1400),r=await fetch(VOSR_BRIDGE_URL+'/telemetry',{cache:'no-store',signal:ctrl.signal});clearTimeout(tm);if(!r.ok)return;
-      const t=await r.json();if(t.name)$('#ups-vosr-gpu').textContent=t.name;if(Number.isFinite(t.utilization_gpu))$('#ups-vosr-util').textContent=Math.round(t.utilization_gpu)+' %';
-      if(Number.isFinite(t.memory_used_mb)&&Number.isFinite(t.memory_total_mb))$('#ups-vosr-vram').textContent=(t.memory_used_mb/1024).toFixed(1)+' / '+(t.memory_total_mb/1024).toFixed(1)+' GB';
-      if(Number.isFinite(t.temperature_c))$('#ups-vosr-temp').textContent=Math.round(t.temperature_c)+' °C';
+      const ctrl=new AbortController(),tm=setTimeout(()=>ctrl.abort(),1600);
+      const [tr,pr]=await Promise.all([
+        fetch(VOSR_BRIDGE_URL+'/telemetry',{cache:'no-store',signal:ctrl.signal}),
+        fetch(VOSR_BRIDGE_URL+'/progress',{cache:'no-store',signal:ctrl.signal}).catch(()=>null)
+      ]);clearTimeout(tm);
+      if(tr?.ok){
+        const t=await tr.json();if(t.name)$('#ups-vosr-gpu').textContent=t.name;if(Number.isFinite(t.utilization_gpu))$('#ups-vosr-util').textContent=Math.round(t.utilization_gpu)+' %';
+        if(Number.isFinite(t.memory_used_mb)&&Number.isFinite(t.memory_total_mb))$('#ups-vosr-vram').textContent=(t.memory_used_mb/1024).toFixed(1)+' / '+(t.memory_total_mb/1024).toFixed(1)+' GB';
+        if(Number.isFinite(t.temperature_c))$('#ups-vosr-temp').textContent=Math.round(t.temperature_c)+' °C';
+      }
+      if(pr?.ok){
+        const p=await pr.json();S.vosrHasRealProgress=true;S.vosrLastProgress=p;
+        const phase=$('#ups-vosr-phase'),done=Number(p.done)||0,total=Math.max(1,Number(p.total)||1),label=String(p.phase_label||p.phase||'VOSR');
+        if(phase)phase.textContent=total>1?label+' · '+done+'/'+total:label;
+        if(S.running&&Number.isFinite(Number(p.percent))){const pct=Math.max(0,Math.min(100,Number(p.percent)));$('#ups-progress').style.width=pct+'%';status('VOSR 2.0 · '+(total>1?label+' '+done+'/'+total:label),pct)}
+      }
     }catch(_){}
   }
   function startVosrTelemetry(eta,scale,cfg=VOSR_ADV_DEFAULTS){
-    if(S.vosrTelemetryTimer)clearInterval(S.vosrTelemetryTimer);S.vosrEtaSec=eta;S.vosrRunStarted=performance.now();S.vosrStopPending=false;
-    const box=$('#ups-vosr-live'),btn=$('#ups-vosr-stop');if(box)box.hidden=false;if(btn){btn.disabled=false;btn.textContent='■ STOP VOSR'}const modeEl=$('#ups-vosr-live-mode');if(modeEl)modeEl.textContent='SCENE '+scale+'× · TILE '+cfg.tile+' / VAE '+cfg.vae_tile;
+    if(S.vosrTelemetryTimer)clearInterval(S.vosrTelemetryTimer);S.vosrEtaSec=eta;S.vosrRunStarted=performance.now();S.vosrStopPending=false;S.vosrHasRealProgress=false;S.vosrLastProgress=null;
+    const box=$('#ups-vosr-live'),btn=$('#ups-vosr-stop');const phase=$('#ups-vosr-phase');if(phase)phase.textContent='Spouštím…';if(box)box.hidden=false;if(btn){btn.disabled=false;btn.textContent='■ STOP VOSR'}const modeEl=$('#ups-vosr-live-mode');if(modeEl)modeEl.textContent='SCENE '+scale+'× · TILE '+cfg.tile+' / VAE '+cfg.vae_tile;
     pollVosrTelemetry();S.vosrTelemetryTimer=setInterval(pollVosrTelemetry,1200)
   }
   function stopVosrTelemetry(){
@@ -301,7 +338,7 @@
     try{
       const r=await fetch(VOSR_BRIDGE_URL+'/health',{cache:'no-store',signal:ctrl.signal});
       if(!r.ok)throw new Error('HTTP '+r.status);
-      const h=await r.json();S.vosrHealth=h;S.vosrOnline=!!h.ready;S.vosrAdvancedSupported=!!h.advanced_settings||versionAtLeast(h.version,'1.3.5');syncVosrAdvancedUi();
+      const h=await r.json();S.vosrHealth=h;S.vosrOnline=!!h.ready;S.vosrAdvancedSupported=!!h.advanced_settings||versionAtLeast(h.version,'1.3.5');S.vosrHasRealProgress=versionAtLeast(h.version,'1.4.0');syncVosrAdvancedUi();
       if(badge){
         const bridgeState=h.ready?'online · GPU připraveno':(!h.models_ready?'online · chybí modely':(!h.gpu_detected?'online · NVIDIA GPU nenalezena':'online · není připraveno'));
         badge.className='ups-bridge '+(h.ready?'ok':'warn');
