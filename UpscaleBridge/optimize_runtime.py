@@ -28,7 +28,7 @@ NEW_BLOCK = """    # 20-20 TOOLBOX PATCH v3: dual DINO + progress
     # EXACT preserves the original per-tile DINO conditioning.
     # SHARED computes DINO once for the whole image and crops its token grid;
     # this is much faster and is used only by the explicit FAST preset.
-    dino_mode = getattr(args, 'toolbox_dino_mode', 'exact')
+    dino_mode = os.environ.get('TOOLBOX_DINO_MODE', 'exact').strip().lower()
     tile_venc = {}
     z_fea_full = None
     if venc is not None:
@@ -85,15 +85,6 @@ def main() -> int:
     try:
         text = replace_once(text, OLD_BLOCK, NEW_BLOCK, "per-tile DINO block")
         text = replace_once(text, OLD_TILE, NEW_TILE, "tile_venc usage")
-
-        # Parser switch. Exact remains the default; FAST preset explicitly asks for shared.
-        text = replace_once(
-            text,
-            '    parser.add_argument("--infer_steps", type=int, default=1)\n',
-            '    parser.add_argument("--infer_steps", type=int, default=1)\n'
-            '    parser.add_argument("--toolbox_dino_mode", choices=["exact", "shared"], default="exact")\n',
-            "toolbox_dino_mode parser",
-        )
 
         # VAE encode progress.
         old = "    with torch.no_grad():\n        lq_latent, latents_mean, latents_std = encode_dispatch(vae, lq_tensor, args, device)"
