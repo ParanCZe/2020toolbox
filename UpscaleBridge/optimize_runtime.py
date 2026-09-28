@@ -34,14 +34,14 @@ NEW_BLOCK = """    # 20-20 TOOLBOX PATCH v3: dual DINO + progress
     if venc is not None:
         if dino_mode == 'shared':
             print("TOOLBOX_PROGRESS|dino|0|1", flush=True)
-            with torch.inference_mode():
+            with torch.no_grad():
                 z_fea_full = get_venc_features(venc, lq_tensor, args)
             print("TOOLBOX_PROGRESS|dino|1|1", flush=True)
         else:
             total_dino_tiles = max(1, len(h_pos) * len(w_pos))
             dino_done = 0
             print(f"TOOLBOX_PROGRESS|dino|0|{total_dino_tiles}", flush=True)
-            with torch.inference_mode():
+            with torch.no_grad():
                 for hi in h_pos:
                     for wi in w_pos:
                         ph_s, pw_s = hi * AE_FACTOR, wi * AE_FACTOR
@@ -90,7 +90,7 @@ def main() -> int:
         old = "    with torch.no_grad():\n        lq_latent, latents_mean, latents_std = encode_dispatch(vae, lq_tensor, args, device)"
         new = (
             '    print("TOOLBOX_PROGRESS|vae_encode|0|1", flush=True)\n'
-            "    with torch.inference_mode():\n"
+            "    with torch.no_grad():\n"
             "        lq_latent, latents_mean, latents_std = encode_dispatch(vae, lq_tensor, args, device)\n"
             '    print("TOOLBOX_PROGRESS|vae_encode|1|1", flush=True)'
         )
@@ -102,7 +102,7 @@ def main() -> int:
             '    total_dit_tiles = max(1, n_steps * len(h_pos) * len(w_pos))\n'
             '    dit_done = 0\n'
             '    print(f"TOOLBOX_PROGRESS|dit|0|{total_dit_tiles}", flush=True)\n'
-            '    with torch.inference_mode():\n'
+            '    with torch.no_grad():\n'
             '        for step_i in range(n_steps):'
         )
         text = replace_once(text, old, new, "DiT loop")
@@ -119,7 +119,7 @@ def main() -> int:
         old = "    with torch.no_grad():\n        return decode_dispatch(vae, z, args, latents_mean, latents_std, light_decoder)"
         new = (
             '    print("TOOLBOX_PROGRESS|vae_decode|0|1", flush=True)\n'
-            '    with torch.inference_mode():\n'
+            '    with torch.no_grad():\n'
             '        decoded = decode_dispatch(vae, z, args, latents_mean, latents_std, light_decoder)\n'
             '    print("TOOLBOX_PROGRESS|vae_decode|1|1", flush=True)\n'
             '    return decoded'
@@ -150,6 +150,16 @@ def main() -> int:
             "save phase",
         )
 
+        text = text.replace(
+            "import torch\n",
+            "import torch\n"
+            "try:\n"
+            "    import torch._dynamo\n"
+            "    torch._dynamo.config.suppress_errors = True\n"
+            "except Exception:\n"
+            "    pass\n",
+            1,
+        )
         text = text.replace("import os\n", "import os\n" + PATCH_MARKER + "\n", 1)
         compile(text, str(INFERENCE), "exec")
         INFERENCE.write_text(text, encoding="utf-8")
