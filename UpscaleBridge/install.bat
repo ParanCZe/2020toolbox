@@ -2,7 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 set "TARGET=%LOCALAPPDATA%\20-20-TOOLBOX\UpscaleBridge"
 set "BASE=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/UpscaleBridge"
-set "SERVER_REF=398bb284346717455e937085165aca80650c3846"
+set "SERVER_REF=354af7c27df19f3d9a2b8579bff519567f1fdbb2"
 set "SERVER_URL=https://raw.githubusercontent.com/ParanCZe/2020toolbox/%SERVER_REF%/UpscaleBridge/server.py"
 
 echo ================================================================
@@ -21,7 +21,7 @@ echo.
 if not exist "%TARGET%" mkdir "%TARGET%"
 if errorlevel 1 goto :fail
 
-for %%F in (setup.bat run_bridge.bat cleanup_ai.bat download_models.py) do (
+for %%F in (setup.bat run_bridge.bat cleanup_ai.bat download_models.py optimize_runtime.py optimize.bat) do (
   echo Stahuji %%F...
   set "CACHEBUST=%RANDOM%%RANDOM%%RANDOM%"
   where curl.exe >nul 2>nul
@@ -59,6 +59,11 @@ if "%EXISTING_READY%"=="1" (
 )
 
 echo.
+echo Aplikuji performance + progress patch do VOSR runtime...
+"%TARGET%\.venv\Scripts\python.exe" "%TARGET%\optimize_runtime.py"
+if errorlevel 1 goto :fail
+
+echo.
 echo Ukoncuji pripadny stary VOSR Bridge...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$target=[IO.Path]::GetFullPath('%TARGET%\server.py'); Get-CimInstance Win32_Process -Filter \"Name='python.exe' OR Name='pythonw.exe'\" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine -like ('*'+$target+'*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
 timeout /t 1 /nobreak >nul
@@ -85,9 +90,9 @@ start "20-20 TOOLBOX VOSR Bridge" "%TARGET%\run_bridge.bat"
 
 echo.
 echo ================================================================
-echo HOTOVO - VOSR Bridge 1.3.5 je aktualizovany a spousti se.
+echo HOTOVO - VOSR Bridge 1.4.0 je aktualizovany a spousti se.
 echo Existujici AI modely zustaly beze zmeny.
-echo V Toolboxu jsou pouze ciste VOSR Scene 2x / Scene 4x. Interni tile: 512, VAE tile: 1024.
+echo VOSR ma shared-DINO speed patch, realny progress a FAST/BALANCED/QUALITY presety v Toolboxu.
 echo ================================================================
 pause
 exit /b 0
