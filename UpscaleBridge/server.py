@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -28,6 +29,75 @@ JOB_LOCK = threading.Lock()
 PROCESS_LOCK = threading.Lock()
 CURRENT_PROCESS: subprocess.Popen | None = None
 CANCEL_REQUESTED = threading.Event()
+PROGRESS_LOCK = threading.Lock()
+JOB_PROGRESS = {
+    "active": False,
+    "phase": "idle",
+    "phase_label": "Připraveno",
+    "done": 0,
+    "total": 1,
+    "percent": 0.0,
+    "started_at": 0.0,
+    "updated_at": 0.0,
+}
+
+PHASE_RANGES = {
+    "model_load": (5.0, 18.0, "Načítám VOSR modely"),
+    "vae_encode": (18.0, 30.0, "VAE encode"),
+    "dino": (30.0, 42.0, "DINOv2 analýza"),
+    "dit": (42.0, 88.0, "VOSR DiT"),
+    "vae_decode": (88.0, 97.0, "VAE decode"),
+    "save": (97.0, 99.5, "Ukládám výsledek"),
+}
+
+def set_job_progress(phase: str, done: int = 0, total: int = 1, *, active: bool | None = None, message: str | None = None) -> None:
+    total = max(1, int(total or 1))
+    done = max(0, min(total, int(done or 0)))
+    lo, hi, label = PHASE_RANGES.get(phase, (0.0, 99.0, phase))
+    frac = done / total
+    pct = lo + (hi - lo) * frac
+    now = time.time()
+    with PROGRESS_LOCK:
+        if active is not None:
+            JOB_PROGRESS["active"] = bool(active)
+        JOB_PROGRESS["phase"] = phase
+        JOB_PROGRESS["phase_label"] = message or label
+        JOB_PROGRESS["done"] = done
+        JOB_PROGRESS["total"] = total
+        JOB_PROGRESS["percent"] = round(pct, 2)
+        JOB_PROGRESS["updated_at"] = now
+
+def reset_job_progress() -> None:
+    now = time.time()
+    with PROGRESS_LOCK:
+        JOB_PROGRESS.update({
+            "active": True,
+            "phase": "starting",
+            "phase_label": "Spouštím VOSR",
+            "done": 0,
+            "total": 1,
+            "percent": 2.0,
+            "started_at": now,
+            "updated_at": now,
+        })
+
+def progress_payload() -> dict:
+    with PROGRESS_LOCK:
+        p = dict(JOB_PROGRESS)
+    started = float(p.get("started_at") or 0)
+    p["elapsed_seconds"] = max(0.0, time.time() - started) if started else 0.0
+    return p
+
+def parse_progress_line(line: str) -> None:
+    marker = "TOOLBOX_PROGRESS|"
+    if marker not in line:
+        return
+    try:
+        payload = line.split(marker, 1)[1].strip()
+        phase, done, total = payload.split("|", 2)
+        set_job_progress(phase.strip(), int(done), int(total), active=True)
+    except Exception:
+        pass
 
 
 def _glob_any(path: Path, patterns: tuple[str, ...]) -> bool:
@@ -172,7 +242,7 @@ def health_payload() -> dict:
     tel = gpu_telemetry()
     return {
         "name": "20-20 Toolbox VOSR Bridge",
-        "version": "1.3.6",
+        "version": "1.4.0",
         "advanced_settings": True,
         "vosr_defaults": {
             "tile": 512,
@@ -194,7 +264,7 @@ def health_payload() -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ToolboxVOSR/1.3.6"
+    server_version = "ToolboxVOSR/1.4.0"
 
     def log_message(self, fmt: str, *args) -> None:
         print(f"[VOSR Bridge] {self.address_string()} - {fmt % args}")
@@ -228,6 +298,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/telemetry":
             payload = gpu_telemetry()
+            payload["busy"] = JOB_LOCK.locked()
+            payload["cancel_requested"] = CANCEL_REQUESTED.is_set()
+            self._json(200, payload)
+            return
+        if path == "/progress":
+            payload = progress_payload()
             payload["busy"] = JOB_LOCK.locked()
             payload["cancel_requested"] = CANCEL_REQUESTED.is_set()
             self._json(200, payload)
@@ -390,6 +466,7 @@ class Handler(BaseHTTPRequestHandler):
                 print("[VOSR Bridge] Spouštím:", " ".join(f'"{x}"' if " " in x else x for x in cmd))
 
                 CANCEL_REQUESTED.clear()
+                reset_job_progress()
                 stdout = ""
                 stderr = ""
                 try:
@@ -400,11 +477,39 @@ class Handler(BaseHTTPRequestHandler):
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         text=True,
+                        bufsize=1,
+                        encoding="utf-8",
+                        errors="replace",
                     )
                     with PROCESS_LOCK:
                         CURRENT_PROCESS = p
+
+                    out_lines: list[str] = []
+                    err_lines: list[str] = []
+
+                    def consume(stream, sink: list[str], prefix: str) -> None:
+                        if stream is None:
+                            return
+                        for line in iter(stream.readline, ""):
+                            line = line.rstrip("\r\n")
+                            sink.append(line)
+                            if len(sink) > 400:
+                                del sink[:-250]
+                            parse_progress_line(line)
+                            if line:
+                                print(f"[VOSR {prefix}] {line}")
+                        try:
+                            stream.close()
+                        except Exception:
+                            pass
+
+                    t_out = threading.Thread(target=consume, args=(p.stdout, out_lines, "OUT"), daemon=True)
+                    t_err = threading.Thread(target=consume, args=(p.stderr, err_lines, "ERR"), daemon=True)
+                    t_out.start()
+                    t_err.start()
+
                     try:
-                        stdout, stderr = p.communicate(timeout=MAX_JOB_SECONDS)
+                        p.wait(timeout=MAX_JOB_SECONDS)
                     except subprocess.TimeoutExpired:
                         if os.name == "nt":
                             subprocess.run(
@@ -416,15 +521,28 @@ class Handler(BaseHTTPRequestHandler):
                             )
                         else:
                             p.kill()
-                        stdout, stderr = p.communicate()
+                        p.wait(timeout=15)
+                        with PROGRESS_LOCK:
+                            JOB_PROGRESS["active"] = False
+                            JOB_PROGRESS["phase_label"] = "Timeout"
                         self._json(504, {"error": "VOSR inference překročila časový limit."})
                         return
+                    finally:
+                        t_out.join(timeout=2)
+                        t_err.join(timeout=2)
+
+                    stdout = "\n".join(out_lines)
+                    stderr = "\n".join(err_lines)
                 finally:
                     with PROCESS_LOCK:
                         CURRENT_PROCESS = None
 
                 if CANCEL_REQUESTED.is_set():
                     CANCEL_REQUESTED.clear()
+                    with PROGRESS_LOCK:
+                        JOB_PROGRESS["active"] = False
+                        JOB_PROGRESS["phase"] = "cancelled"
+                        JOB_PROGRESS["phase_label"] = "Zastaveno"
                     self._json(499, {"error": "VOSR byl zastaven uživatelem.", "cancelled": True})
                     return
 
@@ -433,9 +551,18 @@ class Handler(BaseHTTPRequestHandler):
                     tail = "\n".join(((stderr or "") + "\n" + (stdout or "")).splitlines()[-40:])
                     print("[VOSR Bridge] Inference selhala. Poslední výstup:")
                     print(tail or "(bez výstupu)")
+                    with PROGRESS_LOCK:
+                        JOB_PROGRESS["active"] = False
+                        JOB_PROGRESS["phase"] = "error"
+                        JOB_PROGRESS["phase_label"] = "Inference selhala"
                     self._json(500, {"error": "VOSR inference selhala.", "detail": tail})
                     return
 
+                set_job_progress("save", 1, 1, active=False, message="Hotovo")
+                with PROGRESS_LOCK:
+                    JOB_PROGRESS["percent"] = 100.0
+                    JOB_PROGRESS["phase"] = "done"
+                    JOB_PROGRESS["phase_label"] = "Hotovo"
                 payload = result.read_bytes()
                 self.send_response(200)
                 self._cors()
