@@ -125,10 +125,10 @@
   function versionAtLeast(v,min){const a=String(v||'0').split('.').map(x=>parseInt(x,10)||0),b=String(min||'0').split('.').map(x=>parseInt(x,10)||0);for(let i=0;i<Math.max(a.length,b.length);i++){const x=a[i]||0,y=b[i]||0;if(x>y)return true;if(x<y)return false}return true}
   const VOSR_ADV_DEFAULTS={tile:512,tile_overlap:32,vae_tile:1024,vae_overlap:32};
   const VOSR_PRESETS={
-    fast4060:{label:'FAST · RTX 4060',tile:512,tile_overlap:16,vae_tile:1024,vae_overlap:16},
+    fast4060:{label:'FAST · RTX 4060',tile:512,tile_overlap:16,vae_tile:768,vae_overlap:16},
     balanced:{label:'BALANCED',tile:512,tile_overlap:32,vae_tile:1024,vae_overlap:32},
     quality:{label:'QUALITY',tile:512,tile_overlap:64,vae_tile:1024,vae_overlap:64},
-    lowvram:{label:'LOW VRAM',tile:384,tile_overlap:32,vae_tile:768,vae_overlap:32}
+    lowvram:{label:'LOW VRAM',tile:384,tile_overlap:32,vae_tile:512,vae_overlap:32}
   };
   function vosrAdvancedSettings(){return{tile:Number($('#ups-vosr-tile')?.value||512),tile_overlap:Number($('#ups-vosr-tile-overlap')?.value||32),vae_tile:Number($('#ups-vosr-vae-tile')?.value||1024),vae_overlap:Number($('#ups-vosr-vae-overlap')?.value||32)}}
   function setVosrSettings(d){if($('#ups-vosr-tile'))$('#ups-vosr-tile').value=String(d.tile);if($('#ups-vosr-tile-overlap'))$('#ups-vosr-tile-overlap').value=String(d.tile_overlap);if($('#ups-vosr-vae-tile'))$('#ups-vosr-vae-tile').value=String(d.vae_tile);if($('#ups-vosr-vae-overlap'))$('#ups-vosr-vae-overlap').value=String(d.vae_overlap)}
@@ -150,7 +150,7 @@
     for(const id of ['ups-vosr-preset','ups-vosr-tile','ups-vosr-tile-overlap','ups-vosr-vae-tile','ups-vosr-vae-overlap','ups-vosr-reset']){const el=$('#'+id);if(el)el.disabled=oldBridge}
     if(hint){
       if(oldBridge)hint.innerHTML='<b>Bridge '+(S.vosrHealth?.version||'')+' nepodporuje pokročilé volby.</b> Aktualizuj VOSR Bridge.';
-      else hint.textContent='FAST RTX 4060: 512 / 16 + VAE 1024 / 16 a shared-DINO (nejrychlejší; conditioning je počítaný jednou pro celý obraz). BALANCED: původní přesný per-tile DINO, 512 / 32. QUALITY: přesný DINO + overlap 64. LOW VRAM: 384 / 32.';
+      else hint.textContent='FAST RTX 4060: 512 / 16 + VAE 768 / 16 a shared-DINO (nejrychlejší; conditioning je počítaný jednou pro celý obraz). BALANCED: původní přesný per-tile DINO, 512 / 32. QUALITY: přesný DINO + overlap 64. LOW VRAM: 384 / 32 + VAE 512.';
     }
   }
   function formatBytesAi(n){n=Number(n)||0;if(n<=0)return'0 B';const u=['B','KB','MB','GB','TB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return(n>=100||i===0?n.toFixed(0):n>=10?n.toFixed(1):n.toFixed(2))+' '+u[i]}
