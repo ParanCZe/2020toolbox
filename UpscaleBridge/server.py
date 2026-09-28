@@ -386,6 +386,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"error": "Podporovaný scale je 2 nebo 4."})
             return
 
+        preset = str(query.get("preset", ["balanced"])[0] or "balanced").lower()
+        dino_mode = "shared" if preset == "fast4060" else "exact"
+
         def query_choice(name: str, default: int, allowed: tuple[int, ...]) -> int:
             try:
                 value = int(query.get(name, [str(default)])[0])
@@ -448,6 +451,7 @@ class Handler(BaseHTTPRequestHandler):
                     "-o", str(out),
                     "-u", str(scale),
                     "--force_rerun",
+                    "--toolbox_dino_mode", dino_mode,
                 ]
                 # Defaults keep the clean/original VOSR path. Custom values are
                 # only used when the advanced controls explicitly send them.
@@ -460,8 +464,8 @@ class Handler(BaseHTTPRequestHandler):
                 env["PYTHONUTF8"] = "1"
                 env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
                 print(
-                    f"[VOSR Bridge] Scene {scale}x · tile {tile_size} / overlap {tile_overlap} · "
-                    f"VAE tile {vae_tile_size} / overlap {vae_tile_overlap}"
+                    f"[VOSR Bridge] Scene {scale}x · preset {preset} · DINO {dino_mode} · "
+                    f"tile {tile_size} / overlap {tile_overlap} · VAE tile {vae_tile_size} / overlap {vae_tile_overlap}"
                 )
                 print("[VOSR Bridge] Spouštím:", " ".join(f'"{x}"' if " " in x else x for x in cmd))
 
@@ -574,6 +578,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("X-Toolbox-Tile-Overlap", str(tile_overlap))
                 self.send_header("X-Toolbox-VAE-Tile", str(vae_tile_size))
                 self.send_header("X-Toolbox-VAE-Overlap", str(vae_tile_overlap))
+                self.send_header("X-Toolbox-Preset", preset)
+                self.send_header("X-Toolbox-DINO", dino_mode)
                 self.end_headers()
                 self.wfile.write(payload)
         except BrokenPipeError:
