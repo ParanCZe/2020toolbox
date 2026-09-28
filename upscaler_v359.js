@@ -150,7 +150,7 @@
     for(const id of ['ups-vosr-preset','ups-vosr-tile','ups-vosr-tile-overlap','ups-vosr-vae-tile','ups-vosr-vae-overlap','ups-vosr-reset']){const el=$('#'+id);if(el)el.disabled=oldBridge}
     if(hint){
       if(oldBridge)hint.innerHTML='<b>Bridge '+(S.vosrHealth?.version||'')+' nepodporuje pokročilé volby.</b> Aktualizuj VOSR Bridge.';
-      else hint.textContent='FAST RTX 4060: 512 / 16 + VAE 1024 / 16. BALANCED: původní 512 / 32 + VAE 1024 / 32. QUALITY: vyšší overlap 64. Hlavní speed-up dává shared-DINO backend, který už nepouští DINOv2 znovu pro každou dlaždici.';
+      else hint.textContent='FAST RTX 4060: 512 / 16 + VAE 1024 / 16 a shared-DINO (nejrychlejší; conditioning je počítaný jednou pro celý obraz). BALANCED: původní přesný per-tile DINO, 512 / 32. QUALITY: přesný DINO + overlap 64. LOW VRAM: 384 / 32.';
     }
   }
   function formatBytesAi(n){n=Number(n)||0;if(n<=0)return'0 B';const u=['B','KB','MB','GB','TB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return(n>=100||i===0?n.toFixed(0):n>=10?n.toFixed(1):n.toFixed(2))+' '+u[i]}
@@ -369,6 +369,7 @@
     startVosrTelemetry(eta,scale,applied);
     try{
       const qs=new URLSearchParams({scale:String(scale)});
+      const presetName=$('#ups-vosr-preset')?.value||'custom';qs.set('preset',presetName);
       if(useAdvanced){qs.set('tile',String(cfg.tile));qs.set('tile_overlap',String(cfg.tile_overlap));qs.set('vae_tile',String(cfg.vae_tile));qs.set('vae_overlap',String(cfg.vae_overlap))}
       const r=await fetch(VOSR_BRIDGE_URL+'/upscale?'+qs.toString(),{method:'POST',headers:{'Content-Type':'image/png'},body:blob});
       if(!r.ok){
@@ -385,11 +386,11 @@
         }catch(e){}
         throw new Error(msg);
       }
-      const actual={tile:Number(r.headers.get('X-Toolbox-Tile'))||applied.tile,tile_overlap:Number(r.headers.get('X-Toolbox-Tile-Overlap'))||applied.tile_overlap,vae_tile:Number(r.headers.get('X-Toolbox-VAE-Tile'))||applied.vae_tile,vae_overlap:Number(r.headers.get('X-Toolbox-VAE-Overlap'))||applied.vae_overlap};
+      const actual={tile:Number(r.headers.get('X-Toolbox-Tile'))||applied.tile,tile_overlap:Number(r.headers.get('X-Toolbox-Tile-Overlap'))||applied.tile_overlap,vae_tile:Number(r.headers.get('X-Toolbox-VAE-Tile'))||applied.vae_tile,vae_overlap:Number(r.headers.get('X-Toolbox-VAE-Overlap'))||applied.vae_overlap,preset:r.headers.get('X-Toolbox-Preset')||presetName,dino:r.headers.get('X-Toolbox-DINO')||'exact'};
       const out=await r.blob();status('VOSR 2.0 · načítám výsledek…',94);
       const img=await imageFromBlob(out),result=document.createElement('canvas');result.width=img.naturalWidth;result.height=img.naturalHeight;result.getContext('2d').drawImage(img,0,0);
       rememberVosrRate(src,scale,(performance.now()-started)/1000);
-      S.engine='VOSR 2.0 · SCENE '+scale+'× · TILE '+actual.tile+' / VAE '+actual.vae_tile+' · LOCAL CUDA';$('#ups-engine').textContent=S.engine;
+      S.engine='VOSR 2.0 · SCENE '+scale+'× · '+(actual.dino==='shared'?'FAST DINO':'EXACT DINO')+' · TILE '+actual.tile+' / VAE '+actual.vae_tile+' · LOCAL CUDA';$('#ups-engine').textContent=S.engine;
       return result;
     }finally{stopVosrTelemetry()}
   }
