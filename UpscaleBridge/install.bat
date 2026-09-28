@@ -2,7 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 set "TARGET=%LOCALAPPDATA%\20-20-TOOLBOX\UpscaleBridge"
 set "BASE=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/UpscaleBridge"
-set "SERVER_REF=354af7c27df19f3d9a2b8579bff519567f1fdbb2"
+set "SERVER_REF=02c50d13202477394610856639af8f790b28e069"
 set "SERVER_URL=https://raw.githubusercontent.com/ParanCZe/2020toolbox/%SERVER_REF%/UpscaleBridge/server.py"
 
 echo ================================================================
