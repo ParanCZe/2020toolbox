@@ -451,7 +451,6 @@ class Handler(BaseHTTPRequestHandler):
                     "-o", str(out),
                     "-u", str(scale),
                     "--force_rerun",
-                    "--toolbox_dino_mode", dino_mode,
                 ]
                 # Defaults keep the clean/original VOSR path. Custom values are
                 # only used when the advanced controls explicitly send them.
@@ -462,6 +461,7 @@ class Handler(BaseHTTPRequestHandler):
 
                 env = os.environ.copy()
                 env["PYTHONUTF8"] = "1"
+                env["TOOLBOX_DINO_MODE"] = dino_mode
                 env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
                 print(
                     f"[VOSR Bridge] Scene {scale}x · preset {preset} · DINO {dino_mode} · "
