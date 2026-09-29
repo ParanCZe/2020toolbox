@@ -1,8 +1,9 @@
 (() => {
   const KEY='2020toolbox.sketchupPluginDownloads.v1';
-  const IS_MAC=/Macintosh|Mac OS X|MacIntel/i.test((navigator.userAgent||'')+' '+(navigator.platform||''));
-  const MAC_CONNECTOR_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/20-20_Toolbox_Mac_Connector_v1.1.0.rbz';
-  const originalEnsureSuBridge=window.ensureSuBridge;
+  const UA=(navigator.userAgent||'')+' '+(navigator.platform||'');
+  const IS_MAC=/Macintosh|Mac OS X|MacIntel/i.test(UA);
+  const IS_WIN=/Windows|Win32|Win64/i.test(UA);
+  const CONNECTOR_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/20-20_Toolbox_Connector_v2.0.0.rbz';
   const loaderFixes={
     'ai-exporter':'twentytwenty_nano_banana_exporter.rb'
   };
@@ -34,33 +35,34 @@
     })}catch(e){console.error(e)}
   };
 
-  window.downloadMacSketchUpConnector=function(){
+  window.downloadSketchUpConnector=function(){
     const a=document.createElement('a');
-    a.href=MAC_CONNECTOR_URL;
-    a.download='20-20_Toolbox_Mac_Connector_v1.1.0.rbz';
+    a.href=CONNECTOR_URL;
+    a.download='20-20_Toolbox_Connector_v2.0.0.rbz';
     a.rel='noopener';
     document.body.appendChild(a);a.click();a.remove();
-    suPluginToast('Mac Connector v1.1.0 stažen. Podporuje SketchUp 2017–2026. Ve SketchUpu otevři Extension Manager → Install Extension, vyber RBZ a potom SketchUp restartuj.');
+    suPluginToast('20-20 Toolbox Connector v2.0.0 stažen. Nainstaluj ho jednou přes SketchUp Extension Manager a SketchUp restartuj.');
   };
+  window.downloadMacSketchUpConnector=window.downloadSketchUpConnector;
 
   window.ensureSuBridge=async function(file=''){
-    if(IS_MAC){
-      let st=await suBridgeStatus();
+    let st=await suBridgeStatus();
+    if(st&&st.ok)return st;
+    for(let i=0;i<8;i++){
+      await new Promise(r=>setTimeout(r,250));
+      st=await suBridgeStatus();
       if(st&&st.ok)return st;
-      for(let i=0;i<8;i++){await new Promise(r=>setTimeout(r,250));st=await suBridgeStatus();if(st&&st.ok)return st}
-      return null;
     }
-    return originalEnsureSuBridge?originalEnsureSuBridge(file):null;
+    return null;
   };
 
   function configureBridgePanel(){
     const box=document.querySelector('.suplugins-bridge');if(!box)return;
-    if(IS_MAC){
-      box.innerHTML='<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>macOS Connector:</b><span>jednorázově jako RBZ do SketchUpu</span></div>'+
-      '<div style="margin-top:5px;color:var(--muted)">Na Macu se nepoužívá BAT. Jednou nainstaluješ <b>20-20 Toolbox Mac Connector</b> přes SketchUp Extension Manager. Verze 1.1.0 podporuje SketchUp 2017–2026. Když je SketchUp otevřený, Toolbox potom umí číst verze, instalovat, aktualizovat i odinstalovat pluginy.</div>'+
-      '<div class="suplugins-bridge-actions"><button class="suplugins-bridge-start" onclick="downloadMacSketchUpConnector()">Stáhnout Mac Connector (.rbz)</button></div>'+
-      '<div class="suplugins-bridge-help show">Postup: SketchUp → Extensions → Extension Manager → Install Extension → vyber stažený RBZ → restartuj SketchUp. Connector komunikuje jen lokálně přes 127.0.0.1:8092.</div>';
-    }
+    const platform=IS_MAC?'macOS':(IS_WIN?'Windows':'Windows / macOS');
+    box.innerHTML='<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>20-20 Toolbox Connector:</b><span>jednorázově jako RBZ do SketchUpu</span></div>'+
+      '<div style="margin-top:5px;color:var(--muted)">Na <b>'+platform+'</b> už není potřeba BAT ani pokaždé spouštět Bridge. Jednou nainstaluješ <b>20-20 Toolbox Connector</b> přes SketchUp Extension Manager. Podporuje SketchUp 2017–2026. Když je SketchUp otevřený, Toolbox umí číst verze, instalovat, aktualizovat i odinstalovat 20-20 pluginy.</div>'+
+      '<div class="suplugins-bridge-actions"><button class="suplugins-bridge-start" onclick="downloadSketchUpConnector()">Stáhnout Toolbox Connector (.rbz)</button></div>'+
+      '<div class="suplugins-bridge-help show">Postup: SketchUp → Extensions → Extension Manager → Install Extension → vyber <b>20-20_Toolbox_Connector_v2.0.0.rbz</b> → restartuj SketchUp. Connector komunikuje pouze lokálně přes 127.0.0.1:8092.</div>';
   }
 
   window.refreshSuPluginVersions=async function(){
@@ -76,9 +78,9 @@
 
   window.installSuPlugin=async function(id,version){
     let x;try{x=suPluginPayload(id,version)}catch(e){suPluginToast(e?.message||String(e),true);return}
-    suPluginToast('Zapínám SketchUp Bridge…');
+    suPluginToast('Připojuji se k 20-20 Toolbox Connectoru…');
     const s=await ensureSuBridge();
-    if(!s){suPluginToast(IS_MAC?'Mac Connector není aktivní. Nainstaluj ho jednou přes Extension Manager a měj při práci se správou pluginů otevřený SketchUp.':'Bridge se nespustil. Spusť jednorázový Helper V3 a zkus to znovu.',true);return}
+    if(!s){suPluginToast('Toolbox Connector není aktivní. Nainstaluj ho jednou přes Extension Manager, restartuj SketchUp a nech SketchUp při správě pluginů otevřený.',true);return}
     try{
       let r;
       if(x.version.repo_file){
@@ -96,7 +98,7 @@
   window.uninstallSuPlugin=async function(id){
     const p=getSuPlugin(id);if(!p||!p.loader){suPluginToast('U tohoto pluginu není znám loader pro bezpečné odinstalování.',true);return}
     if(!confirm('Odinstalovat '+p.name+' ze SketchUpu?'))return;
-    const s=await ensureSuBridge();if(!s){suPluginToast('Bridge se nespustil.',true);return}
+    const s=await ensureSuBridge();if(!s){suPluginToast('Toolbox Connector není aktivní. Otevři SketchUp a zkontroluj instalaci Connectoru.',true);return}
     try{const r=await fetch(SU_BRIDGE_URL+'/uninstall?loader='+encodeURIComponent(p.loader),{method:'POST'});const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));applyInstalledVersions(data.installed||{});suPluginToast(p.name+' odinstalován. Restartuj SketchUp.')}
     catch(e){suPluginToast('Odinstalace selhala: '+(e?.message||e),true)}
   };
