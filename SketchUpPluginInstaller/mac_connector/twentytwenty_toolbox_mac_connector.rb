@@ -4,7 +4,7 @@ require 'extensions.rb'
 module TwentyTwenty
   module ToolboxConnector
     EXTENSION_NAME = '20-20 Toolbox Connector'.freeze
-    EXTENSION_VERSION = '2.0.1'.freeze
+    EXTENSION_VERSION = '2.0.2'.freeze
     BASE_DIR = File.dirname(__FILE__).freeze
     MAIN_FILE = File.join(BASE_DIR, 'twentytwenty_toolbox_mac_connector', 'main').freeze
 
