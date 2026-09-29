@@ -13,7 +13,7 @@ module TwentyTwenty
   module ToolboxConnector
     extend self
 
-    VERSION = '2.0.1'.freeze
+    VERSION = '2.0.2'.freeze
     PORT = 8092
     HOST = '127.0.0.1'.freeze
     ALLOWED_PREFIXES = %w[twentytwenty_ 2020_ dvacet20-].freeze
