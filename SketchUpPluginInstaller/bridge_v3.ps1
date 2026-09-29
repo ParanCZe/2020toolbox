@@ -82,17 +82,29 @@ function Get-SketchUp {
 }
 function Expand-RbzSafe([string]$rbz,[string]$ext){
  if(-not(Test-Path $rbz)){throw 'RBZ soubor neexistuje.'}
- $fi=Get-Item $rbz;if($fi.Length -lt 64){throw 'RBZ soubor je prázdný nebo poškozený.'}
+ $fi=Get-Item $rbz
+ if($fi.Length -lt 64){throw 'RBZ soubor je prázdný nebo poškozený.'}
  $sig=[IO.File]::ReadAllBytes($rbz)[0..1]
  if($sig[0] -ne 0x50 -or $sig[1] -ne 0x4B){throw 'Stažený soubor není platný ZIP/RBZ.'}
+ if(Test-Path $ext){Remove-Item $ext -Recurse -Force -ErrorAction SilentlyContinue}
  New-Item -ItemType Directory -Force -Path $ext|Out-Null
- $tar=Get-Command tar.exe -ErrorAction SilentlyContinue
- if($tar){
-  & $tar.Source -xf $rbz -C $ext 2>$null
-  if($LASTEXITCODE -eq 0){return}
-  Remove-Item $ext -Recurse -Force -ErrorAction SilentlyContinue;New-Item -ItemType Directory -Force -Path $ext|Out-Null
+ try{
+  [IO.Compression.ZipFile]::ExtractToDirectory($rbz,$ext)
+  return
+ }catch{
+  $first=$_.Exception.Message
+  Remove-Item $ext -Recurse -Force -ErrorAction SilentlyContinue
+  New-Item -ItemType Directory -Force -Path $ext|Out-Null
+  try{
+   $zipCopy=Join-Path (Split-Path $rbz -Parent) 'plugin_fallback.zip'
+   Copy-Item $rbz $zipCopy -Force
+   Expand-Archive -LiteralPath $zipCopy -DestinationPath $ext -Force
+   Remove-Item $zipCopy -Force -ErrorAction SilentlyContinue
+   return
+  }catch{
+   throw ('RBZ nelze rozbalit. ZipFile: '+$first+' | Expand-Archive: '+$_.Exception.Message)
+  }
  }
- try{[IO.Compression.ZipFile]::ExtractToDirectory($rbz,$ext)}catch{throw ('RBZ nelze rozbalit: '+$_.Exception.Message)}
 }
 function Copy-PluginTree([string]$ext,$su){
  $copied=0
@@ -145,7 +157,7 @@ while([DateTime]::UtcNow -lt $expires){
  try{
   $req=Read-RequestHead $s;if($null -eq $req){continue};$method=$req.Method;$path=$req.Path;$len=$req.ContentLength
   if($method -eq 'OPTIONS'){Reply $s 204 @{};continue}
-  if($method -eq 'GET' -and $path.StartsWith('/status')){$left=[Math]::Max(0,[int][Math]::Ceiling(($expires-[DateTime]::UtcNow).TotalSeconds));Reply $s 200 @{ok=$true;sketchup=$su.Name;remaining_seconds=$left;installed=(Get-Installed $su.Plugins);bridge_version='3.3'};continue}
+  if($method -eq 'GET' -and $path.StartsWith('/status')){$left=[Math]::Max(0,[int][Math]::Ceiling(($expires-[DateTime]::UtcNow).TotalSeconds));Reply $s 200 @{ok=$true;sketchup=$su.Name;remaining_seconds=$left;installed=(Get-Installed $su.Plugins);bridge_version='3.4'};continue}
   if($method -eq 'POST' -and $path.StartsWith('/install')){
    $file='plugin.rbz';if($path -match '[?&]file=([^&]+)'){$file=[Uri]::UnescapeDataString($Matches[1])};if($file -notmatch '^[A-Za-z0-9._-]+\.rbz$'){Reply $s 400 @{ok=$false;error='Invalid RBZ'};continue}
    $repoPath='';if($path -match '[?&]repo=([^&]+)'){$repoPath=[Uri]::UnescapeDataString($Matches[1])}
