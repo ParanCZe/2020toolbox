@@ -34,4 +34,5 @@ jobs:
           git add SketchUpPluginInstaller/20-20_Toolbox_Mac_Connector_v1.1.0.rbz
           git diff --cached --quiet && exit 0
           git commit -m "Build macOS SketchUp connector v1.1.0"
+          git pull --rebase origin main
           git push
