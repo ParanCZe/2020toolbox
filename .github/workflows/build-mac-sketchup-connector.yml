@@ -1,0 +1,37 @@
+name: Build macOS SketchUp Connector
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'SketchUpPluginInstaller/mac_connector/**'
+      - '.github/workflows/build-mac-sketchup-connector.yml'
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build RBZ
+        shell: python
+        run: |
+          from pathlib import Path
+          import zipfile
+          src=Path("SketchUpPluginInstaller/mac_connector")
+          dst=Path("SketchUpPluginInstaller/20-20_Toolbox_Mac_Connector_v1.0.0.rbz")
+          with zipfile.ZipFile(dst,"w",zipfile.ZIP_STORED,allowZip64=False) as z:
+              for p in src.rglob("*"):
+                  if p.is_file():
+                      z.write(p,p.relative_to(src).as_posix())
+          with zipfile.ZipFile(dst) as z:
+              bad=z.testzip()
+              if bad: raise SystemExit("bad zip member: "+bad)
+      - name: Commit RBZ
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPluginInstaller/20-20_Toolbox_Mac_Connector_v1.0.0.rbz
+          git diff --cached --quiet && exit 0
+          git commit -m "Build macOS SketchUp connector v1.0.0"
+          git push
