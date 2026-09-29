@@ -1,0 +1,69 @@
+name: Publish RM Tools v1.1.3
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-rm-tools-v113.yml'
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build RM Tools v1.1.3
+        shell: python
+        run: |
+          from pathlib import Path
+          import zipfile, tempfile, shutil, re
+          src=Path("SketchUpPlugins/20-20_RM_Tools_v1.1.2.rbz")
+          dst=Path("SketchUpPlugins/20-20_RM_Tools_v1.1.3.rbz")
+          tmp=Path(tempfile.mkdtemp())
+          with zipfile.ZipFile(src) as z:
+              z.extractall(tmp)
+          loader=tmp/"twentytwenty_rm_checker.rb"
+          main=tmp/"twentytwenty_rm_checker"/"main.rb"
+          loader.write_text(loader.read_text(encoding="utf-8").replace("EXTENSION_VERSION = '1.1.2'","EXTENSION_VERSION = '1.1.3'"),encoding="utf-8")
+          main.write_text(main.read_text(encoding="utf-8").replace("VERSION = '1.1.2'","VERSION = '1.1.3'"),encoding="utf-8")
+          with zipfile.ZipFile(dst,"w",compression=zipfile.ZIP_STORED,allowZip64=False) as z:
+              for p in tmp.rglob("*"):
+                  if p.is_file():
+                      z.write(p,p.relative_to(tmp).as_posix())
+          shutil.rmtree(tmp)
+          p=Path("index.html")
+          html=p.read_text(encoding="utf-8")
+          start=html.find("id:'rm-checker'")
+          bs=html.rfind("{",0,start)
+          depth=0; quote=None; esc=False; be=None
+          for i in range(bs,len(html)):
+              c=html[i]
+              if quote:
+                  if esc: esc=False
+                  elif c=="\\": esc=True
+                  elif c==quote: quote=None
+                  continue
+              if c in ("'",'"',chr(96)):
+                  quote=c; continue
+              if c=="{": depth+=1
+              elif c=="}":
+                  depth-=1
+                  if depth==0:
+                      be=i+1; break
+          b=html[bs:be]
+          b=re.sub(r"current:'[^']*'","current:'1.1.3'",b,count=1)
+          b=re.sub(r"meta:'[^']*'","meta:'V1.1.3 opravuje instalaci RM Tools přes Toolbox: RBZ je zabalen bez komprese pro kompatibilitu s Windows/.NET ZIP rozbalováním. Funkce v1.1.2 zůstávají zachované.'",b,count=1)
+          if '"version":"1.1.3"' not in b:
+              pos=b.rfind("]")
+              pre=b[:pos].rstrip()
+              if not pre.endswith(","): pre+=","
+              entry='\n    {"version":"1.1.3","file":"20-20_RM_Tools_v1.1.3.rbz","size":'+str(dst.stat().st_size)+',"repo_file":"SketchUpPlugins/20-20_RM_Tools_v1.1.3.rbz"}\n  '
+              b=pre+entry+b[pos:]
+          p.write_text(html[:bs]+b+html[be:],encoding="utf-8")
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_Tools_v1.1.3.rbz index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Publish 20-20 RM Tools v1.1.3"
+          git push
