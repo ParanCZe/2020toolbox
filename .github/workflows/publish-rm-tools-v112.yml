@@ -1,8 +1,7 @@
 name: Publish RM Tools v1.1.2
-'on':
+on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - '.github/workflows/publish-rm-tools-v112.yml'
 permissions:
@@ -12,85 +11,76 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build and publish
-        shell: bash
+      - name: Build RM Tools v1.1.2
+        shell: python
         run: |
-          python3 <<'PY'
           from pathlib import Path
           import zipfile, tempfile, shutil, re
-
           src=Path("SketchUpPlugins/20-20_RM_Tools_v1.1.1.rbz")
           dst=Path("SketchUpPlugins/20-20_RM_Tools_v1.1.2.rbz")
           tmp=Path(tempfile.mkdtemp())
           with zipfile.ZipFile(src) as z:
               z.extractall(tmp)
-
           loader=tmp/"twentytwenty_rm_checker.rb"
           main=tmp/"twentytwenty_rm_checker"/"main.rb"
-
-          s=loader.read_text(encoding="utf-8")
-          s=s.replace("EXTENSION_VERSION = '1.1.1'","EXTENSION_VERSION = '1.1.2'")
+          s=loader.read_text(encoding="utf-8").replace("EXTENSION_VERSION = '1.1.1'","EXTENSION_VERSION = '1.1.2'")
           loader.write_text(s,encoding="utf-8")
-
-          s=main.read_text(encoding="utf-8")
-          s=s.replace("VERSION = '1.1.1'","VERSION = '1.1.2'")
-          old="""      @toolbar ||= UI::Toolbar.new('20-20 RM Tools')
-      @toolbar.add_item(@command) if @toolbar.count == 0
-      @toolbar.restore
-"""
-          new="""      @toolbar ||= UI::Toolbar.new('20-20 RM Tools')
-      unless @toolbar_item_added
-        @toolbar.add_item(@command)
-        @toolbar_item_added = true
-      end
-      begin
-        @toolbar.restore
-      rescue StandardError
-        @toolbar.show
-      end
-"""
+          s=main.read_text(encoding="utf-8").replace("VERSION = '1.1.1'","VERSION = '1.1.2'")
+          old="      @toolbar ||= UI::Toolbar.new('20-20 RM Tools')\n      @toolbar.add_item(@command) if @toolbar.count == 0\n      @toolbar.restore\n"
+          new="      @toolbar ||= UI::Toolbar.new('20-20 RM Tools')\n      unless @toolbar_item_added\n        @toolbar.add_item(@command)\n        @toolbar_item_added = true\n      end\n      begin\n        @toolbar.restore\n      rescue StandardError\n        @toolbar.show\n      end\n"
           if old not in s:
               raise SystemExit("toolbar block not found")
           main.write_text(s.replace(old,new),encoding="utf-8")
-
           with zipfile.ZipFile(dst,"w",zipfile.ZIP_DEFLATED) as z:
-              for p in tmp.rglob("*"):
-                  if p.is_file():
-                      z.write(p,p.relative_to(tmp).as_posix())
+              for q in tmp.rglob("*"):
+                  if q.is_file():
+                      z.write(q,q.relative_to(tmp).as_posix())
           shutil.rmtree(tmp)
-
           p=Path("index.html")
           html=p.read_text(encoding="utf-8")
           start=html.find("id:'rm-checker'")
-          if start<0: raise SystemExit("rm-checker block not found")
+          if start<0:
+              raise SystemExit("rm-checker block not found")
           bs=html.rfind("{",0,start)
-          depth=0; quote=None; esc=False; be=None
+          depth=0
+          quote=None
+          esc=False
+          be=None
           for i in range(bs,len(html)):
               c=html[i]
               if quote:
-                  if esc: esc=False
-                  elif c=="\\": esc=True
-                  elif c==quote: quote=None
+                  if esc:
+                      esc=False
+                  elif c=="\\":
+                      esc=True
+                  elif c==quote:
+                      quote=None
                   continue
               if c in ("'",'"',chr(96)):
-                  quote=c; continue
-              if c=="{": depth+=1
+                  quote=c
+                  continue
+              if c=="{":
+                  depth+=1
               elif c=="}":
                   depth-=1
                   if depth==0:
-                      be=i+1; break
-          if be is None: raise SystemExit("rm-checker block end not found")
+                      be=i+1
+                      break
+          if be is None:
+              raise SystemExit("rm-checker block end not found")
           b=html[bs:be]
           b=re.sub(r"current:'[^']*'","current:'1.1.2'",b,count=1)
           b=re.sub(r"meta:'[^']*'","meta:'V1.1.2 opravuje toolbar ve SketchUpu 2026 a zachovává navigaci k nálezům, standardní ohniska, řazení INFO / VAROVÁNÍ / CHYBY a AI context.'",b,count=1)
           if '"version":"1.1.2"' not in b:
               pos=b.rfind("]")
               pre=b[:pos].rstrip()
-              if not pre.endswith(","): pre+=","
+              if not pre.endswith(","):
+                  pre+=","
               entry='\n    {"version":"1.1.2","file":"20-20_RM_Tools_v1.1.2.rbz","size":'+str(dst.stat().st_size)+',"repo_file":"SketchUpPlugins/20-20_RM_Tools_v1.1.2.rbz"}\n  '
               b=pre+entry+b[pos:]
           p.write_text(html[:bs]+b+html[be:],encoding="utf-8")
-          PY
+      - name: Commit generated plugin and registry
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add SketchUpPlugins/20-20_RM_Tools_v1.1.2.rbz index.html
