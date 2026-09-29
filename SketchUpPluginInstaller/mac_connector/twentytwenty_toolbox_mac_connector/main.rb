@@ -7,12 +7,13 @@ require 'net/http'
 require 'uri'
 require 'tmpdir'
 require 'fileutils'
+require 'zlib'
 
 module TwentyTwenty
   module ToolboxConnector
     extend self
 
-    VERSION = '2.0.0'.freeze
+    VERSION = '2.0.1'.freeze
     PORT = 8092
     HOST = '127.0.0.1'.freeze
     ALLOWED_PREFIXES = %w[twentytwenty_ 2020_ dvacet20-].freeze
@@ -234,15 +235,19 @@ module TwentyTwenty
 
       if windows?
         begin
-          ok = system('curl.exe', '-L', '--fail', '--silent', '--show-error', '-o', target, url)
-          return if ok && File.exist?(target) && File.size(target) > 0
-        rescue
-        end
-        begin
-          cmd = "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri #{shell_quote_ps(url)} -OutFile #{shell_quote_ps(target)}"
-          ok = system('powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd)
-          return if ok && File.exist?(target) && File.size(target) > 0
-        rescue
+          require 'win32ole'
+          http = WIN32OLE.new('WinHttp.WinHttpRequest.5.1')
+          http.Open('GET', url, false)
+          http.SetRequestHeader('Cache-Control', 'no-cache')
+          http.Send
+          status = http.Status.to_i
+          raise "HTTP #{status}" unless status >= 200 && status < 300
+          bytes = http.ResponseBody
+          bytes = bytes.to_a if bytes.respond_to?(:to_a)
+          File.open(target, 'wb') { |f| f.write(bytes.pack('C*')) }
+          return if File.exist?(target) && File.size(target) > 0
+        rescue StandardError => e
+          puts "20-20 Toolbox Connector WinHTTP fallback: #{e.message}"
         end
       end
 
@@ -252,28 +257,72 @@ module TwentyTwenty
       File.open(target, 'wb') { |f| f.write(response.body) }
     end
 
-    def unzip(rbz, target)
-      if mac?
-        commands = [
-          ['/usr/bin/ditto', '-x', '-k', rbz, target],
-          ['/usr/bin/unzip', '-qq', '-o', rbz, '-d', target]
-        ]
-        commands.each do |cmd|
-          next unless File.exist?(cmd[0])
-          return if system(*cmd)
+    def safe_zip_name?(name)
+      value = name.to_s.tr('\\', '/')
+      return false if value.start_with?('/') || value =~ /\A[A-Za-z]:/
+      parts = value.split('/')
+      !parts.include?('..')
+    end
+
+    def extract_zip_ruby(rbz, target)
+      data = File.open(rbz, 'rb') { |f| f.read }
+      pos = 0
+      extracted = 0
+
+      while pos + 30 <= data.bytesize
+        sig = data[pos, 4].unpack('V')[0]
+        break if sig == 0x02014b50 || sig == 0x06054b50
+        raise 'Neplatná ZIP struktura.' unless sig == 0x04034b50
+
+        h = data[pos, 30].unpack('VvvvvvVVVvv')
+        flags = h[2]
+        method = h[3]
+        csize = h[7]
+        usize = h[8]
+        nlen = h[9]
+        xlen = h[10]
+        raise 'ZIP používá nepodporovaný data-descriptor.' if (flags & 0x08) != 0
+
+        name = data[pos + 30, nlen]
+        raise 'Nebezpečná cesta v RBZ.' unless safe_zip_name?(name)
+        start = pos + 30 + nlen + xlen
+        compressed = data[start, csize]
+
+        normalized = name.tr('\\', '/')
+        dst = File.join(target, normalized)
+        if normalized.end_with?('/')
+          FileUtils.mkdir_p(dst)
+        else
+          FileUtils.mkdir_p(File.dirname(dst))
+          content = case method
+                    when 0
+                      compressed
+                    when 8
+                      inflater = Zlib::Inflate.new(-Zlib::MAX_WBITS)
+                      begin
+                        inflater.inflate(compressed) + inflater.finish
+                      ensure
+                        inflater.close
+                      end
+                    else
+                      raise "Nepodporovaná ZIP komprese: #{method}"
+                    end
+          raise 'Poškozená položka v RBZ.' if usize > 0 && content.bytesize != usize
+          File.open(dst, 'wb') { |f| f.write(content) }
+          extracted += 1
         end
-      elsif windows?
-        begin
-          cmd = "Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::ExtractToDirectory(#{shell_quote_ps(rbz)}, #{shell_quote_ps(target)})"
-          return if system('powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd)
-        rescue
-        end
-        begin
-          return if system('tar.exe', '-xf', rbz, '-C', target)
-        rescue
-        end
+        pos = start + csize
       end
-      raise "RBZ se na #{platform_name} nepodařilo rozbalit."
+
+      raise 'RBZ neobsahuje žádné soubory.' if extracted == 0
+      true
+    end
+
+    def unzip(rbz, target)
+      extract_zip_ruby(rbz, target)
+    rescue StandardError => e
+      puts "20-20 Toolbox Connector ZIP error: #{e.class}: #{e.message}"
+      raise "RBZ se nepodařilo rozbalit: #{e.message}"
     end
 
     def child_names(path)
