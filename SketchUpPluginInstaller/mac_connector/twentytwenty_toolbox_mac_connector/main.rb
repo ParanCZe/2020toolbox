@@ -9,13 +9,25 @@ require 'tmpdir'
 require 'fileutils'
 
 module TwentyTwenty
-  module ToolboxMacConnector
+  module ToolboxConnector
     extend self
 
-    VERSION = '1.1.0'.freeze
+    VERSION = '2.0.0'.freeze
     PORT = 8092
     HOST = '127.0.0.1'.freeze
     ALLOWED_PREFIXES = %w[twentytwenty_ 2020_ dvacet20-].freeze
+
+    def windows?
+      Sketchup.platform == :platform_win
+    end
+
+    def mac?
+      Sketchup.platform == :platform_osx
+    end
+
+    def platform_name
+      windows? ? 'windows' : (mac? ? 'mac' : Sketchup.platform.to_s)
+    end
 
     def plugins_dir
       @plugins_dir ||= Sketchup.find_support_file('Plugins')
@@ -31,7 +43,7 @@ module TwentyTwenty
       return if @server_thread && @server_thread.alive?
       @server_thread = Thread.new { server_loop }
       @server_thread.abort_on_exception = false
-      puts "20-20 Toolbox Mac Connector v#{VERSION} listening on #{HOST}:#{PORT} | SketchUp #{Sketchup.version} | Ruby #{RUBY_VERSION}"
+      puts "20-20 Toolbox Connector v#{VERSION} listening on #{HOST}:#{PORT} | SketchUp #{Sketchup.version} | Ruby #{RUBY_VERSION}"
     rescue StandardError => e
       puts "20-20 Toolbox Mac Connector start error: #{e.class}: #{e.message}"
     end
@@ -134,7 +146,7 @@ module TwentyTwenty
     def status_payload
       {
         :ok => true,
-        :platform => 'mac',
+        :platform => platform_name,
         :bridge_version => VERSION,
         :sketchup => "SketchUp #{Sketchup.version}",
         :sketchup_major => Sketchup.version.to_i,
@@ -208,14 +220,30 @@ module TwentyTwenty
       end
     end
 
+    def shell_quote_ps(value)
+      "'" + value.to_s.gsub("'", "''") + "'"
+    end
+
     def download_repo_file(repo_path, target)
       url = "https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/#{repo_path}"
 
-      # SketchUp 2017 používá starší Ruby/OpenSSL. macOS curl má modernější TLS,
-      # proto je preferovaný a funguje i na nových GitHub TLS konfiguracích.
-      if File.exist?('/usr/bin/curl')
+      if mac? && File.exist?('/usr/bin/curl')
         ok = system('/usr/bin/curl', '-L', '--fail', '--silent', '--show-error', '-o', target, url)
         return if ok && File.exist?(target) && File.size(target) > 0
+      end
+
+      if windows?
+        begin
+          ok = system('curl.exe', '-L', '--fail', '--silent', '--show-error', '-o', target, url)
+          return if ok && File.exist?(target) && File.size(target) > 0
+        rescue
+        end
+        begin
+          cmd = "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri #{shell_quote_ps(url)} -OutFile #{shell_quote_ps(target)}"
+          ok = system('powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd)
+          return if ok && File.exist?(target) && File.size(target) > 0
+        rescue
+        end
       end
 
       uri = URI.parse(url)
@@ -225,19 +253,27 @@ module TwentyTwenty
     end
 
     def unzip(rbz, target)
-      commands = [
-        ['/usr/bin/ditto', '-x', '-k', rbz, target],
-        ['/usr/bin/unzip', '-qq', '-o', rbz, '-d', target]
-      ]
-      ok = false
-      commands.each do |cmd|
-        next unless File.exist?(cmd[0])
-        if system(*cmd)
-          ok = true
-          break
+      if mac?
+        commands = [
+          ['/usr/bin/ditto', '-x', '-k', rbz, target],
+          ['/usr/bin/unzip', '-qq', '-o', rbz, '-d', target]
+        ]
+        commands.each do |cmd|
+          next unless File.exist?(cmd[0])
+          return if system(*cmd)
+        end
+      elsif windows?
+        begin
+          cmd = "Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::ExtractToDirectory(#{shell_quote_ps(rbz)}, #{shell_quote_ps(target)})"
+          return if system('powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd)
+        rescue
+        end
+        begin
+          return if system('tar.exe', '-xf', rbz, '-C', target)
+        rescue
         end
       end
-      raise 'RBZ se na macOS nepodařilo rozbalit.' unless ok
+      raise "RBZ se na #{platform_name} nepodařilo rozbalit."
     end
 
     def child_names(path)
@@ -275,7 +311,7 @@ module TwentyTwenty
     end
 
     unless file_loaded?(__FILE__)
-      start if Sketchup.platform == :platform_osx
+      start if windows? || mac?
       file_loaded(__FILE__)
     end
   end
