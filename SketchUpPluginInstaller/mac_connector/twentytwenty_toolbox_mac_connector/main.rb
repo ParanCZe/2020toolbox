@@ -7,13 +7,12 @@ require 'net/http'
 require 'uri'
 require 'tmpdir'
 require 'fileutils'
-require 'shellwords'
 
 module TwentyTwenty
   module ToolboxMacConnector
     extend self
 
-    VERSION = '1.0.0'.freeze
+    VERSION = '1.1.0'.freeze
     PORT = 8092
     HOST = '127.0.0.1'.freeze
     ALLOWED_PREFIXES = %w[twentytwenty_ 2020_ dvacet20-].freeze
@@ -22,11 +21,17 @@ module TwentyTwenty
       @plugins_dir ||= Sketchup.find_support_file('Plugins')
     end
 
+    def ruby_legacy?
+      RUBY_VERSION.split('.').map { |x| x.to_i }[0, 2] < [2, 3]
+    rescue
+      true
+    end
+
     def start
-      return if @server_thread&.alive?
+      return if @server_thread && @server_thread.alive?
       @server_thread = Thread.new { server_loop }
       @server_thread.abort_on_exception = false
-      puts "20-20 Toolbox Mac Connector v#{VERSION} listening on #{HOST}:#{PORT}"
+      puts "20-20 Toolbox Mac Connector v#{VERSION} listening on #{HOST}:#{PORT} | SketchUp #{Sketchup.version} | Ruby #{RUBY_VERSION}"
     rescue StandardError => e
       puts "20-20 Toolbox Mac Connector start error: #{e.class}: #{e.message}"
     end
@@ -42,49 +47,72 @@ module TwentyTwenty
         puts "20-20 Toolbox Mac Connector server error: #{e.class}: #{e.message}"
       end
     ensure
-      server&.close rescue nil
+      begin
+        server.close if server
+      rescue
+      end
     end
 
     def handle_client(socket)
       request_line = socket.gets
       return unless request_line
-      method, raw_path, = request_line.split(' ', 3)
+      parts = request_line.split(' ', 3)
+      method = parts[0]
+      raw_path = parts[1]
       headers = {}
       while (line = socket.gets)
         line = line.strip
         break if line.empty?
-        key, value = line.split(':', 2)
-        headers[key.downcase] = value.to_s.strip if key
+        pair = line.split(':', 2)
+        headers[pair[0].downcase] = pair[1].to_s.strip if pair[0]
       end
-      length = headers['content-length'].to_i
-      body = length.positive? ? socket.read(length) : ''.b
 
-      return respond(socket, 204, {}) if method == 'OPTIONS'
+      length = headers['content-length'].to_i
+      body = length > 0 ? socket.read(length) : ''
+
+      if method == 'OPTIONS'
+        respond(socket, 204, {})
+        return
+      end
 
       uri = URI.parse("http://localhost#{raw_path}")
-      params = URI.decode_www_form(uri.query.to_s).to_h
+      params = {}
+      URI.decode_www_form(uri.query.to_s).each { |k, v| params[k] = v }
 
-      case [method, uri.path]
-      when ['GET', '/status']
+      if method == 'GET' && uri.path == '/status'
         respond(socket, 200, status_payload)
-      when ['POST', '/install']
+      elsif method == 'POST' && uri.path == '/install'
         install_plugin(params['file'], params['repo'], body)
-        respond(socket, 200, status_payload.merge(ok: true))
-      when ['POST', '/uninstall']
+        respond(socket, 200, status_payload.merge(:ok => true))
+      elsif method == 'POST' && uri.path == '/uninstall'
         uninstall_plugin(params['loader'])
-        respond(socket, 200, status_payload.merge(ok: true))
+        respond(socket, 200, status_payload.merge(:ok => true))
       else
-        respond(socket, 404, { ok: false, error: 'Unknown endpoint' })
+        respond(socket, 404, { :ok => false, :error => 'Unknown endpoint' })
       end
     rescue StandardError => e
-      respond(socket, 500, { ok: false, error: "#{e.class}: #{e.message}" }) rescue nil
+      begin
+        respond(socket, 500, { :ok => false, :error => "#{e.class}: #{e.message}" })
+      rescue
+      end
     ensure
-      socket.close rescue nil
+      begin
+        socket.close if socket
+      rescue
+      end
     end
 
     def respond(socket, code, obj)
       body = code == 204 ? '' : JSON.generate(obj)
-      status = code == 200 ? 'OK' : code == 204 ? 'No Content' : code == 404 ? 'Not Found' : 'Error'
+      status = if code == 200
+                 'OK'
+               elsif code == 204
+                 'No Content'
+               elsif code == 404
+                 'Not Found'
+               else
+                 'Error'
+               end
       headers = [
         "HTTP/1.1 #{code} #{status}",
         'Content-Type: application/json; charset=utf-8',
@@ -105,12 +133,15 @@ module TwentyTwenty
 
     def status_payload
       {
-        ok: true,
-        platform: 'mac',
-        bridge_version: VERSION,
-        sketchup: "SketchUp #{Sketchup.version}",
-        plugins_dir: plugins_dir,
-        installed: installed_versions
+        :ok => true,
+        :platform => 'mac',
+        :bridge_version => VERSION,
+        :sketchup => "SketchUp #{Sketchup.version}",
+        :sketchup_major => Sketchup.version.to_i,
+        :ruby_version => RUBY_VERSION,
+        :legacy_ruby => ruby_legacy?,
+        :plugins_dir => plugins_dir,
+        :installed => installed_versions
       }
     end
 
@@ -118,9 +149,13 @@ module TwentyTwenty
       out = {}
       Dir.glob(File.join(plugins_dir, '*.rb')).each do |path|
         name = File.basename(path)
-        next unless ALLOWED_PREFIXES.any? { |prefix| name.downcase.start_with?(prefix) }
-        text = File.read(path, encoding: 'UTF-8') rescue next
-        out[name] = extract_version(text)
+        lower = name.downcase
+        next unless ALLOWED_PREFIXES.any? { |prefix| lower.start_with?(prefix) }
+        begin
+          text = File.open(path, 'rb') { |f| f.read }
+          out[name] = extract_version(text)
+        rescue StandardError
+        end
       end
       out
     end
@@ -138,22 +173,33 @@ module TwentyTwenty
       '?'
     end
 
+    def valid_file_name?(name)
+      !!(name.to_s =~ /\A[A-Za-z0-9._-]+\.rbz\z/i)
+    end
+
+    def valid_repo_path?(path)
+      value = path.to_s
+      return false if value.include?('..')
+      !!(value =~ %r{\ASketchUpPlugins/[A-Za-z0-9._/-]+\.rbz\z})
+    end
+
     def install_plugin(file_name, repo_path, body)
       raise 'Chybí název RBZ.' if file_name.to_s.empty?
-      raise 'Neplatný název RBZ.' unless file_name.match?(/\A[A-Za-z0-9._-]+\.rbz\z/i)
+      raise 'Neplatný název RBZ.' unless valid_file_name?(file_name)
 
       Dir.mktmpdir('2020toolbox-mac-') do |tmp|
         rbz = File.join(tmp, file_name)
+
         if repo_path && !repo_path.empty?
-          raise 'Neplatná cesta v repozitáři.' unless repo_path.match?(%r{\ASketchUpPlugins/[A-Za-z0-9._/-]+\.rbz\z}) && !repo_path.include?('..')
+          raise 'Neplatná cesta v repozitáři.' unless valid_repo_path?(repo_path)
           download_repo_file(repo_path, rbz)
         else
           raise 'Prázdný RBZ obsah.' if body.nil? || body.bytesize < 64
-          File.binwrite(rbz, body)
+          File.open(rbz, 'wb') { |f| f.write(body) }
         end
 
-        sig = File.binread(rbz, 2)
-        raise 'Stažený soubor není ZIP/RBZ.' unless sig == "PK"
+        sig = File.open(rbz, 'rb') { |f| f.read(2) }
+        raise 'Stažený soubor není ZIP/RBZ.' unless sig == 'PK'
 
         extract_dir = File.join(tmp, 'extract')
         FileUtils.mkdir_p(extract_dir)
@@ -163,10 +209,19 @@ module TwentyTwenty
     end
 
     def download_repo_file(repo_path, target)
-      uri = URI("https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/#{repo_path}")
+      url = "https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/#{repo_path}"
+
+      # SketchUp 2017 používá starší Ruby/OpenSSL. macOS curl má modernější TLS,
+      # proto je preferovaný a funguje i na nových GitHub TLS konfiguracích.
+      if File.exist?('/usr/bin/curl')
+        ok = system('/usr/bin/curl', '-L', '--fail', '--silent', '--show-error', '-o', target, url)
+        return if ok && File.exist?(target) && File.size(target) > 0
+      end
+
+      uri = URI.parse(url)
       response = Net::HTTP.get_response(uri)
       raise "Stažení RBZ selhalo: HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
-      File.binwrite(target, response.body)
+      File.open(target, 'wb') { |f| f.write(response.body) }
     end
 
     def unzip(rbz, target)
@@ -174,18 +229,27 @@ module TwentyTwenty
         ['/usr/bin/ditto', '-x', '-k', rbz, target],
         ['/usr/bin/unzip', '-qq', '-o', rbz, '-d', target]
       ]
-      ok = commands.any? do |cmd|
-        next false unless File.exist?(cmd[0])
-        system(*cmd)
+      ok = false
+      commands.each do |cmd|
+        next unless File.exist?(cmd[0])
+        if system(*cmd)
+          ok = true
+          break
+        end
       end
       raise 'RBZ se na macOS nepodařilo rozbalit.' unless ok
     end
 
+    def child_names(path)
+      Dir.entries(path).reject { |name| name == '.' || name == '..' }
+    end
+
     def copy_plugin_tree(source)
       copied = 0
-      Dir.children(source).each do |name|
+      child_names(source).each do |name|
         next if name == '__MACOSX'
         src = File.join(source, name)
+
         if File.directory?(src)
           dst = File.join(plugins_dir, name)
           FileUtils.rm_rf(dst)
@@ -196,14 +260,16 @@ module TwentyTwenty
           copied += 1
         end
       end
-      raise 'RBZ neobsahuje rozpoznatelný SketchUp plugin.' if copied.zero?
+      raise 'RBZ neobsahuje rozpoznatelný SketchUp plugin.' if copied == 0
     end
 
     def uninstall_plugin(loader)
       raise 'Chybí loader.' if loader.to_s.empty?
-      raise 'Neplatný loader.' unless loader.match?(/\A[A-Za-z0-9._-]+\.rb\z/)
+      raise 'Neplatný loader.' unless loader.to_s =~ /\A[A-Za-z0-9._-]+\.rb\z/
+
       loader_path = File.join(plugins_dir, loader)
       folder_path = File.join(plugins_dir, File.basename(loader, '.rb'))
+
       FileUtils.rm_f(loader_path)
       FileUtils.rm_rf(folder_path)
     end
