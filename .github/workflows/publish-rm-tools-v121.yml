@@ -1,0 +1,169 @@
+name: Publish RM Tools v1.2.1
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-rm-tools-v121.yml'
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch focus transparency
+        shell: python
+        run: |
+          from pathlib import Path
+          import zipfile,tempfile,shutil,re
+
+          src=Path("SketchUpPlugins/20-20_RM_Tools_v1.2.0.rbz")
+          dst=Path("SketchUpPlugins/20-20_RM_Tools_v1.2.1.rbz")
+          tmp=Path(tempfile.mkdtemp())
+          with zipfile.ZipFile(src) as z:
+              z.extractall(tmp)
+
+          loader=tmp/"twentytwenty_rm_checker.rb"
+          main=tmp/"twentytwenty_rm_checker"/"main.rb"
+
+          loader.write_text(
+              loader.read_text(encoding="utf-8").replace("EXTENSION_VERSION = '1.2.0'","EXTENSION_VERSION = '1.2.1'"),
+              encoding="utf-8"
+          )
+
+          s=main.read_text(encoding="utf-8")
+          s=s.replace("VERSION = '1.2.0'","VERSION = '1.2.1'")
+
+          old="""                def activate
+                  m = Sketchup.active_model
+                  @previous_active_path = m.active_path ? m.active_path.to_a : nil
+                  ro = m.rendering_options
+                  %w[InactiveFade InactiveHidden InstanceFade InstanceHidden].each do |key|
+                    @previous_rendering[key] = ro[key] if ro.keys.include?(key)
+                  end
+
+                  unless @edit_path.empty?
+                    begin
+                      m.active_path = Sketchup::InstancePath.new(@edit_path)
+                      ro['InactiveHidden'] = false if ro.keys.include?('InactiveHidden')
+                      ro['InstanceHidden'] = false if ro.keys.include?('InstanceHidden')
+                      ro['InactiveFade'] = FADE if ro.keys.include?('InactiveFade')
+                      ro['InstanceFade'] = FADE if ro.keys.include?('InstanceFade')
+                    rescue StandardError
+                    end
+                  end
+                  m.active_view.invalidate
+                end
+"""
+          new="""                def activate
+                  m = Sketchup.active_model
+                  @previous_active_path = m.active_path ? m.active_path.to_a : nil
+                  ro = m.rendering_options
+
+                  # RenderingOptions není obyčejný Hash a v některých verzích
+                  # SketchUpu nemá #keys. Původní guard proto celý fade blok
+                  # potichu přeskočil. Hodnoty čteme/zapisujeme přímo.
+                  %w[InactiveFade InactiveHidden InstanceFade InstanceHidden].each do |key|
+                    begin
+                      @previous_rendering[key] = ro[key]
+                    rescue StandardError
+                    end
+                  end
+
+                  unless @edit_path.empty?
+                    begin
+                      m.active_path = Sketchup::InstancePath.new(@edit_path)
+                    rescue StandardError => e
+                      puts "20-20 RM focus active_path: #{e.message}"
+                    end
+
+                    begin ro['InactiveHidden'] = false rescue StandardError end
+                    begin ro['InstanceHidden'] = false rescue StandardError end
+                    begin ro['InactiveFade'] = FADE rescue StandardError end
+                    begin ro['InstanceFade'] = FADE rescue StandardError end
+                  end
+                  m.active_view.invalidate
+                end
+"""
+          if old not in s:
+              raise SystemExit("activate block not found")
+          s=s.replace(old,new)
+
+          old_restore="""                  begin
+                    ro = m.rendering_options
+                    @previous_rendering.each { |key, value| ro[key] = value }
+                    m.active_path = @previous_active_path
+                  rescue StandardError
+                  ensure
+                    view.invalidate
+                  end
+"""
+          new_restore="""                  begin
+                    ro = m.rendering_options
+                    @previous_rendering.each do |key, value|
+                      begin
+                        ro[key] = value
+                      rescue StandardError
+                      end
+                    end
+                    m.active_path = @previous_active_path
+                  rescue StandardError
+                  ensure
+                    view.invalidate
+                  end
+"""
+          if old_restore not in s:
+              raise SystemExit("restore block not found")
+          s=s.replace(old_restore,new_restore)
+
+          main.write_text(s,encoding="utf-8")
+
+          with zipfile.ZipFile(dst,"w",zipfile.ZIP_STORED,allowZip64=False) as z:
+              for p in tmp.rglob("*"):
+                  if p.is_file():
+                      z.write(p,p.relative_to(tmp).as_posix())
+          with zipfile.ZipFile(dst) as z:
+              bad=z.testzip()
+              if bad: raise SystemExit("bad member: "+bad)
+          shutil.rmtree(tmp)
+
+          p=Path("index.html")
+          html=p.read_text(encoding="utf-8")
+          start=html.find("id:'rm-checker'")
+          if start<0: raise SystemExit("rm checker block not found")
+          bs=html.rfind("{",0,start)
+          depth=0; quote=None; esc=False; be=None
+          for i in range(bs,len(html)):
+              c=html[i]
+              if quote:
+                  if esc: esc=False
+                  elif c=="\\": esc=True
+                  elif c==quote: quote=None
+                  continue
+              if c in ("'",'"',chr(96)):
+                  quote=c; continue
+              if c=="{": depth+=1
+              elif c=="}":
+                  depth-=1
+                  if depth==0:
+                      be=i+1; break
+          b=html[bs:be]
+          b=re.sub(r"current:'[^']*'","current:'1.2.1'",b,count=1)
+          b=re.sub(r"meta:'[^']*'","meta:'V1.2.1 opravuje 80% ztlumení okolní geometrie ve Focus režimu. RenderingOptions se už nekontrolují přes nepodporované #keys; fade se zapisuje přímo a původní hodnoty se po ESC/kliknutí bezpečně obnoví.'",b,count=1)
+          if '"version":"1.2.1"' not in b:
+              pos=b.rfind("]")
+              pre=b[:pos].rstrip()
+              if not pre.endswith(","): pre+=","
+              entry='\n    {"version":"1.2.1","file":"20-20_RM_Tools_v1.2.1.rbz","size":'+str(dst.stat().st_size)+',"repo_file":"SketchUpPlugins/20-20_RM_Tools_v1.2.1.rbz"}\n  '
+              b=pre+entry+b[pos:]
+          p.write_text(html[:bs]+b+html[be:],encoding="utf-8")
+
+      - name: Commit package and registry
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_Tools_v1.2.1.rbz index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Publish 20-20 RM Tools v1.2.1"
+          git push
