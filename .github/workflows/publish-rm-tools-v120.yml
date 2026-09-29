@@ -1,4 +1,4 @@
-name: Publish RM Tools v1.2.0
+name: Publish RM Tools v1.2.1
 on:
   push:
     branches: [main]
@@ -13,84 +13,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build RM Tools v1.2.0
+      - name: Build RM Tools v1.2.1
         shell: python
         run: |
           from pathlib import Path
           import zipfile, tempfile, shutil, re
 
-          src = Path("SketchUpPlugins/20-20_RM_Tools_v1.1.3.rbz")
-          dst = Path("SketchUpPlugins/20-20_RM_Tools_v1.2.0.rbz")
+          src = Path("SketchUpPlugins/20-20_RM_Tools_v1.2.0.rbz")
+          dst = Path("SketchUpPlugins/20-20_RM_Tools_v1.2.1.rbz")
           tmp = Path(tempfile.mkdtemp())
-
           with zipfile.ZipFile(src) as z:
               z.extractall(tmp)
 
           loader = tmp / "twentytwenty_rm_checker.rb"
           main = tmp / "twentytwenty_rm_checker" / "main.rb"
 
-          s = loader.read_text(encoding="utf-8")
-          s = s.replace("EXTENSION_VERSION = '1.1.3'", "EXTENSION_VERSION = '1.2.0'")
-          loader.write_text(s, encoding="utf-8")
+          loader.write_text(loader.read_text(encoding="utf-8").replace("EXTENSION_VERSION = '1.2.0'", "EXTENSION_VERSION = '1.2.1'"), encoding="utf-8")
+          s = main.read_text(encoding="utf-8").replace("VERSION = '1.2.0'", "VERSION = '1.2.1'")
 
-          s = main.read_text(encoding="utf-8")
-          s = s.replace("VERSION = '1.1.3'", "VERSION = '1.2.0'")
-
-          s = s.replace(
-              "      dlg.add_action_callback('rm_ai_context') { |_ctx| send_ai_context }\n      dlg.add_action_callback('rm_fix_safe') { |_ctx| fix_safe_items }",
-              "      dlg.add_action_callback('rm_ai_context') { |_ctx| send_ai_context }\n      dlg.add_action_callback('rm_ai_plan_selected') { |_ctx, indexes_json| ai_plan_selected(indexes_json.to_s) }\n      dlg.add_action_callback('rm_ai_fix_selected') { |_ctx, indexes_json| ai_fix_selected(indexes_json.to_s) }\n      dlg.add_action_callback('rm_fix_safe') { |_ctx| fix_safe_items }"
-          )
-
-          geo_a = s.index("    def open_geolocation\n")
-          geo_b = s.index("\n    def project_number", geo_a)
-          if geo_a < 0 or geo_b < 0:
-              raise SystemExit("geolocation block not found")
-          new_geo = """    def open_geolocation
-                # Add Location je ve SketchUpu 2024+ samostatné rozšíření.
-                # Na Windows je nejspolehlivější nativní command id 24216.
-                # Příkaz pouštíme až v dalším UI ticku, mimo HtmlDialog callback.
-                UI.start_timer(0.12, false) do
-                  begin
-                    opened = false
-                    if Sketchup.platform == :platform_win
-                      opened = !!Sketchup.send_action(24_216)
-                      opened = !!Sketchup.send_action('importFromGoogleEarth:') unless opened
-                      opened = !!Sketchup.send_action('showGeoLocation:') unless opened
-                    else
-                      opened = !!Sketchup.send_action('showGeoLocation:')
-                      opened = !!Sketchup.send_action('importFromGoogleEarth:') unless opened
-                    end
-                    unless opened
-                      notify('Příkaz Přidat umístění není dostupný. Zkontroluj, že je Add Location ve SketchUpu zapnuté.', 'warn')
-                    end
-                  rescue StandardError => e
-                    notify("Geolokace: #{e.message}", 'error')
-                  end
-                end
-                notify('Otevírám Přidat umístění…')
-              end
-          """
-          s = s[:geo_a] + new_geo + s[geo_b:]
-
-          focus_a = s.index("    class FindingHighlighter\n")
-          focus_b = s.index("    def ai_context_payload\n", focus_a)
-          if focus_a < 0 or focus_b < 0:
-              raise SystemExit("focus block not found")
-          focus_block = """    class FindingHighlighter
-                FADE = 0.80
-
-                def initialize(boxes, edit_path = nil)
-                  @boxes = boxes
-                  @edit_path = Array(edit_path).compact
-                  @restored = false
-                  @previous_active_path = nil
-                  @previous_rendering = {}
-                end
-
-                def activate
-                  m = Sketchup.active_model
-                  @previous_active_path = m.active_path ? m.active_path.to_a : nil
-                  ro = m.rendering_options
+          old = """                  ro = m.rendering_options
                   %w[InactiveFade InactiveHidden InstanceFade InstanceHidden].each do |key|
                     @previous_rendering[key] = ro[key] if ro.keys.include?(key)
                   end
@@ -105,282 +46,44 @@ jobs:
                     rescue StandardError
                     end
                   end
-                  m.active_view.invalidate
-                end
-
-                def draw(view)
-                  view.drawing_color = Sketchup::Color.new(220, 40, 35)
-                  view.line_width = 4
-                  @boxes.each do |bb|
-                    pts = (0..7).map { |i| bb.corner(i) }
-                    edges = [[0,1],[1,3],[3,2],[2,0],[4,5],[5,7],[7,6],[6,4],[0,4],[1,5],[2,6],[3,7]]
-                    edges.each { |a,b| view.draw(GL_LINES, pts[a], pts[b]) }
-                  end
-                end
-
-                def onCancel(_reason, view)
-                  restore(view)
-                  view.model.select_tool(nil)
-                end
-
-                def onLButtonDown(_flags, _x, _y, view)
-                  restore(view)
-                  view.model.select_tool(nil)
-                end
-
-                def deactivate(view)
-                  restore(view)
-                end
-
-                def restore(view)
-                  return if @restored
-                  @restored = true
-                  m = view.model
-                  begin
-                    ro = m.rendering_options
-                    @previous_rendering.each { |key, value| ro[key] = value }
-                    m.active_path = @previous_active_path
-                  rescue StandardError
-                  ensure
-                    view.invalidate
-                  end
-                end
-              end
-
-              def find_entity_by_id(entities, wanted, tr = nil, path = [])
-                tr ||= Geom::Transformation.new
-                entities.each do |e|
-                  bounds_tr = tr
-                  child_tr = tr
-                  child_path = path
-                  if e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance)
-                    child_tr = tr * e.transformation
-                    child_path = path + [e]
-                  end
-                  return [e, bounds_tr, path] if wanted.include?(e.entityID)
-                  child = if e.is_a?(Sketchup::Group)
-                            e.entities
-                          elsif e.is_a?(Sketchup::ComponentInstance)
-                            e.definition.entities
-                          end
-                  if child
-                    hit = find_entity_by_id(child, wanted, child_tr, child_path)
-                    return hit if hit
-                  end
-                end
-                nil
-              end
-
-              def transformed_bounds(entity, tr)
-                bb = Geom::BoundingBox.new
-                if entity.respond_to?(:bounds)
-                  8.times { |i| bb.add(entity.bounds.corner(i).transform(tr)) }
-                end
-                bb
-              end
-
-              def focus_finding(ids_json)
-                ids = JSON.parse(ids_json) rescue []
-                ids = Array(ids).map(&:to_i).uniq.first(30)
-                return notify('U tohoto nálezu není konkrétní objekt k zaměření.', 'warn') if ids.empty?
-
-                boxes = []
-                zoom_entity = nil
-                edit_path = nil
-                ids.each do |id|
-                  hit = find_entity_by_id(model.entities, [id])
-                  next unless hit
-                  entity, tr, parent_path = hit
-                  next unless entity.respond_to?(:valid?) ? entity.valid? : true
-                  zoom_entity ||= entity
-                  edit_path ||= if entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
-                                  parent_path + [entity]
-                                else
-                                  parent_path
-                                end
-                  bb = transformed_bounds(entity, tr)
-                  boxes << bb if bb.valid?
-                end
-
-                return notify('Objekt už v modelu není nebo ho nelze zaměřit.', 'warn') if boxes.empty? || zoom_entity.nil?
-
-                begin
-                  model.active_view.zoom(zoom_entity)
-                rescue StandardError
-                  model.active_view.zoom_extents
-                end
-
-                model.select_tool(FindingHighlighter.new(boxes, edit_path))
-                model.active_view.invalidate
-                notify('Focus nálezu: okolí je ztlumené cca 80 %. ESC nebo kliknutí vše vrátí zpět.')
-              rescue StandardError => e
-                notify("Zaměření nálezu: #{e.message}", 'error')
-              end
-
-          """
-          s = s[:focus_a] + focus_block + s[focus_b:]
-
-          ai_anchor = """    def send_ai_context
-                send_js('receiveAIContext', ai_context_payload)
-              rescue StandardError => e
-                notify("AI kontext: #{e.message}", 'error')
-              end
-
-          """
-          ai_methods = """    def selected_findings(indexes_json)
-                indexes = JSON.parse(indexes_json) rescue []
-                indexes = Array(indexes).map(&:to_i).uniq
-                report = @last_report || { findings: [] }
-                all = Array(report[:findings] || report['findings'])
-                indexes.filter_map { |i| all[i] if i >= 0 && i < all.length }
-              end
-
-              def ai_rule_for(finding)
-                title = (finding[:title] || finding['title']).to_s
-                case title
-                when 'Geometrie má vlastní tag'
-                  { can_fix: true, action: 'Přesunout označenou raw geometrii na Untagged', note: 'Bezpečná RM oprava. Nemění materiál ani nadřazený tag komponenty.' }
-                when 'Stíny jsou vypnuté'
-                  { can_fix: true, action: 'Zapnout stíny', note: 'Bezpečná změna nastavení modelu.' }
-                when 'Dvoubodová perspektiva není aktivní'
-                  { can_fix: true, action: 'Zapnout dvoubodovou perspektivu', note: 'Změní pouze aktivní kameru.' }
-                when 'Pomocné tagy jsou viditelné'
-                  { can_fix: true, action: 'Skrýt pomocné tagy', note: 'Skryje viditelné pomocné tagy podle názvu.' }
-                when 'Model není geolokovaný'
-                  { can_fix: false, action: 'Otevřít Přidat umístění', note: 'Polohu musí potvrdit uživatel ve SketchUpu.' }
-                when 'Chybí číslo zakázky'
-                  { can_fix: false, action: 'Doplnit číslo zakázky v záložce Model', note: 'AI ho nesmí hádat.' }
-                when 'Aktuální záběr není uložený jako scéna'
-                  { can_fix: false, action: 'Pojmenovat a uložit scénu v záložce Záběr', note: 'Je potřeba zvolit název záběru.' }
-                when 'Rámeček záběru není nastavený'
-                  { can_fix: false, action: 'Vybrat cílový poměr stran v záložce Záběr', note: 'Poměr závisí na požadovaném výstupu.' }
-                when 'Nepopsaná skupina/komponenta'
-                  { can_fix: false, action: 'Pojmenovat objekt podle jeho funkce', note: 'Bez znalosti významu objektu ho automaticky nepřejmenovávám.' }
-                when 'Viditelné plochy bez materiálu'
-                  { can_fix: false, action: 'Přiřadit správný materiál', note: 'Materiál nelze bezpečně odhadnout jen z geometrie.' }
-                when 'Jeden tag obsahuje více materiálů'
-                  { can_fix: false, action: 'Rozdělit povrchy/tagy podle materiálů', note: 'Vyžaduje rozhodnutí o správné RM struktuře.' }
-                when 'Průhledný povrch není na tagu SKLO/ZRCADLO'
-                  { can_fix: false, action: 'Oddělit sklo/zrcadlo na samostatný RM tag', note: 'Je potřeba ověřit význam povrchu.' }
-                when 'Vnoření nad 4 úrovně'
-                  { can_fix: false, action: 'Zjednodušit hierarchii komponent', note: 'Automatické rozbití hierarchie by mohlo poškodit model.' }
-                else
-                  { can_fix: false, action: 'Zkontrolovat ručně', note: (finding[:hint] || finding['hint']).to_s }
-                end
-              end
-
-              def ai_plan_selected(indexes_json)
-                selected = selected_findings(indexes_json)
-                return notify('Nejdřív označ jednu nebo více položek v Checkeru.', 'warn') if selected.empty?
-                items = selected.map do |f|
-                  rule = ai_rule_for(f)
-                  {
-                    title: (f[:title] || f['title']).to_s,
-                    severity: (f[:severity] || f['severity']).to_s,
-                    can_fix: rule[:can_fix],
-                    action: rule[:action],
-                    note: rule[:note]
-                  }
-                end
-                send_js('receiveAIPlan', { items: items, selected: items.length, fixable: items.count { |x| x[:can_fix] } })
-              rescue StandardError => e
-                notify("AI plán: #{e.message}", 'error')
-              end
-
-              def ai_fix_selected(indexes_json)
-                selected = selected_findings(indexes_json)
-                return notify('Nejdřív označ jednu nebo více položek v Checkeru.', 'warn') if selected.empty?
-                fixable = selected.select { |f| ai_rule_for(f)[:can_fix] }
-                return notify('U označených nálezů není bezpečná automatická oprava. AI ti u nich připraví postup.', 'warn') if fixable.empty?
-
-                m = model
-                m.start_operation('20-20 RM AI opravy', true)
-                fixed = []
-                layer0 = m.layers[0]
-
-                fixable.each do |f|
-                  title = (f[:title] || f['title']).to_s
-                  case title
-                  when 'Geometrie má vlastní tag'
-                    targets = Array(f[:targets] || f['targets']).map(&:to_i)
-                    targets.each do |id|
-                      hit = find_entity_by_id(m.entities, [id])
-                      next unless hit
-                      entity = hit[0]
-                      if entity.is_a?(Sketchup::Face) || entity.is_a?(Sketchup::Edge)
-                        entity.layer = layer0
-                      end
+"""
+          new = """                  ro = m.rendering_options
+                  %w[InactiveFade InactiveHidden InstanceFade InstanceHidden].each do |key|
+                    begin
+                      @previous_rendering[key] = ro[key]
+                    rescue StandardError
                     end
-                    fixed << title
-                  when 'Stíny jsou vypnuté'
-                    m.shadow_info['DisplayShadows'] = true
-                    fixed << title
-                  when 'Dvoubodová perspektiva není aktivní'
-                    cam = m.active_view.camera
-                    cam.set_2d if cam.respond_to?(:set_2d)
-                    fixed << title
-                  when 'Pomocné tagy jsou viditelné'
-                    m.layers.each do |layer|
-                      next unless layer.visible?
-                      path = layer_path(layer).upcase
-                      layer.visible = false if HELPER_WORDS.any? { |word| path.include?(word) }
-                    end
-                    fixed << title
                   end
-                end
 
-                m.commit_operation
-                notify("AI opravy hotové: #{fixed.uniq.join(', ')}. Ctrl+Z vrátí celou dávku.")
-                run_scan
-              rescue StandardError => e
-                m.abort_operation rescue nil
-                notify("AI oprava: #{e.message}", 'error')
-              end
-
-          """
-          if ai_anchor not in s:
-              raise SystemExit("AI anchor not found")
-          s = s.replace(ai_anchor, ai_anchor + ai_methods)
-
-          css_old = ".split{display:grid;grid-template-columns:1fr 1fr;gap:8px}"
-          css_new = css_old + ".findingcheck{float:left;margin:3px 9px 0 0;width:auto}.ai-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.ai-actions .btn{flex:1}.ai-plan{margin-top:10px}.ai-plan-item{border-top:1px solid var(--line);padding:9px 0}.ai-plan-item:first-child{border-top:0}.ai-plan-item b{display:block}.fixok{color:var(--green);font-weight:700}.fixask{color:var(--orange);font-weight:700}"
-          s = s.replace(css_old, css_new)
-
-          old_ai = """              <div class="card ai"><h3>AI asistent · příprava</h3><p>Checker už skládá strukturovaný kontext pro budoucího AI asistenta. Nic se zatím nikam neposílá.</p><div class="row"><button class="btn" onclick="sketchup.rm_ai_context()">Zkontrolovat AI kontext</button><span class="pill">AI OFF · připraveno</span></div><div id="aiStatus" class="small" style="margin-top:8px"></div></div><div id="summary"></div><div id="findings"></div>"""
-          new_ai = """              <div id="summary"></div><div id="findings"></div>
-                        <div class="card ai"><h3>AI asistent Checkeru</h3><p>Označ nálezy, se kterými chceš pomoct. Asistent oddělí bezpečné automatické opravy od věcí, kde je potřeba tvoje rozhodnutí.</p><div class="row"><button class="btn" onclick="RM.selectAllFindings(true)">Označit vše</button><button class="btn" onclick="RM.selectAllFindings(false)">Zrušit výběr</button><span id="aiSelected" class="pill">0 označeno</span></div><div class="ai-actions"><button class="btn yellow" onclick="RM.aiPlan()">✨ AI · navrhnout postup</button><button class="btn primary" onclick="RM.aiFix()">🔧 AI · opravit bezpečné</button></div><div id="aiStatus" class="small" style="margin-top:8px">AI pracuje jen s označenými nálezy. Automatické zásahy jsou jedna SketchUp operace a jdou vrátit Ctrl+Z.</div><div id="aiPlan" class="ai-plan"></div></div>"""
-          if old_ai not in s:
-              raise SystemExit("old AI UI not found")
-          s = s.replace(old_ai, new_ai)
-
-          js_a = s.index("              focus:function(ids)")
-          js_b = s.index("              init:function()", js_a)
-          if js_a < 0 or js_b < 0:
-              raise SystemExit("JS block not found")
-          js = """              focus:function(ids){sketchup.rm_focus_finding(JSON.stringify(ids||[]));},
-                        selectedIndexes:function(){var a=[],els=document.querySelectorAll('.findingcheck:checked');for(var i=0;i<els.length;i++)a.push(parseInt(els[i].getAttribute('data-index'),10));return a;},
-                        updateSelected:function(){var n=RM.selectedIndexes().length;var e=document.getElementById('aiSelected');if(e)e.textContent=n+' označeno';},
-                        selectAllFindings:function(on){var els=document.querySelectorAll('.findingcheck');for(var i=0;i<els.length;i++)els[i].checked=on;RM.updateSelected();},
-                        aiPlan:function(){var ids=RM.selectedIndexes();if(!ids.length){RM.toast({kind:'warn',message:'Nejdřív označ nález v Checkeru.'});return;}sketchup.rm_ai_plan_selected(JSON.stringify(ids));},
-                        aiFix:function(){var ids=RM.selectedIndexes();if(!ids.length){RM.toast({kind:'warn',message:'Nejdřív označ nález v Checkeru.'});return;}sketchup.rm_ai_fix_selected(JSON.stringify(ids));},
-                        receiveScan:function(r){RM.report=r;var c=r.counts||{};document.getElementById('summary').innerHTML='<div class="summary"><div class="box"><div class="num">'+(c.info||0)+'</div><div class="small">INFO</div></div><div class="box"><div class="num">'+(c.warn||0)+'</div><div class="small">VAROVÁNÍ</div></div><div class="box"><div class="num">'+(c.error||0)+'</div><div class="small">CHYBY</div></div></div>';var f=r.findings||[],groups={info:[],warn:[],error:[]};for(var i=0;i<f.length;i++){var y=Object.assign({},f[i]);y._index=i;(groups[y.severity]||groups.info).push(y);}var h='';var order=[['info','INFO'],['warn','VAROVÁNÍ'],['error','CHYBY']];var total=f.length;if(!total)h='<div class="card"><b>Model vypadá pro RM čistě.</b></div>';for(var g=0;g<order.length;g++){var key=order[g][0],arr=groups[key];if(!arr.length)continue;h+='<div class="sevtitle">'+order[g][1]+'</div>';for(var j=0;j<arr.length;j++){var x=arr[j],targets=x.targets||[];h+='<div class="finding '+RM.esc(x.severity)+'"><input class="findingcheck" type="checkbox" data-index="'+x._index+'" onchange="RM.updateSelected()">'+(targets.length?'<button class="btn focusbtn" title="Najít v modelu" onclick="RM.focus('+JSON.stringify(targets)+')">🔎</button>':'')+'<div class="t">'+RM.esc(x.title)+'</div><div class="d">'+RM.esc(x.detail)+'</div>'+(x.hint?'<div class="h">'+RM.esc(x.hint)+'</div>':'')+'</div>';}}document.getElementById('findings').innerHTML=h;RM.updateSelected();document.getElementById('aiPlan').innerHTML='';},
-                        receiveAIPlan:function(p){var h='<div class="small">Vybráno '+p.selected+' · bezpečně opravitelné '+p.fixable+'</div>';var a=p.items||[];for(var i=0;i<a.length;i++){var x=a[i];h+='<div class="ai-plan-item"><b>'+RM.esc(x.title)+'</b><span class="'+(x.can_fix?'fixok':'fixask')+'">'+(x.can_fix?'MŮŽU OPRAVIT':'POTŘEBUJE ROZHODNUTÍ')+'</span><div>'+RM.esc(x.action)+'</div><div class="small">'+RM.esc(x.note||'')+'</div></div>';}document.getElementById('aiPlan').innerHTML=h;},
-                        receiveAIContext:function(c){var n=((c.checker||{}).findings||[]).length;document.getElementById('aiStatus').textContent='Kontext modelu připraven: '+n+' nálezů.';},
-          """
-          s = s[:js_a] + js + s[js_b:]
-
+                  unless @edit_path.empty?
+                    begin
+                      m.active_path = Sketchup::InstancePath.new(@edit_path)
+                    rescue StandardError => e
+                      puts "20-20 RM focus active_path: #{e.message}"
+                    end
+                    begin
+                      ro['InactiveHidden'] = false
+                      ro['InstanceHidden'] = false
+                      ro['InactiveFade'] = FADE
+                      ro['InstanceFade'] = FADE
+                    rescue StandardError => e
+                      puts "20-20 RM focus fade: #{e.message}"
+                    end
+                  end
+"""
+          if old not in s:
+              raise SystemExit("focus fade block not found")
+          s = s.replace(old, new)
           main.write_text(s, encoding="utf-8")
 
           with zipfile.ZipFile(dst, "w", zipfile.ZIP_STORED, allowZip64=False) as z:
               for p in tmp.rglob("*"):
                   if p.is_file():
                       z.write(p, p.relative_to(tmp).as_posix())
-
           with zipfile.ZipFile(dst) as z:
               bad = z.testzip()
               if bad:
-                  raise SystemExit("bad RBZ member: " + bad)
-
+                  raise SystemExit("bad member: " + bad)
           shutil.rmtree(tmp)
 
           p = Path("index.html")
@@ -396,36 +99,40 @@ jobs:
           for i in range(bs, len(html)):
               c = html[i]
               if quote:
-                  if esc: esc = False
-                  elif c == "\\": esc = True
-                  elif c == quote: quote = None
+                  if esc:
+                      esc = False
+                  elif c == "\\":
+                      esc = True
+                  elif c == quote:
+                      quote = None
                   continue
               if c in ("'", '"', chr(96)):
                   quote = c
                   continue
-              if c == "{": depth += 1
+              if c == "{":
+                  depth += 1
               elif c == "}":
                   depth -= 1
                   if depth == 0:
                       be = i + 1
                       break
           b = html[bs:be]
-          b = re.sub(r"current:'[^']*'", "current:'1.2.0'", b, count=1)
-          b = re.sub(r"meta:'[^']*'", "meta:'V1.2.0: focus režim ztlumí okolí cca 80 % a ESC/kliknutí vrátí původní stav; robustnější otevření Add Location; Checker má checkboxy a AI pomocníka pro označené nálezy s bezpečnými opravami přes SketchUp API a Ctrl+Z.'", b, count=1)
-          if '"version":"1.2.0"' not in b:
+          b = re.sub(r"current:'[^']*'", "current:'1.2.1'", b, count=1)
+          b = re.sub(r"meta:'[^']*'", "meta:'V1.2.1 opravuje 80% ztlumení okolí ve Focus režimu. RenderingOptions se nastavují přímo; původní hodnoty se po ESC nebo kliknutí obnoví.'", b, count=1)
+          if '"version":"1.2.1"' not in b:
               pos = b.rfind("]")
               pre = b[:pos].rstrip()
               if not pre.endswith(","):
                   pre += ","
-              entry = '\n    {"version":"1.2.0","file":"20-20_RM_Tools_v1.2.0.rbz","size":' + str(dst.stat().st_size) + ',"repo_file":"SketchUpPlugins/20-20_RM_Tools_v1.2.0.rbz"}\n  '
+              entry = '\n    {"version":"1.2.1","file":"20-20_RM_Tools_v1.2.1.rbz","size":' + str(dst.stat().st_size) + ',"repo_file":"SketchUpPlugins/20-20_RM_Tools_v1.2.1.rbz"}\n  '
               b = pre + entry + b[pos:]
           p.write_text(html[:bs] + b + html[be:], encoding="utf-8")
 
-      - name: Commit package and Toolbox registry
+      - name: Commit package and registry
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add SketchUpPlugins/20-20_RM_Tools_v1.2.0.rbz index.html
+          git add SketchUpPlugins/20-20_RM_Tools_v1.2.1.rbz index.html
           git diff --cached --quiet && exit 0
-          git commit -m "Publish 20-20 RM Tools v1.2.0"
+          git commit -m "Publish 20-20 RM Tools v1.2.1"
           git push
