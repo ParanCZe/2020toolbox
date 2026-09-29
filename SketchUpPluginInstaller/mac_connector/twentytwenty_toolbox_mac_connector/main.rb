@@ -325,6 +325,21 @@ module TwentyTwenty
       raise "RBZ se nepodařilo rozbalit: #{e.message}"
     end
 
+    def show_connector_status
+      alive = @server_thread && @server_thread.alive?
+      UI.messagebox("20-20 Toolbox Connector v#{VERSION}\n\nPlatforma: #{platform_name}\nSketchUp: #{Sketchup.version}\nServer: #{alive ? 'AKTIVNÍ' : 'NEAKTIVNÍ'}\nAdresa: http://localhost:#{PORT}")
+    end
+
+    def restart_connector
+      begin
+        @server_thread.kill if @server_thread && @server_thread.alive?
+      rescue
+      end
+      @server_thread = nil
+      UI.start_timer(0.2, false) { start }
+      UI.messagebox('20-20 Toolbox Connector se restartuje. Za chvíli obnov Toolbox.')
+    end
+
     def child_names(path)
       Dir.entries(path).reject { |name| name == '.' || name == '..' }
     end
@@ -360,7 +375,15 @@ module TwentyTwenty
     end
 
     unless file_loaded?(__FILE__)
-      start if windows? || mac?
+      if windows? || mac?
+        UI.start_timer(0.2, false) { start }
+        begin
+          menu = UI.menu('Extensions').add_submenu('20-20 Toolbox Connector')
+          menu.add_item('Stav Connectoru') { show_connector_status }
+          menu.add_item('Restartovat Connector') { restart_connector }
+        rescue StandardError
+        end
+      end
       file_loaded(__FILE__)
     end
   end
