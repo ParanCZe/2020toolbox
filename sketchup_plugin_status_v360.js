@@ -3,7 +3,7 @@
   const UA=(navigator.userAgent||'')+' '+(navigator.platform||'');
   const IS_MAC=/Macintosh|Mac OS X|MacIntel/i.test(UA);
   const IS_WIN=/Windows|Win32|Win64/i.test(UA);
-  const CONNECTOR_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/20-20_Toolbox_Connector_v2.0.1.rbz';
+  const CONNECTOR_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/20-20_Toolbox_Connector_v2.0.2.rbz';
   const loaderFixes={
     'ai-exporter':'twentytwenty_nano_banana_exporter.rb'
   };
@@ -38,10 +38,10 @@
   window.downloadSketchUpConnector=function(){
     const a=document.createElement('a');
     a.href=CONNECTOR_URL;
-    a.download='20-20_Toolbox_Connector_v2.0.1.rbz';
+    a.download='20-20_Toolbox_Connector_v2.0.2.rbz';
     a.rel='noopener';
     document.body.appendChild(a);a.click();a.remove();
-    suPluginToast('20-20 Toolbox Connector v2.0.1 stažen. Nainstaluj ho jednou přes SketchUp Extension Manager a SketchUp restartuj.');
+    suPluginToast('20-20 Toolbox Connector v2.0.2 stažen. Nainstaluj ho jednou přes SketchUp Extension Manager a SketchUp restartuj.');
   };
   window.downloadMacSketchUpConnector=window.downloadSketchUpConnector;
 
@@ -62,7 +62,7 @@
     box.innerHTML='<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>20-20 Toolbox Connector:</b><span>jednorázově jako RBZ do SketchUpu</span></div>'+
       '<div style="margin-top:5px;color:var(--muted)">Na <b>'+platform+'</b> už není potřeba BAT ani pokaždé spouštět Bridge. Jednou nainstaluješ <b>20-20 Toolbox Connector</b> přes SketchUp Extension Manager. Podporuje SketchUp 2017–2026. Když je SketchUp otevřený, Toolbox umí číst verze, instalovat, aktualizovat i odinstalovat 20-20 pluginy.</div>'+
       '<div class="suplugins-bridge-actions"><button class="suplugins-bridge-start" onclick="downloadSketchUpConnector()">Stáhnout Toolbox Connector (.rbz)</button></div>'+
-      '<div class="suplugins-bridge-help show">Postup: SketchUp → Extensions → Extension Manager → Install Extension → vyber <b>20-20_Toolbox_Connector_v2.0.1.rbz</b> → restartuj SketchUp. Connector komunikuje pouze lokálně přes 127.0.0.1:8092.</div>';
+      '<div class="suplugins-bridge-help show">Postup: SketchUp → Extensions → Extension Manager → Install Extension → vyber <b>20-20_Toolbox_Connector_v2.0.2.rbz</b> → restartuj SketchUp. Connector komunikuje pouze lokálně přes 127.0.0.1:8092.</div>';
   }
 
   window.refreshSuPluginVersions=async function(){
