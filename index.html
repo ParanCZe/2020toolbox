@@ -3755,6 +3755,7 @@ function printDrawingList(){
   </div>
 </div>
 <h1>Seznam výkresů</h1><table><thead><tr><th>Poř.</th><th>List</th><th>Číslo výkresu</th><th>Název výkresu</th><th>Měřítko</th><th>Stupeň dokumentace</th><th>Formát</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script>
+<script src="sketchup_plugin_status_v360.js"></script>
 </body></html>`);w.document.close();
 }
 
@@ -8530,6 +8531,7 @@ function exportDesignAuditCsv(){if(!designAuditState.issues.length&&!designAudit
 function printDesignAuditReport(){const f=designAuditState.file;if(!f)return;const issues=designAuditState.issues,counts={error:issues.filter(x=>x.severity==='error').length,warn:issues.filter(x=>x.severity==='warn').length,rec:issues.filter(x=>x.severity==='rec').length},w=window.open('','_blank');if(!w)return;w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Kontrola návrhu</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:22px}.meta{color:#666;font-size:12px;margin-bottom:20px}.summary{display:flex;gap:10px;margin:14px 0}.summary div{border:1px solid #bbb;padding:10px 14px}.issue{border-bottom:1px solid #ddd;padding:10px 0}.issue b{display:block;margin-bottom:3px}.small{font-size:11px;color:#666}.warn{color:#92400e}.error{color:#991b1b}@media print{body{margin:10mm}}</style></head><body><h1>Kontrola návrhu</h1><div class="meta">${escapeHtml(f.name)} · 20-20-TOOLBOX V3.14s · předběžný automatický audit</div><div class="summary"><div>Chyby<br><b>${counts.error}</b></div><div>Upozornění<br><b>${counts.warn}</b></div><div>Doporučení<br><b>${counts.rec}</b></div></div>${issues.map(x=>`<div class="issue ${x.severity}"><b>${auditSeverityLabel(x.severity)} · ${escapeHtml(x.category)} · str. ${x.page} — ${escapeHtml(x.title)}</b><div>${escapeHtml(x.message)}</div>${x.evidence?`<div class="small">Důkaz: ${escapeHtml(x.evidence)}</div>`:''}</div>`).join('')}<p class="small">Výstup je předběžná kontrola, nikoli autorizovaný normový nebo právní posudek.</p><script>window.onload=()=>window.print()<\/script>
 <script src="sketchup_plugin_status_v360.js?v=364"><\/script>
 
+<script src="sketchup_plugin_status_v360.js"></script>
 </body></html>`);w.document.close()}
 
 </script>
@@ -8827,6 +8829,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>check3DPrintPrus
 
 
 <script src="sketchup_plugin_status_v360.js?v=365"></script>
+<script src="sketchup_plugin_status_v360.js"></script>
 </body>
 </html>
 
