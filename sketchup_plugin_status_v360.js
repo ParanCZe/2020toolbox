@@ -4,6 +4,8 @@
   const IS_MAC=/Macintosh|Mac OS X|MacIntel/i.test(UA);
   const IS_WIN=/Windows|Win32|Win64/i.test(UA);
   const CONNECTOR_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/20-20_Toolbox_Connector_v2.0.3.rbz';
+  const WINDOWS_HELPER_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/INSTALL_20-20_SKETCHUP_HELPER_V3.bat';
+  const WINDOWS_BRIDGE_SCHEME='twentytwentytoolboxv3://bridge';
   const loaderFixes={
     'ai-exporter':'twentytwenty_nano_banana_exporter.rb'
   };
@@ -35,15 +37,34 @@
     })}catch(e){console.error(e)}
   };
 
-  window.downloadSketchUpConnector=function(){
+  function downloadFile(url,name){
     const a=document.createElement('a');
-    a.href=CONNECTOR_URL;
-    a.download='20-20_Toolbox_Connector_v2.0.3.rbz';
-    a.rel='noopener';
+    a.href=url;a.download=name;a.rel='noopener';
     document.body.appendChild(a);a.click();a.remove();
+  }
+
+  window.downloadWindowsSketchUpHelper=function(){
+    downloadFile(WINDOWS_HELPER_URL,'INSTALL_20-20_SKETCHUP_HELPER_V3.bat');
+    suPluginToast('Windows Helper stažen. Spusť ho jednou. Potom se Bridge zapíná automaticky, skrytě a jen asi 10 s po použití.');
+  };
+
+  window.downloadSketchUpConnector=function(){
+    if(IS_WIN){window.downloadWindowsSketchUpHelper();return}
+    downloadFile(CONNECTOR_URL,'20-20_Toolbox_Connector_v2.0.3.rbz');
     suPluginToast('20-20 Toolbox Connector v2.0.3 stažen. Nainstaluj ho jednou přes SketchUp Extension Manager a SketchUp restartuj.');
   };
-  window.downloadMacSketchUpConnector=window.downloadSketchUpConnector;
+  window.downloadMacSketchUpConnector=function(){
+    downloadFile(CONNECTOR_URL,'20-20_Toolbox_Connector_v2.0.3.rbz');
+  };
+
+  function launchWindowsBridge(){
+    if(!IS_WIN)return;
+    const f=document.createElement('iframe');
+    f.style.display='none';
+    f.src=WINDOWS_BRIDGE_SCHEME;
+    document.body.appendChild(f);
+    setTimeout(()=>f.remove(),1800);
+  }
 
   const BRIDGE_ENDPOINTS=['http://127.0.0.1:8092','http://localhost:8092'];
   let activeBridgeEndpoint=BRIDGE_ENDPOINTS[0];
@@ -79,8 +100,14 @@
   window.ensureSuBridge=async function(file=''){
     let st=await window.suBridgeStatus();
     if(st&&st.ok)return st;
-    for(let i=0;i<8;i++){
-      await new Promise(r=>setTimeout(r,300));
+
+    // Windows uses the one-time registered helper. Launching the custom
+    // protocol starts BAT/PowerShell completely hidden; the server then
+    // exits automatically about 10 seconds after the last request.
+    if(IS_WIN)launchWindowsBridge();
+
+    for(let i=0;i<(IS_WIN?40:10);i++){
+      await new Promise(r=>setTimeout(r,250));
       st=await window.suBridgeStatus();
       if(st&&st.ok)return st;
     }
@@ -89,11 +116,19 @@
 
   function configureBridgePanel(){
     const box=document.querySelector('.suplugins-bridge');if(!box)return;
-    const platform=IS_MAC?'macOS':(IS_WIN?'Windows':'Windows / macOS');
-    box.innerHTML='<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>20-20 Toolbox Connector:</b><span>jednorázově jako RBZ do SketchUpu</span></div>'+
-      '<div style="margin-top:5px;color:var(--muted)">Na <b>'+platform+'</b> už není potřeba BAT ani pokaždé spouštět Bridge. Jednou nainstaluješ <b>20-20 Toolbox Connector</b> přes SketchUp Extension Manager. Podporuje SketchUp 2017–2026. Když je SketchUp otevřený, Toolbox umí číst verze, instalovat, aktualizovat i odinstalovat 20-20 pluginy.</div>'+
-      '<div class="suplugins-bridge-actions"><button class="suplugins-bridge-start" onclick="downloadSketchUpConnector()">Stáhnout Toolbox Connector (.rbz)</button></div>'+
-      '<div class="suplugins-bridge-help show">Postup: SketchUp → Extensions → Extension Manager → Install Extension → vyber <b>20-20_Toolbox_Connector_v2.0.3.rbz</b> → restartuj SketchUp. Connector komunikuje pouze lokálně přes 127.0.0.1:8092.</div>';
+
+    if(IS_WIN){
+      box.innerHTML='<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>Windows SketchUp Bridge:</b><span>skrytý BAT / PowerShell helper</span></div>'+
+        '<div style="margin-top:5px;color:var(--muted)">Na Windows používá Toolbox původní lokální Bridge. Helper nainstaluješ jen jednou. Při instalaci / aktualizaci pluginu se pak <b>automaticky a neviditelně</b> spustí a přibližně <b>10 sekund po posledním požadavku se sám vypne</b>.</div>'+
+        '<div class="suplugins-bridge-actions"><button class="suplugins-bridge-start" onclick="downloadWindowsSketchUpHelper()">Stáhnout Windows Helper (.bat)</button></div>'+
+        '<div class="suplugins-bridge-help show">Jednorázově spusť <b>INSTALL_20-20_SKETCHUP_HELPER_V3.bat</b>. Potom už při běžném používání Toolboxu žádné BAT ani PowerShell okno neuvidíš.</div>';
+      return;
+    }
+
+    box.innerHTML='<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>20-20 Toolbox Connector:</b><span>macOS · jednorázově jako RBZ do SketchUpu</span></div>'+
+      '<div style="margin-top:5px;color:var(--muted)">Na macOS zůstává Connector přímo uvnitř SketchUpu. Jednou ho nainstaluješ přes Extension Manager a při správě pluginů necháš SketchUp otevřený.</div>'+
+      '<div class="suplugins-bridge-actions"><button class="suplugins-bridge-start" onclick="downloadMacSketchUpConnector()">Stáhnout Mac Connector (.rbz)</button></div>'+
+      '<div class="suplugins-bridge-help show">SketchUp → Extensions → Extension Manager → Install Extension → vyber <b>20-20_Toolbox_Connector_v2.0.3.rbz</b> → restartuj SketchUp.</div>';
   }
 
   window.refreshSuPluginVersions=async function(){
@@ -109,9 +144,9 @@
 
   window.installSuPlugin=async function(id,version){
     let x;try{x=suPluginPayload(id,version)}catch(e){suPluginToast(e?.message||String(e),true);return}
-    suPluginToast('Připojuji se k 20-20 Toolbox Connectoru…');
+    suPluginToast(IS_WIN?'Skrytě spouštím Windows SketchUp Bridge…':'Připojuji se k 20-20 Toolbox Connectoru…');
     const s=await ensureSuBridge();
-    if(!s){suPluginToast('Toolbox Connector nereaguje na 127.0.0.1:8092 ani localhost:8092. Ve SketchUpu otevři Extensions → 20-20 Toolbox Connector → Stav Connectoru. Pokud máš starší verzi, nainstaluj v2.0.3 a SketchUp restartuj.',true);return}
+    if(!s){suPluginToast(IS_WIN?'Windows Bridge se nepodařilo spustit. Jednou spusť INSTALL_20-20_SKETCHUP_HELPER_V3.bat a pak akci zopakuj.':'Mac Connector nereaguje. Zkontroluj, že je v SketchUp Extension Manageru zapnutý a SketchUp běží.',true);return}
     try{
       let r;
       if(x.version.repo_file){
@@ -129,7 +164,7 @@
   window.uninstallSuPlugin=async function(id){
     const p=getSuPlugin(id);if(!p||!p.loader){suPluginToast('U tohoto pluginu není znám loader pro bezpečné odinstalování.',true);return}
     if(!confirm('Odinstalovat '+p.name+' ze SketchUpu?'))return;
-    const s=await ensureSuBridge();if(!s){suPluginToast('Toolbox Connector nereaguje. Ve SketchUpu otevři Extensions → 20-20 Toolbox Connector → Stav Connectoru a případně nainstaluj v2.0.3.',true);return}
+    const s=await ensureSuBridge();if(!s){suPluginToast(IS_WIN?'Windows Bridge se nepodařilo spustit. Spusť jednorázový Windows Helper.':'Mac Connector nereaguje. Zkontroluj jeho stav v SketchUpu.',true);return}
     try{const r=await bridgeRequest('/uninstall?loader='+encodeURIComponent(p.loader),{method:'POST'});const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));applyInstalledVersions(data.installed||{});suPluginToast(p.name+' odinstalován. Restartuj SketchUp.')}
     catch(e){suPluginToast('Odinstalace selhala: '+(e?.message||e),true)}
   };
