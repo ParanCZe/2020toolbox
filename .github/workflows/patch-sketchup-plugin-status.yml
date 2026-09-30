@@ -23,13 +23,44 @@ jobs:
           p = Path("index.html")
           s = p.read_text(encoding="utf-8")
 
+          # Restore the Windows plugin manager UI/transport from the last
+          # known-good state before Windows was switched to the universal RBZ connector.
+          s = s.replace(
+              '<div class="muted">Hotové 20-20 pluginy pro SketchUp. Jednorázově nainstaluj 20-20 Toolbox Connector a potom může Toolbox přímo kontrolovat verze, instalovat, aktualizovat a odinstalovat pluginy na Windows i macOS.</div>',
+              '<div class="muted">Hotové 20-20 pluginy pro SketchUp. Stáhni RBZ, nebo je pomocí volitelného SketchUpBridge rovnou nainstaluj / aktualizuj. U každého pluginu můžeš rozbalit i starší verze.</div>'
+          )
+          s = s.replace(
+              '<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>20-20 Toolbox Connector:</b><span>jednorázově jako RBZ do SketchUpu</span></div>',
+              '<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>Instalační pomocník:</b><span>jednorázová instalace · potom automaticky</span></div>'
+          )
+          s = s.replace(
+              '<div style="margin-top:5px;color:var(--muted)">Na Windows ani macOS už není potřeba BAT. Jednou nainstaluješ <b>20-20 Toolbox Connector</b> přes SketchUp Extension Manager. Podporuje SketchUp 2017–2026.</div>',
+              '<div style="margin-top:5px;color:var(--muted)">Jednou nainstaluješ pomocník do <code>%APPDATA%\\2020toolbox\\SketchUpPluginInstaller</code>. Potom tlačítko <b>Nainstalovat / aktualizovat</b> spustí tento lokální BAT a přepíše plugin ve SketchUpu.</div>'
+          )
+          s = s.replace(
+              '<button class="suplugins-bridge-start" onclick="downloadSketchUpConnector()">Stáhnout Toolbox Connector (.rbz)</button>',
+              '<button class="suplugins-bridge-start" onclick="downloadSuPluginHelperInstaller()">Nainstalovat helper V3 jednou (.bat)</button>'
+          )
+          s = re.sub(
+              r'<div id="suplugins-bridge-help" class="suplugins-bridge-help show">SketchUp → Extensions → Extension Manager → Install Extension → vyber <b>20-20_Toolbox_Connector_v[^<]+\.rbz</b> → restartuj SketchUp\. Při správě pluginů nech SketchUp otevřený\.</div>',
+              '<div id="suplugins-bridge-help" class="suplugins-bridge-help show">Web nemůže přímo číst soubory v AppData. Proto instalátor jednou zaregistruje Windows protokol <code>twentytwentytoolboxv3://</code>, který ukazuje na BAT uložený v AppData. Když pomocník existuje, Windows ho při kliknutí na instalaci spustí.</div>',
+              s
+          )
+          s = re.sub(
+              r'<div class="suplugins-note"><b>Connector stačí nainstalovat jednou\.</b>.*?</div>',
+              '<div class="suplugins-note"><b>Helper stačí nainstalovat jednou.</b> Potom při otevření této stránky nebo kliknutí na <b>Nainstalovat / aktualizovat</b> Toolbox sám spustí lokální SketchUp Bridge na 2 minuty. Bridge přečte nainstalované verze, zobrazí oranžový puntík, pokud je dostupná novější verze, provede instalaci a po 2 minutách se sám vypne.</div>',
+              s,
+              count=1
+          )
+          s = s.replace("const SU_BRIDGE_URL='http://localhost:8092';", "const SU_BRIDGE_URL='http://127.0.0.1:8092';")
+
           # Remove every existing page/helper include, including accidentally
           # injected copies inside JavaScript template strings.
           s = re.sub(r'<script src="sketchup_plugin_status_v360\.js(?:\?v=\d+)?"></script>\s*', '', s)
           s = re.sub(r'<script src="sketchup_plugin_status_v360\.js(?:\?v=\d+)?"><\\/script>\s*', '', s)
 
           # Add exactly one real include, immediately before the final </body>.
-          tag = '<script src="sketchup_plugin_status_v360.js?v=373"></script>\n'
+          tag = '<script src="sketchup_plugin_status_v360.js?v=374"></script>\n'
           pos = s.rfind('</body>')
           if pos < 0:
               raise SystemExit('final </body> not found')
