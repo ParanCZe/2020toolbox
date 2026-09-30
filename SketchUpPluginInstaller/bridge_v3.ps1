@@ -137,8 +137,8 @@ function Uninstall-Plugin([string]$loader,$su){
 
 $su=Get-SketchUp
 if($null -eq $su){Log 'SketchUp not found';exit 3}
-$port=8092;$listener=[System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$port)
-try{$listener.Start()}catch{Log 'Port 8092 already in use';exit 0}
+$port=8093;$listener=[System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$port)
+try{$listener.Start()}catch{Log 'Port 8093 already in use';exit 0}
 $expires=[DateTime]::UtcNow.AddMinutes(2);Log ('BRIDGE START '+$ProtocolUrl)
 function Reply($s,$code,$obj){
  $json=if($code -eq 204){''}else{$obj|ConvertTo-Json -Depth 8 -Compress};$body=[Text.Encoding]::UTF8.GetBytes($json);$status=if($code -eq 200){'OK'}elseif($code -eq 204){'No Content'}else{'Error'}
