@@ -1,0 +1,355 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>20-20 Mirror Renderer v0.4.15</title>
+<style>
+  html, body { margin:0; padding:0; overflow:hidden; background:#111; width:100%; height:100%; }
+  canvas { width:8px; height:8px; display:block; }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<script>
+(() => {
+  'use strict';
+  const canvas = document.getElementById('gl');
+  let gl = null;
+  let program = null;
+  let opaque = null;
+  let transparent = null;
+  let edges = null;
+  let sceneBounds = {min:[-100,-100,-100], max:[100,100,100]};
+  let background = [0.78, 0.78, 0.78, 1.0];
+  let sceneChunks = [];
+  let expectedChunks = 0;
+  let sceneLoaded = false;
+
+  function err(message) {
+    try { sketchup.renderer_error(String(message)); } catch (_) {}
+  }
+
+  function compile(type, source) {
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, source);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(sh) || 'Shader compilation failed');
+    }
+    return sh;
+  }
+
+  function initGL() {
+    gl = canvas.getContext('webgl', {
+      alpha: false,
+      antialias: true,
+      depth: true,
+      preserveDrawingBuffer: true,
+      premultipliedAlpha: false
+    });
+    if (!gl) throw new Error('WebGL is not available in this SketchUp Chromium runtime.');
+
+    const vs = `
+      attribute vec3 aPosition;
+      attribute vec4 aColor;
+      attribute vec3 aNormal;
+      uniform mat4 uView;
+      uniform mat4 uProj;
+      varying vec4 vColor;
+      varying vec3 vWorld;
+      varying vec3 vNormal;
+      void main() {
+        vWorld = aPosition;
+        vColor = aColor;
+        vNormal = aNormal;
+        gl_Position = uProj * uView * vec4(aPosition, 1.0);
+      }
+    `;
+    const fs = `
+      precision highp float;
+      varying vec4 vColor;
+      varying vec3 vWorld;
+      varying vec3 vNormal;
+      uniform vec3 uPlanePoint;
+      uniform vec3 uPlaneNormal;
+      uniform float uClipEps;
+      uniform float uShading;
+      void main() {
+        float side = dot(vWorld - uPlanePoint, uPlaneNormal);
+        if (side < uClipEps) discard;
+
+        vec3 n = normalize(vNormal);
+        vec3 lightDir = normalize(vec3(0.28, -0.36, 0.89));
+        float lambert = abs(dot(n, lightDir));
+        float shade = mix(1.0, 0.64 + 0.36 * lambert, uShading);
+        gl_FragColor = vec4(vColor.rgb * shade, vColor.a);
+      }
+    `;
+    program = gl.createProgram();
+    gl.attachShader(program, compile(gl.VERTEX_SHADER, vs));
+    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(program) || 'Program link failed');
+    }
+    gl.useProgram(program);
+    program.aPosition = gl.getAttribLocation(program, 'aPosition');
+    program.aColor = gl.getAttribLocation(program, 'aColor');
+    program.aNormal = gl.getAttribLocation(program, 'aNormal');
+    program.uView = gl.getUniformLocation(program, 'uView');
+    program.uProj = gl.getUniformLocation(program, 'uProj');
+    program.uPlanePoint = gl.getUniformLocation(program, 'uPlanePoint');
+    program.uPlaneNormal = gl.getUniformLocation(program, 'uPlaneNormal');
+    program.uClipEps = gl.getUniformLocation(program, 'uClipEps');
+    program.uShading = gl.getUniformLocation(program, 'uShading');
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+  }
+
+  const sub = (a,b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+  const add = (a,b) => [a[0]+b[0], a[1]+b[1], a[2]+b[2]];
+  const mul = (a,s) => [a[0]*s, a[1]*s, a[2]*s];
+  const dot = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const cross = (a,b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+  const len = a => Math.sqrt(dot(a,a));
+  const norm = a => { const l=Math.max(len(a),1e-12); return [a[0]/l,a[1]/l,a[2]/l]; };
+
+  function reflectPoint(point, planePoint, normal) {
+    const d = dot(sub(point, planePoint), normal);
+    return sub(point, mul(normal, 2*d));
+  }
+
+  function makeBuffer(flat) {
+    if (!flat || !flat.length) return null;
+    const data = new Float32Array(flat);
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    return {buffer, count: data.length / 10};
+  }
+
+  function deleteBuffer(item) {
+    if (item && item.buffer) gl.deleteBuffer(item.buffer);
+  }
+
+  function setScene(scene) {
+    deleteBuffer(opaque);
+    deleteBuffer(transparent);
+    deleteBuffer(edges);
+    opaque = makeBuffer(scene.opaque || []);
+    transparent = makeBuffer(scene.transparent || []);
+    edges = makeBuffer(scene.edges || []);
+    sceneBounds = scene.bounds || sceneBounds;
+    background = scene.background || background;
+    sceneLoaded = true;
+    try { sketchup.scene_loaded(scene.triangles || 0, scene.truncated === true); } catch (_) {}
+  }
+
+  function bindAndDraw(item, mode) {
+    if (!item || item.count <= 0) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, item.buffer);
+    const stride = 10 * 4;
+    gl.enableVertexAttribArray(program.aPosition);
+    gl.vertexAttribPointer(program.aPosition, 3, gl.FLOAT, false, stride, 0);
+    gl.enableVertexAttribArray(program.aColor);
+    gl.vertexAttribPointer(program.aColor, 4, gl.FLOAT, false, stride, 3*4);
+    gl.enableVertexAttribArray(program.aNormal);
+    gl.vertexAttribPointer(program.aNormal, 3, gl.FLOAT, false, stride, 7*4);
+    gl.drawArrays(mode || gl.TRIANGLES, 0, item.count);
+  }
+
+  function maxSceneDistance(eye) {
+    const mn = sceneBounds.min, mx = sceneBounds.max;
+    let maxd = 1.0;
+    for (let xi=0; xi<2; xi++) for (let yi=0; yi<2; yi++) for (let zi=0; zi<2; zi++) {
+      const p = [xi?mx[0]:mn[0], yi?mx[1]:mn[1], zi?mx[2]:mn[2]];
+      maxd = Math.max(maxd, len(sub(p, eye)));
+    }
+    return maxd;
+  }
+
+  function basisView(eye, right, up, back) {
+    // Column-major OpenGL view matrix. right/up/back form a right-handed
+    // orthonormal camera basis; the camera looks along -back.
+    return new Float32Array([
+      right[0], up[0], back[0], 0,
+      right[1], up[1], back[1], 0,
+      right[2], up[2], back[2], 0,
+      -dot(right, eye), -dot(up, eye), -dot(back, eye), 1
+    ]);
+  }
+
+  function frustum(left, right, bottom, top, near, far) {
+    const rl = right - left;
+    const tb = top - bottom;
+    const fn = far - near;
+    if (Math.abs(rl) < 1e-12 || Math.abs(tb) < 1e-12 || fn <= 1e-9) {
+      throw new Error('Degenerate mirror off-axis frustum.');
+    }
+    // OpenGL right-handed asymmetric perspective projection, column-major.
+    return new Float32Array([
+      (2*near)/rl, 0, 0, 0,
+      0, (2*near)/tb, 0, 0,
+      (right+left)/rl, (top+bottom)/tb, -(far+near)/fn, -1,
+      0, 0, -(2*far*near)/fn, 0
+    ]);
+  }
+
+  function mirrorApertureCamera(virtualEye, p00, p10, p01, p11, far) {
+    // The virtual camera is behind the mirror. From that side the physical
+    // mirror's local +U direction appears reversed. Define the renderer's
+    // lower-left corner as physical p10, lower-right as p00 and upper-left as
+    // p11. This produces a standard right-handed camera basis pointing through
+    // the mirror toward the reflected scene. Ruby flips U when placing the
+    // result back on the physical mirror.
+    const pa = p10;
+    const pb = p00;
+    const pc = p11;
+    const vr = norm(sub(pb, pa));
+    const vu = norm(sub(pc, pa));
+    let vn = norm(cross(vr, vu)); // camera backward axis, toward virtual eye
+
+    const va = sub(pa, virtualEye);
+    const vb = sub(pb, virtualEye);
+    const vc = sub(pc, virtualEye);
+    let d = -dot(va, vn);
+
+    // If unusual face orientation/nesting gave us the opposite basis, reverse
+    // both horizontal and normal axes while preserving handedness.
+    let rightAxis = vr;
+    let backAxis = vn;
+    let va2 = va, vb2 = vb, vc2 = vc;
+    let leftPoint = pa, rightPoint = pb, upperLeft = pc;
+    if (d <= 1e-7) {
+      rightAxis = mul(vr, -1);
+      backAxis = mul(vn, -1);
+      leftPoint = p00;
+      rightPoint = p10;
+      upperLeft = p01;
+      va2 = sub(leftPoint, virtualEye);
+      vb2 = sub(rightPoint, virtualEye);
+      vc2 = sub(upperLeft, virtualEye);
+      d = -dot(va2, backAxis);
+    }
+    if (d <= 1e-7) throw new Error('Virtual eye is on or in front of the mirror aperture.');
+
+    // Keep the near plane in front of the virtual eye but well before the
+    // physical mirror. Frustum extents scale with near/d so the chosen near
+    // value does not change the perspective.
+    const near = Math.max(0.01, Math.min(1.0, d * 0.05));
+    const l = dot(rightAxis, va2) * near / d;
+    const r = dot(rightAxis, vb2) * near / d;
+    const b = dot(vu, va2) * near / d;
+    const t = dot(vu, vc2) * near / d;
+
+    return {
+      view: basisView(virtualEye, rightAxis, vu, backAxis),
+      proj: frustum(l, r, b, t, near, Math.max(far, near + 10.0)),
+      distance: d
+    };
+  }
+
+  function renderMirror(p) {
+    try {
+      if (!sceneLoaded) throw new Error('Renderer scene is not loaded yet.');
+      const requested = Math.max(128, p.size|0);
+      const vp = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+      const maxRb = gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) || 4096;
+      const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 4096;
+      const gpuMax = Math.max(128, Math.min(4096, vp ? vp[0] : 4096, vp ? vp[1] : 4096, maxRb, maxTex));
+      const maxDim = Math.max(128, Math.min(gpuMax, requested));
+
+      // Preserve the physical mirror aspect instead of always rendering a
+      // square image and stretching it afterwards.
+      const aspect = Math.max(0.1, Math.min(10.0, Number(p.mirrorAspect) || 1.0));
+      let width, height;
+      if (aspect >= 1.0) {
+        width = maxDim;
+        height = Math.max(128, Math.round(maxDim / aspect));
+      } else {
+        height = maxDim;
+        width = Math.max(128, Math.round(maxDim * aspect));
+      }
+      width = Math.min(width, gpuMax);
+      height = Math.min(height, gpuMax);
+      canvas.width = width;
+      canvas.height = height;
+      gl.viewport(0,0,width,height);
+      gl.clearColor(background[0],background[1],background[2],1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.useProgram(program);
+
+      const n = norm(p.visibleNormal);
+      const virtualEye = reflectPoint(p.eye, p.planePoint, n);
+      const far = Math.max(100.0, maxSceneDistance(virtualEye) * 1.8);
+      const camera = mirrorApertureCamera(virtualEye, p.p00, p.p10, p.p01, p.p11, far);
+      gl.uniformMatrix4fv(program.uView, false, camera.view);
+      gl.uniformMatrix4fv(program.uProj, false, camera.proj);
+      gl.uniform3fv(program.uPlanePoint, new Float32Array(p.planePoint));
+      gl.uniform3fv(program.uPlaneNormal, new Float32Array(n));
+      gl.uniform1f(program.uClipEps, p.clipEps || 0.015);
+      gl.uniform1f(program.uShading, p.shading === false ? 0.0 : 1.0);
+
+      // Push filled polygons a hair back so hard edges remain crisp on top,
+      // similar to SketchUp's Shaded with Edges viewport style.
+      gl.enable(gl.POLYGON_OFFSET_FILL);
+      gl.polygonOffset(1.0, 1.0);
+      gl.disable(gl.BLEND);
+      gl.depthMask(true);
+      bindAndDraw(opaque, gl.TRIANGLES);
+
+      if (transparent) {
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.depthMask(false);
+        bindAndDraw(transparent, gl.TRIANGLES);
+        gl.depthMask(true);
+        gl.disable(gl.BLEND);
+      }
+
+      gl.disable(gl.POLYGON_OFFSET_FILL);
+      if (p.showEdges !== false && edges) {
+        // Edge vertices use a dark color; turn lighting off for this pass.
+        gl.uniform1f(program.uShading, 0.0);
+        gl.lineWidth(1.0);
+        gl.depthMask(false);
+        bindAndDraw(edges, gl.LINES);
+        gl.depthMask(true);
+      }
+
+      gl.finish();
+      const dataUrl = canvas.toDataURL('image/png');
+      sketchup.mirror_frame(p.token, dataUrl, Math.max(width,height), gpuMax);
+    } catch (e) {
+      err((e && e.stack) ? e.stack : e);
+    }
+  }
+
+  window.beginSceneTransfer = function(total) {
+    expectedChunks = total|0;
+    sceneChunks = new Array(expectedChunks);
+  };
+  window.addSceneChunk = function(index, chunk) {
+    sceneChunks[index|0] = chunk;
+    let ready = true;
+    for (let i=0;i<expectedChunks;i++) if (typeof sceneChunks[i] !== 'string') { ready=false; break; }
+    if (ready) {
+      try {
+        const text = sceneChunks.join('');
+        sceneChunks = [];
+        setScene(JSON.parse(text));
+      } catch (e) { err((e && e.stack) ? e.stack : e); }
+    }
+  };
+  window.renderMirror = renderMirror;
+
+  try {
+    initGL();
+    sketchup.renderer_ready();
+  } catch (e) {
+    err((e && e.stack) ? e.stack : e);
+  }
+})();
+</script>
+</body>
+</html>
