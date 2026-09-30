@@ -47,7 +47,7 @@
   }
   window.suBridgeStatus=bridgeStatus;
 
-  window.downloadWindowsBridge=async function(){
+  async function downloadWindowsBridgeFile(startPolling=true){
     try{
       const r=await fetch(WINDOWS_BRIDGE_BAT_URL,{cache:'no-store'});
       if(!r.ok)throw new Error('HTTP '+r.status);
@@ -58,10 +58,27 @@
       a.href=url;a.download='20-20_BRIDGE_V3.bat';
       document.body.appendChild(a);a.click();a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),3000);
-      suPluginToast('SketchUpBridge BAT stažen. Spusť ho; Toolbox pak verze načte automaticky.');
-      pollWindowsBridge();
-    }catch(e){suPluginToast('Stažení Bridge selhalo: '+(e?.message||e),true)}
-  };
+      if(startPolling){
+        suPluginToast('SketchUpBridge BAT stažen. Spusť ho; Toolbox pak verze načte automaticky.');
+        pollWindowsBridge();
+      }
+      return true;
+    }catch(e){
+      suPluginToast('Stažení Bridge selhalo: '+(e?.message||e),true);
+      return false;
+    }
+  }
+  window.downloadWindowsBridge=function(){return downloadWindowsBridgeFile(true)};
+
+  async function waitForWindowsBridge(maxMs=45000){
+    const started=Date.now();
+    while(Date.now()-started<maxMs){
+      const st=await bridgeStatus();
+      if(st&&st.ok)return st;
+      await new Promise(r=>setTimeout(r,700));
+    }
+    return null;
+  }
 
   async function pollWindowsBridge(){
     for(let i=0;i<40;i++){
@@ -122,10 +139,7 @@
     }catch(e){suPluginToast('Stažení selhalo: '+(e?.message||e),true)}
   };
 
-  window.installSuPlugin=async function(id,version){
-    let x;try{x=suPluginPayload(id,version)}catch(e){suPluginToast(e?.message||String(e),true);return}
-    const st=await bridgeStatus();
-    if(!st){setUnknown();suPluginToast(IS_WIN?'SketchUpBridge neběží. Klikni nahoře na „Zapnout SketchUpBridge (.bat)“, spusť BAT a pak instalaci zopakuj.':'Mac Connector není aktivní.',true);return}
+  async function performSuPluginInstall(id,version,x){
     try{
       let r;
       if(x.version.repo_file){
@@ -137,8 +151,42 @@
       const data=await r.json().catch(()=>({}));
       if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));
       applyInstalledVersions(data.installed||{});
+      updateWindowsPanel(true,data.remaining_seconds);
       suPluginToast(x.plugin.name+' v'+version+' nainstalován / aktualizován do '+(data.sketchup||'SketchUp')+'. Restartuj SketchUp.');
-    }catch(e){suPluginToast('Instalace selhala: '+(e?.message||e),true)}
+      return true;
+    }catch(e){
+      suPluginToast('Instalace selhala: '+(e?.message||e),true);
+      return false;
+    }
+  }
+
+  window.installSuPlugin=async function(id,version){
+    let x;try{x=suPluginPayload(id,version)}catch(e){suPluginToast(e?.message||String(e),true);return}
+    let st=await bridgeStatus();
+
+    if(!st&&IS_WIN){
+      setUnknown();
+      const downloaded=await downloadWindowsBridgeFile(false);
+      if(!downloaded)return;
+      suPluginToast('Bridge je stažený. Spusť 20-20_BRIDGE_V3.bat — Toolbox čeká a instalaci pak dokončí sám.');
+      st=await waitForWindowsBridge(45000);
+      if(!st){
+        setUnknown();
+        updateWindowsPanel(false);
+        suPluginToast('Bridge se do 45 sekund nespustil. Prohlížeč neumí BAT spustit sám — otevři stažený 20-20_BRIDGE_V3.bat a klikni Nainstalovat znovu.',true);
+        return;
+      }
+      applyInstalledVersions(st.installed||{});
+      updateWindowsPanel(true,st.remaining_seconds);
+    }
+
+    if(!st){
+      setUnknown();
+      suPluginToast('Mac Connector není aktivní.',true);
+      return;
+    }
+
+    await performSuPluginInstall(id,version,x);
   };
 
   window.uninstallSuPlugin=async function(id){
