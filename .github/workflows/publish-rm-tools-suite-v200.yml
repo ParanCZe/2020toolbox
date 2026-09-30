@@ -1,0 +1,317 @@
+name: Publish RM TOOLS v2.0.0 suite
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-rm-tools-suite-v200.yml'
+      - 'SketchUpPlugins/RMToolsSuiteSource/**'
+      - 'SketchUpPlugins/_build_inputs/component_library_v031/**'
+      - 'SketchUpPlugins/LiveMirrorSource/**'
+      - 'SketchUpPlugins/20-20_RM_Tools_v1.2.1.rbz'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build component library and all-in-one RM TOOLS
+        shell: python
+        run: |
+          from pathlib import Path
+          import base64
+          import io
+          import shutil
+          import tempfile
+          import zipfile
+
+          plugins = Path("SketchUpPlugins")
+
+          parts_dir = plugins / "_build_inputs" / "component_library_v031"
+          part_files = sorted(parts_dir.glob("part*.b64"))
+          if not part_files:
+              raise SystemExit("Component Library build parts missing")
+          encoded = "".join(p.read_text(encoding="utf-8").strip() for p in part_files)
+          component_bytes = base64.b64decode(encoded, validate=True)
+          if len(component_bytes) != 15840:
+              raise SystemExit(f"Unexpected Component Library size: {len(component_bytes)}")
+          with zipfile.ZipFile(io.BytesIO(component_bytes)) as z:
+              bad = z.testzip()
+              if bad:
+                  raise SystemExit("Component Library ZIP damaged: " + bad)
+              if "dvacet20_component_library.rb" not in set(z.namelist()):
+                  raise SystemExit("Component Library loader missing")
+
+          component_out = plugins / "20-20_Component_Library_v0.3.1.rbz"
+          component_out.write_bytes(component_bytes)
+
+          work = Path(tempfile.mkdtemp(prefix="rm_tools_suite_"))
+          rm_extract = work / "rm"
+          component_extract = work / "component"
+          stage = work / "stage"
+          rm_extract.mkdir()
+          component_extract.mkdir()
+          stage.mkdir()
+
+          with zipfile.ZipFile(plugins / "20-20_RM_Tools_v1.2.1.rbz") as z:
+              z.extractall(rm_extract)
+          with zipfile.ZipFile(io.BytesIO(component_bytes)) as z:
+              z.extractall(component_extract)
+
+          suite_src = plugins / "RMToolsSuiteSource"
+          live_src = plugins / "LiveMirrorSource"
+
+          shutil.copy2(suite_src / "twentytwenty_rm_tools_suite.rb", stage / "twentytwenty_rm_tools_suite.rb")
+          shutil.copytree(suite_src / "twentytwenty_rm_tools_suite", stage / "twentytwenty_rm_tools_suite")
+          shutil.copytree(rm_extract / "twentytwenty_rm_checker", stage / "twentytwenty_rm_checker")
+          shutil.copytree(component_extract / "dvacet20_component_library", stage / "dvacet20_component_library")
+          shutil.copytree(live_src / "twentytwenty_live_mirror", stage / "twentytwenty_live_mirror")
+
+          rm_icons = stage / "twentytwenty_rm_checker" / "icons"
+          suite_icons = stage / "twentytwenty_rm_tools_suite" / "icons"
+          if rm_icons.exists():
+              shutil.copytree(rm_icons, suite_icons, dirs_exist_ok=True)
+
+          def suppress_child_ui(path):
+              s = path.read_text(encoding="utf-8")
+              marker = "    unless file_loaded?(__FILE__)"
+              start = s.rfind(marker)
+              if start < 0:
+                  raise SystemExit(f"Autostart block not found in {path}")
+              tail = s.rfind("\n  end\nend")
+              if tail < 0 or tail <= start:
+                  raise SystemExit(f"Module tail not found in {path}")
+              replacement = "    file_loaded(__FILE__) unless file_loaded?(__FILE__)\n"
+              path.write_text(s[:start] + replacement + s[tail:], encoding="utf-8")
+
+          suppress_child_ui(stage / "twentytwenty_rm_checker" / "main.rb")
+          suppress_child_ui(stage / "dvacet20_component_library" / "main.rb")
+          suppress_child_ui(stage / "twentytwenty_live_mirror" / "main_v0418.rb")
+
+          stubs = {
+              "twentytwenty_rm_checker.rb": ("TwentyTwenty", "RMToolsBundledChecker", "1.2.1"),
+              "twentytwenty_live_mirror.rb": ("TwentyTwenty", "RMToolsBundledMirror", "0.4.18"),
+              "dvacet20_component_library.rb": ("Dvacet20", "RMToolsBundledComponentLibrary", "0.3.1"),
+          }
+          for filename, (outer, inner, version) in stubs.items():
+              stub = (
+                  "# frozen_string_literal: true\n"
+                  "require 'sketchup.rb'\n\n"
+                  f"module {outer}\n"
+                  f"  module {inner}\n"
+                  f"    EXTENSION_VERSION = '{version}'.freeze unless const_defined?(:EXTENSION_VERSION)\n"
+                  "  end\n"
+                  "end\n\n"
+                  "file_loaded(__FILE__) unless file_loaded?(__FILE__)\n"
+              )
+              (stage / filename).write_text(stub, encoding="utf-8")
+
+          required = [
+              stage / "twentytwenty_rm_tools_suite.rb",
+              stage / "twentytwenty_rm_tools_suite" / "main.rb",
+              stage / "twentytwenty_rm_checker" / "main.rb",
+              stage / "dvacet20_component_library" / "main.rb",
+              stage / "twentytwenty_live_mirror" / "main_v0418.rb",
+              stage / "twentytwenty_live_mirror" / "renderer_v0418.html",
+          ]
+          missing = [str(x) for x in required if not x.exists()]
+          if missing:
+              raise SystemExit("Missing suite files: " + ", ".join(missing))
+
+          suite_out = plugins / "20-20_RM_TOOLS_v2.0.0.rbz"
+          with zipfile.ZipFile(suite_out, "w", zipfile.ZIP_DEFLATED, allowZip64=False) as z:
+              for x in sorted(stage.rglob("*")):
+                  if x.is_file():
+                      z.write(x, x.relative_to(stage).as_posix())
+
+          with zipfile.ZipFile(suite_out) as z:
+              bad = z.testzip()
+              if bad:
+                  raise SystemExit("RM TOOLS suite ZIP damaged: " + bad)
+              names = set(z.namelist())
+              for req in [
+                  "twentytwenty_rm_tools_suite.rb",
+                  "twentytwenty_rm_tools_suite/main.rb",
+                  "twentytwenty_rm_checker/main.rb",
+                  "dvacet20_component_library/main.rb",
+                  "twentytwenty_live_mirror/main_v0418.rb",
+                  "twentytwenty_live_mirror/renderer_v0418.html",
+              ]:
+                  if req not in names:
+                      raise SystemExit("Suite member missing: " + req)
+
+          (plugins / "_rm_tools_suite_size.txt").write_text(str(suite_out.stat().st_size), encoding="utf-8")
+          print("Built", suite_out, suite_out.stat().st_size, "bytes")
+          print("Built", component_out, component_out.stat().st_size, "bytes")
+          shutil.rmtree(work)
+
+      - name: Patch Toolbox catalog and Bridge detection
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path("index.html")
+          html = p.read_text(encoding="utf-8")
+          suite_size = int(Path("SketchUpPlugins/_rm_tools_suite_size.txt").read_text(encoding="utf-8"))
+
+          catalog_marker = "const SU_PLUGIN_CATALOG = ["
+          catalog_start = html.find(catalog_marker)
+          if catalog_start < 0:
+              raise SystemExit("SU_PLUGIN_CATALOG not found")
+
+          def object_bounds(src, object_id):
+              target = f"id:'{object_id}'"
+              anchor = src.find(target, catalog_start)
+              if anchor < 0:
+                  return None
+              start = src.rfind("{", catalog_start, anchor)
+              if start < 0:
+                  return None
+              depth = 0
+              quote = None
+              escape = False
+              end = None
+              for i in range(start, len(src)):
+                  c = src[i]
+                  if quote:
+                      if escape:
+                          escape = False
+                      elif c == "\\":
+                          escape = True
+                      elif c == quote:
+                          quote = None
+                      continue
+                  if c in ("'", '"', chr(96)):
+                      quote = c
+                      continue
+                  if c == "{":
+                      depth += 1
+                  elif c == "}":
+                      depth -= 1
+                      if depth == 0:
+                          end = i + 1
+                          break
+              if end is None:
+                  return None
+              j = end
+              while j < len(src) and src[j] in " \t\r\n":
+                  j += 1
+              if j < len(src) and src[j] == ",":
+                  j += 1
+              while j < len(src) and src[j] in " \t\r\n":
+                  j += 1
+              return start, j
+
+          for oid in ("rm-tools-suite", "component-library-server"):
+              bounds = object_bounds(html, oid)
+              if bounds:
+                  html = html[:bounds[0]] + html[bounds[1]:]
+
+          suite_block = f"""  {{
+            id:'rm-tools-suite',
+            loader:'twentytwenty_rm_tools_suite.rb',
+            name:'20-20 RM TOOLS',
+            current:'2.0.0',
+            featured:true,
+            description:'MODEL LIBRARY + Nastavení SKP / Záběr / Checker + LIVE Mirror v jednom pluginu.',
+            meta:'All-in-one balíček · Model Library v0.3.1 · RM Tools v1.2.1 · Live Mirror v0.4.18',
+            icon:'library',
+            versions:[{{"version":"2.0.0","file":"20-20_RM_TOOLS_v2.0.0.rbz","size":{suite_size},"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.0.rbz"}}]
+          }},
+          {{
+            id:'component-library-server',
+            loader:'dvacet20_component_library.rb',
+            name:'20-20 Component Library',
+            current:'0.3.1',
+            description:'Serverová knihovna SKP komponent s náhledy, filtrováním a vložením modelu jedním kliknutím.',
+            meta:'Zdroj S:/PODKLADY/PODKLADY 3D/SKP KOMPONENTY · TYP_VÝROBCE_ŘADA_IDENTIFIKÁTOR · vložení za 0,0,0',
+            icon:'library',
+            versions:[{{"version":"0.3.1","file":"20-20_Component_Library_v0.3.1.rbz","size":15840,"repo_file":"SketchUpPlugins/20-20_Component_Library_v0.3.1.rbz"}}]
+          }},
+          """
+          pos = html.find(catalog_marker) + len(catalog_marker)
+          html = html[:pos] + "\n" + suite_block + html[pos:]
+
+          css_marker = "/* RM TOOLS FEATURED CARD */"
+          if css_marker not in html:
+              anchor = ".suplugin-card-main{padding:17px"
+              idx = html.find(anchor)
+              if idx < 0:
+                  raise SystemExit("SketchUp plugin card CSS anchor not found")
+              featured_css = """/* RM TOOLS FEATURED CARD */
+          .suplugin-card.featured{grid-column:1/-1;border-color:#c8bd3d;background:linear-gradient(135deg,#fffef2 0%,#ffffff 70%);box-shadow:0 8px 28px rgba(24,24,27,.10)}
+          .suplugin-card.featured .suplugin-card-main{padding:24px;grid-template-columns:76px 1fr;gap:18px}
+          .suplugin-card.featured .suplugin-icon{width:76px;height:76px;border-radius:15px}
+          .suplugin-card.featured .suplugin-icon svg{width:48px;height:48px}
+          .suplugin-card.featured .suplugin-title{font-size:21px}
+          .suplugin-card.featured .suplugin-desc{font-size:13px;max-width:900px}
+          .suplugin-card.featured .suplugin-actions{padding:0 24px 20px}
+          .suplugin-divider{grid-column:1/-1;height:1px;background:#c9cbd0;margin:2px 0 0}
+          """
+              html = html[:idx] + featured_css + html[idx:]
+
+          dollar = "$"
+          tick = chr(96)
+          old_article = '<article class="suplugin-card" id="suplugin-' + dollar + '{p.id}">'
+          new_article = '<article class="suplugin-card' + dollar + "{p.featured?' featured':''}" + '" id="suplugin-' + dollar + '{p.id}">'
+          if old_article in html:
+              html = html.replace(old_article, new_article, 1)
+          elif new_article not in html:
+              raise SystemExit("Plugin render article anchor not found")
+
+          old_close = '    </article>' + tick + ';\n  }).join(\'\');'
+          divider_expr = dollar + "{p.featured?'<div class=\"suplugin-divider\" aria-hidden=\"true\"></div>':''}"
+          new_close = '    </article>' + divider_expr + tick + ';\n  }).join(\'\');'
+          if old_close in html:
+              html = html.replace(old_close, new_close, 1)
+          elif new_close not in html:
+              raise SystemExit("Plugin render close anchor not found")
+
+          html = html.replace('id="app-version">V3.26<', 'id="app-version">V3.27<', 1)
+          p.write_text(html, encoding="utf-8")
+
+          bridge = Path("SketchUpPluginInstaller/bridge_v3.ps1")
+          b = bridge.read_text(encoding="utf-8")
+          old = "if($name -notmatch '^(twentytwenty_|2020_|dvacet20-)'){continue}"
+          new = "if($name -notmatch '^(twentytwenty_|2020_|dvacet20[-_])'){continue}"
+          if old in b:
+              b = b.replace(old, new, 1)
+          elif new not in b:
+              raise SystemExit("Bridge loader detection anchor not found")
+          bridge.write_text(b, encoding="utf-8")
+
+      - name: Validate package and source syntax
+        shell: bash
+        run: |
+          set -e
+          ruby -c SketchUpPlugins/RMToolsSuiteSource/twentytwenty_rm_tools_suite.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSource/twentytwenty_rm_tools_suite/main.rb
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          for f in [
+              Path("SketchUpPlugins/20-20_RM_TOOLS_v2.0.0.rbz"),
+              Path("SketchUpPlugins/20-20_Component_Library_v0.3.1.rbz"),
+          ]:
+              with zipfile.ZipFile(f) as z:
+                  assert z.testzip() is None, f
+          html = Path("index.html").read_text(encoding="utf-8")
+          assert "id:'rm-tools-suite'" in html
+          assert "featured:true" in html
+          assert "id:'component-library-server'" in html
+          assert "suplugin-divider" in html
+          PY
+
+      - name: Commit package and Toolbox registry
+        run: |
+          rm -f SketchUpPlugins/_rm_tools_suite_size.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.0.rbz SketchUpPlugins/20-20_Component_Library_v0.3.1.rbz index.html SketchUpPluginInstaller/bridge_v3.ps1
+          git diff --cached --quiet && exit 0
+          git commit -m "Publish 20-20 RM TOOLS v2.0.0 all-in-one"
+          git push
