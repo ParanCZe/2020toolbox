@@ -61,7 +61,7 @@ function Get-Installed($plugins){
  if(-not(Test-Path $plugins)){return $out}
  foreach($p in Get-ChildItem $plugins -File -Filter '*.rb' -ErrorAction SilentlyContinue){
   $name=$p.Name.ToLowerInvariant()
-  if($name -notmatch '^(twentytwenty_|2020_|dvacet20-)'){continue}
+  if($name -notmatch '^(twentytwenty_|2020_|dvacet20[-_])'){continue}
   $txt=Get-Content $p.FullName -Raw -ErrorAction SilentlyContinue
   $out[$p.Name]=Get-PluginVersion $txt
  }
