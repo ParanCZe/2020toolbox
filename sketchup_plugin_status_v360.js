@@ -5,7 +5,7 @@
   const IS_WIN=/Windows|Win32|Win64/i.test(UA);
   const MAC_CONNECTOR_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/20-20_Toolbox_Mac_Connector_v1.1.0.rbz';
   const WINDOWS_BRIDGE_BAT_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/20-20_BRIDGE_V3.bat';
-  const BRIDGE_URL='http://127.0.0.1:8092';
+  const BRIDGE_URL=IS_WIN?'http://127.0.0.1:8093':'http://127.0.0.1:8092';
   const loaderFixes={'ai-exporter':'twentytwenty_nano_banana_exporter.rb'};
   try{SU_PLUGIN_CATALOG.forEach(p=>{if(!p.loader&&loaderFixes[p.id])p.loader=loaderFixes[p.id]})}catch(_){}
 
@@ -96,7 +96,7 @@
     const box=document.querySelector('.suplugins-bridge');if(!box)return;
     if(IS_WIN){
       box.innerHTML='<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>SketchUpBridge:</b><span id="su-win-bridge-state">kontroluji…</span></div>'+
-        '<div style="margin-top:5px;color:var(--muted)">Starý Windows režim bez Connectoru a bez registrace protokolu. Klikni na <b>Zapnout SketchUpBridge</b>, spusť stažený BAT a Bridge poběží 2 minuty na <code>127.0.0.1:8092</code>.</div>'+
+        '<div style="margin-top:5px;color:var(--muted)">Starý Windows režim bez Connectoru a bez registrace protokolu. Klikni na <b>Zapnout SketchUpBridge</b>, spusť stažený BAT a Bridge poběží 2 minuty na <code>127.0.0.1:8093</code>.</div>'+
         '<div class="suplugins-bridge-actions"><button class="suplugins-bridge-start" onclick="downloadWindowsBridge()">Zapnout SketchUpBridge (.bat)</button><button class="back-btn" style="margin:0;padding:6px 8px;font-size:10px" onclick="pollWindowsBridge()">Zkontrolovat / načíst verze</button></div>'+
         '<div class="suplugins-bridge-help show">Po spuštění BATu ho Toolbox automaticky pozná. Během 2 minut můžeš kontrolovat verze, instalovat, aktualizovat a odinstalovat pluginy.</div>';
       return;
