@@ -594,21 +594,21 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
     <div class="suplugins-head">
       <div>
         <h1>SketchUp pluginy</h1>
-        <div class="muted">Hotové 20-20 pluginy pro SketchUp. Jednorázově nainstaluj 20-20 Toolbox Connector a potom může Toolbox přímo kontrolovat verze, instalovat, aktualizovat a odinstalovat pluginy na Windows i macOS.</div>
+        <div class="muted">Hotové 20-20 pluginy pro SketchUp. Stáhni RBZ, nebo je pomocí volitelného SketchUpBridge rovnou nainstaluj / aktualizuj. U každého pluginu můžeš rozbalit i starší verze.</div>
       </div>
       <div class="suplugins-bridge">
-        <div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>20-20 Toolbox Connector:</b><span>jednorázově jako RBZ do SketchUpu</span></div>
-        <div style="margin-top:5px;color:var(--muted)">Na Windows ani macOS už není potřeba BAT. Jednou nainstaluješ <b>20-20 Toolbox Connector</b> přes SketchUp Extension Manager. Podporuje SketchUp 2017–2026.</div>
+        <div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>Instalační pomocník:</b><span>jednorázová instalace · potom automaticky</span></div>
+        <div style="margin-top:5px;color:var(--muted)">Jednou nainstaluješ pomocník do <code>%APPDATA%\2020toolbox\SketchUpPluginInstaller</code>. Potom tlačítko <b>Nainstalovat / aktualizovat</b> spustí tento lokální BAT a přepíše plugin ve SketchUpu.</div>
         <div class="suplugins-bridge-actions">
-          <button class="suplugins-bridge-start" onclick="downloadSketchUpConnector()">Stáhnout Toolbox Connector (.rbz)</button>
+          <button class="suplugins-bridge-start" onclick="downloadSuPluginHelperInstaller()">Nainstalovat helper V3 jednou (.bat)</button>
         </div>
-        <div id="suplugins-bridge-help" class="suplugins-bridge-help show">SketchUp → Extensions → Extension Manager → Install Extension → vyber <b>20-20_Toolbox_Connector_v2.0.2.rbz</b> → restartuj SketchUp. Při správě pluginů nech SketchUp otevřený.</div>
+        <div id="suplugins-bridge-help" class="suplugins-bridge-help show">Web nemůže přímo číst soubory v AppData. Proto instalátor jednou zaregistruje Windows protokol <code>twentytwentytoolboxv3://</code>, který ukazuje na BAT uložený v AppData. Když pomocník existuje, Windows ho při kliknutí na instalaci spustí.</div>
       </div>
     </div>
 
     <div id="suplugins-grid" class="suplugins-grid"></div>
 
-    <div class="suplugins-note"><b>Connector stačí nainstalovat jednou.</b> Běží uvnitř otevřeného SketchUpu a komunikuje s Toolboxem pouze lokálně přes <code>localhost:8092</code>. Toolbox pak zobrazí nainstalované verze a umožní instalaci, aktualizaci i odinstalaci bez BAT a bez PowerShell okna.</div>
+    <div class="suplugins-note"><b>Helper stačí nainstalovat jednou.</b> Potom při otevření této stránky nebo kliknutí na <b>Nainstalovat / aktualizovat</b> Toolbox sám spustí lokální SketchUp Bridge na 2 minuty. Bridge přečte nainstalované verze, zobrazí oranžový puntík, pokud je dostupná novější verze, provede instalaci a po 2 minutách se sám vypne.</div>
     <div id="suplugins-toast" class="suplugins-toast"></div>
   </div>
 
@@ -2806,7 +2806,7 @@ async function downloadSuPlugin(id,version){
 }
 
 const SU_HELPER_INSTALLER_TEXT="@echo off\nsetlocal\nchcp 65001 >nul\ntitle 20-20 Toolbox - SketchUp Helper V3\nset \"DIR=%APPDATA%\\2020toolbox\\SketchUpPluginInstaller\"\nset \"RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller\"\nif not exist \"%DIR%\" mkdir \"%DIR%\" >nul 2>&1\necho Instaluji 20-20 Toolbox helper V3...\npowershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW%/20-20_BRIDGE_V3.bat' -OutFile '%DIR%\\20-20_BRIDGE_V3.bat'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW%/bridge_v3.ps1' -OutFile '%DIR%\\bridge_v3.ps1'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW%/register_protocol_v3.ps1' -OutFile '%DIR%\\register_protocol_v3.ps1'\"\nif errorlevel 1 (\n echo CHYBA: helper se nepodarilo stahnout.\n pause\n exit /b 1\n)\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%DIR%\\register_protocol_v3.ps1\"\nif errorlevel 1 (\n echo CHYBA: protokol se nepodarilo zaregistrovat.\n pause\n exit /b 1\n)\necho.\necho HOTOVO - helper V3 je nainstalovany.\necho Od ted uz nic znovu nestahujes. Toolbox si Bridge zapne sam na 2 minuty.\npause\n";
-const SU_BRIDGE_URL='http://localhost:8092';
+const SU_BRIDGE_URL='http://127.0.0.1:8092';
 const SU_BRIDGE_SCHEME='twentytwentytoolboxv3://bridge';
 
 function downloadSuPluginHelperInstaller(){
@@ -8824,7 +8824,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>check3DPrintPrus
 <script src="authorization_pdf_v326.js?v=334"></script>
 
 
-<script src="sketchup_plugin_status_v360.js?v=373"></script>
+<script src="sketchup_plugin_status_v360.js?v=374"></script>
 </body>
 </html>
 
