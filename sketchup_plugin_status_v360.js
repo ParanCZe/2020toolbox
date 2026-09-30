@@ -1,18 +1,19 @@
 (() => {
   const KEY='2020toolbox.sketchupPluginDownloads.v1';
-  const IS_MAC=/Macintosh|Mac OS X|MacIntel/i.test((navigator.userAgent||'')+' '+(navigator.platform||''));
+  const UA=(navigator.userAgent||'')+' '+(navigator.platform||'');
+  const IS_MAC=/Macintosh|Mac OS X|MacIntel/i.test(UA);
+  const IS_WIN=/Windows|Win32|Win64/i.test(UA);
   const MAC_CONNECTOR_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/20-20_Toolbox_Mac_Connector_v1.1.0.rbz';
-  const originalEnsureSuBridge=window.ensureSuBridge;
-  const loaderFixes={
-    'ai-exporter':'twentytwenty_nano_banana_exporter.rb'
-  };
-  try{SU_PLUGIN_CATALOG.forEach(p=>{if(!p.loader&&loaderFixes[p.id])p.loader=loaderFixes[p.id]})}catch(_){ }
+  const WINDOWS_BRIDGE_BAT_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/20-20_BRIDGE_V3.bat';
+  const BRIDGE_URL='http://127.0.0.1:8092';
+  const loaderFixes={'ai-exporter':'twentytwenty_nano_banana_exporter.rb'};
+  try{SU_PLUGIN_CATALOG.forEach(p=>{if(!p.loader&&loaderFixes[p.id])p.loader=loaderFixes[p.id]})}catch(_){}
 
   function readDownloads(){try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(_){return {}}}
-  function markDownloaded(id,version){const s=readDownloads();s[id]={version:String(version||''),at:Date.now()};try{localStorage.setItem(KEY,JSON.stringify(s))}catch(_){}}
+  function markDownloaded(id,version){const x=readDownloads();x[id]={version:String(version||''),at:Date.now()};try{localStorage.setItem(KEY,JSON.stringify(x))}catch(_){}}
   function downloadedVersion(id){const x=readDownloads()[id];return x&&x.version?String(x.version):null}
   function stateEl(id){return document.getElementById('suplugin-state-'+id)}
-  function unknownStates(){try{SU_PLUGIN_CATALOG.forEach(p=>{const el=stateEl(p.id);if(el){el.className='suplugin-state none';el.textContent='stav nezjištěn'}})}catch(_){}}
+  function setUnknown(){try{SU_PLUGIN_CATALOG.forEach(p=>{const el=stateEl(p.id);if(el){el.className='suplugin-state none';el.textContent=IS_WIN?'Bridge vypnutý':'stav nezjištěn'}})}catch(_){}}
 
   const style=document.createElement('style');
   style.textContent='.suplugin-state.downloaded{background:#eef2ff!important;border-color:#c7d2fe!important;color:#3730a3!important}.suplugin-uninstall{background:#fff!important;color:#991b1b!important;border:1px solid #fecaca!important}.suplugin-uninstall:hover{background:#fef2f2!important}';
@@ -34,71 +35,123 @@
     })}catch(e){console.error(e)}
   };
 
-  window.downloadMacSketchUpConnector=function(){
-    const a=document.createElement('a');
-    a.href=MAC_CONNECTOR_URL;
-    a.download='20-20_Toolbox_Mac_Connector_v1.1.0.rbz';
-    a.rel='noopener';
-    document.body.appendChild(a);a.click();a.remove();
-    suPluginToast('Mac Connector v1.1.0 stažen. Podporuje SketchUp 2017–2026. Ve SketchUpu otevři Extension Manager → Install Extension, vyber RBZ a potom SketchUp restartuj.');
+  async function bridgeStatus(){
+    try{
+      const c=new AbortController(),t=setTimeout(()=>c.abort(),1000);
+      const r=await fetch(BRIDGE_URL+'/status',{cache:'no-store',signal:c.signal});
+      clearTimeout(t);
+      if(!r.ok)return null;
+      const data=await r.json();
+      return data&&data.ok?data:null;
+    }catch(_){return null}
+  }
+  window.suBridgeStatus=bridgeStatus;
+
+  window.downloadWindowsBridge=async function(){
+    try{
+      const r=await fetch(WINDOWS_BRIDGE_BAT_URL,{cache:'no-store'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const text=await r.text();
+      if(!text||text.toLowerCase().indexOf('@echo off')<0)throw new Error('Neplatný BAT soubor');
+      const blob=new Blob([text],{type:'application/octet-stream'});
+      const url=URL.createObjectURL(blob),a=document.createElement('a');
+      a.href=url;a.download='20-20_BRIDGE_V3.bat';
+      document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),3000);
+      suPluginToast('SketchUpBridge BAT stažen. Spusť ho; Toolbox pak verze načte automaticky.');
+      pollWindowsBridge();
+    }catch(e){suPluginToast('Stažení Bridge selhalo: '+(e?.message||e),true)}
   };
 
-  window.ensureSuBridge=async function(file=''){
-    if(IS_MAC){
-      let st=await suBridgeStatus();
-      if(st&&st.ok)return st;
-      for(let i=0;i<8;i++){await new Promise(r=>setTimeout(r,250));st=await suBridgeStatus();if(st&&st.ok)return st}
-      return null;
+  async function pollWindowsBridge(){
+    for(let i=0;i<40;i++){
+      const st=await bridgeStatus();
+      if(st&&st.ok){
+        applyInstalledVersions(st.installed||{});
+        suPluginToast('SketchUpBridge běží · '+(st.sketchup||'SketchUp')+'. Verze pluginů načteny.');
+        updateWindowsPanel(true,st.remaining_seconds);
+        return true;
+      }
+      await new Promise(r=>setTimeout(r,750));
     }
-    return originalEnsureSuBridge?originalEnsureSuBridge(file):null;
+    setUnknown();
+    updateWindowsPanel(false);
+    return false;
+  }
+  window.pollWindowsBridge=pollWindowsBridge;
+
+  function updateWindowsPanel(online,seconds){
+    const state=document.getElementById('su-win-bridge-state');
+    if(state)state.textContent=online?'online · '+(Number(seconds)||0)+' s':'vypnutý';
+  }
+
+  window.downloadMacSketchUpConnector=function(){
+    const a=document.createElement('a');
+    a.href=MAC_CONNECTOR_URL;a.download='20-20_Toolbox_Mac_Connector_v1.1.0.rbz';a.rel='noopener';
+    document.body.appendChild(a);a.click();a.remove();
+    suPluginToast('Mac Connector v1.1.0 stažen. Nainstaluj ho přes SketchUp Extension Manager a restartuj SketchUp.');
   };
 
   function configureBridgePanel(){
     const box=document.querySelector('.suplugins-bridge');if(!box)return;
-    if(IS_MAC){
-      box.innerHTML='<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>macOS Connector:</b><span>jednorázově jako RBZ do SketchUpu</span></div>'+
-      '<div style="margin-top:5px;color:var(--muted)">Na Macu se nepoužívá BAT. Jednou nainstaluješ <b>20-20 Toolbox Mac Connector</b> přes SketchUp Extension Manager. Verze 1.1.0 podporuje SketchUp 2017–2026. Když je SketchUp otevřený, Toolbox potom umí číst verze, instalovat, aktualizovat i odinstalovat pluginy.</div>'+
-      '<div class="suplugins-bridge-actions"><button class="suplugins-bridge-start" onclick="downloadMacSketchUpConnector()">Stáhnout Mac Connector (.rbz)</button></div>'+
-      '<div class="suplugins-bridge-help show">Postup: SketchUp → Extensions → Extension Manager → Install Extension → vyber stažený RBZ → restartuj SketchUp. Connector komunikuje jen lokálně přes 127.0.0.1:8092.</div>';
+    if(IS_WIN){
+      box.innerHTML='<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>SketchUpBridge:</b><span id="su-win-bridge-state">kontroluji…</span></div>'+
+        '<div style="margin-top:5px;color:var(--muted)">Starý Windows režim bez Connectoru a bez registrace protokolu. Klikni na <b>Zapnout SketchUpBridge</b>, spusť stažený BAT a Bridge poběží 2 minuty na <code>127.0.0.1:8092</code>.</div>'+
+        '<div class="suplugins-bridge-actions"><button class="suplugins-bridge-start" onclick="downloadWindowsBridge()">Zapnout SketchUpBridge (.bat)</button><button class="back-btn" style="margin:0;padding:6px 8px;font-size:10px" onclick="pollWindowsBridge()">Zkontrolovat / načíst verze</button></div>'+
+        '<div class="suplugins-bridge-help show">Po spuštění BATu ho Toolbox automaticky pozná. Během 2 minut můžeš kontrolovat verze, instalovat, aktualizovat a odinstalovat pluginy.</div>';
+      return;
     }
+    box.innerHTML='<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>macOS Connector:</b><span>RBZ uvnitř SketchUpu</span></div>'+
+      '<div style="margin-top:5px;color:var(--muted)">Na Macu zůstává samostatný Connector přes Extension Manager.</div>'+
+      '<div class="suplugins-bridge-actions"><button class="suplugins-bridge-start" onclick="downloadMacSketchUpConnector()">Stáhnout Mac Connector (.rbz)</button></div>';
   }
 
   window.refreshSuPluginVersions=async function(){
-    const s=await ensureSuBridge();
-    if(!s){unknownStates();return false}
-    applyInstalledVersions(s.installed||{});return true;
+    const st=await bridgeStatus();
+    if(!st){setUnknown();updateWindowsPanel(false);return false}
+    applyInstalledVersions(st.installed||{});updateWindowsPanel(true,st.remaining_seconds);return true;
   };
 
   window.downloadSuPlugin=async function(id,version){
-    try{const x=await suPluginBytes(id,version),blob=new Blob([x.bytes],{type:'application/zip'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=x.version.file;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2500);markDownloaded(id,version);const s=await suBridgeStatus();if(s&&s.ok)applyInstalledVersions(s.installed||{});suPluginToast(x.plugin.name+' v'+version+' · RBZ staženo.')}
-    catch(e){suPluginToast('Stažení selhalo: '+(e?.message||e),true)}
+    try{
+      const x=await suPluginBytes(id,version),blob=new Blob([x.bytes],{type:'application/zip'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+      a.href=url;a.download=x.version.file;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),2500);markDownloaded(id,version);
+      const st=await bridgeStatus();if(st)applyInstalledVersions(st.installed||{});
+      suPluginToast(x.plugin.name+' v'+version+' · RBZ staženo.');
+    }catch(e){suPluginToast('Stažení selhalo: '+(e?.message||e),true)}
   };
 
   window.installSuPlugin=async function(id,version){
     let x;try{x=suPluginPayload(id,version)}catch(e){suPluginToast(e?.message||String(e),true);return}
-    suPluginToast('Zapínám SketchUp Bridge…');
-    const s=await ensureSuBridge();
-    if(!s){suPluginToast(IS_MAC?'Mac Connector není aktivní. Nainstaluj ho jednou přes Extension Manager a měj při práci se správou pluginů otevřený SketchUp.':'Bridge se nespustil. Spusť jednorázový Helper V3 a zkus to znovu.',true);return}
+    const st=await bridgeStatus();
+    if(!st){setUnknown();suPluginToast(IS_WIN?'SketchUpBridge neběží. Klikni nahoře na „Zapnout SketchUpBridge (.bat)“, spusť BAT a pak instalaci zopakuj.':'Mac Connector není aktivní.',true);return}
     try{
       let r;
       if(x.version.repo_file){
-        const url=SU_BRIDGE_URL+'/install?file='+encodeURIComponent(x.version.file)+'&repo='+encodeURIComponent(x.version.repo_file);
-        r=await fetch(url,{method:'POST'});
+        r=await fetch(BRIDGE_URL+'/install?file='+encodeURIComponent(x.version.file)+'&repo='+encodeURIComponent(x.version.repo_file),{method:'POST'});
       }else{
         const payload=await suPluginBytes(id,version);
-        r=await fetch(SU_BRIDGE_URL+'/install?file='+encodeURIComponent(payload.version.file),{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:payload.bytes});
+        r=await fetch(BRIDGE_URL+'/install?file='+encodeURIComponent(payload.version.file),{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:payload.bytes});
       }
-      const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));
-      applyInstalledVersions(data.installed||{});suPluginToast(x.plugin.name+' v'+version+' nainstalován / aktualizován do '+(data.sketchup||'SketchUp')+'. Restartuj SketchUp.');
-    }catch(e){suPluginToast('Instalace selhala: '+(e?.message||e)+(IS_MAC?'. Otevři Window → Ruby Console ve SketchUpu pro detail.':'. Log: %APPDATA%\\2020toolbox\\SketchUpPluginInstaller\\bridge_v3.log'),true)}
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));
+      applyInstalledVersions(data.installed||{});
+      suPluginToast(x.plugin.name+' v'+version+' nainstalován / aktualizován do '+(data.sketchup||'SketchUp')+'. Restartuj SketchUp.');
+    }catch(e){suPluginToast('Instalace selhala: '+(e?.message||e),true)}
   };
 
   window.uninstallSuPlugin=async function(id){
     const p=getSuPlugin(id);if(!p||!p.loader){suPluginToast('U tohoto pluginu není znám loader pro bezpečné odinstalování.',true);return}
     if(!confirm('Odinstalovat '+p.name+' ze SketchUpu?'))return;
-    const s=await ensureSuBridge();if(!s){suPluginToast('Bridge se nespustil.',true);return}
-    try{const r=await fetch(SU_BRIDGE_URL+'/uninstall?loader='+encodeURIComponent(p.loader),{method:'POST'});const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));applyInstalledVersions(data.installed||{});suPluginToast(p.name+' odinstalován. Restartuj SketchUp.')}
-    catch(e){suPluginToast('Odinstalace selhala: '+(e?.message||e),true)}
+    const st=await bridgeStatus();if(!st){suPluginToast('SketchUpBridge neběží. Spusť nejdřív BAT.',true);return}
+    try{
+      const r=await fetch(BRIDGE_URL+'/uninstall?loader='+encodeURIComponent(p.loader),{method:'POST'});
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));
+      applyInstalledVersions(data.installed||{});
+      suPluginToast(p.name+' odinstalován. Restartuj SketchUp.');
+    }catch(e){suPluginToast('Odinstalace selhala: '+(e?.message||e),true)}
   };
 
   window.renderSketchUpPlugins=function(){
