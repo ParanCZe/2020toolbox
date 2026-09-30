@@ -1,0 +1,37 @@
+name: Extract Component Library v0.3.1 source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/extract-component-library-v031.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract RBZ
+        shell: python
+        run: |
+          from pathlib import Path
+          import shutil, zipfile
+          src = Path("SketchUpPlugins/20-20_Component_Library_v0.3.1.rbz")
+          out = Path("SketchUpPlugins/ComponentLibrarySourceV031")
+          if out.exists():
+              shutil.rmtree(out)
+          out.mkdir(parents=True)
+          with zipfile.ZipFile(src) as z:
+              z.extractall(out)
+          (out / "SOURCE_VERSION.txt").write_text("0.3.1\n", encoding="utf-8")
+      - name: Commit source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/ComponentLibrarySourceV031
+          git diff --cached --quiet && exit 0
+          git commit -m "Extract Component Library v0.3.1 source"
+          git push
