@@ -3,7 +3,7 @@
   const UA=(navigator.userAgent||'')+' '+(navigator.platform||'');
   const IS_MAC=/Macintosh|Mac OS X|MacIntel/i.test(UA);
   const IS_WIN=/Windows|Win32|Win64/i.test(UA);
-  const CONNECTOR_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/20-20_Toolbox_Connector_v2.0.2.rbz';
+  const CONNECTOR_URL='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/20-20_Toolbox_Connector_v2.0.3.rbz';
   const loaderFixes={
     'ai-exporter':'twentytwenty_nano_banana_exporter.rb'
   };
@@ -38,19 +38,50 @@
   window.downloadSketchUpConnector=function(){
     const a=document.createElement('a');
     a.href=CONNECTOR_URL;
-    a.download='20-20_Toolbox_Connector_v2.0.2.rbz';
+    a.download='20-20_Toolbox_Connector_v2.0.3.rbz';
     a.rel='noopener';
     document.body.appendChild(a);a.click();a.remove();
-    suPluginToast('20-20 Toolbox Connector v2.0.2 stažen. Nainstaluj ho jednou přes SketchUp Extension Manager a SketchUp restartuj.');
+    suPluginToast('20-20 Toolbox Connector v2.0.3 stažen. Nainstaluj ho jednou přes SketchUp Extension Manager a SketchUp restartuj.');
   };
   window.downloadMacSketchUpConnector=window.downloadSketchUpConnector;
 
+  const BRIDGE_ENDPOINTS=['http://127.0.0.1:8092','http://localhost:8092'];
+  let activeBridgeEndpoint=BRIDGE_ENDPOINTS[0];
+
+  async function bridgeRequest(path,options){
+    const ordered=[activeBridgeEndpoint].concat(BRIDGE_ENDPOINTS.filter(x=>x!==activeBridgeEndpoint));
+    let lastError=null;
+    for(const base of ordered){
+      try{
+        const r=await fetch(base+path,options||{});
+        activeBridgeEndpoint=base;
+        return r;
+      }catch(e){lastError=e}
+    }
+    throw lastError||new Error('Connector nedostupný');
+  }
+
+  window.suBridgeStatus=async function(){
+    const ordered=[activeBridgeEndpoint].concat(BRIDGE_ENDPOINTS.filter(x=>x!==activeBridgeEndpoint));
+    for(const base of ordered){
+      const c=new AbortController(),t=setTimeout(()=>c.abort(),1500);
+      try{
+        const r=await fetch(base+'/status',{cache:'no-store',signal:c.signal});
+        clearTimeout(t);
+        if(!r.ok)continue;
+        const data=await r.json();
+        if(data&&data.ok){activeBridgeEndpoint=base;return data}
+      }catch(e){clearTimeout(t)}
+    }
+    return null;
+  };
+
   window.ensureSuBridge=async function(file=''){
-    let st=await suBridgeStatus();
+    let st=await window.suBridgeStatus();
     if(st&&st.ok)return st;
     for(let i=0;i<8;i++){
-      await new Promise(r=>setTimeout(r,250));
-      st=await suBridgeStatus();
+      await new Promise(r=>setTimeout(r,300));
+      st=await window.suBridgeStatus();
       if(st&&st.ok)return st;
     }
     return null;
@@ -62,7 +93,7 @@
     box.innerHTML='<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>20-20 Toolbox Connector:</b><span>jednorázově jako RBZ do SketchUpu</span></div>'+
       '<div style="margin-top:5px;color:var(--muted)">Na <b>'+platform+'</b> už není potřeba BAT ani pokaždé spouštět Bridge. Jednou nainstaluješ <b>20-20 Toolbox Connector</b> přes SketchUp Extension Manager. Podporuje SketchUp 2017–2026. Když je SketchUp otevřený, Toolbox umí číst verze, instalovat, aktualizovat i odinstalovat 20-20 pluginy.</div>'+
       '<div class="suplugins-bridge-actions"><button class="suplugins-bridge-start" onclick="downloadSketchUpConnector()">Stáhnout Toolbox Connector (.rbz)</button></div>'+
-      '<div class="suplugins-bridge-help show">Postup: SketchUp → Extensions → Extension Manager → Install Extension → vyber <b>20-20_Toolbox_Connector_v2.0.2.rbz</b> → restartuj SketchUp. Connector komunikuje pouze lokálně přes 127.0.0.1:8092.</div>';
+      '<div class="suplugins-bridge-help show">Postup: SketchUp → Extensions → Extension Manager → Install Extension → vyber <b>20-20_Toolbox_Connector_v2.0.3.rbz</b> → restartuj SketchUp. Connector komunikuje pouze lokálně přes 127.0.0.1:8092.</div>';
   }
 
   window.refreshSuPluginVersions=async function(){
@@ -80,15 +111,15 @@
     let x;try{x=suPluginPayload(id,version)}catch(e){suPluginToast(e?.message||String(e),true);return}
     suPluginToast('Připojuji se k 20-20 Toolbox Connectoru…');
     const s=await ensureSuBridge();
-    if(!s){suPluginToast('Toolbox Connector není aktivní. Nainstaluj ho jednou přes Extension Manager, restartuj SketchUp a nech SketchUp při správě pluginů otevřený.',true);return}
+    if(!s){suPluginToast('Toolbox Connector nereaguje na 127.0.0.1:8092 ani localhost:8092. Ve SketchUpu otevři Extensions → 20-20 Toolbox Connector → Stav Connectoru. Pokud máš starší verzi, nainstaluj v2.0.3 a SketchUp restartuj.',true);return}
     try{
       let r;
       if(x.version.repo_file){
-        const url=SU_BRIDGE_URL+'/install?file='+encodeURIComponent(x.version.file)+'&repo='+encodeURIComponent(x.version.repo_file);
-        r=await fetch(url,{method:'POST'});
+        const url='/install?file='+encodeURIComponent(x.version.file)+'&repo='+encodeURIComponent(x.version.repo_file);
+        r=await bridgeRequest(url,{method:'POST'});
       }else{
         const payload=await suPluginBytes(id,version);
-        r=await fetch(SU_BRIDGE_URL+'/install?file='+encodeURIComponent(payload.version.file),{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:payload.bytes});
+        r=await bridgeRequest('/install?file='+encodeURIComponent(payload.version.file),{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:payload.bytes});
       }
       const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));
       applyInstalledVersions(data.installed||{});suPluginToast(x.plugin.name+' v'+version+' nainstalován / aktualizován do '+(data.sketchup||'SketchUp')+'. Restartuj SketchUp.');
@@ -98,8 +129,8 @@
   window.uninstallSuPlugin=async function(id){
     const p=getSuPlugin(id);if(!p||!p.loader){suPluginToast('U tohoto pluginu není znám loader pro bezpečné odinstalování.',true);return}
     if(!confirm('Odinstalovat '+p.name+' ze SketchUpu?'))return;
-    const s=await ensureSuBridge();if(!s){suPluginToast('Toolbox Connector není aktivní. Otevři SketchUp a zkontroluj instalaci Connectoru.',true);return}
-    try{const r=await fetch(SU_BRIDGE_URL+'/uninstall?loader='+encodeURIComponent(p.loader),{method:'POST'});const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));applyInstalledVersions(data.installed||{});suPluginToast(p.name+' odinstalován. Restartuj SketchUp.')}
+    const s=await ensureSuBridge();if(!s){suPluginToast('Toolbox Connector nereaguje. Ve SketchUpu otevři Extensions → 20-20 Toolbox Connector → Stav Connectoru a případně nainstaluj v2.0.3.',true);return}
+    try{const r=await bridgeRequest('/uninstall?loader='+encodeURIComponent(p.loader),{method:'POST'});const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));applyInstalledVersions(data.installed||{});suPluginToast(p.name+' odinstalován. Restartuj SketchUp.')}
     catch(e){suPluginToast('Odinstalace selhala: '+(e?.message||e),true)}
   };
 

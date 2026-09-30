@@ -19,7 +19,7 @@ jobs:
           from pathlib import Path
           import zipfile
           src=Path("SketchUpPluginInstaller/mac_connector")
-          dst=Path("SketchUpPluginInstaller/20-20_Toolbox_Connector_v2.0.2.rbz")
+          dst=Path("SketchUpPluginInstaller/20-20_Toolbox_Connector_v2.0.3.rbz")
           with zipfile.ZipFile(dst,"w",zipfile.ZIP_STORED,allowZip64=False) as z:
               for p in src.rglob("*"):
                   if p.is_file():
@@ -31,8 +31,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add SketchUpPluginInstaller/20-20_Toolbox_Connector_v2.0.2.rbz
+          git add SketchUpPluginInstaller/20-20_Toolbox_Connector_v2.0.3.rbz
           git diff --cached --quiet && exit 0
-          git commit -m "Build universal SketchUp connector v2.0.2"
+          git commit -m "Build universal SketchUp connector v2.0.3"
           git pull --rebase origin main
           git push

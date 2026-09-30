@@ -13,56 +13,78 @@ module TwentyTwenty
   module ToolboxConnector
     extend self
 
-    VERSION = '2.0.2'.freeze
+    VERSION = '2.0.3'.freeze
     PORT = 8092
     HOST = '127.0.0.1'.freeze
     ALLOWED_PREFIXES = %w[twentytwenty_ 2020_ dvacet20-].freeze
 
+    # Cache SketchUp API values while the extension is loading on SketchUp's
+    # main Ruby thread. The local HTTP server runs in a worker thread and must
+    # not call the SketchUp Ruby API directly.
+    PLATFORM_NAME = (RUBY_PLATFORM =~ /darwin/i ? 'mac' : 'windows').freeze
+    SKETCHUP_VERSION = Sketchup.version.to_s.freeze
+    SKETCHUP_MAJOR = SKETCHUP_VERSION.to_i
+    PLUGINS_DIR = Sketchup.find_support_file('Plugins').to_s.freeze
+
     def windows?
-      Sketchup.platform == :platform_win
+      PLATFORM_NAME == 'windows'
     end
 
     def mac?
-      Sketchup.platform == :platform_osx
+      PLATFORM_NAME == 'mac'
     end
 
     def platform_name
-      windows? ? 'windows' : (mac? ? 'mac' : Sketchup.platform.to_s)
+      PLATFORM_NAME
     end
 
     def plugins_dir
-      @plugins_dir ||= Sketchup.find_support_file('Plugins')
+      PLUGINS_DIR
     end
 
     def ruby_legacy?
-      RUBY_VERSION.split('.').map { |x| x.to_i }[0, 2] < [2, 3]
+      parts = RUBY_VERSION.split('.').map { |x| x.to_i }
+      major = parts[0] || 0
+      minor = parts[1] || 0
+      major < 2 || (major == 2 && minor < 3)
     rescue
       true
     end
 
     def start
       return if @server_thread && @server_thread.alive?
+      @server_error = nil
+      @server_ready = false
       @server_thread = Thread.new { server_loop }
       @server_thread.abort_on_exception = false
-      puts "20-20 Toolbox Connector v#{VERSION} listening on #{HOST}:#{PORT} | SketchUp #{Sketchup.version} | Ruby #{RUBY_VERSION}"
+      puts "20-20 Toolbox Connector v#{VERSION} starting on #{HOST}:#{PORT} | SketchUp #{SKETCHUP_VERSION} | Ruby #{RUBY_VERSION}"
     rescue StandardError => e
-      puts "20-20 Toolbox Mac Connector start error: #{e.class}: #{e.message}"
+      @server_error = "#{e.class}: #{e.message}"
+      puts "20-20 Toolbox Connector start error: #{@server_error}"
     end
 
     def server_loop
-      server = TCPServer.new(HOST, PORT)
-      loop do
-        socket = server.accept
-        handle_client(socket)
-      rescue IOError, Errno::EBADF
-        break
-      rescue StandardError => e
-        puts "20-20 Toolbox Mac Connector server error: #{e.class}: #{e.message}"
-      end
-    ensure
+      server = nil
       begin
-        server.close if server
-      rescue
+        server = TCPServer.new(HOST, PORT)
+        @server_ready = true
+        @server_error = nil
+        puts "20-20 Toolbox Connector v#{VERSION} ACTIVE on http://#{HOST}:#{PORT}"
+        loop do
+          socket = server.accept
+          handle_client(socket)
+        end
+      rescue IOError, Errno::EBADF
+        # Normal during restart/shutdown.
+      rescue StandardError => e
+        @server_error = "#{e.class}: #{e.message}"
+        puts "20-20 Toolbox Connector server error: #{@server_error}"
+      ensure
+        @server_ready = false
+        begin
+          server.close if server
+        rescue
+        end
       end
     end
 
@@ -132,7 +154,9 @@ module TwentyTwenty
         'Access-Control-Allow-Origin: *',
         'Access-Control-Allow-Private-Network: true',
         'Access-Control-Allow-Methods: GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers: Content-Type',
+        'Access-Control-Allow-Headers: Content-Type, X-Requested-With',
+        'Access-Control-Max-Age: 600',
+        'Vary: Origin, Access-Control-Request-Private-Network',
         'Cache-Control: no-store',
         "Content-Length: #{body.bytesize}",
         'Connection: close',
@@ -147,13 +171,14 @@ module TwentyTwenty
     def status_payload
       {
         :ok => true,
-        :platform => platform_name,
+        :platform => PLATFORM_NAME,
         :bridge_version => VERSION,
-        :sketchup => "SketchUp #{Sketchup.version}",
-        :sketchup_major => Sketchup.version.to_i,
+        :sketchup => "SketchUp #{SKETCHUP_VERSION}",
+        :sketchup_major => SKETCHUP_MAJOR,
         :ruby_version => RUBY_VERSION,
         :legacy_ruby => ruby_legacy?,
-        :plugins_dir => plugins_dir,
+        :plugins_dir => PLUGINS_DIR,
+        :server_ready => !!@server_ready,
         :installed => installed_versions
       }
     end
@@ -326,8 +351,10 @@ module TwentyTwenty
     end
 
     def show_connector_status
-      alive = @server_thread && @server_thread.alive?
-      UI.messagebox("20-20 Toolbox Connector v#{VERSION}\n\nPlatforma: #{platform_name}\nSketchUp: #{Sketchup.version}\nServer: #{alive ? 'AKTIVNÍ' : 'NEAKTIVNÍ'}\nAdresa: http://localhost:#{PORT}")
+      alive = @server_thread && @server_thread.alive? && @server_ready
+      error = @server_error.to_s
+      detail = error.empty? ? '' : "\nChyba: #{error}"
+      UI.messagebox("20-20 Toolbox Connector v#{VERSION}\n\nPlatforma: #{PLATFORM_NAME}\nSketchUp: #{SKETCHUP_VERSION}\nServer: #{alive ? 'AKTIVNÍ' : 'NEAKTIVNÍ'}\nAdresa: http://127.0.0.1:#{PORT}#{detail}")
     end
 
     def restart_connector
@@ -336,8 +363,8 @@ module TwentyTwenty
       rescue
       end
       @server_thread = nil
-      UI.start_timer(0.2, false) { start }
-      UI.messagebox('20-20 Toolbox Connector se restartuje. Za chvíli obnov Toolbox.')
+      UI.start_timer(0.5, false) { start }
+      UI.messagebox('20-20 Toolbox Connector se restartuje. Potom v Toolboxu znovu načti stav pluginů.')
     end
 
     def child_names(path)
