@@ -1,4 +1,4 @@
-name: Publish RM TOOLS v2.0.0 suite
+name: Publish RM TOOLS v2.0.1 suite
 
 on:
   push:
@@ -122,7 +122,7 @@ jobs:
           if missing:
               raise SystemExit("Missing suite files: " + ", ".join(missing))
 
-          suite_out = plugins / "20-20_RM_TOOLS_v2.0.0.rbz"
+          suite_out = plugins / "20-20_RM_TOOLS_v2.0.1.rbz"
           with zipfile.ZipFile(suite_out, "w", zipfile.ZIP_DEFLATED, allowZip64=False) as z:
               for x in sorted(stage.rglob("*")):
                   if x.is_file():
@@ -215,12 +215,15 @@ jobs:
             id:'rm-tools-suite',
             loader:'twentytwenty_rm_tools_suite.rb',
             name:'20-20 RM TOOLS',
-            current:'2.0.0',
+            current:'2.0.1',
             featured:true,
             description:'MODEL LIBRARY + Nastavení SKP / Záběr / Checker + LIVE Mirror v jednom pluginu.',
             meta:'All-in-one balíček · Model Library v0.3.1 · RM Tools v1.2.1 · Live Mirror v0.4.18',
             icon:'library',
-            versions:[{{"version":"2.0.0","file":"20-20_RM_TOOLS_v2.0.0.rbz","size":{suite_size},"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.0.rbz"}}]
+            versions:[
+              {{"version":"2.0.0","file":"20-20_RM_TOOLS_v2.0.0.rbz","size":76481,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.0.rbz"}},
+              {{"version":"2.0.1","file":"20-20_RM_TOOLS_v2.0.1.rbz","size":{suite_size},"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.1.rbz"}}
+            ]
           }},
           {{
             id:'component-library-server',
@@ -271,7 +274,7 @@ jobs:
           elif new_close not in html:
               raise SystemExit("Plugin render close anchor not found")
 
-          html = html.replace('id="app-version">V3.26<', 'id="app-version">V3.27<', 1)
+          html = html.replace('id="app-version">V3.26<', 'id="app-version">V3.28<', 1)
           p.write_text(html, encoding="utf-8")
 
           bridge = Path("SketchUpPluginInstaller/bridge_v3.ps1")
@@ -294,7 +297,7 @@ jobs:
           from pathlib import Path
           import zipfile
           for f in [
-              Path("SketchUpPlugins/20-20_RM_TOOLS_v2.0.0.rbz"),
+              Path("SketchUpPlugins/20-20_RM_TOOLS_v2.0.1.rbz"),
               Path("SketchUpPlugins/20-20_Component_Library_v0.3.1.rbz"),
           ]:
               with zipfile.ZipFile(f) as z:
@@ -311,7 +314,7 @@ jobs:
           rm -f SketchUpPlugins/_rm_tools_suite_size.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.0.rbz SketchUpPlugins/20-20_Component_Library_v0.3.1.rbz index.html SketchUpPluginInstaller/bridge_v3.ps1
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.1.rbz SketchUpPlugins/20-20_Component_Library_v0.3.1.rbz index.html SketchUpPluginInstaller/bridge_v3.ps1
           git diff --cached --quiet && exit 0
-          git commit -m "Publish 20-20 RM TOOLS v2.0.0 all-in-one"
+          git commit -m "Publish 20-20 RM TOOLS v2.0.1 with main-menu return"
           git push
