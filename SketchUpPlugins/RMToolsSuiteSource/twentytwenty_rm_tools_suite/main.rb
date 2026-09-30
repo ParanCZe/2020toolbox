@@ -7,11 +7,11 @@ module TwentyTwenty
   module RMToolsSuite
     extend self
 
-    VERSION = '2.0.0'.freeze
+    VERSION = '2.0.1'.freeze
     TITLE = '20-20 RM TOOLS'.freeze
 
     def dialog
-      return @dialog if @dialog && @dialog.visible?
+      return @dialog if @dialog
 
       @dialog = UI::HtmlDialog.new(
         dialog_title: TITLE,
@@ -64,6 +64,8 @@ module TwentyTwenty
       require child_path('dvacet20_component_library', 'main')
       @dialog.hide if @dialog
       Dvacet20::ComponentLibrary.show_dialog
+      child = Dvacet20::ComponentLibrary.instance_variable_get(:@dialog)
+      install_return_to_home(child) if child
     rescue StandardError => e
       child_error('Model Library', e)
     end
@@ -72,8 +74,56 @@ module TwentyTwenty
       require File.join(__dir__, '..', 'twentytwenty_rm_checker', 'main')
       @dialog.hide if @dialog
       TwentyTwenty::RMPrep.show
+      child = TwentyTwenty::RMPrep.instance_variable_get(:@dialog)
+      install_return_to_home(child) if child
     rescue StandardError => e
       child_error('Nastavení SKP / Záběr / Checker', e)
+    end
+
+    def install_return_to_home(child_dialog)
+      child_dialog.add_action_callback('suite_back_home') do |_ctx|
+        begin
+          child_dialog.close
+        rescue StandardError
+          child_dialog.hide rescue nil
+        end
+        show
+        @dialog.bring_to_front if @dialog
+        exec_js('window.RMTOOLS && RMTOOLS.home();')
+      end
+
+      script = <<~JS
+        (function(){
+          if(document.getElementById('rmtoolsBackHome')) return;
+          var b=document.createElement('button');
+          b.id='rmtoolsBackHome';
+          b.type='button';
+          b.textContent='← HLAVNÍ MENU';
+          b.title='Zpět do 20-20 RM TOOLS';
+          b.style.cssText='height:36px;padding:0 12px;border:1px solid rgba(255,255,255,.16);border-radius:9px;background:#ffd52a;color:#111;font:800 11px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;cursor:pointer;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.18);z-index:99999;';
+          b.onmouseenter=function(){this.style.filter='brightness(1.06)'};
+          b.onmouseleave=function(){this.style.filter='none'};
+          b.onclick=function(){if(window.sketchup&&window.sketchup.suite_back_home){window.sketchup.suite_back_home();}};
+          var top=document.querySelector('.top');
+          if(top){b.style.flex='0 0 auto';top.insertBefore(b,top.firstChild);}
+          else{
+            b.style.position='fixed';b.style.top='12px';b.style.left='12px';
+            document.body.appendChild(b);
+          }
+        })();
+      JS
+
+      inject = proc do
+        begin
+          child_dialog.execute_script(script)
+        rescue StandardError
+          nil
+        end
+      end
+      UI.start_timer(0.15, false, &inject)
+      UI.start_timer(0.80, false, &inject)
+    rescue StandardError => e
+      puts "20-20 RM TOOLS back button warning: #{e.class}: #{e.message}"
     end
 
     def live_mirror
@@ -144,7 +194,7 @@ module TwentyTwenty
         </head>
         <body>
           <div class="shell">
-            <div class="top"><div class="brand"><div class="mark">20-20</div><div><div class="title">20-20 RM TOOLS</div><div class="sub">Jedno místo pro přípravu SketchUp modelu pro RENDERMAKER</div></div></div><div id="version" class="ver">v2.0.0</div></div>
+            <div class="top"><div class="brand"><div class="mark">20-20</div><div><div class="title">20-20 RM TOOLS</div><div class="sub">Jedno místo pro přípravu SketchUp modelu pro RENDERMAKER</div></div></div><div id="version" class="ver">v2.0.1</div></div>
             <section id="home" class="page on">
               <div class="grid">
                 <button class="launcher" onclick="sketchup.suite_model_library()"><div class="ico">▦</div><div><b>MODEL LIBRARY</b><span>Serverová knihovna SKP komponent, vyhledávání a vložení modelu jedním kliknutím.</span></div><div class="arrow">›</div></button>
@@ -154,7 +204,7 @@ module TwentyTwenty
               <div class="footer">RM TOOLS v2 sjednocuje Model Library, RM Checker a Live Mirror. Jednotlivé moduly zůstávají uvnitř oddělené, takže je lze dál aktualizovat.</div>
             </section>
             <section id="mirror" class="page">
-              <button class="back" onclick="RMTOOLS.home()">← Zpět do RM TOOLS</button>
+              <button class="back" onclick="RMTOOLS.home()">← HLAVNÍ MENU</button>
               <div class="mirror-head"><h2>LIVE Mirror</h2><div class="status"><span id="mirrorExists" class="pill">ZRCADLO –</span><span id="mirrorLive" class="pill">LIVE –</span><span id="mirrorShade" class="pill">STÍNY –</span><span id="mirrorEdges" class="pill">HRANY –</span></div></div>
               <div class="mirror-main">
                 <div class="card"><h3>ZRCADLO</h3><button class="primary" onclick="sketchup.suite_mirror_make()">VYTVOŘIT Z VYBRANÉ PLOCHY</button><div class="row"><button class="btn" onclick="sketchup.suite_mirror_refresh()">Obnovit odraz</button><button class="btn" onclick="sketchup.suite_mirror_rebuild()">Načíst scénu</button></div><div class="row"><button class="btn" onclick="sketchup.suite_mirror_raw()">Surový render</button><button class="btn danger" onclick="sketchup.suite_mirror_remove()">Odstranit zrcadlo</button></div><div class="hint">Vyber jednu plochu, která má být zrcadlem, a klikni na vytvořit. Live Mirror pracuje bez přesouvání SketchUp kamery.</div></div>
