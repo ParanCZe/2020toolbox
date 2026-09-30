@@ -15,7 +15,7 @@ set "DIR=%APPDATA%\2020toolbox\SketchUpPluginInstaller"
 set "PS1=%DIR%\bridge_v3.ps1"
 set "URL=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/bridge_v3.ps1"
 if not exist "%DIR%" mkdir "%DIR%" >nul 2>&1
-powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command "try { Invoke-WebRequest -UseBasicParsing -Uri '%URL%' -OutFile '%PS1%' } catch {}"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try { Invoke-WebRequest -UseBasicParsing -Uri '%URL%' -OutFile '%PS1%' } catch {}"
 if not exist "%PS1%" exit /b 2
 start "" powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%PS1%" "%~1"
 exit /b 0
@@ -139,8 +139,7 @@ $su=Get-SketchUp
 if($null -eq $su){Log 'SketchUp not found';exit 3}
 $port=8092;$listener=[System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$port)
 try{$listener.Start()}catch{Log 'Port 8092 already in use';exit 0}
-$idleSeconds=10
-$expires=[DateTime]::UtcNow.AddSeconds($idleSeconds);Log ('BRIDGE START hidden idle='+$idleSeconds+'s '+$ProtocolUrl)
+$expires=[DateTime]::UtcNow.AddMinutes(2);Log ('BRIDGE START '+$ProtocolUrl)
 function Reply($s,$code,$obj){
  $json=if($code -eq 204){''}else{$obj|ConvertTo-Json -Depth 8 -Compress};$body=[Text.Encoding]::UTF8.GetBytes($json);$status=if($code -eq 200){'OK'}elseif($code -eq 204){'No Content'}else{'Error'}
  $head="HTTP/1.1 $code $status`r`nContent-Type: application/json; charset=utf-8`r`nAccess-Control-Allow-Origin: *`r`nAccess-Control-Allow-Private-Network: true`r`nAccess-Control-Allow-Methods: GET, POST, OPTIONS`r`nAccess-Control-Allow-Headers: Content-Type`r`nCache-Control: no-store`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n"
@@ -158,7 +157,7 @@ while([DateTime]::UtcNow -lt $expires){
  try{
   $req=Read-RequestHead $s;if($null -eq $req){continue};$method=$req.Method;$path=$req.Path;$len=$req.ContentLength
   if($method -eq 'OPTIONS'){Reply $s 204 @{};continue}
-  if($method -eq 'GET' -and $path.StartsWith('/status')){$left=[Math]::Max(0,[int][Math]::Ceiling(($expires-[DateTime]::UtcNow).TotalSeconds));Reply $s 200 @{ok=$true;sketchup=$su.Name;remaining_seconds=$left;installed=(Get-Installed $su.Plugins);bridge_version='3.5'};continue}
+  if($method -eq 'GET' -and $path.StartsWith('/status')){$left=[Math]::Max(0,[int][Math]::Ceiling(($expires-[DateTime]::UtcNow).TotalSeconds));Reply $s 200 @{ok=$true;sketchup=$su.Name;remaining_seconds=$left;installed=(Get-Installed $su.Plugins);bridge_version='3.4'};continue}
   if($method -eq 'POST' -and $path.StartsWith('/install')){
    $file='plugin.rbz';if($path -match '[?&]file=([^&]+)'){$file=[Uri]::UnescapeDataString($Matches[1])};if($file -notmatch '^[A-Za-z0-9._-]+\.rbz$'){Reply $s 400 @{ok=$false;error='Invalid RBZ'};continue}
    $repoPath='';if($path -match '[?&]repo=([^&]+)'){$repoPath=[Uri]::UnescapeDataString($Matches[1])}
@@ -169,13 +168,13 @@ while([DateTime]::UtcNow -lt $expires){
     $tmp=Join-Path $env:TEMP ('2020toolbox_post_'+[Guid]::NewGuid().ToString('N'));New-Item -ItemType Directory -Force -Path $tmp|Out-Null
     try{$rbz=Join-Path $tmp $file;[IO.File]::WriteAllBytes($rbz,$body);Install-RbzPath $rbz $file $su}finally{Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue}
    }
-   Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins);bridge_version='3.5'};continue
+   Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins);bridge_version='3.3'};continue
   }
   if($method -eq 'POST' -and $path.StartsWith('/uninstall')){
    $loader='';if($path -match '[?&]loader=([^&]+)'){$loader=[Uri]::UnescapeDataString($Matches[1])};Uninstall-Plugin $loader $su
-   Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins);bridge_version='3.5'};continue
+   Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins);bridge_version='3.3'};continue
   }
   Reply $s 404 @{ok=$false;error='Unknown endpoint'}
- }catch{Log ('SERVER ERROR '+$_.Exception.Message);try{Reply $s 500 @{ok=$false;error=$_.Exception.Message}}catch{}}finally{try{$s.Close()}catch{};try{$client.Close()}catch{};$expires=[DateTime]::UtcNow.AddSeconds($idleSeconds)}
+ }catch{Log ('SERVER ERROR '+$_.Exception.Message);try{Reply $s 500 @{ok=$false;error=$_.Exception.Message}}catch{}}finally{try{$s.Close()}catch{};try{$client.Close()}catch{}}
 }
 $listener.Stop();Log 'BRIDGE STOP'
