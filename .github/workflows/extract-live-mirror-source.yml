@@ -1,0 +1,59 @@
+name: Extract Live Mirror source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/extract-live-mirror-source.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract latest Live Mirror RBZ embedded in Toolbox
+        shell: python
+        run: |
+          from pathlib import Path
+          import base64, io, json, re, shutil, zipfile
+
+          html = Path("index.html").read_text(encoding="utf-8")
+          marker_a = "const SU_PLUGIN_BLOBS = "
+          marker_b = ";\nconst SU_PLUGIN_CATALOG"
+          a = html.find(marker_a)
+          if a < 0:
+              raise SystemExit("SU_PLUGIN_BLOBS not found")
+          a += len(marker_a)
+          b = html.find(marker_b, a)
+          if b < 0:
+              raise SystemExit("SU_PLUGIN_CATALOG marker not found")
+          blobs = json.loads(html[a:b])
+
+          name = "2020_Live_Mirror_v0.4.18.rbz"
+          payload = blobs.get(name)
+          if not payload:
+              raise SystemExit(f"{name} not found in SU_PLUGIN_BLOBS")
+
+          out = Path("SketchUpPlugins/LiveMirrorSource")
+          if out.exists():
+              shutil.rmtree(out)
+          out.mkdir(parents=True)
+
+          data = base64.b64decode(payload)
+          with zipfile.ZipFile(io.BytesIO(data)) as z:
+              z.extractall(out)
+
+          (out / "SOURCE_VERSION.txt").write_text("0.4.18\n", encoding="utf-8")
+
+      - name: Commit extracted source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/LiveMirrorSource
+          git diff --cached --quiet && exit 0
+          git commit -m "Extract Live Mirror v0.4.18 source"
+          git push
