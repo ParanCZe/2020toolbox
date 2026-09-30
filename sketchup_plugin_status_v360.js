@@ -43,9 +43,25 @@
     document.body.appendChild(a);a.click();a.remove();
   }
 
-  window.downloadWindowsSketchUpHelper=function(){
-    downloadFile(WINDOWS_HELPER_URL,'INSTALL_20-20_SKETCHUP_HELPER_V3.bat');
-    suPluginToast('Windows Helper stažen. Spusť ho jednou. Potom se Bridge zapíná automaticky, skrytě a jen asi 10 s po použití.');
+  window.downloadWindowsSketchUpHelper=async function(){
+    try{
+      const resp=await fetch(WINDOWS_HELPER_URL,{cache:'no-store'});
+      if(!resp.ok)throw new Error('HTTP '+resp.status);
+      const text=await resp.text();
+      if(!text||text.indexOf('@echo off')<0)throw new Error('Stažený obsah není platný BAT helper.');
+      const blob=new Blob([text],{type:'application/octet-stream'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url;
+      a.download='INSTALL_20-20_SKETCHUP_HELPER_V3.bat';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),3000);
+      suPluginToast('Windows Helper stažen jako skutečný .bat soubor. Spusť ho jednou; potom se Bridge zapíná automaticky a skrytě.');
+    }catch(e){
+      suPluginToast('Stažení Windows Helperu selhalo: '+(e?.message||e),true);
+    }
   };
 
   window.downloadSketchUpConnector=function(){
