@@ -6,7 +6,7 @@ require 'extensions.rb'
 module TwentyTwenty
   module RMToolsSuite
     EXTENSION_NAME = '20-20 RM TOOLS'.freeze unless const_defined?(:EXTENSION_NAME)
-    EXTENSION_VERSION = '2.0.0'.freeze unless const_defined?(:EXTENSION_VERSION)
+    EXTENSION_VERSION = '2.0.1'.freeze unless const_defined?(:EXTENSION_VERSION)
     MAIN_FILE = File.join(__dir__, 'twentytwenty_rm_tools_suite', 'main').freeze unless const_defined?(:MAIN_FILE)
 
     unless file_loaded?(__FILE__)
