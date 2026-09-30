@@ -74,12 +74,14 @@
   };
 
   function launchWindowsBridge(){
-    if(!IS_WIN)return;
-    const f=document.createElement('iframe');
-    f.style.display='none';
-    f.src=WINDOWS_BRIDGE_SCHEME;
-    document.body.appendChild(f);
-    setTimeout(()=>f.remove(),1800);
+    if(!IS_WIN)return false;
+    const a=document.createElement('a');
+    a.href=WINDOWS_BRIDGE_SCHEME;
+    a.style.display='none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return true;
   }
 
   const BRIDGE_ENDPOINTS=['http://127.0.0.1:8092','http://localhost:8092'];
@@ -113,21 +115,32 @@
     return null;
   };
 
-  window.ensureSuBridge=async function(file=''){
+  window.ensureSuBridge=async function(file='',waitForStart=false){
     let st=await window.suBridgeStatus();
     if(st&&st.ok)return st;
+    if(!waitForStart)return null;
 
-    // Windows uses the one-time registered helper. Launching the custom
-    // protocol starts BAT/PowerShell completely hidden; the server then
-    // exits automatically about 10 seconds after the last request.
-    if(IS_WIN)launchWindowsBridge();
-
-    for(let i=0;i<(IS_WIN?40:10);i++){
+    for(let i=0;i<(IS_WIN?48:10);i++){
       await new Promise(r=>setTimeout(r,250));
       st=await window.suBridgeStatus();
       if(st&&st.ok)return st;
     }
     return null;
+  };
+
+  window.startWindowsBridgeAndRefresh=async function(){
+    if(!IS_WIN)return refreshSuPluginVersions();
+    launchWindowsBridge();
+    suPluginToast('Spouštím skrytý Windows Bridge a načítám verze…');
+    const st=await ensureSuBridge('',true);
+    if(!st){
+      unknownStates();
+      suPluginToast('Windows Bridge se nespustil. Pokud se prohlížeč zeptal na otevření 20-20 Toolbox Helperu, povol ho. Jinak spusť jednou INSTALL_20-20_SKETCHUP_HELPER_V3.bat.',true);
+      return false;
+    }
+    applyInstalledVersions(st.installed||{});
+    suPluginToast('Verze pluginů načteny z '+(st.sketchup||'SketchUp')+'.');
+    return true;
   };
 
   function configureBridgePanel(){
@@ -136,7 +149,7 @@
     if(IS_WIN){
       box.innerHTML='<div class="suplugins-bridge-row"><span class="suplugins-dot ok"></span><b>Windows SketchUp Bridge:</b><span>skrytý BAT / PowerShell helper</span></div>'+
         '<div style="margin-top:5px;color:var(--muted)">Na Windows používá Toolbox původní lokální Bridge. Helper nainstaluješ jen jednou. Při instalaci / aktualizaci pluginu se pak <b>automaticky a neviditelně</b> spustí a přibližně <b>10 sekund po posledním požadavku se sám vypne</b>.</div>'+
-        '<div class="suplugins-bridge-actions"><button class="suplugins-bridge-start" onclick="downloadWindowsSketchUpHelper()">Stáhnout Windows Helper (.bat)</button></div>'+
+        '<div class="suplugins-bridge-actions"><button class="suplugins-bridge-start" onclick="startWindowsBridgeAndRefresh()">Načíst verze pluginů</button><button class="suplugins-bridge-start" onclick="downloadWindowsSketchUpHelper()">Stáhnout Windows Helper (.bat)</button></div>'+
         '<div class="suplugins-bridge-help show">Jednorázově spusť <b>INSTALL_20-20_SKETCHUP_HELPER_V3.bat</b>. Potom už při běžném používání Toolboxu žádné BAT ani PowerShell okno neuvidíš.</div>';
       return;
     }
@@ -148,9 +161,13 @@
   }
 
   window.refreshSuPluginVersions=async function(){
-    const s=await ensureSuBridge();
-    if(!s){unknownStates();return false}
-    applyInstalledVersions(s.installed||{});return true;
+    const st=await ensureSuBridge();
+    if(!st){
+      unknownStates();
+      return false;
+    }
+    applyInstalledVersions(st.installed||{});
+    return true;
   };
 
   window.downloadSuPlugin=async function(id,version){
@@ -159,9 +176,10 @@
   };
 
   window.installSuPlugin=async function(id,version){
+    if(IS_WIN)launchWindowsBridge();
     let x;try{x=suPluginPayload(id,version)}catch(e){suPluginToast(e?.message||String(e),true);return}
     suPluginToast(IS_WIN?'Skrytě spouštím Windows SketchUp Bridge…':'Připojuji se k 20-20 Toolbox Connectoru…');
-    const s=await ensureSuBridge();
+    const s=await ensureSuBridge('',IS_WIN);
     if(!s){suPluginToast(IS_WIN?'Windows Bridge se nepodařilo spustit. Jednou spusť INSTALL_20-20_SKETCHUP_HELPER_V3.bat a pak akci zopakuj.':'Mac Connector nereaguje. Zkontroluj, že je v SketchUp Extension Manageru zapnutý a SketchUp běží.',true);return}
     try{
       let r;
@@ -180,7 +198,8 @@
   window.uninstallSuPlugin=async function(id){
     const p=getSuPlugin(id);if(!p||!p.loader){suPluginToast('U tohoto pluginu není znám loader pro bezpečné odinstalování.',true);return}
     if(!confirm('Odinstalovat '+p.name+' ze SketchUpu?'))return;
-    const s=await ensureSuBridge();if(!s){suPluginToast(IS_WIN?'Windows Bridge se nepodařilo spustit. Spusť jednorázový Windows Helper.':'Mac Connector nereaguje. Zkontroluj jeho stav v SketchUpu.',true);return}
+    if(IS_WIN)launchWindowsBridge();
+    const s=await ensureSuBridge('',IS_WIN);if(!s){suPluginToast(IS_WIN?'Windows Bridge se nepodařilo spustit. Pokud prohlížeč nabízí otevření 20-20 Toolbox Helperu, povol ho; jinak spusť znovu jednorázový Windows Helper.':'Mac Connector nereaguje. Zkontroluj jeho stav v SketchUpu.',true);return}
     try{const r=await bridgeRequest('/uninstall?loader='+encodeURIComponent(p.loader),{method:'POST'});const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));applyInstalledVersions(data.installed||{});suPluginToast(p.name+' odinstalován. Restartuj SketchUp.')}
     catch(e){suPluginToast('Odinstalace selhala: '+(e?.message||e),true)}
   };
