@@ -29,7 +29,7 @@ jobs:
           s = re.sub(r'<script src="sketchup_plugin_status_v360\.js(?:\?v=\d+)?"><\\/script>\s*', '', s)
 
           # Add exactly one real include, immediately before the final </body>.
-          tag = '<script src="sketchup_plugin_status_v360.js?v=371"></script>\n'
+          tag = '<script src="sketchup_plugin_status_v360.js?v=372"></script>\n'
           pos = s.rfind('</body>')
           if pos < 0:
               raise SystemExit('final </body> not found')
