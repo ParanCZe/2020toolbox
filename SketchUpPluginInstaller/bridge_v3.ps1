@@ -13,9 +13,14 @@ $bat=@'
 setlocal
 set "DIR=%APPDATA%\2020toolbox\SketchUpPluginInstaller"
 set "PS1=%DIR%\bridge_v3.ps1"
-set "URL=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/bridge_v3.ps1"
 if not exist "%DIR%" mkdir "%DIR%" >nul 2>&1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try { Invoke-WebRequest -UseBasicParsing -Uri '%URL%' -OutFile '%PS1%' } catch {}"
+rem Use the bridge already installed in AppData. Only download on first run
+rem or if the local bridge file was deleted. Reinstall the one-time helper
+rem explicitly if you want to update the bridge itself.
+if not exist "%PS1%" (
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $tmp='%PS1%.download'; try { Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller/bridge_v3.ps1' -OutFile $tmp; if((Get-Item $tmp).Length -lt 1000){ throw 'Bridge file incomplete' }; Move-Item -LiteralPath $tmp -Destination '%PS1%' -Force } catch { Remove-Item $tmp -ErrorAction SilentlyContinue; exit 2 }"
+  if errorlevel 1 exit /b 2
+)
 if not exist "%PS1%" exit /b 2
 start "" powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%PS1%" "%~1"
 exit /b 0
@@ -106,6 +111,14 @@ function Expand-RbzSafe([string]$rbz,[string]$ext){
   }
  }
 }
+function Remove-StandaloneLaunchersForSuite($su){
+ # The all-in-one RM TOOLS calls the bundled modules directly. Their old
+ # standalone root loaders cause duplicate SketchUp toolbar buttons.
+ foreach($name in @('twentytwenty_rm_checker.rb','dvacet20_component_library.rb','twentytwenty_live_mirror.rb')){
+  $old=Join-Path $su.Plugins $name
+  if(Test-Path $old){Remove-Item -LiteralPath $old -Force;Log ('REMOVED LEGACY LAUNCHER '+$name)}
+ }
+}
 function Copy-PluginTree([string]$ext,$su){
  $copied=0
  foreach($item in Get-ChildItem $ext -Force){
@@ -116,7 +129,7 @@ function Copy-PluginTree([string]$ext,$su){
  if($copied -eq 0){throw 'RBZ neobsahuje rozpoznatelný SketchUp plugin.'}
 }
 function Install-RbzPath([string]$rbz,[string]$file,$su){
- $tmp=Split-Path $rbz -Parent;$ext=Join-Path $tmp 'extract';Expand-RbzSafe $rbz $ext;Copy-PluginTree $ext $su;Log ('INSTALLED '+$file)
+ $tmp=Split-Path $rbz -Parent;$ext=Join-Path $tmp 'extract';Expand-RbzSafe $rbz $ext;Copy-PluginTree $ext $su;if($file -match '^20-20_RM_TOOLS_v[0-9.]+\.rbz
 }
 function Install-FromRepo([string]$file,[string]$repoPath,$su){
  if($repoPath -notmatch '^SketchUpPlugins/[A-Za-z0-9._/-]+\.rbz$' -or $repoPath -match '\.\.'){throw 'Neplatná cesta RBZ v repozitáři.'}
@@ -157,7 +170,7 @@ while([DateTime]::UtcNow -lt $expires){
  try{
   $req=Read-RequestHead $s;if($null -eq $req){continue};$method=$req.Method;$path=$req.Path;$len=$req.ContentLength
   if($method -eq 'OPTIONS'){Reply $s 204 @{};continue}
-  if($method -eq 'GET' -and $path.StartsWith('/status')){$left=[Math]::Max(0,[int][Math]::Ceiling(($expires-[DateTime]::UtcNow).TotalSeconds));Reply $s 200 @{ok=$true;sketchup=$su.Name;remaining_seconds=$left;installed=(Get-Installed $su.Plugins);bridge_version='3.4'};continue}
+  if($method -eq 'GET' -and $path.StartsWith('/status')){$left=[Math]::Max(0,[int][Math]::Ceiling(($expires-[DateTime]::UtcNow).TotalSeconds));Reply $s 200 @{ok=$true;sketchup=$su.Name;remaining_seconds=$left;installed=(Get-Installed $su.Plugins);bridge_version='3.5'};continue}
   if($method -eq 'POST' -and $path.StartsWith('/install')){
    $file='plugin.rbz';if($path -match '[?&]file=([^&]+)'){$file=[Uri]::UnescapeDataString($Matches[1])};if($file -notmatch '^[A-Za-z0-9._-]+\.rbz$'){Reply $s 400 @{ok=$false;error='Invalid RBZ'};continue}
    $repoPath='';if($path -match '[?&]repo=([^&]+)'){$repoPath=[Uri]::UnescapeDataString($Matches[1])}
@@ -168,11 +181,73 @@ while([DateTime]::UtcNow -lt $expires){
     $tmp=Join-Path $env:TEMP ('2020toolbox_post_'+[Guid]::NewGuid().ToString('N'));New-Item -ItemType Directory -Force -Path $tmp|Out-Null
     try{$rbz=Join-Path $tmp $file;[IO.File]::WriteAllBytes($rbz,$body);Install-RbzPath $rbz $file $su}finally{Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue}
    }
-   Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins);bridge_version='3.3'};continue
+   Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins);bridge_version='3.5'};continue
   }
   if($method -eq 'POST' -and $path.StartsWith('/uninstall')){
    $loader='';if($path -match '[?&]loader=([^&]+)'){$loader=[Uri]::UnescapeDataString($Matches[1])};Uninstall-Plugin $loader $su
-   Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins);bridge_version='3.3'};continue
+   Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins);bridge_version='3.5'};continue
+  }
+  Reply $s 404 @{ok=$false;error='Unknown endpoint'}
+ }catch{Log ('SERVER ERROR '+$_.Exception.Message);try{Reply $s 500 @{ok=$false;error=$_.Exception.Message}}catch{}}finally{try{$s.Close()}catch{};try{$client.Close()}catch{}}
+}
+$listener.Stop();Log 'BRIDGE STOP'
+){Remove-StandaloneLaunchersForSuite $su};Log ('INSTALLED '+$file)
+}
+function Install-FromRepo([string]$file,[string]$repoPath,$su){
+ if($repoPath -notmatch '^SketchUpPlugins/[A-Za-z0-9._/-]+\.rbz$' -or $repoPath -match '\.\.'){throw 'Neplatná cesta RBZ v repozitáři.'}
+ $tmp=Join-Path $env:TEMP ('2020toolbox_repo_'+[Guid]::NewGuid().ToString('N'));New-Item -ItemType Directory -Force -Path $tmp|Out-Null
+ try{
+  $rbz=Join-Path $tmp $file;$url='https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/'+$repoPath
+  Log ('DOWNLOAD '+$url);Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $rbz -Headers @{'Cache-Control'='no-cache'}
+  Install-RbzPath $rbz $file $su
+ }finally{Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue}
+}
+function Uninstall-Plugin([string]$loader,$su){
+ if($loader -notmatch '^[A-Za-z0-9._-]+\.rb$'){throw 'Neplatný název loaderu.'}
+ $loaderPath=Join-Path $su.Plugins $loader;$folderName=[IO.Path]::GetFileNameWithoutExtension($loader);$folderPath=Join-Path $su.Plugins $folderName
+ if(Test-Path $loaderPath){Remove-Item $loaderPath -Force}
+ if(Test-Path $folderPath){Remove-Item $folderPath -Recurse -Force}
+ Log ('UNINSTALLED '+$loader)
+}
+
+$su=Get-SketchUp
+if($null -eq $su){Log 'SketchUp not found';exit 3}
+$port=8093;$listener=[System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$port)
+try{$listener.Start()}catch{Log 'Port 8093 already in use';exit 0}
+$expires=[DateTime]::UtcNow.AddMinutes(2);Log ('BRIDGE START '+$ProtocolUrl)
+function Reply($s,$code,$obj){
+ $json=if($code -eq 204){''}else{$obj|ConvertTo-Json -Depth 8 -Compress};$body=[Text.Encoding]::UTF8.GetBytes($json);$status=if($code -eq 200){'OK'}elseif($code -eq 204){'No Content'}else{'Error'}
+ $head="HTTP/1.1 $code $status`r`nContent-Type: application/json; charset=utf-8`r`nAccess-Control-Allow-Origin: *`r`nAccess-Control-Allow-Private-Network: true`r`nAccess-Control-Allow-Methods: GET, POST, OPTIONS`r`nAccess-Control-Allow-Headers: Content-Type`r`nCache-Control: no-store`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n"
+ $hb=[Text.Encoding]::ASCII.GetBytes($head);$s.Write($hb,0,$hb.Length);if($body.Length){$s.Write($body,0,$body.Length)};$s.Flush()
+}
+function Read-RequestHead($s){
+ $bytes=New-Object System.Collections.Generic.List[byte]
+ while($bytes.Count -lt 65536){$b=$s.ReadByte();if($b -lt 0){break};$bytes.Add([byte]$b);$n=$bytes.Count;if($n -ge 4 -and $bytes[$n-4] -eq 13 -and $bytes[$n-3] -eq 10 -and $bytes[$n-2] -eq 13 -and $bytes[$n-1] -eq 10){break}}
+ if($bytes.Count -lt 4){return $null};$txt=[Text.Encoding]::ASCII.GetString($bytes.ToArray());$lines=$txt -split "`r`n";$parts=$lines[0].Split(' ');if($parts.Count -lt 2){return $null}
+ $len=0;foreach($h in $lines){if($h -match '^(?i)Content-Length:\s*(\d+)'){$len=[int]$Matches[1]}}
+ [pscustomobject]@{Method=$parts[0];Path=$parts[1];ContentLength=$len}
+}
+while([DateTime]::UtcNow -lt $expires){
+ if(-not $listener.Pending()){Start-Sleep -Milliseconds 80;continue};$client=$listener.AcceptTcpClient();$s=$client.GetStream();$s.ReadTimeout=20000;$s.WriteTimeout=20000
+ try{
+  $req=Read-RequestHead $s;if($null -eq $req){continue};$method=$req.Method;$path=$req.Path;$len=$req.ContentLength
+  if($method -eq 'OPTIONS'){Reply $s 204 @{};continue}
+  if($method -eq 'GET' -and $path.StartsWith('/status')){$left=[Math]::Max(0,[int][Math]::Ceiling(($expires-[DateTime]::UtcNow).TotalSeconds));Reply $s 200 @{ok=$true;sketchup=$su.Name;remaining_seconds=$left;installed=(Get-Installed $su.Plugins);bridge_version='3.5'};continue}
+  if($method -eq 'POST' -and $path.StartsWith('/install')){
+   $file='plugin.rbz';if($path -match '[?&]file=([^&]+)'){$file=[Uri]::UnescapeDataString($Matches[1])};if($file -notmatch '^[A-Za-z0-9._-]+\.rbz$'){Reply $s 400 @{ok=$false;error='Invalid RBZ'};continue}
+   $repoPath='';if($path -match '[?&]repo=([^&]+)'){$repoPath=[Uri]::UnescapeDataString($Matches[1])}
+   if($repoPath){Install-FromRepo $file $repoPath $su}
+   else{
+    if($len -le 0){Reply $s 400 @{ok=$false;error='Empty RBZ body'};continue}
+    $body=New-Object byte[] $len;$off=0;while($off -lt $len){$n=$s.Read($body,$off,$len-$off);if($n -le 0){break};$off+=$n};if($off -ne $len){Reply $s 400 @{ok=$false;error=('Incomplete RBZ body '+$off+'/'+$len)};continue}
+    $tmp=Join-Path $env:TEMP ('2020toolbox_post_'+[Guid]::NewGuid().ToString('N'));New-Item -ItemType Directory -Force -Path $tmp|Out-Null
+    try{$rbz=Join-Path $tmp $file;[IO.File]::WriteAllBytes($rbz,$body);Install-RbzPath $rbz $file $su}finally{Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue}
+   }
+   Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins);bridge_version='3.5'};continue
+  }
+  if($method -eq 'POST' -and $path.StartsWith('/uninstall')){
+   $loader='';if($path -match '[?&]loader=([^&]+)'){$loader=[Uri]::UnescapeDataString($Matches[1])};Uninstall-Plugin $loader $su
+   Reply $s 200 @{ok=$true;sketchup=$su.Name;installed=(Get-Installed $su.Plugins);bridge_version='3.5'};continue
   }
   Reply $s 404 @{ok=$false;error='Unknown endpoint'}
  }catch{Log ('SERVER ERROR '+$_.Exception.Message);try{Reply $s 500 @{ok=$false;error=$_.Exception.Message}}catch{}}finally{try{$s.Close()}catch{};try{$client.Close()}catch{}}
