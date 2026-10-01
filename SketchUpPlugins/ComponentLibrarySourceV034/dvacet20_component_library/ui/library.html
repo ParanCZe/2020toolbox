@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20-20 Knihovna komponent</title>
+<style>
+  :root{--bg:#0d0f12;--panel:#15181c;--panel2:#1b1f24;--line:#2a3037;--text:#f5f7f8;--muted:#9aa4ae;--accent:#ffd400;--ok:#51d88a;--bad:#ff6666}
+  *{box-sizing:border-box} html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);overflow:hidden} body{display:flex;flex-direction:column}
+  header{padding:16px 18px 12px;border-bottom:1px solid var(--line);background:#111419}.top{display:flex;align-items:center;gap:12px}.brand{display:flex;align-items:center;gap:10px;min-width:250px}.mark{width:34px;height:34px;border-radius:9px;background:var(--accent);color:#111;display:grid;place-items:center;font-weight:900;font-size:14px}.brandText b{display:block;font-size:15px;letter-spacing:.3px}.brandText span{color:var(--muted);font-size:11px}
+  .search{flex:1;position:relative}.search input{width:100%;height:38px;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:0 14px 0 38px;outline:none;font-size:13px;transition:border-color .18s ease,box-shadow .18s ease,background .18s ease}.search input:hover{background:#1e2329}.search input:focus{border-color:#626d79;box-shadow:0 0 0 3px rgba(255,212,0,.07)}.search:before{content:"⌕";position:absolute;left:13px;top:6px;font-size:21px;color:var(--muted);transition:color .18s ease,transform .18s ease}.search:focus-within:before{color:var(--accent);transform:scale(1.05)}button{font:inherit}.iconBtn{position:relative;height:38px;padding:0 14px;border:1px solid var(--line);background:linear-gradient(180deg,#1d2228,#181c21);color:var(--text);border-radius:10px;cursor:pointer;overflow:hidden;transition:transform .16s ease,border-color .16s ease,background .16s ease,box-shadow .16s ease,color .16s ease}.iconBtn::after{content:"";position:absolute;left:12px;right:12px;bottom:5px;height:1px;background:var(--accent);transform:scaleX(0);transform-origin:center;opacity:.8;transition:transform .18s ease}.iconBtn:hover{border-color:#59636f;background:linear-gradient(180deg,#262c33,#1e2329);transform:translateY(-1px);box-shadow:0 7px 18px rgba(0,0,0,.18)}.iconBtn:hover::after{transform:scaleX(1)}.iconBtn:active{transform:translateY(0) scale(.96);box-shadow:none}.iconBtn.spin{animation:refreshSpin .48s cubic-bezier(.25,.8,.25,1)}@keyframes refreshSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  .metaRow{margin-top:11px;display:flex;align-items:center;gap:10px;min-width:0}.state{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.3px;white-space:nowrap}.dot{width:8px;height:8px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 3px rgba(255,102,102,.11)}.state.online .dot{background:var(--ok);box-shadow:0 0 0 3px rgba(81,216,138,.11)}.path{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}.count{color:var(--muted);font-size:11px;white-space:nowrap}
+  main{flex:1;min-height:0;display:flex} aside{width:265px;border-right:1px solid var(--line);background:#111419;padding:13px 9px;overflow:auto}.catTitle{font-size:10px;font-weight:800;color:#6f7a85;letter-spacing:1px;padding:4px 9px 9px}.treeRow{display:flex;align-items:center;width:100%;min-height:34px;border-radius:9px;color:#cbd1d6;transition:background .16s ease,color .16s ease,transform .16s ease}.treeRow:hover{background:#1a1e23;transform:translateX(2px)}.treeRow.active{background:linear-gradient(90deg,#292e35,#22272d);color:#fff;font-weight:700;box-shadow:inset 2px 0 0 var(--accent)}.treeRow .toggle{flex:0 0 25px;width:25px;height:30px;border:0;background:transparent;color:#7e8994;cursor:pointer;padding:0;font-size:11px;transition:transform .16s ease,color .16s ease}.treeRow:hover .toggle{color:#c4ccd3}.treeRow .toggle:active{transform:scale(.82)}.treeRow .toggle.empty{visibility:hidden}.treeRow .label{min-width:0;flex:1;height:34px;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer;padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;transition:color .16s ease}.treeRow .label:active{color:var(--accent)}.treeRow small{padding-right:9px;color:#77818a;font-size:10px;transition:color .16s ease}.treeRow.active small{color:#aeb6be}.level1{padding-left:16px}.level2{padding-left:34px}.treeSeparator{height:1px;background:var(--line);margin:7px 4px}
+  .content{flex:1;min-width:0;position:relative;overflow:auto;padding:16px}.filterPath{display:none;align-items:center;gap:7px;margin:0 0 12px;color:var(--muted);font-size:11px}.filterPath.show{display:flex}.filterPath b{color:#fff;font-weight:650}.clearFilter{border:0;background:transparent;color:var(--accent);cursor:pointer;font-size:11px;padding:0 3px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:13px;align-content:start}
+  .card{min-width:0;border:1px solid var(--line);background:var(--panel);border-radius:12px;overflow:hidden;transition:transform .17s ease,border-color .17s ease,box-shadow .17s ease}.card:hover{transform:translateY(-3px);border-color:#4b535c;box-shadow:0 10px 30px rgba(0,0,0,.24)}.preview{height:150px;background:#f0f0ed;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}.preview img{width:100%;height:100%;object-fit:contain;display:block}.placeholder{color:#666;font-size:11px;text-align:center;padding:20px}.placeholder.loading::after{content:'Náhled se načítá…'}.placeholder.failed::after{content:'Náhled není dostupný'}.badge{position:absolute;left:8px;top:8px;max-width:calc(100% - 16px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:7px;padding:4px 6px;background:rgba(15,17,20,.78);backdrop-filter:blur(4px);color:#fff;font-size:9px}.cardBody{padding:10px 10px 11px}.name{font-size:12px;font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sub{color:var(--muted);font-size:10px;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.metaTags{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}.metaTag{font-size:8px;color:#aeb6be;background:#20252b;border:1px solid #2d343b;border-radius:5px;padding:2px 5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.badName{color:#ffc56b}.cardFoot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px}.size{font-size:9px;color:#7c858e}.plus{position:relative;width:34px;height:30px;border:0;border-radius:9px;cursor:pointer;background:linear-gradient(180deg,#ffdc1f,#ffd000);color:#111;font-weight:900;font-size:19px;line-height:1;box-shadow:0 4px 12px rgba(255,212,0,.12);transition:transform .18s cubic-bezier(.2,.8,.2,1),filter .18s ease,box-shadow .18s ease}.plus:hover{filter:brightness(1.06);transform:translateY(-2px) scale(1.05) rotate(90deg);box-shadow:0 7px 18px rgba(255,212,0,.22)}.plus:active{transform:translateY(0) scale(.9) rotate(90deg);box-shadow:none}.plus.busy{animation:plusPulse .7s ease-in-out infinite;pointer-events:none}@keyframes plusPulse{0%,100%{box-shadow:0 4px 12px rgba(255,212,0,.12)}50%{box-shadow:0 4px 22px rgba(255,212,0,.36)}}
+  .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;color:var(--muted)}.empty strong{color:#fff;margin-bottom:8px}.empty button{margin-top:15px}.notice{display:none;margin:0 0 13px;border:1px solid #593b3b;background:#2a1919;color:#ffb4b4;padding:10px 12px;border-radius:10px;font-size:11px}.toast{position:fixed;right:18px;bottom:18px;z-index:20;background:#252b31;border:1px solid #3b434b;color:#fff;padding:10px 13px;border-radius:9px;font-size:11px;box-shadow:0 12px 35px rgba(0,0,0,.35);opacity:0;transform:translateY(8px);pointer-events:none;transition:.18s ease;max-width:380px}.toast.show{opacity:1;transform:translateY(0)}.toast.error{border-color:#703d3d;background:#2e1b1b;color:#ffd1d1}
+  @media(max-width:800px){aside{width:210px}.brand{min-width:190px}.grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div class="brand"><div class="mark">20·20</div><div class="brandText"><b>KNIHOVNA KOMPONENT</b><span>SKP · serverová knihovna</span></div></div>
+    <div class="search"><input id="search" placeholder="Hledat typ, výrobce, řadu, číslo…" autocomplete="off"></div>
+    <button class="iconBtn" id="openFolder" title="Otevřít serverovou složku">Složka</button>
+    <button class="iconBtn" id="chooseFolder" title="Změnit zdrojovou složku">Nastavit</button>
+    <button class="iconBtn" id="refresh" title="Znovu načíst knihovnu">↻</button>
+  </div>
+  <div class="metaRow">
+    <div id="state" class="state"><span class="dot"></span><span id="stateText">NAČÍTÁM</span></div>
+    <div id="path" class="path"></div>
+    <div id="count" class="count"></div>
+  </div>
+</header>
+<main>
+  <aside><div class="catTitle">KOMPONENTY</div><div id="categories"></div></aside>
+  <section class="content">
+    <div id="notice" class="notice"></div>
+    <div id="filterPath" class="filterPath"></div>
+    <div id="grid" class="grid"></div>
+    <div id="empty" class="empty" style="display:none"></div>
+  </section>
+</main>
+<div id="toast" class="toast"></div>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const state = {
+    data:null, search:'', filter:{type:null,manufacturer:null,series:null},
+    openTypes:new Set(), openManufacturers:new Set(),
+    thumbQueue:[], thumbQueued:new Set(), thumbBusy:false, observer:null
+  };
+
+  function escapeHtml(v){ return String(v ?? '').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+  function call(name,payload=''){ try{ if(window.sketchup&&typeof window.sketchup[name]==='function'){ window.sketchup[name](payload); return true; } }catch(e){} return false; }
+  function toast(message,error=false){ const el=$('#toast'); el.textContent=message; el.className='toast show'+(error?' error':''); clearTimeout(toast._t); toast._t=setTimeout(()=>el.className='toast',2600); }
+  function sortCs(values){ return [...values].sort((a,b)=>String(a).localeCompare(String(b),'cs',{sensitivity:'base',numeric:true})); }
+  function manKey(type,manufacturer){ return `${type}\u0000${manufacturer}`; }
+  function sameFilter(type=null,manufacturer=null,series=null){ return state.filter.type===type&&state.filter.manufacturer===manufacturer&&state.filter.series===series; }
+  function setFilter(type=null,manufacturer=null,series=null){ state.filter={type,manufacturer,series}; if(type) state.openTypes.add(type); if(type&&manufacturer) state.openManufacturers.add(manKey(type,manufacturer)); setCategories(); render(); }
+  function filteredByHierarchy(c){ const f=state.filter; return (!f.type||c.type===f.type)&&(!f.manufacturer||c.manufacturer===f.manufacturer)&&(!f.series||c.series===f.series); }
+
+  function buildTree(comps){
+    const tree=new Map();
+    comps.forEach(c=>{
+      if(!tree.has(c.type)) tree.set(c.type,new Map());
+      const mans=tree.get(c.type);
+      if(!mans.has(c.manufacturer)) mans.set(c.manufacturer,new Map());
+      const series=mans.get(c.manufacturer);
+      series.set(c.series,(series.get(c.series)||0)+1);
+    });
+    return tree;
+  }
+
+  function row({label,count,level=0,active=false,hasChildren=false,open=false,onToggle,onClick}){
+    const wrap=document.createElement('div'); wrap.className=`treeRow level${level}${active?' active':''}`;
+    const toggle=document.createElement('button'); toggle.className='toggle'+(hasChildren?'':' empty'); toggle.textContent=hasChildren?(open?'▼':'▶'):'•';
+    if(hasChildren) toggle.onclick=e=>{e.stopPropagation();onToggle&&onToggle();};
+    const name=document.createElement('button'); name.className='label'; name.textContent=label; name.title=label; name.onclick=onClick;
+    const num=document.createElement('small'); num.textContent=count;
+    wrap.append(toggle,name,num); return wrap;
+  }
+
+  function setCategories(){
+    const host=$('#categories'); host.innerHTML='';
+    const comps=state.data?.components||[];
+    host.appendChild(row({label:'Vše',count:comps.length,active:sameFilter(),onClick:()=>setFilter()}));
+    const sep=document.createElement('div'); sep.className='treeSeparator'; host.appendChild(sep);
+    const tree=buildTree(comps);
+    sortCs(tree.keys()).forEach(type=>{
+      const mans=tree.get(type); let typeCount=0; mans.forEach(series=>series.forEach(n=>typeCount+=n));
+      const typeOpen=state.openTypes.has(type);
+      host.appendChild(row({label:type,count:typeCount,level:0,active:sameFilter(type),hasChildren:true,open:typeOpen,
+        onToggle:()=>{ typeOpen?state.openTypes.delete(type):state.openTypes.add(type); setCategories(); },
+        onClick:()=>{ state.openTypes.add(type); setFilter(type); }}));
+      if(!typeOpen) return;
+      sortCs(mans.keys()).forEach(man=>{
+        const series=mans.get(man); let manCount=0; series.forEach(n=>manCount+=n);
+        const key=manKey(type,man), manOpen=state.openManufacturers.has(key);
+        host.appendChild(row({label:man,count:manCount,level:1,active:sameFilter(type,man),hasChildren:true,open:manOpen,
+          onToggle:()=>{ manOpen?state.openManufacturers.delete(key):state.openManufacturers.add(key); setCategories(); },
+          onClick:()=>{ state.openTypes.add(type); state.openManufacturers.add(key); setFilter(type,man); }}));
+        if(!manOpen) return;
+        sortCs(series.keys()).forEach(ser=>{
+          host.appendChild(row({label:ser,count:series.get(ser),level:2,active:sameFilter(type,man,ser),onClick:()=>setFilter(type,man,ser)}));
+        });
+      });
+    });
+  }
+
+  function renderFilterPath(){
+    const el=$('#filterPath'), f=state.filter;
+    if(!f.type){ el.className='filterPath'; el.innerHTML=''; return; }
+    const bits=[f.type,f.manufacturer,f.series].filter(Boolean).map(escapeHtml).join('  ›  ');
+    el.className='filterPath show'; el.innerHTML=`Filtr: <b>${bits}</b><button class="clearFilter">Zrušit filtr</button>`;
+    el.querySelector('.clearFilter').onclick=()=>setFilter();
+  }
+
+  function render(){
+    const grid=$('#grid'),empty=$('#empty'),notice=$('#notice'),data=state.data;
+    grid.innerHTML=''; empty.style.display='none'; notice.style.display='none'; renderFilterPath(); if(!data) return;
+    if(!data.ok){ notice.style.display='block'; notice.textContent=data.message||'Knihovna není dostupná.'; empty.style.display='flex'; empty.innerHTML='<strong>Serverová knihovna není dostupná.</strong><span>Zkontroluj disk S: nebo nastav jinou složku.</span><button class="iconBtn" id="resetBtn">Vrátit S: cestu</button>'; $('#resetBtn').onclick=()=>call('resetFolder'); return; }
+
+    const words=state.search.trim().toLocaleLowerCase('cs').split(/\s+/).filter(Boolean);
+    const items=(data.components||[]).filter(c=>{
+      if(!filteredByHierarchy(c)) return false;
+      const hay=[c.name,c.display_name,c.type,c.manufacturer,c.series,c.identifier,c.relative_path].join(' ').toLocaleLowerCase('cs');
+      return words.every(w=>hay.includes(w));
+    });
+    if(!items.length){ empty.style.display='flex'; empty.innerHTML='<strong>Nic jsem nenašel.</strong><span>Zkus jiné klíčové slovo nebo jinou kategorii.</span>'; return; }
+
+    items.forEach(c=>{
+      const card=document.createElement('article'); card.className='card';
+      const preview=c.preview?`<img data-thumb-img src="${escapeHtml(c.preview)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='block';this.nextElementSibling.className='placeholder failed'"><div data-thumb-placeholder class="placeholder failed" style="display:none"></div>`:'<img data-thumb-img alt="" style="display:none"><div data-thumb-placeholder class="placeholder loading"></div>';
+      card.dataset.path=c.path; card.dataset.needsThumb=c.preview?'0':'1';
+      const badName=c.naming_ok?'':`<div class="sub badName">Název neodpovídá TYP_VÝROBCE_ŘADA_ID</div>`;
+      card.innerHTML=`<div class="preview">${preview}<span class="badge">${escapeHtml(c.type)}</span></div><div class="cardBody"><div class="name" title="${escapeHtml(c.display_name||c.name)}">${escapeHtml(c.display_name||c.name)}</div><div class="sub" title="${escapeHtml(c.relative_path)}">${escapeHtml(c.relative_path)}</div>${badName}<div class="metaTags"><span class="metaTag">${escapeHtml(c.manufacturer)}</span><span class="metaTag">${escapeHtml(c.series)}</span><span class="metaTag">${escapeHtml(c.identifier)}</span></div><div class="cardFoot"><span class="size">${escapeHtml(c.size)}</span><button class="plus" title="Vložit do modelu">+</button></div></div>`;
+      const plus=card.querySelector('.plus'); plus.onclick=e=>{e.stopPropagation();plus.classList.add('busy');setTimeout(()=>plus.classList.remove('busy'),650);insert(c);}; card.ondblclick=()=>insert(c); grid.appendChild(card); if(card.dataset.needsThumb==='1') observeThumb(card);
+    });
+  }
+
+  function observeThumb(card){ if(!state.observer){ state.observer=new IntersectionObserver(entries=>{ entries.forEach(entry=>{ if(!entry.isIntersecting)return; const el=entry.target; state.observer.unobserve(el); enqueueThumb(el.dataset.path); }); },{root:document.querySelector('.content'),rootMargin:'300px 0px'}); } state.observer.observe(card); }
+  function enqueueThumb(path){ if(!path||state.thumbQueued.has(path))return; state.thumbQueued.add(path); state.thumbQueue.push(path); pumpThumbs(); }
+  function pumpThumbs(){ if(state.thumbBusy||!state.thumbQueue.length)return; state.thumbBusy=true; const path=state.thumbQueue.shift(); call('requestThumbnail',JSON.stringify({path})); }
+  function finishThumb(path,url){ [...document.querySelectorAll('.card')].filter(c=>c.dataset.path===path).forEach(card=>{ const img=card.querySelector('[data-thumb-img]'),ph=card.querySelector('[data-thumb-placeholder]'); if(url&&img){img.src=url;img.style.display='block'} if(ph){ph.style.display=url?'none':'block';ph.className='placeholder '+(url?'':'failed')} card.dataset.needsThumb='0'; }); state.thumbBusy=false; setTimeout(pumpThumbs,20); }
+  function insert(c){ toast('Načítám '+(c.display_name||c.name)+'…'); call('insertComponent',JSON.stringify({path:c.path})); }
+
+  window.ComponentLibrary={
+    setLibrary(data){ state.data=data; const comps=data.components||[]; if(state.filter.type&&!comps.some(c=>filteredByHierarchy(c))) state.filter={type:null,manufacturer:null,series:null}; $('#state').className='state'+(data.ok?' online':''); $('#stateText').textContent=data.ok?'SERVER ONLINE':'SERVER OFFLINE'; $('#path').textContent=data.root||''; $('#path').title=data.root||''; $('#count').textContent=data.ok?`${comps.length} komponent · v${data.version}`:`v${data.version}`; setCategories(); render(); },
+    insertDone(path,unwrapped){ toast('Klikni do modelu. Knihovna vloží existující komponenty bez nového obalu.'); },
+    thumbnailReady(path,url){ const c=(state.data?.components||[]).find(x=>x.path===path); if(c)c.preview=url; finishThumb(path,url); },
+    thumbnailFailed(path){ finishThumb(path,null); }, showError(message){toast(message,true)}
+  };
+
+  $('#search').addEventListener('input',e=>{state.search=e.target.value;render();}); $('#refresh').onclick=e=>{const b=e.currentTarget;b.classList.remove('spin');void b.offsetWidth;b.classList.add('spin');setTimeout(()=>b.classList.remove('spin'),520);toast('Aktualizuji knihovnu…');call('refreshLibrary')}; $('#chooseFolder').onclick=()=>call('chooseFolder'); $('#openFolder').onclick=()=>call('openFolder');
+  function announceReady(){call('ready')} if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',announceReady);else announceReady(); window.addEventListener('load',announceReady); setTimeout(announceReady,250); setTimeout(announceReady,900); setTimeout(()=>{if(!state.data){$('#state').className='state';$('#stateText').textContent='ČEKÁM NA SKETCHUP';$('#path').textContent='Knihovna zatím neposlala data. Zkus ↻.'}},4000);
+})();
+</script>
+</body>
+</html>
