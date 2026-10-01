@@ -2666,16 +2666,17 @@ const SU_PLUGIN_CATALOG = [
   id:'rm-tools-suite',
   loader:'twentytwenty_rm_tools_suite.rb',
   name:'20-20 RM TOOLS',
-  current:'2.0.3',
+  current:'2.0.4',
   featured:true,
   description:'MODEL LIBRARY + Nastavení SKP / Záběr / Checker + LIVE Mirror v jednom pluginu.',
-  meta:'RM TOOLS v2.0.3: Model Library vkládá již hotovou kořenovou komponentu přímo, bez dalšího obalu.',
+  meta:'RM TOOLS 2.0.4: INTERIER bez PRVKY; automatická migrace tagů, jediný spouštěč a Model Library bez obalu.',
   icon:'library',
   versions:[
     {"version":"2.0.0","file":"20-20_RM_TOOLS_v2.0.0.rbz","size":76481,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.0.rbz"},
     {"version":"2.0.1","file":"20-20_RM_TOOLS_v2.0.1.rbz","size":77060,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.1.rbz"},
               {"version":"2.0.2","file":"20-20_RM_TOOLS_v2.0.2.rbz","size":77708,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.2.rbz"},
-              {"version":"2.0.3","file":"20-20_RM_TOOLS_v2.0.3.rbz","size":77789,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.3.rbz"}
+              {"version":"2.0.3","file":"20-20_RM_TOOLS_v2.0.3.rbz","size":77789,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.3.rbz"},
+              {"version":"2.0.4","file":"20-20_RM_TOOLS_v2.0.4.rbz","size":77794,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.rbz"}
             ]
 },
 {
@@ -2844,13 +2845,13 @@ async function downloadSuPlugin(id,version){
 }
 
 const SU_HELPER_INSTALLER_TEXT="@echo off\nsetlocal\nchcp 65001 >nul\ntitle 20-20 Toolbox - SketchUp Helper V3\nset \"DIR=%APPDATA%\\2020toolbox\\SketchUpPluginInstaller\"\nset \"RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/SketchUpPluginInstaller\"\nif not exist \"%DIR%\" mkdir \"%DIR%\" >nul 2>&1\necho Instaluji 20-20 Toolbox helper V3...\npowershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW%/20-20_BRIDGE_V3.bat' -OutFile '%DIR%\\20-20_BRIDGE_V3.bat'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW%/bridge_v3.ps1' -OutFile '%DIR%\\bridge_v3.ps1'; Invoke-WebRequest -UseBasicParsing -Uri '%RAW%/register_protocol_v3.ps1' -OutFile '%DIR%\\register_protocol_v3.ps1'\"\nif errorlevel 1 (\n echo CHYBA: helper se nepodarilo stahnout.\n pause\n exit /b 1\n)\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%DIR%\\register_protocol_v3.ps1\"\nif errorlevel 1 (\n echo CHYBA: protokol se nepodarilo zaregistrovat.\n pause\n exit /b 1\n)\necho.\necho HOTOVO - helper V3 je nainstalovany.\necho Od ted uz nic znovu nestahujes. Toolbox si Bridge zapne sam na 2 minuty.\npause\n";
-const SU_BRIDGE_URL='http://127.0.0.1:8092';
+const SU_BRIDGE_URL='http://127.0.0.1:8093';
 const SU_BRIDGE_SCHEME='twentytwentytoolboxv3://bridge';
 
 function downloadSuPluginHelperInstaller(){
   const blob=new Blob([SU_HELPER_INSTALLER_TEXT],{type:'application/octet-stream'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download='INSTALL_20-20_SKETCHUP_HELPER_V3.bat';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2500);
-  suPluginToast('Helper V3 byl stažen. Spusť ho jen jednou; další opravy Bridge si už helper stahuje automaticky.');
+  suPluginToast('Helper V3 byl stažen. Spusť ho jen jednou; Bridge se pak spouští z disku bez dalšího stahování.');
 }
 function launchSuBridge(file=''){const f=document.createElement('iframe');f.style.display='none';f.src=file?(SU_BRIDGE_SCHEME+'/install/'+encodeURIComponent(file)):SU_BRIDGE_SCHEME;document.body.appendChild(f);setTimeout(()=>f.remove(),2200)}
 async function suBridgeStatus(){
