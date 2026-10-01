@@ -1,0 +1,160 @@
+name: Publish RM TOOLS v2.0.4 and cached SketchUp Bridge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v204.yml"
+      - "SketchUpPlugins/rmtools_v204_builder.py"
+      - "SketchUpPlugins/tests/test_flat_interior_v204.rb"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build RM TOOLS v2.0.4
+        run: python SketchUpPlugins/rmtools_v204_builder.py
+
+      - name: Verify Ruby syntax and no duplicate embedded toolbars
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV204/twentytwenty_rm_checker/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV204/dvacet20_component_library/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV204/twentytwenty_rm_tools_suite/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV204/twentytwenty_rm_tools_suite.rb
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          root=Path("SketchUpPlugins")
+          with zipfile.ZipFile(root/"20-20_RM_TOOLS_v2.0.3.rbz") as original, zipfile.ZipFile(root/"20-20_RM_TOOLS_v2.0.4.rbz") as updated:
+              assert updated.testzip() is None
+              main=updated.read("twentytwenty_rm_checker/main.rb").decode()
+              lib=updated.read("dvacet20_component_library/main.rb").decode()
+              suite=updated.read("twentytwenty_rm_tools_suite/main.rb").decode()
+              assert "'INTERIER' => {\n        'SANITA' => []" in main
+              assert "'PRVKY' => %w[" not in main
+              assert "old_prvky.layers.to_a.each" in main
+              assert "remove_folder(old_prvky)" in main
+              assert "file_loaded(__FILE__) unless file_loaded?(__FILE__)" in main
+              assert "file_loaded(__FILE__) unless file_loaded?(__FILE__)" in lib
+              assert "UI::Command.new('20-20 Knihovna komponent')" not in lib
+              assert "      install_ui\n      file_loaded(__FILE__)" not in main
+              assert "UI::Command.new(TITLE)" in suite
+              assert suite.count("UI::Toolbar.new(TITLE)") == 1
+              for path in ("twentytwenty_live_mirror/main_v0418.rb",
+                           "twentytwenty_live_mirror/renderer_v0418.html",
+                           "dvacet20_component_library/ui/library.html"):
+                  assert original.read(path)==updated.read(path),path
+          bridge=Path("SketchUpPluginInstaller/bridge_v3.ps1").read_text(encoding="utf-8")
+          bat=Path("SketchUpPluginInstaller/20-20_BRIDGE_V3.bat").read_text(encoding="utf-8")
+          embedded=bridge.split("$bat=@'\n",1)[1].split("\n'@",1)[0]
+          assert bat.strip().replace("\r\n","\n")==embedded.strip()
+          assert 'if not exist "%PS1%" (' in bat
+          assert "Remove-StandaloneLaunchersForSuite" in bridge
+          assert "$port=8093" in bridge
+          assert "bridge_version='3.5'" in bridge
+          print("PASS: ZIP/Ruby structure, one suite toolbar, cached local Bridge")
+          PY
+
+      - name: Test migration of existing tag objects
+        run: ruby SketchUpPlugins/tests/test_flat_interior_v204.rb
+
+      - name: Publish to 20-20 Toolbox and align local bridge port
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p=Path("index.html")
+          s=p.read_text(encoding="utf-8")
+          marker="const SU_PLUGIN_CATALOG = ["
+          catalog=s.index(marker)
+          plugin=s.index("id:'rm-tools-suite'",catalog)
+          start=s.rfind("{",catalog,plugin)
+          depth=0
+          quote=None
+          escaped=False
+          end=None
+          for index in range(start,len(s)):
+              char=s[index]
+              if quote:
+                  if escaped:
+                      escaped=False
+                  elif char=="\\":
+                      escaped=True
+                  elif char==quote:
+                      quote=None
+                  continue
+              if char in ("'",'"',chr(96)):
+                  quote=char
+              elif char=="{":
+                  depth+=1
+              elif char=="}":
+                  depth-=1
+                  if depth==0:
+                      end=index+1
+                      break
+          assert end is not None
+          block=s[start:end]
+          block,num=re.subn(r"current:'[^']*'","current:'2.0.4'",block,count=1)
+          assert num==1
+          block,num=re.subn(r"meta:'[^']*'",
+              "meta:'RM TOOLS 2.0.4: INTERIER bez PRVKY; automatická migrace tagů, jediný spouštěč a Model Library bez obalu.'",
+              block,count=1)
+          assert num==1
+          if '"version":"2.0.4"' not in block:
+              sz=Path("SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.rbz").stat().st_size
+              entry='{"version":"2.0.4","file":"20-20_RM_TOOLS_v2.0.4.rbz","size":'+str(sz)+',"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.rbz"}'
+              mark=block.index("versions:[")
+              left=block.index("[",mark)
+              right=left+1
+              nested=1
+              while nested:
+                  if block[right]=="[":
+                      nested+=1
+                  elif block[right]=="]":
+                      nested-=1
+                  right+=1
+              close=right-1
+              versions=block[left+1:close].rstrip()
+              if versions and not versions.endswith(","):
+                  versions+=","
+              versions+="\n              "+entry+"\n            "
+              block=block[:left+1]+versions+block[close:]
+          s=s[:start]+block+s[end:]
+          old="const SU_BRIDGE_URL='http://127.0.0.1:8092';"
+          assert old in s or "const SU_BRIDGE_URL='http://127.0.0.1:8093';" in s
+          s=s.replace(old,"const SU_BRIDGE_URL='http://127.0.0.1:8093';",1)
+          s=s.replace(
+              "další opravy Bridge si už helper stahuje automaticky.",
+              "Bridge se pak spouští z disku bez dalšího stahování.",
+              1
+          )
+          p.write_text(s,encoding="utf-8")
+          assert "20-20_RM_TOOLS_v2.0.4.rbz" in s
+          assert "const SU_BRIDGE_URL='http://127.0.0.1:8093';" in s
+          print("PASS: Toolbox catalog now points to v2.0.4; browser and local Bridge use 8093")
+
+      - name: Commit release and updated Toolbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.rbz \
+                  SketchUpPlugins/RMToolsSuiteSourceV204 \
+                  index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release RM TOOLS 2.0.4 and cached SketchUp Bridge"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
