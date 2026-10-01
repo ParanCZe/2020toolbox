@@ -1,0 +1,155 @@
+name: Publish RM TOOLS v2.0.3 - direct library insertion
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v203.yml"
+      - "SketchUpPlugins/rmtools_v203_builder.py"
+      - "SketchUpPlugins/ComponentLibrarySourceV032/**"
+      - "SketchUpPlugins/tests/test_direct_library_032.rb"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build RM TOOLS 2.0.3 and Component Library 0.3.2
+        run: python SketchUpPlugins/rmtools_v203_builder.py
+
+      - name: Validate Ruby, JavaScript and package composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/ComponentLibrarySourceV032/dvacet20_component_library.rb
+          ruby -c SketchUpPlugins/ComponentLibrarySourceV032/dvacet20_component_library/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV203/twentytwenty_rm_tools_suite/main.rb
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          plugins=Path("SketchUpPlugins")
+          with (
+              zipfile.ZipFile(plugins/"20-20_RM_TOOLS_v2.0.2.rbz") as old,
+              zipfile.ZipFile(plugins/"20-20_RM_TOOLS_v2.0.3.rbz") as new,
+              zipfile.ZipFile(plugins/"20-20_Component_Library_v0.3.2.rbz") as standalone
+          ):
+              assert new.testzip() is None and standalone.testzip() is None
+              member="dvacet20_component_library/main.rb"
+              main=new.read(member).decode()
+              assert main==standalone.read(member).decode()
+              assert "model.place_component(target_definition, false)" in main
+              assert "register_placement_metadata_observer" in main
+              assert "PlacementConversionObserver" not in main
+              assert "VERSION = '0.3.2'" in main
+              assert "EXTENSION_VERSION = '0.3.2'" in new.read("dvacet20_component_library.rb").decode()
+              assert "EXTENSION_VERSION = '0.3.2'" in standalone.read("dvacet20_component_library.rb").decode()
+              for path in ("twentytwenty_rm_checker/main.rb", "twentytwenty_rm_checker.rb",
+                           "twentytwenty_live_mirror/main_v0418.rb", "twentytwenty_live_mirror/renderer_v0418.html"):
+                  assert old.read(path)==new.read(path),path
+              for path in old.namelist():
+                  if path.startswith("dvacet20_component_library/") and path.endswith(".png"):
+                      assert old.read(path)==new.read(path),path
+          html=Path("SketchUpPlugins/ComponentLibrarySourceV032/dvacet20_component_library/ui/library.html").read_text()
+          assert "bez dalšího obalu" in html
+          start=html.index("<script>")+len("<script>")
+          end=html.index("</script>",start)
+          Path("/tmp/library032.js").write_text(html[start:end],encoding="utf-8")
+          print("PASS: archives, versions and unchanged RM Checker/Live Mirror")
+          PY
+          node --check /tmp/library032.js
+
+      - name: Test inserting existing component without wrapper
+        run: ruby SketchUpPlugins/tests/test_direct_library_032.rb
+
+      - name: Update Toolbox catalog for both releases
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p=Path("index.html")
+          s=p.read_text(encoding="utf-8")
+          catalog=s.index("const SU_PLUGIN_CATALOG = [")
+          releases=(
+              ("rm-tools-suite","2.0.3","20-20_RM_TOOLS_v2.0.3.rbz",
+               "RM TOOLS v2.0.3: Model Library vkládá již hotovou kořenovou komponentu přímo, bez dalšího obalu."),
+              ("component-library-server","0.3.2","20-20_Component_Library_v0.3.2.rbz",
+               "Model Library v0.3.2: přímé vložení původní komponenty bez zbytečného vnoření.")
+          )
+          for plugin_id,version,filename,description in releases:
+              ix=s.index("id:'"+plugin_id+"'",catalog)
+              left=s.rfind("{",catalog,ix)
+              depth=0
+              quote=None
+              escaping=False
+              right=None
+              for i in range(left,len(s)):
+                  c=s[i]
+                  if quote:
+                      if escaping:
+                          escaping=False
+                      elif c=="\\":
+                          escaping=True
+                      elif c==quote:
+                          quote=None
+                  elif c in ("'",'"',chr(96)):
+                      quote=c
+                  elif c=="{":
+                      depth+=1
+                  elif c=="}":
+                      depth-=1
+                      if depth==0:
+                          right=i+1
+                          break
+              assert right is not None
+              block=s[left:right]
+              block,changed=re.subn(r"current:'[^']*'",f"current:'{version}'",block,count=1)
+              assert changed==1
+              block,changed=re.subn(r"meta:'[^']*'",lambda _:"meta:'"+description+"'",block,count=1)
+              assert changed==1
+              assert '"version":"'+version+'"' not in block
+              size=Path("SketchUpPlugins/"+filename).stat().st_size
+              entry='{"version":"'+version+'","file":"'+filename+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+filename+'"}'
+              ver=block.index("versions:[")
+              opening=block.index("[",ver)
+              cursor=opening+1
+              nest=1
+              while nest:
+                  if block[cursor]=="[":
+                      nest+=1
+                  elif block[cursor]=="]":
+                      nest-=1
+                  cursor+=1
+              ending=cursor-1
+              body=block[opening+1:ending].rstrip()
+              if body and not body.endswith(","):
+                  body+=","
+              body+="\n              "+entry+"\n            "
+              block=block[:opening+1]+body+block[ending:]
+              s=s[:left]+block+s[right:]
+          p.write_text(s,encoding="utf-8")
+          assert "20-20_RM_TOOLS_v2.0.3.rbz" in s
+          assert "20-20_Component_Library_v0.3.2.rbz" in s
+          print("PASS: Toolbox catalog updated")
+
+      - name: Commit versioned installers and sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.3.rbz \
+                  SketchUpPlugins/20-20_Component_Library_v0.3.2.rbz \
+                  SketchUpPlugins/RMToolsSuiteSourceV203 index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release RM TOOLS v2.0.3 with direct root component insertion"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
