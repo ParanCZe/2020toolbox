@@ -1,0 +1,149 @@
+name: Publish RM TOOLS v2.0.6 and fix cached web Bridge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v206.yml"
+      - "SketchUpPlugins/rmtools_v206_builder.py"
+      - "SketchUpPlugins/patch_web_bridge_v206.py"
+      - "SketchUpPlugins/ComponentLibrarySourceV034/**"
+      - "SketchUpPlugins/tests/test_library_multi_v034.rb"
+      - "SketchUpPlugins/tests/test_web_bridge_v206.js"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Model Library and RM TOOLS bundles
+        run: python SketchUpPlugins/rmtools_v206_builder.py
+
+      - name: Fix Toolbox web installation to invoke cached Bridge
+        run: python SketchUpPlugins/patch_web_bridge_v206.py
+
+      - name: Verify Ruby, JS, behavior and unchanged other RM modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/ComponentLibrarySourceV034/dvacet20_component_library/main.rb
+          ruby -c SketchUpPlugins/ComponentLibrarySourceV034/dvacet20_component_library.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV206/twentytwenty_rm_tools_suite/main.rb
+          ruby SketchUpPlugins/tests/test_library_multi_v034.rb
+          node SketchUpPlugins/tests/test_web_bridge_v206.js
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          p=Path("SketchUpPlugins")
+          a=p/"20-20_RM_TOOLS_v2.0.5.rbz"
+          b=p/"20-20_RM_TOOLS_v2.0.6.rbz"
+          solo=p/"20-20_Component_Library_v0.3.4.rbz"
+          with zipfile.ZipFile(a) as old, zipfile.ZipFile(b) as new, zipfile.ZipFile(solo) as standalone:
+              assert new.testzip() is None and standalone.testzip() is None
+              for item in ("twentytwenty_rm_checker/main.rb","twentytwenty_rm_checker.rb",
+                           "twentytwenty_live_mirror/main_v0418.rb",
+                           "twentytwenty_live_mirror/renderer_v0418.html"):
+                  assert old.read(item)==new.read(item),item
+              main=new.read("dvacet20_component_library/main.rb").decode()
+              assert "class DirectMultiPlacementTool" in main
+              assert "model.active_entities.add_instance" in main
+              assert "model.place_component(loaded_definition" not in main
+              assert "UI::Command.new('20-20 Knihovna komponent')" not in main
+              assert "model.place_component(root[:definition], false)" in main
+              standalone_main=standalone.read("dvacet20_component_library/main.rb").decode()
+              assert "VERSION = '0.3.4'" in standalone_main
+              assert "class DirectMultiPlacementTool" in standalone_main
+          bridge=Path("SketchUpPluginInstaller/20-20_BRIDGE_V3.bat").read_text()
+          assert 'if not exist "%PS1%" (' in bridge
+          assert bridge.count("Invoke-WebRequest")==1
+          index=Path("index.html").read_text()
+          assert 'const SU_BRIDGE_URL=' in index
+          assert 'const SU_BRIDGE_PORTS=[SU_BRIDGE_URL' in index
+          assert "const status=await ensureSuBridge(true);" in index
+          print("PASS: unchanged RM modules; direct multi-root import; cached BAT; browser-first Bridge")
+          PY
+
+      - name: Register both versions in the Toolbox catalog
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path=Path("index.html")
+          s=path.read_text(encoding="utf-8")
+          start_catalog=s.index("const SU_PLUGIN_CATALOG = [")
+          releases=(
+              ("rm-tools-suite","2.0.6","20-20_RM_TOOLS_v2.0.6.rbz",
+               "RM TOOLS v2.0.6: všech pět částí BIM modelu se vloží přímo bez obalu; web používá uložený Bridge."),
+              ("component-library-server","0.3.4","20-20_Component_Library_v0.3.4.rbz",
+               "Model Library v0.3.4: několik hlavních SKP komponent se vloží vedle sebe bez nové obalové komponenty.")
+          )
+          for plugin_id,ver,file,desc in releases:
+              find=s.index("id:'"+plugin_id+"'",start_catalog)
+              left=s.rfind("{",start_catalog,find)
+              depth=0
+              quote=None
+              escape=False
+              right=None
+              for i in range(left,len(s)):
+                  c=s[i]
+                  if quote:
+                      if escape:escape=False
+                      elif c=="\\":escape=True
+                      elif c==quote:quote=None
+                  elif c in ("'",'"',chr(96)):quote=c
+                  elif c=="{":depth+=1
+                  elif c=="}":
+                      depth-=1
+                      if depth==0:
+                          right=i+1
+                          break
+              assert right is not None
+              obj=s[left:right]
+              obj,n=re.subn(r"current:'[^']*'","current:'"+ver+"'",obj,count=1)
+              assert n==1
+              obj,n=re.subn(r"meta:'[^']*'",lambda _:"meta:'"+desc+"'",obj,count=1)
+              assert n==1
+              if '"version":"'+ver+'"' not in obj:
+                  sz=(Path("SketchUpPlugins")/file).stat().st_size
+                  entry='{"version":"'+ver+'","file":"'+file+'","size":'+str(sz)+',"repo_file":"SketchUpPlugins/'+file+'"}'
+                  key=obj.index("versions:[")
+                  a=obj.index("[",key)
+                  i=a+1
+                  dep=1
+                  while dep:
+                      if obj[i]=="[":dep+=1
+                      elif obj[i]=="]":dep-=1
+                      i+=1
+                  b=i-1
+                  body=obj[a+1:b].rstrip()
+                  if body and not body.endswith(","):body+=","
+                  body+="\n              "+entry+"\n            "
+                  obj=obj[:a+1]+body+obj[b:]
+              s=s[:left]+obj+s[right:]
+          assert "20-20_RM_TOOLS_v2.0.6.rbz" in s
+          assert "20-20_Component_Library_v0.3.4.rbz" in s
+          path.write_text(s,encoding="utf-8")
+          print("PASS: both plugins published in Toolbox plugin catalog")
+
+      - name: Commit released packages, source snapshots and website
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.6.rbz \
+                  SketchUpPlugins/20-20_Component_Library_v0.3.4.rbz \
+                  SketchUpPlugins/RMToolsSuiteSourceV206 index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release direct multi-component library import and cached Bridge web installer"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
