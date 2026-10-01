@@ -1,0 +1,138 @@
+name: Publish RM TOOLS v2.0.5 - no wrapping component on import
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v205.yml"
+      - "SketchUpPlugins/rmtools_v205_builder.py"
+      - "SketchUpPlugins/ComponentLibrarySourceV033/**"
+      - "SketchUpPlugins/tests/test_library_no_wrapper_v033.rb"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build library v0.3.3 and RM TOOLS v2.0.5
+        run: python SketchUpPlugins/rmtools_v205_builder.py
+
+      - name: Validate Ruby, package composition and no-wrapper import
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/ComponentLibrarySourceV033/dvacet20_component_library/main.rb
+          ruby -c SketchUpPlugins/ComponentLibrarySourceV033/dvacet20_component_library.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV205/twentytwenty_rm_tools_suite/main.rb
+          ruby SketchUpPlugins/tests/test_library_no_wrapper_v033.rb
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          p=Path("SketchUpPlugins")
+          with zipfile.ZipFile(p/"20-20_Component_Library_v0.3.3.rbz") as solo, zipfile.ZipFile(p/"20-20_RM_TOOLS_v2.0.5.rbz") as suite, zipfile.ZipFile(p/"20-20_RM_TOOLS_v2.0.4.rbz") as prior:
+              assert solo.testzip() is None and suite.testzip() is None
+              def no_wrapper(z):
+                  s=z.read("dvacet20_component_library/main.rb").decode()
+                  assert "model.place_component(target_definition, false)" in s
+                  assert "model.place_component(loaded_definition" not in s
+                  assert "raise 'Obalová komponenta není povolená.'" in s
+                  return s
+              no_wrapper(solo)
+              no_wrapper(suite)
+              assert "UI::Command.new('20-20 Knihovna komponent')" not in suite.read("dvacet20_component_library/main.rb").decode()
+              for filename in ("twentytwenty_rm_checker/main.rb",
+                               "twentytwenty_rm_checker.rb",
+                               "twentytwenty_live_mirror/main_v0418.rb"):
+                  assert suite.read(filename)==prior.read(filename),filename
+          print("PASS: strict direct placement, unchanged RM tag updates and Live Mirror")
+          PY
+          python - <<'PY'
+          from pathlib import Path
+          s=Path("SketchUpPlugins/ComponentLibrarySourceV033/dvacet20_component_library/ui/library.html").read_text()
+          a=s.index("<script>")+len("<script>")
+          b=s.index("</script>",a)
+          Path("/tmp/library_v033.js").write_text(s[a:b])
+          PY
+          node --check /tmp/library_v033.js
+
+      - name: Publish both versions to Toolbox
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          p=Path("index.html")
+          s=p.read_text(encoding="utf-8")
+          cat=s.index("const SU_PLUGIN_CATALOG = [")
+          targets=(
+             ("rm-tools-suite","2.0.5","20-20_RM_TOOLS_v2.0.5.rbz",
+             "RM TOOLS v2.0.5: Model Library nikdy nevkládá další obalovou komponentu."),
+             ("component-library-server","0.3.3","20-20_Component_Library_v0.3.3.rbz",
+             "Model Library v0.3.3: striktně přímé vložení existující komponenty, bez dalších obalů.")
+          )
+          for name,ver,filename,description in targets:
+              at=s.index("id:'"+name+"'",cat)
+              left=s.rfind("{",cat,at)
+              depth=0
+              quote=None
+              escaped=False
+              right=None
+              for pos in range(left,len(s)):
+                  ch=s[pos]
+                  if quote:
+                      if escaped: escaped=False
+                      elif ch=="\\": escaped=True
+                      elif ch==quote: quote=None
+                  elif ch in ("'",'"',chr(96)): quote=ch
+                  elif ch=="{": depth+=1
+                  elif ch=="}":
+                      depth-=1
+                      if depth==0:
+                          right=pos+1
+                          break
+              assert right is not None,name
+              block=s[left:right]
+              block,changed=re.subn(r"current:'[^']*'",f"current:'{ver}'",block,count=1)
+              assert changed==1
+              block,changed=re.subn(r"meta:'[^']*'",lambda _:"meta:'"+description+"'",block,count=1)
+              assert changed==1
+              if '"version":"'+ver+'"' not in block:
+                  size=(Path("SketchUpPlugins")/filename).stat().st_size
+                  entry='{"version":"'+ver+'","file":"'+filename+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+filename+'"}'
+                  match=block.index("versions:[")
+                  opening=block.index("[",match)
+                  i=opening+1
+                  balance=1
+                  while balance:
+                      if block[i]=="[":balance+=1
+                      if block[i]=="]":balance-=1
+                      i+=1
+                  ending=i-1
+                  body=block[opening+1:ending].rstrip()
+                  if body and not body.endswith(","):body+=","
+                  body+="\n              "+entry+"\n            "
+                  block=block[:opening+1]+body+block[ending:]
+              s=s[:left]+block+s[right:]
+          p.write_text(s,encoding="utf-8")
+          print("PASS: RM TOOLS and standalone Component Library versions updated")
+
+      - name: Commit installers and human-readable sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.5.rbz \
+                  SketchUpPlugins/20-20_Component_Library_v0.3.3.rbz \
+                  SketchUpPlugins/RMToolsSuiteSourceV205 \
+                  index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release RM TOOLS v2.0.5 with strict unwrapped model imports"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
