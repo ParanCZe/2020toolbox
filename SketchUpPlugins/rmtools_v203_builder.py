@@ -57,7 +57,8 @@ def main():
     bundled[stub] = swap(previous, "EXTENSION_VERSION = '0.3.1'", "EXTENSION_VERSION = '0.3.2'").encode("utf-8")
     for member in ("twentytwenty_rm_tools_suite.rb", "twentytwenty_rm_tools_suite/main.rb"):
         data = bundled[member].decode("utf-8")
-        bundled[member] = swap(data, "2.0.2", "2.0.3").encode("utf-8")
+        assert "2.0.2" in data
+        bundled[member] = data.replace("2.0.2", "2.0.3").encode("utf-8")
 
     bundle_out = P / "20-20_RM_TOOLS_v2.0.3.rbz"
     write_zip(bundle_out, bundled)
