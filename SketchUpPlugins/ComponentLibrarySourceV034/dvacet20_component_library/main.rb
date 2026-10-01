@@ -664,7 +664,22 @@ module Dvacet20
       UI.messagebox(message)
     end
 
-    file_loaded(__FILE__) unless file_loaded?(__FILE__)
+    unless file_loaded?(__FILE__)
+      command = UI::Command.new('20-20 Knihovna komponent') { show_dialog }
+      command.tooltip = '20-20 Knihovna komponent'
+      command.status_bar_text = 'Otevře serverovou knihovnu SKP komponent.'
+      small_icon = File.join(__dir__, 'icons', 'library_24.png')
+      large_icon = File.join(__dir__, 'icons', 'library_32.png')
+      command.small_icon = small_icon if File.file?(small_icon)
+      command.large_icon = large_icon if File.file?(large_icon)
+
+      UI.menu('Extensions').add_item(command)
+      toolbar = UI::Toolbar.new('20-20 KOMPONENTY')
+      toolbar.add_item(command)
+      toolbar.restore
+
+      file_loaded(__FILE__)
+    end
 
   end
 end
