@@ -510,7 +510,7 @@ module Dvacet20
       top_level = loaded_definition.entities.to_a
       existing_components = top_level.select { |entity| entity.is_a?(Sketchup::ComponentInstance) }
       if existing_components.length != 1
-        classes = top_level.map { |entity| entity.class.name }.tally
+        classes = top_level.map { |entity| entity.class.name }.each_with_object(Hash.new(0)) { |name, counts| counts[name] += 1 }
         raise "SKP musí mít přesně jednu hlavní komponentu. Načteno: #{existing_components.length}. " \
               "Kořenové objekty: #{classes.map { |k, v| "#{k} (#{v})" }.join(', ')}. " \
               "Další obalovou komponentu knihovna nikdy nevytvoří."
