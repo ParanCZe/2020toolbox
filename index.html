@@ -2666,10 +2666,10 @@ const SU_PLUGIN_CATALOG = [
   id:'rm-tools-suite',
   loader:'twentytwenty_rm_tools_suite.rb',
   name:'20-20 RM TOOLS',
-  current:'2.0.5',
+  current:'2.0.6',
   featured:true,
   description:'MODEL LIBRARY + Nastavení SKP / Záběr / Checker + LIVE Mirror v jednom pluginu.',
-  meta:'RM TOOLS v2.0.5: Model Library nikdy nevkládá další obalovou komponentu.',
+  meta:'RM TOOLS v2.0.6: všech pět částí BIM modelu se vloží přímo bez obalu; web používá uložený Bridge.',
   icon:'library',
   versions:[
     {"version":"2.0.0","file":"20-20_RM_TOOLS_v2.0.0.rbz","size":76481,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.0.rbz"},
@@ -2677,20 +2677,22 @@ const SU_PLUGIN_CATALOG = [
               {"version":"2.0.2","file":"20-20_RM_TOOLS_v2.0.2.rbz","size":77708,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.2.rbz"},
               {"version":"2.0.3","file":"20-20_RM_TOOLS_v2.0.3.rbz","size":77789,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.3.rbz"},
               {"version":"2.0.4","file":"20-20_RM_TOOLS_v2.0.4.rbz","size":77794,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.rbz"},
-              {"version":"2.0.5","file":"20-20_RM_TOOLS_v2.0.5.rbz","size":78205,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.5.rbz"}
+              {"version":"2.0.5","file":"20-20_RM_TOOLS_v2.0.5.rbz","size":78205,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.5.rbz"},
+              {"version":"2.0.6","file":"20-20_RM_TOOLS_v2.0.6.rbz","size":78853,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.6.rbz"}
             ]
 },
 {
   id:'component-library-server',
   loader:'dvacet20_component_library.rb',
   name:'20-20 Component Library',
-  current:'0.3.3',
+  current:'0.3.4',
   description:'Serverová knihovna SKP komponent s náhledy, filtrováním a vložením modelu jedním kliknutím.',
-  meta:'Model Library v0.3.3: striktně přímé vložení existující komponenty, bez dalších obalů.',
+  meta:'Model Library v0.3.4: několik hlavních SKP komponent se vloží vedle sebe bez nové obalové komponenty.',
   icon:'library',
   versions:[{"version":"0.3.1","file":"20-20_Component_Library_v0.3.1.rbz","size":15840,"repo_file":"SketchUpPlugins/20-20_Component_Library_v0.3.1.rbz"},
               {"version":"0.3.2","file":"20-20_Component_Library_v0.3.2.rbz","size":14842,"repo_file":"SketchUpPlugins/20-20_Component_Library_v0.3.2.rbz"},
-              {"version":"0.3.3","file":"20-20_Component_Library_v0.3.3.rbz","size":15252,"repo_file":"SketchUpPlugins/20-20_Component_Library_v0.3.3.rbz"}
+              {"version":"0.3.3","file":"20-20_Component_Library_v0.3.3.rbz","size":15252,"repo_file":"SketchUpPlugins/20-20_Component_Library_v0.3.3.rbz"},
+              {"version":"0.3.4","file":"20-20_Component_Library_v0.3.4.rbz","size":15896,"repo_file":"SketchUpPlugins/20-20_Component_Library_v0.3.4.rbz"}
             ]
 },
 
@@ -2855,14 +2857,54 @@ function downloadSuPluginHelperInstaller(){
   a.href=url;a.download='INSTALL_20-20_SKETCHUP_HELPER_V3.bat';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2500);
   suPluginToast('Helper V3 byl stažen. Spusť ho jen jednou; Bridge se pak spouští z disku bez dalšího stahování.');
 }
-function launchSuBridge(file=''){const f=document.createElement('iframe');f.style.display='none';f.src=file?(SU_BRIDGE_SCHEME+'/install/'+encodeURIComponent(file)):SU_BRIDGE_SCHEME;document.body.appendChild(f);setTimeout(()=>f.remove(),2200)}
-async function suBridgeStatus(){
-  try{const c=new AbortController(),t=setTimeout(()=>c.abort(),800),r=await fetch(SU_BRIDGE_URL+'/status',{cache:'no-store',signal:c.signal});clearTimeout(t);if(!r.ok)return null;return await r.json()}catch(e){return null}
+let suBridgeActiveUrl=null;
+const SU_BRIDGE_PORTS=[SU_BRIDGE_URL,'http://127.0.0.1:8092'];
+
+// This action opens the OS-registered local BAT. It never downloads or builds
+// the bridge. It must be called synchronously in a real button click.
+function launchSuBridge(){
+  const a=document.createElement('a');
+  a.href=SU_BRIDGE_SCHEME;
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
-async function ensureSuBridge(file=''){
-  let s=await suBridgeStatus();if(s&&s.ok)return s;
-  launchSuBridge(file);
-  for(let i=0;i<32;i++){await new Promise(r=>setTimeout(r,250));s=await suBridgeStatus();if(s&&s.ok)return s}
+
+async function suBridgeStatus(){
+  const endpoints=suBridgeActiveUrl
+    ? [suBridgeActiveUrl,...SU_BRIDGE_PORTS.filter(x=>x!==suBridgeActiveUrl)]
+    : SU_BRIDGE_PORTS;
+  const results=await Promise.all(endpoints.map(async base=>{
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),1050);
+    try{
+      const r=await fetch(base+'/status',{cache:'no-store',signal:controller.signal});
+      if(!r.ok)return null;
+      const state=await r.json();
+      if(!state?.ok||!state.sketchup||!state.installed)return null;
+      // Avoid mistaking an unrelated localhost service for SketchUp Bridge.
+      if(state.bridge_version && !String(state.bridge_version).startsWith('3.'))return null;
+      return {base,state};
+    }catch(e){return null}
+    finally{clearTimeout(timeout)}
+  }));
+  const result=results.find(Boolean);
+  suBridgeActiveUrl=result?.base||null;
+  return result?.state||null;
+}
+
+async function ensureSuBridge(alreadyLaunched=false){
+  let status=await suBridgeStatus();
+  if(status?.ok)return status;
+  // In normal web installation launchSuBridge is already called synchronously
+  // from the user's click. This fallback is used for explicit refreshes.
+  if(!alreadyLaunched)launchSuBridge();
+  for(let i=0;i<28;i++){
+    await new Promise(resolve=>setTimeout(resolve,350));
+    status=await suBridgeStatus();
+    if(status?.ok)return status;
+  }
   return null;
 }
 function cmpVer(a,b){const A=String(a||'0').split('.').map(Number),B=String(b||'0').split('.').map(Number);for(let i=0;i<Math.max(A.length,B.length);i++){const x=A[i]||0,y=B[i]||0;if(x>y)return 1;if(x<y)return -1}return 0}
@@ -2876,23 +2918,52 @@ function applyInstalledVersions(installed){
   });
 }
 async function refreshSuPluginVersions(){
-  const s=await ensureSuBridge();
-  if(!s){applyInstalledVersions({});return false}
-  applyInstalledVersions(s.installed||{});return true;
+  // Status discovery on page load must be passive, not re-launch the BAT.
+  const status=await suBridgeStatus();
+  if(!status){
+    SU_PLUGIN_CATALOG.forEach(plugin=>{
+      const el=document.getElementById('suplugin-state-'+plugin.id);
+      if(!el)return;
+      el.className='suplugin-state none';
+      el.textContent='Bridge připraven ke spuštění';
+    });
+    return false;
+  }
+  applyInstalledVersions(status.installed||{});
+  return true;
 }
+
 async function installSuPlugin(id,version){
-  let payload;try{payload=await suPluginBytes(id,version)}catch(e){suPluginToast(e?.message||String(e),true);return}
-  suPluginToast('Zapínám SketchUp Bridge na 2 minuty…');
-  const s=await ensureSuBridge(payload.version.file);
-  if(!s){suPluginToast('Bridge se nespustil. Zkus kliknout znovu; pokud helper V3 nebyl nikdy nainstalovaný, spusť jednorázový instalátor.',true);return}
-  const already=s.installed&&payload.plugin.loader&&s.installed[payload.plugin.loader]===version;
-  if(already){applyInstalledVersions(s.installed);suPluginToast(payload.plugin.name+' v'+version+' nainstalován / aktualizován. Restartuj SketchUp.');return}
+  // Native-protocol invocation happens directly in the user's click. Starting
+  // the BAT from AppData is NOT the same as downloading/installing it again.
+  if(!suBridgeActiveUrl)launchSuBridge();
+  suPluginToast('Spouštím již nainstalovaný SketchUp Bridge z počítače…');
+  const status=await ensureSuBridge(true);
+  if(!status){
+    suPluginToast('Lokální Bridge neodpovídá na portu 8093 ani 8092. Pokud je nainstalovaná stará verze, jednou aktualizuj pomocník přes tlačítko Instalovat Bridge.',true);
+    return;
+  }
+  const requested=suPluginPayload(id,version);
+  if(requested.plugin.loader && status.installed?.[requested.plugin.loader]===version){
+    applyInstalledVersions(status.installed);
+    suPluginToast(requested.plugin.name+' v'+version+' je už nainstalovaný. Případně restartuj SketchUp.');
+    return;
+  }
   try{
-    const r=await fetch(SU_BRIDGE_URL+'/install?file='+encodeURIComponent(payload.version.file),{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:payload.bytes});
-    const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||('HTTP '+r.status));
-    applyInstalledVersions(data.installed||{});
-    suPluginToast(payload.plugin.name+' v'+version+' nainstalován / aktualizován do '+(data.sketchup||'SketchUp')+'. Restartuj SketchUp.');
-  }catch(e){suPluginToast('Instalace selhala: '+(e?.message||e)+'. Diagnostika: %APPDATA%\\2020toolbox\\SketchUpPluginInstaller\\bridge_v3.log',true)}
+    // Download ONLY the requested plugin .rbz, never the Bridge installer.
+    suPluginToast('Bridge je spuštěný. Stahuji pouze vybraný plugin RBZ…');
+    const payload=await suPluginBytes(id,version);
+    const endpoint=suBridgeActiveUrl||SU_BRIDGE_URL;
+    const response=await fetch(endpoint+'/install?file='+encodeURIComponent(payload.version.file),{
+      method:'POST',headers:{'Content-Type':'application/octet-stream'},body:payload.bytes
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||!result.ok)throw new Error(result.error||('HTTP '+response.status));
+    applyInstalledVersions(result.installed||{});
+    suPluginToast(payload.plugin.name+' v'+version+' nainstalován do '+(result.sketchup||'SketchUp')+'. Restartuj SketchUp.');
+  }catch(error){
+    suPluginToast('Instalace selhala: '+(error?.message||error)+'. Diagnostika: %APPDATA%\\2020toolbox\\SketchUpPluginInstaller\\bridge_v3.log',true);
+  }
 }
 
 let suToastTimer=null;function suPluginToast(msg,error=false){const el=document.getElementById('suplugins-toast');if(!el)return;el.textContent=msg;el.style.background=error?'#7f1d1d':'#18181b';el.classList.add('show');clearTimeout(suToastTimer);suToastTimer=setTimeout(()=>el.classList.remove('show'),5200)}
