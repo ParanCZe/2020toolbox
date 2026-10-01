@@ -90,6 +90,10 @@ class MockLayers < Hash
   def add(name); self[name]=OpenStruct.new(name:name); end
 end
 
+class MockSelection < Array
+  def add(instance); self << instance; end
+end
+
 class MockModel
   attr_reader :active_entities,:layers,:materials,:selection,:removed,:started,:committed
   attr_reader :tool,:native_placements
@@ -98,7 +102,7 @@ class MockModel
     @active_entities=MockEntities.new([],self)
     @layers=MockLayers.new
     @materials={}
-    @selection=[]
+    @selection=MockSelection.new
     @removed=[]
     @started=0
     @committed=0
