@@ -1,0 +1,93 @@
+name: Restore RM TOOLS 2.0.4 as current
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/restore-rm-tools-v204.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore released 2.0.4 and its library 0.3.2
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path("index.html")
+          data = path.read_text(encoding="utf-8")
+          assert Path("SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.rbz").is_file()
+          assert Path("SketchUpPlugins/20-20_Component_Library_v0.3.2.rbz").is_file()
+          assert "let suBridgeActiveUrl=null;" in data, "Do not revert cached web Bridge"
+          assert "const SU_BRIDGE_PORTS=[SU_BRIDGE_URL" in data
+
+          start = data.index("const SU_PLUGIN_CATALOG = [")
+          def update_plugin(page, ident, expected, old_versions, current, meta):
+              marker = "id:'" + ident + "'"
+              at = page.index(marker,start)
+              left = page.rfind("{",start,at)
+              depth = 0
+              quote = None
+              escaped = False
+              right = None
+              for i in range(left,len(page)):
+                  char = page[i]
+                  if quote:
+                      if escaped: escaped=False
+                      elif char=="\\": escaped=True
+                      elif char==quote: quote=None
+                      continue
+                  if char in ("'",'"',chr(96)): quote=char
+                  elif char=="{": depth+=1
+                  elif char=="}":
+                      depth-=1
+                      if depth==0:
+                          right=i+1
+                          break
+              assert right is not None
+              block=page[left:right]
+              assert "current:'" + expected + "'" in block, (ident,block[:190])
+              block, n = re.subn(r"current:'[^']*'", "current:'"+current+"'", block, count=1)
+              assert n==1
+              block, n = re.subn(r"meta:'[^']*'", lambda _: "meta:'"+meta+"'", block, count=1)
+              assert n==1
+              for version in old_versions:
+                  pattern = r",?\s*\{\"version\":\"" + re.escape(version) + r"\"[^}]*\}"
+                  block, n = re.subn(pattern,"",block,count=1)
+                  assert n==1,(ident,version)
+              assert '"version":"' + current + '"' in block
+              return page[:left]+block+page[right:]
+
+          data=update_plugin(data,"rm-tools-suite","2.0.6",["2.0.5","2.0.6"],"2.0.4",
+              "Obnovena původní v2.0.4: původní způsob vkládání se zachováním nuly zdrojového SKP.")
+          data=update_plugin(data,"component-library-server","0.3.4",["0.3.3","0.3.4"],"0.3.2",
+              "Obnovena knihovna v0.3.2, která odpovídá RM TOOLS v2.0.4.")
+          assert "let suBridgeActiveUrl=null;" in data
+          assert "const status=await ensureSuBridge(true);" in data
+          assert "current:'2.0.4'" in data and "current:'0.3.2'" in data
+          path.write_text(data,encoding="utf-8")
+          print("PASS: Restored exactly RM TOOLS 2.0.4 and Library 0.3.2")
+          print("PASS: experimental 2.0.5/2.0.6 no longer offered in Toolbox")
+          print("PASS: fixed cached web Bridge implementation unchanged")
+
+      - name: Commit Toolbox rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Rollback current RM TOOLS to v2.0.4 and Library to 0.3.2"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
