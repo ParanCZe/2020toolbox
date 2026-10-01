@@ -1,0 +1,137 @@
+name: Publish RM TOOLS 2.0.2 - RM tag migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v202.yml"
+      - "SketchUpPlugins/rmtools_v202_builder.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build non-destructive tag updater and RM TOOLS bundle
+        run: python SketchUpPlugins/rmtools_v202_builder.py
+
+      - name: Validate Ruby, bundled files, UI and migration rules
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV202/twentytwenty_rm_tools_suite.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV202/twentytwenty_rm_tools_suite/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV202/twentytwenty_rm_checker.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV202/twentytwenty_rm_checker/main.rb
+          python - <<'PY'
+          from pathlib import Path
+          import re, zipfile
+          root = Path("SketchUpPlugins")
+          original = root / "20-20_RM_TOOLS_v2.0.1.rbz"
+          updated = root / "20-20_RM_TOOLS_v2.0.2.rbz"
+          standalone = root / "20-20_RM_Tools_v1.2.2.rbz"
+          for path in (updated, standalone):
+              with zipfile.ZipFile(path) as z:
+                  assert z.testzip() is None
+                  names = set(z.namelist())
+                  assert "twentytwenty_rm_checker/main.rb" in names
+                  main = z.read("twentytwenty_rm_checker/main.rb").decode("utf-8")
+                  assert "def update_tag_tree" in main and "rm_update_tags" in main
+                  assert "old.layers.empty? && old.folders.empty?" in main
+                  assert "Ctrl+Z" in main
+                  assert "SLOUPY" in main and "PODHLED" in main
+                  assert "DVERE DOPLNKY OSVETLENI" in main
+                  assert "'POVRCHY' =>" not in main
+                  assert main.count("def apply_tag_tree") == 1
+                  assert "tags.empty?" in main and "layer.folder = root" in main
+          with zipfile.ZipFile(original) as old, zipfile.ZipFile(updated) as new:
+              for filename in ("dvacet20_component_library/main.rb",
+                               "twentytwenty_live_mirror/main_v0418.rb"):
+                  assert old.read(filename) == new.read(filename), filename
+          main = Path("SketchUpPlugins/RMToolsSuiteSourceV202/twentytwenty_rm_checker/main.rb").read_text()
+          start = main.index("<script>") + len("<script>")
+          end = main.index("</script>", start)
+          Path("/tmp/rmtools_v202_ui.js").write_text(main[start:end])
+          print("PASS: both ZIPs, Ruby sources, tag migration and unchanged adjacent modules")
+          PY
+          node --check /tmp/rmtools_v202_ui.js
+
+      - name: Publish v2.0.2 in Toolbox plugin catalog
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          repo = Path("index.html")
+          s = repo.read_text(encoding="utf-8")
+          marker = "const SU_PLUGIN_CATALOG = ["
+          anchor = s.index(marker)
+          hit = s.index("id:'rm-tools-suite'", anchor)
+          beginning = s.rfind("{", anchor, hit)
+          depth, quote, escape, ending = 0, None, False, None
+          for i in range(beginning, len(s)):
+              c = s[i]
+              if quote:
+                  if escape:
+                      escape = False
+                  elif c == "\\":
+                      escape = True
+                  elif c == quote:
+                      quote = None
+                  continue
+              if c in ("'", '"', chr(96)):
+                  quote = c
+              elif c == "{":
+                  depth += 1
+              elif c == "}":
+                  depth -= 1
+                  if depth == 0:
+                      ending = i + 1
+                      break
+          assert ending is not None
+          block = s[beginning:ending]
+          block, changed = re.subn(r"current:'[^']*'", "current:'2.0.2'", block, count=1)
+          assert changed == 1
+          block, changed = re.subn(
+              r"meta:'[^']*'",
+              "meta:'RM tagy: nové ARCH povrchy, SLOUPY, PODHLED; PRVKY rozšířeny o DVERE, DOPLNKY a OSVETLENI. Nové tlačítko Aktualizovat RM tagy.'",
+              block, count=1)
+          assert changed == 1
+          if '"version":"2.0.2"' not in block:
+              size = Path("SketchUpPlugins/20-20_RM_TOOLS_v2.0.2.rbz").stat().st_size
+              entry = (
+                  '{"version":"2.0.2","file":"20-20_RM_TOOLS_v2.0.2.rbz",'
+                  f'"size":{size},"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.2.rbz"}}'
+              )
+              block, changed = re.subn(
+                  r'(\{"version":"2\.0\.1"[^}]*\})',
+                  lambda m: m.group(1) + ",\n              " + entry,
+                  block, count=1)
+              assert changed == 1, "Base suite catalog version 2.0.1 was not found"
+          s = s[:beginning] + block + s[ending:]
+          repo.write_text(s, encoding="utf-8")
+          assert "20-20_RM_TOOLS_v2.0.2.rbz" in block
+          print("PASS: Toolbox catalog updated to suite 2.0.2")
+
+      - name: Commit release files and readable sources
+        shell: bash
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            SketchUpPlugins/20-20_RM_TOOLS_v2.0.2.rbz \
+            SketchUpPlugins/20-20_RM_Tools_v1.2.2.rbz \
+            SketchUpPlugins/RMToolsSuiteSourceV202 \
+            index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release RM TOOLS 2.0.2 with non-destructive RM tag updates"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
