@@ -27,7 +27,7 @@ assert b"VERSION = '2.0.6.0'" in new["twentytwenty_rm_tools_suite/main.rb"]
 assert b"EXTENSION_VERSION = '2.0.6.0'" in new["twentytwenty_rm_tools_suite.rb"]
 assert b"VERSION = '0.2.0'" in new["twentytwenty_rm_managers/main.rb"]
 assert set(old).issubset(set(new))
-allowed = {"twentytwenty_rm_tools_suite/main.rb", "twentytwenty_rm_tools_suite.rb", "twentytwenty_rm_managers/main.rb", "twentytwenty_rm_managers/scene_experience.rb", "twentytwenty_rm_managers/scene_ui.js", "twentytwenty_rm_managers/floorplan.rb"}
+allowed = {"twentytwenty_rm_tools_suite/main.rb", "twentytwenty_rm_tools_suite.rb", "twentytwenty_rm_managers/main.rb", "twentytwenty_rm_managers/scene_experience.rb", "twentytwenty_rm_managers/floorplan.rb"}
 assert {x for x in old if old[x]!=new[x]} == allowed
 with ZipFile(output,"w",compression=ZIP_DEFLATED,compresslevel=6) as f:
     for name,data in sorted(new.items()): f.writestr(name,data)
