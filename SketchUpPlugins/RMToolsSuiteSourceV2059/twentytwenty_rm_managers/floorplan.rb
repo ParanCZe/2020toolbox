@@ -155,14 +155,18 @@ module TwentyTwenty
                       'yaxis'=>[(c.x-a.x).to_f/width,(c.y-a.y).to_f/height],
                       'world_center'=>[cx.to_f,cy.to_f], 'world_unit'=>1.m.to_f}
               path = raster_file(model)
+              # Keep the cached screenshot small; position mapping stays
+              # normalized to the ORIGINAL viewport dimensions above.
+              image_width = [width, 1080].min
+              image_height = [(image_width*height.to_f/width).round, 100].max
               ok = begin
-                view.write_image(filename:path, width:width, height:height, antialias:false)
+                view.write_image(filename:path, width:image_width, height:image_height, antialias:false)
               rescue ArgumentError
                 view.write_image(path)
               end
               raise 'SketchUp neuložil obrázek. Zkontroluj práva zápisu do místní složky.' unless ok && File.file?(path) && File.size(path)>0
               File.write(meta_file(model),JSON.generate({'rect'=>rect,'region'=>region.map(&:to_f),
-                'cut_z'=>z.to_f,'width'=>width,'height'=>height}))
+                'cut_z'=>z.to_f,'width'=>image_width,'height'=>image_height}))
               @cache.delete(path) if @cache
               job[:success] = true
             rescue StandardError => e
