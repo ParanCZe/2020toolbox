@@ -44,11 +44,11 @@ const sandbox={
 vm.createContext(sandbox);
 vm.runInContext(native+'\nwindow.renderSketchUpPlugins=renderSketchUpPlugins;\n'+status.slice(a,z+5),sandbox);
 sandbox.window.renderSketchUpPlugins();
-assert.equal((elements['suplugins-grid'].innerHTML.match(/class="suplugin-card/g)||[]).length,1,'Main must have exactly ONE plugin');
+assert.equal((elements['suplugins-grid'].innerHTML.match(/<article class="suplugin-card/g)||[]).length,1,'Main must have exactly ONE plugin');
 assert(elements['suplugins-grid'].innerHTML.includes('id="suplugin-rm-tools-suite"'));
 assert(elements['suplugins-grid'].innerHTML.includes('class="suplugin-card featured"'),'Featured card must retain large card CSS class');
 assert(!elements['suplugins-grid'].innerHTML.includes('id="suplugin-live-mirror"'));
-assert.equal((elements['suplugins-legacy-grid'].innerHTML.match(/class="suplugin-card/g)||[]).length,3,'ALL old plugins must be inside the Legacy details');
+assert.equal((elements['suplugins-legacy-grid'].innerHTML.match(/<article class="suplugin-card/g)||[]).length,3,'ALL old plugins must be inside the Legacy details');
 for(const legacy of products.slice(1))assert(elements['suplugins-legacy-grid'].innerHTML.includes('id="suplugin-'+legacy.id+'"'),legacy.id);
 assert.equal(elements['legacy-plugin-count'].textContent,'3 pluginů');
 assert.equal(bridgeCount,1);
