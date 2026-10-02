@@ -76,7 +76,7 @@ jobs:
           base="https://meye.dk/wp-json/wp/v2/"
           urls=[
              base+"project_category?per_page=100&_fields=id,name,slug",
-             base+"project?per_page=2&_embed=wp%3Afeaturedmedia&_fields=id%2Ctitle%2Clink%2Cfeatured_media%2Cproject_category%2C_embedded"
+             base+"project?per_page=2&_embed=1"
           ]
           for url in urls:
               req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 (20-20 Meye catalog metadata test)"})
