@@ -22,8 +22,10 @@
 .rm-map-refresh{width:100%;margin-top:7px;border:1px solid #4a5968;background:#252d37;color:#f0f4f7;cursor:pointer;border-radius:7px;padding:8px}
 .rm-mini-map .rm-map-base{display:block;width:100%;height:auto;border-radius:5px}
 .rm-mini-map .rm-map-overlay{position:absolute;inset:5px;width:calc(100% - 10px);height:calc(100% - 10px);pointer-events:none}
-.rm-mini-map .rm-cam-spot{position:absolute;border:0;background:transparent;padding:0;cursor:pointer;transform:translate(-50%,-50%);width:20px;height:20px}
-.rm-mini-map .rm-cam-spot svg{height:20px;min-height:unset;max-height:20px}
+.rm-mini-map .rm-cam-spot{position:absolute;z-index:3;border:0;background:transparent;padding:0;cursor:pointer;transform:translate(-50%,-50%);width:36px;height:36px;filter:drop-shadow(0 1px 3px #000d);transition:filter .14s ease,scale .14s ease}
+.rm-mini-map .rm-cam-spot svg{width:36px;height:36px;min-height:unset;max-height:36px;overflow:visible}
+.rm-mini-map .rm-cam-spot:hover,.rm-mini-map .rm-cam-selected{z-index:5;filter:drop-shadow(0 0 5px #ffd941)}
+.rm-mini-map .rm-cam-spot:hover{scale:1.16}
 
 /* v2.0.5.8 – single preset editor */
 #viewTools .rm-chosen,#viewTools .lensgrid .rm-chosen{
