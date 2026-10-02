@@ -2,7 +2,7 @@
   'use strict';
   if(!window.Manager)return;
   let state={scenes:[],section:{segments:[],bounds:[0,0,1,1]}};
-  let selectedName=null,clickTimer=null;
+  let selectedId=null,clickTimer=null;
   const oldReceive=Manager.receive.bind(Manager);
   const oldDraw=Manager.draw.bind(Manager);
   const oldPick=Manager.pickScene.bind(Manager);
@@ -12,7 +12,7 @@
   const get=id=>document.getElementById(id);
 
   function sceneForSettings(){
-    return state.scenes.find(s=>s.name===selectedName) ||
+    return state.scenes.find(s=>s.id===selectedId) ||
            state.scenes.find(s=>s.selected) || null;
   }
   function renderSettings(){
@@ -36,7 +36,7 @@
         e.preventDefault();
         const scene=sceneForSettings();
         if(!scene){get('message').textContent='Nejdříve vyber scénu.';return;}
-        send({kind:'quick_lens',name:scene.name,mm});
+        send({kind:'quick_lens',id:scene.id,mm});
       };
     });
     // No second click needed and no duplicate frame-change callbacks.
@@ -48,7 +48,7 @@
         e.preventDefault();
         const scene=sceneForSettings();
         if(!scene){get('message').textContent='Nejdříve vyber scénu.';return;}
-        send({kind:'quick_ratio',name:scene.name,ratio:get('viewRatio').value});
+        send({kind:'quick_ratio',id:scene.id,ratio:get('viewRatio').value});
       };
     }
     if(off){
@@ -57,20 +57,20 @@
         e.preventDefault();
         const scene=sceneForSettings();
         if(!scene){get('message').textContent='Nejdříve vyber scénu.';return;}
-        send({kind:'quick_ratio',name:scene.name,ratio:'off'});
+        send({kind:'quick_ratio',id:scene.id,ratio:'off'});
       };
     }
     const heightButton=Array.from(tools.querySelectorAll('button')).find(x=>x.textContent.trim()==='Výška 1,8 m');
     if(heightButton)heightButton.onclick=e=>{
       e.preventDefault();const scene=sceneForSettings();
       if(!scene){get('message').textContent='Nejdříve vyber scénu.';return;}
-      send({kind:'quick_height',name:scene.name});
+      send({kind:'quick_height',id:scene.id});
     };
     const twoButton=Array.from(tools.querySelectorAll('button')).find(x=>x.textContent.trim()==='2-bodová perspektiva');
     if(twoButton)twoButton.onclick=e=>{
       e.preventDefault();const scene=sceneForSettings();
       if(!scene){get('message').textContent='Nejdříve vyber scénu.';return;}
-      send({kind:'quick_two_point',name:scene.name});
+      send({kind:'quick_two_point',id:scene.id});
     };
   }
   const create=get('rmCreateName'),createBtn=get('rmCreateScene');
@@ -117,10 +117,10 @@
       '<div class="line"><input id="rmRename" value="'+escapeHtml(scene.name)+'" aria-label="Název scény"/>'+
       '<button id="rmRenameBtn" type="button">Přejmenovat</button></div>'+
       '<button id="rmDeleteScene" class="rm-delete" type="button">Smazat scénu</button>';
-    get('rmUpdateView').addEventListener('click',()=>send({kind:'update_view',name:scene.name}));
-    get('rmRenameBtn').addEventListener('click',()=>send({kind:'rename',name:scene.name,new_name:get('rmRename').value}));
+    get('rmUpdateView').addEventListener('click',()=>send({kind:'update_view',id:scene.id}));
+    get('rmRenameBtn').addEventListener('click',()=>send({kind:'rename',id:scene.id,new_name:get('rmRename').value}));
     get('rmDeleteScene').addEventListener('click',()=>{
-      if(confirm('Opravdu smazat scénu '+scene.name+'?'))send({kind:'delete',name:scene.name});
+      if(confirm('Opravdu smazat scénu '+scene.name+'?'))send({kind:'delete',id:scene.id});
     });
     renderSettings();
   }
@@ -141,8 +141,8 @@
     if(!tree)return;
     const query=(get('search')?.value||'').toLocaleLowerCase('cs').trim();
     tree.innerHTML=state.scenes.filter(s=>s.name.toLocaleLowerCase('cs').includes(query)).map(s=>
-      '<div class="rm-scene-row '+(s.name===selectedName||s.selected&&!selectedName?'selected':'')+
-      '" data-scene="'+escapeHtml(s.name)+'" title="Dvojklik přepne na scénu">'+
+      '<div class="rm-scene-row '+(s.id===selectedId||s.selected&&!selectedId?'selected':'')+
+      '" data-id="'+escapeHtml(s.id)+'" data-scene="'+escapeHtml(s.name)+'" title="Dvojklik přepne na scénu">'+
       (s.preview?'<img class="rm-scene-thumb" src="'+s.preview+'" alt="Náhled '+escapeHtml(s.name)+'"/>':
        '<div class="rm-scene-no-thumb">KAMERA</div>')+
       '<div class="rm-scene-info"><strong>'+escapeHtml(s.name)+'</strong><small>'+
@@ -152,12 +152,12 @@
       row.addEventListener('click',e=>{
         if(e.detail>1)return;
         if(clickTimer)clearTimeout(clickTimer);
-        clickTimer=setTimeout(()=>{selectedName=row.dataset.scene;oldPick(selectedName);renderRows();renderDetails();},240);
+        clickTimer=setTimeout(()=>{selectedId=row.dataset.id;oldPick(row.dataset.scene);renderRows();renderDetails();},240);
       });
       row.addEventListener('dblclick',()=>{
         if(clickTimer)clearTimeout(clickTimer);
-        selectedName=row.dataset.scene;
-        oldActivate(selectedName);renderRows();renderDetails();
+        selectedId=row.dataset.id;
+        oldActivate(row.dataset.scene);renderRows();renderDetails();
       });
     });
   }
@@ -200,17 +200,21 @@
       const dir=scene.direction||[0,1];
       // +X world points right; +Y world points up in our north-up top camera.
       const northRadians=Math.atan2(-dir[1],dir[0]),deg=northRadians*180/Math.PI;
-      const selected=scene.name===selectedName||(!selectedName&&scene.selected);
-      const col=selected?'#ffd52a':'#fff';
+      const selected=scene.id===selectedId||(!selectedId&&scene.selected);
+      const col=selected?'#ffdb31':'#ffec8c';
       const marker=document.createElement('button');
       marker.className='rm-cam-spot';
       marker.title=scene.name;
       marker.style.left=(uv[0]*100)+'%';
       marker.style.top=(uv[1]*100)+'%';
       marker.setAttribute('aria-label',scene.name+' – dvojklik aktivuje záběr');
-      marker.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22">'+
-        '<circle cx="11" cy="11" r="4.3" fill="'+col+'" stroke="#121922" stroke-width="1.6"/>'+
-        '<path d="M17 11L12 8L12 14Z" transform="rotate('+deg+' 11 11)" fill="'+col+'" stroke="#121922" stroke-width=".6"/></svg>';
+      marker.classList.toggle('rm-cam-selected',selected);
+      marker.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" aria-hidden="true">'+
+        '<g transform="rotate('+deg+' 18 18)">'+
+        '<path d="M17.5 2L26 16H10Z" fill="'+col+'" stroke="#111820" stroke-width="2" stroke-linejoin="round"/>'+
+        '<circle cx="18" cy="20" r="9.5" fill="#121a23" stroke="#fff" stroke-width="1.5"/>'+
+        '<circle cx="18" cy="20" r="6.5" fill="'+col+'" stroke="#141b20" stroke-width="1.8"/>'+
+        '<circle cx="18" cy="20" r="2.4" fill="#1a222b"/></g></svg>';
       marker.addEventListener('mouseenter',e=>{
         tip.innerHTML='<strong>'+escapeHtml(scene.name)+'</strong>'+
           (scene.preview?'<img src="'+scene.preview+'" alt="Náhled záběru"/>':
@@ -223,11 +227,11 @@
       marker.addEventListener('click',e=>{
         if(e.detail>1)return;
         if(clickTimer)clearTimeout(clickTimer);
-        clickTimer=setTimeout(()=>{selectedName=scene.name;oldPick(scene.name);renderAll();},240);
+        clickTimer=setTimeout(()=>{selectedId=scene.id;oldPick(scene.name);renderAll();},240);
       });
       marker.addEventListener('dblclick',()=>{
         if(clickTimer)clearTimeout(clickTimer);
-        selectedName=scene.name;
+        selectedId=scene.id;
         oldActivate(scene.name);
         renderAll();
       });
@@ -239,7 +243,7 @@
   Manager.receive=function(data){
     state=data;
     oldReceive(data);
-    if(selectedName&&!data.scenes.some(s=>s.name===selectedName))selectedName=null;
+    if(selectedId&&!data.scenes.some(s=>s.id===selectedId))selectedId=null;
     renderAll();
   };
   Manager.draw=function(){oldDraw();renderAll();};
@@ -251,8 +255,14 @@
     if(ratio && current.ratio && Array.from(ratio.options).some(o=>o.value===current.ratio))ratio.value=current.ratio;
     if(projection)projection.textContent=(current.two_point?'2-bod ON · ':'')+(current.perspective?'Perspektiva':'Rovnoběžné promítání');
   };
+  Manager.renamed=function(info){
+    selectedId=info.id;
+    const scene=state.scenes.find(x=>x.id===info.id);
+    if(scene)scene.name=info.name;
+    renderAll();
+  };
   Manager.updatePreview=function(info){
-    const scene=state.scenes.find(x=>x.name===info.name);
+    const scene=state.scenes.find(x=>x.id===info.id);
     if(scene){scene.preview=info.preview;renderAll();}
   };
   const ratio=get('viewRatio');
@@ -260,7 +270,7 @@
     ratio.addEventListener('change',function(){
       const scene=sceneForSettings();
       if(!scene){get('message').textContent='Nejdříve vyber scénu.';return;}
-      send({kind:'quick_ratio',name:scene.name,ratio:this.value});
+      send({kind:'quick_ratio',id:scene.id,ratio:this.value});
     });
   }
 })();
