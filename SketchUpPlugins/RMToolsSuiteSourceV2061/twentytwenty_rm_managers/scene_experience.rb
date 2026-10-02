@@ -52,6 +52,7 @@ module TwentyTwenty
           cam = page.camera
           data[:eye] = [cam.eye.x.to_f, cam.eye.y.to_f]
           data[:direction] = [cam.direction.x.to_f, cam.direction.y.to_f]
+          data[:up] = [cam.up.x.to_f, cam.up.y.to_f]
           data[:preview] = SceneVisuals.preview_base64(model, page)
         end
         result
@@ -181,17 +182,26 @@ module TwentyTwenty
           # A selected card is a stable scene ID. Do not silently update a
           # different active scene if that ID is missing or stale.
           raise 'Vyber scénu, kterou chceš aktualizovat.' unless page
-          # Update only the saved camera's orientation directly; page.update
-          # also copies other scene properties, while view.camera= can change
-          # the visible camera, FOV and 2-point perspective unexpectedly.
+          # Snapshot the current viewport camera directly into this exact
+          # scene, without activating the page or assigning to view.camera.
+          # Camera#set on a saved page can reorient the up vector / 2-point
+          # state; SketchUp's PAGE_USE_CAMERA snapshot preserves the view.
           current = view.camera
           model.start_operation('RM aktualizovat polohu záběru', true)
           begin
+            previous = page.camera
+            keep_ratio = previous.aspect_ratio
+            keep_fov = previous.fov if previous.perspective?
+            keep_perspective = previous.perspective?
+            ok = page.update(PAGE_USE_CAMERA)
+            raise 'SketchUp neuložil aktuální pohled.' if ok == false
             saved = page.camera
-            saved.set(current.eye, current.target, current.up)
+            # Do not reset camera vectors after snapshot. Restore only the
+            # stored lens and aspect (user-adjustable via the top presets).
+            saved.perspective = keep_perspective if saved.perspective? != keep_perspective
+            saved.fov = keep_fov if keep_perspective && keep_fov
+            saved.aspect_ratio = keep_ratio
             page.use_camera = true
-            # Keep the scene's saved focal length, projection, aspect ratio,
-            # style, shadow and tag visibility unchanged.
             model.commit_operation
             SceneVisuals.clear(model, page)
             notify(:scenes, "Poloha scény #{page.name} uložena. Ohnisko, poměr stran a pohled zůstaly beze změny; náhled se obnoví po aktivaci.")
