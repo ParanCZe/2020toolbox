@@ -90,7 +90,7 @@ taxonomy=[
 full='https://meye.dk/wp-content/uploads/2024/01/meye_acer-platanoides_s14850.png'
 thumb='https://meye.dk/wp-content/uploads/2024/01/meye_acer-platanoides_s14850-203x300.png'
 record={
- 'id'=>8647,'title'=>{'rendered'=>'Acer platanoides'},
+ 'id'=>8647,'featured_media'=>8646,'title'=>{'rendered'=>'Acer platanoides'},
  'link'=>'https://meye.dk/project/acer-platanoides/',
  'project_category'=>[36,3],
  '_embedded'=>{'wp:featuredmedia'=>[{
