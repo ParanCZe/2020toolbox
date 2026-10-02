@@ -72,12 +72,18 @@
     };
   }
   const create=get('rmCreateName'),createBtn=get('rmCreateScene');
-  if(create)create.addEventListener('input',()=>{create.dataset.auto='no';});
-  if(createBtn)createBtn.addEventListener('click',()=>{
+  if(create && !create.dataset.rmBound){
+    create.dataset.rmBound='yes';
+    create.addEventListener('input',()=>{create.dataset.auto='no';});
+  }
+  if(createBtn && !createBtn.dataset.rmBound){
+    createBtn.dataset.rmBound='yes';
+    createBtn.addEventListener('click',()=>{
     if(!create.value.trim()){get('message').textContent='Zadej název nové scény.';return;}
     send({kind:'create',name:create.value.trim()});
     create.dataset.auto='yes';
-  });
+    });
+  }
   const ratio=get('viewRatio');
     if(ratio && selectedRatio && Array.from(ratio.options).some(o=>o.value===selectedRatio)){
       ratio.value=selectedRatio;
@@ -150,7 +156,7 @@
       row.addEventListener('click',e=>{
         if(e.detail>1)return;
         if(clickTimer)clearTimeout(clickTimer);
-        clickTimer=setTimeout(()=>{selectedId=row.dataset.id;send({kind:'refresh'});renderRows();renderDetails();},240);
+        clickTimer=setTimeout(()=>{selectedId=row.dataset.id;renderRows();renderDetails();},240);
       });
       row.addEventListener('dblclick',()=>{
         if(clickTimer)clearTimeout(clickTimer);
@@ -209,9 +215,9 @@
       marker.classList.toggle('rm-cam-selected',selected);
       marker.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" aria-hidden="true">'+
         '<g transform="rotate('+deg+' 18 18)">'+
-        '<path d="M17.5 2L26 16H10Z" fill="'+col+'" stroke="#111820" stroke-width="2" stroke-linejoin="round"/>'+
-        '<circle cx="18" cy="20" r="9.5" fill="#121a23" stroke="#fff" stroke-width="1.5"/>'+
-        '<circle cx="18" cy="20" r="6.5" fill="'+col+'" stroke="#141b20" stroke-width="1.8"/>'+
+        '<path d="M18 0L30 20H6Z" fill="'+col+'" stroke="#050b10" stroke-width="3.5" stroke-linejoin="round"/>'+
+        '<circle cx="18" cy="20" r="11" fill="#121a23" stroke="#fff" stroke-width="2.5"/>'+
+        '<circle cx="18" cy="20" r="8" fill="'+col+'" stroke="#141b20" stroke-width="2.2"/>'+
         '<circle cx="18" cy="20" r="2.4" fill="#1a222b"/></g></svg>';
       marker.addEventListener('mouseenter',e=>{
         tip.innerHTML='<strong>'+escapeHtml(scene.name)+'</strong>'+
