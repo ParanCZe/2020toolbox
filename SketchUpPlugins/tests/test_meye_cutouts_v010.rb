@@ -55,7 +55,7 @@ end
 class FakeDefinitions
   attr_reader :added
   def initialize;@added=[];end
-  def add(name);@added<<FakeDefinition.new;end
+  def add(_name);defn=FakeDefinition.new;@added << defn;defn;end
 end
 class FakeMaterials < Hash
   def add(name)
