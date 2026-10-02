@@ -42,7 +42,7 @@ jobs:
           assert "EXTERIER - HLAVNI" in s
           assert "set_focal_35" in s and "Math.tan" in s
           assert "kind:'frame'" in s and "kind:'two_point'" in s
-          assert "SCENE_OPTIONS" in s
+          assert "scene_options" in s
           assert "activateScene(name)" in s
           checker=Path("SketchUpPlugins/RMToolsSuiteSourceV2052/twentytwenty_rm_tools_suite/camera_consistency.rb").read_text()
           assert "cam.fov =" in checker and "36.0" in checker
