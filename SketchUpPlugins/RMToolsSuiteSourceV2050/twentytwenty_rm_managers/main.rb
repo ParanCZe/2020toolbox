@@ -204,9 +204,7 @@ module TwentyTwenty
       data = roots.first
       definition = data[:definition]
       raise 'Neplatná definice modelu.' unless definition
-      targets = request[:all] ? m.definitions.to_a.flat_map { |definition_parent|
-        definition_parent.instances.select { |inst| inst.valid? && inst.definition == old.definition }
-      } : [old]
+      targets = request[:all] ? old.definition.instances.select(&:valid?) : [old]
       # Definition swap keeps each instance's transformation, tag, hidden state,
       # and instance-level metadata. No geometry deletion or placement click.
       m.start_operation('RM Replace Component', true)
@@ -255,7 +253,8 @@ module TwentyTwenty
         page.update
       when 'update'
         raise 'Scéna nenalezena.' unless page
-        model.pages.selected_page = page
+        # page.update captures current viewport; selecting the saved page first
+        # would discard the user's current camera before updating.
         page.update
       when 'rename'
         raise 'Scéna nenalezena.' unless page
