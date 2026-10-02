@@ -149,12 +149,17 @@ module TwentyTwenty
     def remote_catalog(params)
       page = [[params['page'].to_i, 1].max, 30].min
       search = params['search'].to_s.strip[0, 80]
-      category = params['category'].to_s.strip.downcase
+      season = params['season'].to_s.strip.downcase
+      genus = params['species'].to_s.strip.downcase
       categories = taxonomy
       seasons = categories.select { |_id, row| SEASONS.include?(row['slug']) }
       species = categories.reject { |_id, row| SEASONS.include?(row['slug']) }
                           .sort_by { |_id, row| row['name'].downcase }
-      chosen = (categories.find { |_id, row| row['slug'] == category } || [nil]).first
+      selected_season = seasons.find { |_id, row| row['slug'] == season }&.first
+      selected_species = species.find { |_id, row| row['slug'] == genus }&.first
+      # Query by the rarer species where selected, then intersect the season
+      # locally. This preserves a useful paginated online catalogue.
+      chosen = selected_species || selected_season
 
       query = {
         'per_page' => PAGE_SIZE,
@@ -178,6 +183,8 @@ module TwentyTwenty
         page_url = post['link'].to_s
         next unless meye_url?(page_url) && page_url.include?('/project/')
         tag_ids = Array(post['project_category']).map(&:to_i)
+        next if selected_species && !tag_ids.include?(selected_species)
+        next if selected_season && !tag_ids.include?(selected_season)
         active_season = tag_ids.map { |id| categories.dig(id, 'slug') }.find { |x| SEASONS.include?(x) }
         botanical = tag_ids.map { |id| categories.dig(id, 'name') }.compact
                           .reject { |n| SEASONS.include?(n.downcase) }.first
