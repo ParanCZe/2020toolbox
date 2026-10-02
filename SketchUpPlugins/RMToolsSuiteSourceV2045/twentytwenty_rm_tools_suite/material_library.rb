@@ -83,6 +83,14 @@ module TwentyTwenty
 
       def install_toolbar
         return @toolbar if @toolbar
+        # most.rb / separately installed AI-TOOLS may already provide this
+        # exact native library button. Reuse it to avoid two left-side icons.
+        if defined?(Dvacet20::Most) && Dvacet20::Most.respond_to?(:zobraz_listu)
+          Dvacet20::Most.zobraz_listu
+          @toolbar = :existing_ai_tools
+          log('Použita stávající ikona Knihovny materiálů z most.rb.')
+          return @toolbar
+        end
         @command = UI::Command.new(TOOLBAR_TITLE) { show }
         @command.tooltip = TOOLBAR_TITLE
         @command.status_bar_text = 'Otevře původní Knihovnu materiálů 20/20 (lokální Agent).'
