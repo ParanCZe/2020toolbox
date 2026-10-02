@@ -1,0 +1,135 @@
+name: Publish RM TOOLS 2.0.4.4 - fix invisible Windows launcher
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v2044.yml"
+      - "SketchUpPlugins/rmtools_v2044_builder.py"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2044/twentytwenty_rm_tools_suite/agent_autostart.rb"
+      - "SketchUpPlugins/tests/test_agent_autostart_v2044.rb"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build narrow v2.0.4.4 hotfix from published v2.0.4.3
+        run: python SketchUpPlugins/rmtools_v2044_builder.py
+
+      - name: Test WScript command generation and unchanged modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2044/twentytwenty_rm_tools_suite/agent_autostart.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2044/twentytwenty_rm_tools_suite/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2044/twentytwenty_rm_tools_suite.rb
+          ruby SketchUpPlugins/tests/test_agent_autostart_v2044.rb
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          root=Path("SketchUpPlugins")
+          with zipfile.ZipFile(root/"20-20_RM_TOOLS_v2.0.4.3.rbz") as prior, zipfile.ZipFile(root/"20-20_RM_TOOLS_v2.0.4.4.rbz") as current:
+              assert current.testzip() is None
+              assert set(current.namelist())==set(prior.namelist())
+              changes={name for name in current.namelist() if current.read(name)!=prior.read(name)}
+              assert changes=={
+                  "twentytwenty_rm_tools_suite/agent_autostart.rb",
+                  "twentytwenty_rm_tools_suite/main.rb",
+                  "twentytwenty_rm_tools_suite.rb"
+              },changes
+              code=current.read("twentytwenty_rm_tools_suite/agent_autostart.rb").decode()
+              assert "sh.Run #{vbs_literal(command)}, 0, False" in code
+              assert "sh.Run WScript.Arguments(0)" not in code
+              assert "Process.spawn(wscript, '//B', '//Nologo'" in code
+              assert "data = \"\\xFF\\xFE\".b + contents.encode('UTF-16LE').b" in code
+              assert "powershell_command(session_bridge_file, '-SketchUpSession')" in code
+              assert "2.0.4.4" in current.read("twentytwenty_rm_tools_suite.rb").decode()
+              assert "2.0.4.4" in current.read("twentytwenty_rm_tools_suite/main.rb").decode()
+              for unchanged in ("twentytwenty_rm_checker/main.rb",
+                                "dvacet20_component_library/main.rb",
+                                "twentytwenty_live_mirror/main_v0418.rb",
+                                "twentytwenty_rm_tools_suite/windows_bridge/bridge_session.ps1",
+                                "twentytwenty_rm_tools_suite/windows_bridge/bridge_v3.ps1"):
+                  assert prior.read(unchanged)==current.read(unchanged),unchanged
+          print("PASS: VBS 80070002 repair and all previous RM tools unchanged")
+          PY
+
+      - name: Set v2.0.4.4 as current in Toolbox
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          p=Path("index.html")
+          s=p.read_text(encoding="utf-8")
+          catalog=s.index("const SU_PLUGIN_CATALOG = [")
+          idx=s.index("id:'rm-tools-suite'",catalog)
+          left=s.rfind("{",catalog,idx)
+          depth=0
+          quote=None
+          escaped=False
+          right=None
+          for pos in range(left,len(s)):
+              ch=s[pos]
+              if quote:
+                  if escaped:escaped=False
+                  elif ch=="\\":escaped=True
+                  elif ch==quote:quote=None
+              elif ch in ("'",'"',chr(96)):quote=ch
+              elif ch=="{":depth+=1
+              elif ch=="}":
+                  depth-=1
+                  if depth==0:
+                      right=pos+1
+                      break
+          assert right is not None
+          entry=s[left:right]
+          assert "current:'2.0.4.3'" in entry
+          entry=entry.replace("current:'2.0.4.3'","current:'2.0.4.4'",1)
+          entry,n=re.subn(r"meta:'[^']*'",
+              "meta:'RM TOOLS 2.0.4.4: opravuje chybu Windows Script Host při tichém automatickém spuštění agenta a Bridge. Ostatní nástroje jsou beze změny.'",
+              entry,count=1)
+          assert n==1
+          file="20-20_RM_TOOLS_v2.0.4.4.rbz"
+          size=Path("SketchUpPlugins",file).stat().st_size
+          release='{"version":"2.0.4.4","file":"'+file+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+file+'"}'
+          assert '"version":"2.0.4.4"' not in entry
+          at=entry.index("versions:[")
+          start=entry.index("[",at)
+          cursor=start+1
+          nest=1
+          while nest:
+              if entry[cursor]=="[":nest+=1
+              elif entry[cursor]=="]":nest-=1
+              cursor+=1
+          end=cursor-1
+          v=entry[start+1:end].rstrip()
+          if v and not v.endswith(","):v+=","
+          v+="\n              "+release+"\n            "
+          entry=entry[:start+1]+v+entry[end:]
+          s=s[:left]+entry+s[right:]
+          assert "let suBridgeActiveUrl=null;" in s
+          assert "const status=await ensureSuBridge(true);" in s
+          p.write_text(s,encoding="utf-8")
+          print("PASS: Toolbox now offers v2.0.4.4 and keeps cached web Bridge")
+
+      - name: Publish versioned installer, sources and Toolbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.4.rbz \
+                  SketchUpPlugins/RMToolsSuiteSourceV2044 index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release RM TOOLS 2.0.4.4: fix hidden Windows launcher 80070002"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
