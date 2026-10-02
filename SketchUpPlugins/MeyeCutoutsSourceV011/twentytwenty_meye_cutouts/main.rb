@@ -473,6 +473,16 @@ module TwentyTwenty
     def place_png(item, height_m, path, bounds)
       model = Sketchup.active_model
       raise 'Ve SketchUpu není otevřený model.' unless model
+      # Repeated insertion with the SAME image and height only needs native
+      # placement. No re-decoding texture and no new definition each time.
+      definition_name = "MEYE · #{item['title']} · #{item['id']} · #{format('%.2f', height_m)}m"
+      existing = model.definitions[definition_name] if model.definitions.respond_to?(:[])
+      if existing && existing.respond_to?(:get_attribute) &&
+         existing.get_attribute('20-20 MEYE', 'OriginalPNG') == path
+        model.place_component(existing, false)
+        Sketchup.set_status_text('MEYE: vlož existující 2D komponentu za spodní bod kmene.')
+        return true
+      end
       width_px = bounds[:width]
       # Opaque top and bottom PIXEL CENTRES define the requested tree height.
       visible_px = [bounds[:bottom_y] - bounds[:top_y], 1].max
@@ -487,8 +497,13 @@ module TwentyTwenty
       begin
         material_name = "MEYE_#{item['id']}"
         material = model.materials[material_name] || model.materials.add(material_name)
-        material.texture = path
-        defn = model.definitions.add("MEYE · #{item['title']} · #{item['id']}")
+        texture = material.texture if material.respond_to?(:texture)
+        # SketchUp otherwise imports a high-resolution PNG into memory again
+        # even when the material with the same image is already in the model.
+        unless texture && File.basename(texture.filename.to_s) == File.basename(path)
+          material.texture = path
+        end
+        defn = model.definitions.add(definition_name)
         p0 = Geom::Point3d.new(x0, 0, z0)
         p1 = Geom::Point3d.new(x1, 0, z0)
         p2 = Geom::Point3d.new(x1, 0, z1)
@@ -505,6 +520,7 @@ module TwentyTwenty
         defn.behavior.always_face_camera = true
         defn.set_attribute('20-20 MEYE', 'Source', item['page'])
         defn.set_attribute('20-20 MEYE', 'Credit', SOURCE_CREDIT)
+        defn.set_attribute('20-20 MEYE', 'OriginalPNG', path)
         defn.set_attribute('20-20 MEYE', 'HeightMetres', height_m)
         defn.set_attribute('20-20 MEYE', 'BaseAxis', 'visible opaque bottom / trunk')
         model.commit_operation
