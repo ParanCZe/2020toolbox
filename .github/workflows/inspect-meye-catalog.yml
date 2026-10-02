@@ -1,0 +1,40 @@
+name: Inspect Meye public catalogue API
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/inspect-meye-catalog.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read public Meye markup and accessible metadata endpoints
+        run: |
+          python - <<'PY'
+          import requests,re,json,html
+          from bs4 import BeautifulSoup
+          S=requests.Session()
+          S.headers['User-Agent']='20-20-architecti SketchUp integration review (metadata only, contact: info@meye.dk)'
+          for url in ['https://meye.dk/','https://meye.dk/wp-json/','https://meye.dk/wp-json/wp/v2/types','https://meye.dk/robots.txt']:
+              try:
+                  response=S.get(url,timeout=15)
+                  print('URL:',url,'STATUS',response.status_code,'TYPE',response.headers.get('Content-Type'),'LEN',len(response.content),'FINAL',response.url)
+                  if url.endswith('/'):
+                      soup=BeautifulSoup(response.text,'html.parser')
+                      print('META GENERATOR:',[x.get('content') for x in soup.select('meta[name=generator]')])
+                      print('SCRIPTS:',[x.get('src') for x in soup.select('script[src]')][-25:])
+                      print('FORMS:',[(x.get('action'),x.get('id'),x.get('class')) for x in soup.select('form')][:12])
+                      print('HTML FEATURES:',[(name,len(soup.select(sel))) for name,sel in [('article','article'),('img','img'),('downloads','a[download]'),('data-image','[data-image]'),('elements','[data-id]')]])
+                      print('DOWNLOAD LINKS:',[(x.get('href'),x.get_text(' ',strip=True)[:45]) for x in soup.select('a[href]') if any(k in (x.get('href') or '').lower() for k in ('.png','.zip','download','trees'))][:30])
+                      print('PAGE TEXT END:',soup.get_text(' ',strip=True)[-550:])
+                      for piece in ['ajaxurl','wp-json','data-src','download','filter']:
+                        hit=re.search(piece,response.text,re.I)
+                        if hit:print('MATCH',piece,html.unescape(response.text[max(0,hit.start()-200):hit.start()+300]).replace('\\n',' ')[:470])
+                  elif 'json' in response.headers.get('Content-Type',''):
+                      print('JSON SAMPLE:',response.text[:1050])
+                  else:print('TEXT SAMPLE:',response.text[:320])
+              except Exception as e:print('ERROR',url,type(e).__name__,str(e)[:220])
+          PY
