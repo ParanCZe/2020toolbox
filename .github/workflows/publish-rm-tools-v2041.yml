@@ -1,0 +1,157 @@
+name: Publish RM TOOLS 2.0.4.1 - source-zero placement preview
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v2041.yml"
+      - "SketchUpPlugins/rmtools_v2041_builder.py"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2041/**"
+      - "SketchUpPlugins/tests/test_zero_origin_preview_v2041.rb"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build source-zero preview hotfix strictly from released 2.0.4
+        run: python SketchUpPlugins/rmtools_v2041_builder.py
+
+      - name: Check Ruby syntax, placement preview and archive regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2041/dvacet20_component_library/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2041/twentytwenty_rm_tools_suite.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2041/twentytwenty_rm_tools_suite/main.rb
+          ruby SketchUpPlugins/tests/test_zero_origin_preview_v2041.rb
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          p=Path("SketchUpPlugins")
+          lib="dvacet20_component_library/main.rb"
+          ui="dvacet20_component_library/ui/library.html"
+          root="twentytwenty_rm_tools_suite.rb"
+          main="twentytwenty_rm_tools_suite/main.rb"
+          child_loader="dvacet20_component_library.rb"
+          with zipfile.ZipFile(p/"20-20_RM_TOOLS_v2.0.4.rbz") as original, \
+               zipfile.ZipFile(p/"20-20_RM_TOOLS_v2.0.4.1.rbz") as hotfix, \
+               zipfile.ZipFile(p/"20-20_Component_Library_v0.3.2.1.rbz") as standalone:
+              assert hotfix.testzip() is None and standalone.testzip() is None
+              assert set(original.namelist())==set(hotfix.namelist())
+              changed={n for n in original.namelist() if original.read(n)!=hotfix.read(n)}
+              assert changed=={lib,ui,root,main,child_loader},changed
+              core=hotfix.read(lib).decode()
+              standalone_core=standalone.read(lib).decode()
+              assert "model.place_component(loaded_definition, false)" in core
+              assert "model.place_component(target_definition, false)" not in core
+              assert core.count("class PlacementOriginPreviewObserver")==1
+              assert "entity.definition = @target_definition" in core
+              assert "entity.transformation = final_transform" in core
+              assert "register_placement_origin_observer(" in core
+              assert "class DirectMultiPlacementTool" not in core
+              assert "UI::Command.new('20-20 Knihovna komponent')" not in core
+              assert "UI::Command.new('20-20 Knihovna komponent')" in standalone_core
+              assert "VERSION = '0.3.2.1'" in core and "VERSION = '0.3.2.1'" in standalone_core
+              assert "EXTENSION_VERSION = '0.3.2.1'" in standalone.read(child_loader).decode()
+              assert "2.0.4.1" in hotfix.read(root).decode()
+              assert "2.0.4.1" in hotfix.read(main).decode()
+              assert "nula (0,0,0)" in hotfix.read(ui).decode()
+              for untouched in ("twentytwenty_rm_checker/main.rb",
+                                "twentytwenty_rm_checker.rb",
+                                "twentytwenty_live_mirror/main_v0418.rb",
+                                "twentytwenty_live_mirror/renderer_v0418.html"):
+                  assert hotfix.read(untouched)==original.read(untouched),untouched
+          print("PASS: original 2.0.4 retained; only source-origin preview changed")
+          print("PASS: standalone library retains its own legitimate toolbar")
+          PY
+
+      - name: Publish compatible suite and standalone hotfix versions in Toolbox
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          catalog=Path("index.html")
+          s=catalog.read_text(encoding="utf-8")
+          marker=s.index("const SU_PLUGIN_CATALOG = [")
+          patches=(
+            ("rm-tools-suite","2.0.4","2.0.4.1","20-20_RM_TOOLS_v2.0.4.1.rbz",
+             "Hotfix původní 2.0.4: model se už při tažení drží za nulu (0,0,0) zdrojového SKP; po kliknutí bez poskoku."),
+            ("component-library-server","0.3.2","0.3.2.1","20-20_Component_Library_v0.3.2.1.rbz",
+             "Hotfix původní knihovny 0.3.2: náhled drží bod vložení SKP 0,0,0 už před kliknutím.")
+          )
+          for plugin_id,old_version,new_version,filename,description in patches:
+              idx=s.index("id:'"+plugin_id+"'",marker)
+              left=s.rfind("{",marker,idx)
+              depth=0
+              quote=None
+              escaped=False
+              right=None
+              for j in range(left,len(s)):
+                  c=s[j]
+                  if quote:
+                      if escaped:escaped=False
+                      elif c=="\\":escaped=True
+                      elif c==quote:quote=None
+                      continue
+                  if c in ("'",'"',chr(96)):
+                      quote=c
+                  elif c=="{":
+                      depth+=1
+                  elif c=="}":
+                      depth-=1
+                      if depth==0:
+                          right=j+1
+                          break
+              assert right is not None
+              block=s[left:right]
+              expected="current:'"+old_version+"'"
+              assert expected in block,(plugin_id,block[:180])
+              block=block.replace(expected,"current:'"+new_version+"'",1)
+              block,changed=re.subn(r"meta:'[^']*'",lambda _:"meta:'"+description+"'",block,count=1)
+              assert changed==1
+              size=(Path("SketchUpPlugins")/filename).stat().st_size
+              entry='{"version":"'+new_version+'","file":"'+filename+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+filename+'"}'
+              assert '"version":"'+new_version+'"' not in block
+              start=block.index("versions:[")
+              opening=block.index("[",start)
+              cursor=opening+1
+              depth=1
+              while depth:
+                  if block[cursor]=="[":depth+=1
+                  elif block[cursor]=="]":depth-=1
+                  cursor+=1
+              closing=cursor-1
+              contents=block[opening+1:closing].rstrip()
+              if contents and not contents.endswith(","):contents+=","
+              contents+="\n              "+entry+"\n            "
+              block=block[:opening+1]+contents+block[closing:]
+              s=s[:left]+block+s[right:]
+          assert "let suBridgeActiveUrl=null;" in s
+          assert "const status=await ensureSuBridge(true);" in s
+          catalog.write_text(s,encoding="utf-8")
+          print("PASS: published 2.0.4.1 and 0.3.2.1 without changing web Bridge")
+
+      - name: Commit installers and source snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.1.rbz \
+            SketchUpPlugins/20-20_Component_Library_v0.3.2.1.rbz \
+            SketchUpPlugins/RMToolsSuiteSourceV2041 \
+            index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release 2.0.4.1: zero-origin preview before component placement"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
