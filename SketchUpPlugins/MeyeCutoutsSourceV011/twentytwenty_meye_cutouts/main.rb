@@ -500,7 +500,8 @@ module TwentyTwenty
         texture = material.texture if material.respond_to?(:texture)
         # SketchUp otherwise imports a high-resolution PNG into memory again
         # even when the material with the same image is already in the model.
-        unless texture && File.basename(texture.filename.to_s) == File.basename(path)
+        unless texture && texture.respond_to?(:filename) &&
+               File.basename(texture.filename.to_s) == File.basename(path)
           material.texture = path
         end
         defn = model.definitions.add(definition_name)
