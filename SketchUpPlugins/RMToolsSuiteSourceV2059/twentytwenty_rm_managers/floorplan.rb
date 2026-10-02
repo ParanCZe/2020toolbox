@@ -90,8 +90,11 @@ module TwentyTwenty
         return true unless data
         region = data[:region]
         # Grow only after a camera leaves the currently rendered area.
-        camera_region(model).each_with_index.any? do |edge,index|
-          index < 2 ? edge < region[index] : edge > region[index]
+        candidate = camera_region(model)
+        # Don't regenerate after tiny edits. Each saved region already has 15 m
+        # padding; expand only when a camera/gaze approaches the map boundary.
+        candidate.each_with_index.any? do |edge,index|
+          index < 2 ? edge < region[index]-5.m : edge > region[index]+5.m
         end
       end
       def build(model, &callback)
