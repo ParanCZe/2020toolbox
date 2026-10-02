@@ -1,0 +1,38 @@
+name: Verify lightweight Meye REST media endpoint
+on:
+  push:
+    paths: [.github/workflows/measure-meye-metadata.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test two-stage public metadata queries without downloading PNG
+        shell: python
+        run: |
+          import urllib.request,urllib.parse,json,time
+          root='https://meye.dk/wp-json/wp/v2'
+          headers={'User-Agent':'Mozilla/5.0 20-20 RM TOOLS lightweight metadata smoke test'}
+          def get(path):
+            url=root+path
+            start=time.monotonic()
+            with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=25) as r:
+              b=r.read()
+            payload=json.loads(b)
+            print('URL',path,'ms',round((time.monotonic()-start)*1000),'bytes',len(b),'count',len(payload))
+            return payload
+          posts=get('/project?per_page=4&_fields=id,title,link,featured_media,project_category')
+          assert posts and all(x.get('featured_media') for x in posts),posts
+          ids=','.join(str(x['featured_media']) for x in posts)
+          media=get('/media?include='+ids+'&per_page=4&_fields=id,source_url,media_details')
+          assert len(media)==len(posts),media
+          for x in media:
+             m=x.get('media_details',{}).get('sizes',{})
+             print('MEDIA',x['id'],'original',x.get('source_url','')[:110],'medium',m.get('medium',{}).get('source_url'))
+             assert x.get('source_url','').startswith('https://meye.dk/wp-content/uploads/')
+             assert m.get('medium',{}).get('source_url')
+          full=get('/project?per_page=4&_embed=1')
+          assert len(full)==len(posts)
+          print('PASS: lean two-stage metadata contains same project ID and featured original as _embed API')
