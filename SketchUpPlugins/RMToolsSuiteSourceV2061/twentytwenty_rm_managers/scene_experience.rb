@@ -87,7 +87,7 @@ module TwentyTwenty
                  actual.direction.angle_between(saved_dir) < 0.0005
                 if SceneVisuals.capture(model, page)
                   js(:scenes, 'updatePreview',
-                    {name: page.name, preview: SceneVisuals.preview_base64(model, page)})
+                    {id: scene_id(page), preview: SceneVisuals.preview_base64(model, page)})
                 else
                   notify(:scenes, "Nepodařilo se vytvořit náhled scény #{page.name}.")
                 end
@@ -122,7 +122,7 @@ module TwentyTwenty
         model = Sketchup.active_model
         kind = d['kind']
         name = d['name'].to_s
-        page = page_by_name(name)
+        page = page_from_action(d)
         view = model.active_view
         case kind
         when 'refresh'
