@@ -22,13 +22,13 @@ module UI
   def self.start_timer(_seconds, _repeat, &_block); true; end
 end
 Eye=Struct.new(:x,:y,:z)
-Dir=Struct.new(:x,:y,:z)
+Direction=Struct.new(:x,:y,:z)
 class Cam
   attr_accessor :fov,:aspect_ratio
   def initialize
     @fov=60.0;@aspect_ratio=16.0/9
     @eye=Eye.new(0,0,1800)
-    @direction=Dir.new(1,0,0)
+    @direction=Direction.new(1,0,0)
   end
   def eye; @eye; end
   def direction; @direction; end
