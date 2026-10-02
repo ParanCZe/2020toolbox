@@ -1,0 +1,172 @@
+name: Publish RM TOOLS v2.0.4.8 - fast Meye catalogue
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v2048.yml"
+      - "SketchUpPlugins/rmtools_v2048_builder.py"
+      - "SketchUpPlugins/MeyeCutoutsSourceV011/**"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2048/**"
+      - "SketchUpPlugins/tests/test_meye_cutouts_v011.rb"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build fast Meye library strictly on RM TOOLS v2.0.4.7
+        run: python SketchUpPlugins/rmtools_v2048_builder.py
+
+      - name: Test alpha positioning, local cache, direct PNG and untouched tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/MeyeCutoutsSourceV011/twentytwenty_meye_cutouts/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2048/twentytwenty_rm_tools_suite/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2048/twentytwenty_rm_tools_suite.rb
+          ruby SketchUpPlugins/tests/test_meye_cutouts_v011.rb
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          r=Path("SketchUpPlugins")
+          with ZipFile(r/"20-20_RM_TOOLS_v2.0.4.7.rbz") as before, \
+               ZipFile(r/"20-20_RM_TOOLS_v2.0.4.8.rbz") as after:
+              assert after.testzip() is None
+              a={n:before.read(n) for n in before.namelist() if not n.endswith("/")}
+              b={n:after.read(n) for n in after.namelist() if not n.endswith("/")}
+              assert set(a)==set(b)
+              changed={n for n in a if a[n]!=b[n]}
+              assert changed=={
+                  "twentytwenty_rm_tools_suite/main.rb",
+                  "twentytwenty_rm_tools_suite.rb",
+                  "twentytwenty_meye_cutouts/main.rb",
+                  "twentytwenty_meye_cutouts/ui/library.html"
+              },changed
+              for name in ("dvacet20_component_library/main.rb",
+                           "twentytwenty_rm_checker/main.rb",
+                           "twentytwenty_live_mirror/main_v0418.rb",
+                           "twentytwenty_rm_tools_suite/agent_autostart.rb",
+                           "twentytwenty_rm_tools_suite/material_library.rb",
+                           "twentytwenty_rm_tools_suite/windows_bridge/bridge_session.ps1"):
+                  assert a[name]==b[name],name
+              core=b["twentytwenty_meye_cutouts/main.rb"].decode()
+              assert "PAGE_SIZE = 12" in core
+              assert "def cached_png_opaque_bounds" in core
+              assert "html = get_request(item['page']" not in core
+              assert "defn = model.definitions.add(definition_name)" in core
+              assert "VERSION = '0.1.1'" in core
+              assert "VERSION = '2.0.4.8'" in b["twentytwenty_rm_tools_suite/main.rb"].decode()
+              assert not any(n.startswith("twentytwenty_meye_cutouts/") and n.endswith(".png") for n in b)
+          script=(r/"MeyeCutoutsSourceV011/twentytwenty_meye_cutouts/ui/library.html").read_text()
+          start=script.index("<script>")+len("<script>")
+          end=script.index("</script>",start)
+          Path("/tmp/meye_fast_ui.js").write_text(script[start:end])
+          print("PASS: only Meye performance module and suite version changed; 0 Meye assets bundled")
+          PY
+          node --check /tmp/meye_fast_ui.js
+
+      - name: Verify compact public Meye metadata endpoint without downloading PNG
+        shell: python
+        run: |
+          import urllib.request, urllib.parse, json
+          root="https://meye.dk/wp-json/wp/v2"
+          urls=[
+            root+"/project?per_page=3&_fields=id%2Ctitle%2Clink%2Cfeatured_media%2Cproject_category"
+          ]
+          headers={"User-Agent":"Mozilla/5.0 (20-20 RM TOOLS public metadata smoke test)"}
+          def get(url):
+              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=30) as f:
+                  return json.loads(f.read())
+          posts=get(urls[0])
+          assert posts and all(p.get("featured_media") for p in posts)
+          ids=",".join(str(p["featured_media"]) for p in posts)
+          url=root+"/media?"+urllib.parse.urlencode({
+              "include":ids,"per_page":len(posts),
+              "_fields":"id,source_url,media_details"
+          })
+          media=get(url)
+          assert len(media)==len(posts)
+          for item in media:
+              assert item["source_url"].startswith("https://meye.dk/wp-content/uploads/")
+              assert item.get("media_details",{}).get("sizes",{}).get("medium",{}).get("source_url")
+          print("PASS: live Meye supports small project+media endpoint, source PNG not downloaded")
+
+      - name: Update only RM TOOLS default version in Toolbox
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          p=Path("index.html")
+          s=p.read_text(encoding="utf-8")
+          start=s.index("const SU_PLUGIN_CATALOG = [")
+          idpos=s.index("id:'rm-tools-suite'",start)
+          left=s.rfind("{",start,idpos)
+          depth=0
+          quote=None
+          escaped=False
+          right=None
+          for pos in range(left,len(s)):
+              char=s[pos]
+              if quote:
+                  if escaped:escaped=False
+                  elif char=="\\":escaped=True
+                  elif char==quote:quote=None
+              elif char in ("'",'"',chr(96)):quote=char
+              elif char=="{":depth+=1
+              elif char=="}":
+                  depth-=1
+                  if depth==0:
+                      right=pos+1
+                      break
+          assert right is not None
+          block=s[left:right]
+          assert "current:'2.0.4.7'" in block,block[:250]
+          block=block.replace("current:'2.0.4.7'","current:'2.0.4.8'",1)
+          block,n=re.subn(r"meta:'[^']*'",
+              "meta:'v2.0.4.8: rychlá Meye knihovna — úsporná metadata, 12 náhledů, lokální cache, přímé PNG po kliknutí a rychlejší určení spodku kmene.'",
+              block,count=1)
+          assert n==1
+          name="20-20_RM_TOOLS_v2.0.4.8.rbz"
+          size=(Path("SketchUpPlugins")/name).stat().st_size
+          entry='{"version":"2.0.4.8","file":"'+name+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+name+'"}'
+          assert '"version":"2.0.4.8"' not in block
+          open_idx=block.index("[",block.index("versions:["))
+          i=open_idx+1
+          level=1
+          while level:
+              if block[i]=="[":level+=1
+              elif block[i]=="]":level-=1
+              i+=1
+          close_idx=i-1
+          versions=block[open_idx+1:close_idx].rstrip()
+          if versions and not versions.endswith(","):versions+=","
+          versions+="\n              "+entry+"\n            "
+          block=block[:open_idx+1]+versions+block[close_idx:]
+          s=s[:left]+block+s[right:]
+          assert "const archived=SU_PLUGIN_CATALOG.filter(p=>p.id!=='rm-tools-suite');" in s
+          assert '<details id="suplugins-legacy"' in s
+          assert "let suBridgeActiveUrl=null;" in s
+          p.write_text(s,encoding="utf-8")
+          print("PASS: only default RM TOOLS download upgraded; Legacy and Bridge untouched")
+
+      - name: Publish installer, readable source and Toolbox update
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.8.rbz \
+                  SketchUpPlugins/RMToolsSuiteSourceV2048 index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release 2.0.4.8: optimize Meye catalog and on-demand cutout insertion"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
