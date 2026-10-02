@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/publish-rm-tools-v2053.yml"
       - "SketchUpPlugins/rmtools_v2053_builder.py"
+      - "SketchUpPlugins/rmtools_v2053_tests.rb"
       - "SketchUpPlugins/RMToolsSuiteSourceV2053/**"
   workflow_dispatch:
 permissions:
