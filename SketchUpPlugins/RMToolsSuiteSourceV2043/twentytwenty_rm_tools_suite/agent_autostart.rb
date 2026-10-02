@@ -171,7 +171,20 @@ module TwentyTwenty
         %w[bridge_v3.ps1 20-20_BRIDGE_V3.bat register_protocol_v3.ps1].each do |name|
           destination = File.join(helper_dir, name)
           source = File.join(packaged, name)
-          FileUtils.cp(source, destination) if !File.file?(destination) && File.file?(source)
+          next unless File.file?(source)
+
+          # Repair the one malformed legacy release only. Never overwrite an
+          # otherwise valid cached user-installed Bridge at every startup.
+          bad_bridge = false
+          if name == 'bridge_v3.ps1' && File.file?(destination)
+            cached = File.binread(destination)
+            bad_bridge = cached.scan('$su=Get-SketchUp').length > 1 ||
+                         cached.include?("BRIDGE STOP'\n){Remove-StandaloneLaunchers")
+          end
+          if !File.file?(destination) || bad_bridge
+            FileUtils.cp(source, destination)
+            log('Opraven poškozený lokální Bridge.') if bad_bridge
+          end
         end
         marker = File.join(helper_dir, 'rmtools_bridge_registered.txt')
         return if File.file?(marker)
