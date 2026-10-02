@@ -16,6 +16,7 @@ module TwentyTwenty
       if (dlg = @dialogs[which])
         dlg.show
         refresh(which)
+        start_tag_selection_polling if which == :tags
         return dlg
       end
       dlg = UI::HtmlDialog.new(dialog_title: "20-20 RM #{which == :tags ? 'TAG' : 'SCENE'} MANAGER",
@@ -36,9 +37,10 @@ module TwentyTwenty
         dlg.close
         TwentyTwenty::RMToolsSuite.show
       end
-      dlg.set_on_closed { @dialogs.delete(which) }
+      dlg.set_on_closed { @dialogs.delete(which); @tag_selection_polling = false if which == :tags }
       dlg.set_html(html(which))
       dlg.show
+      start_tag_selection_polling if which == :tags
       dlg
     end
     def js(which, fn, data)
@@ -153,7 +155,31 @@ module TwentyTwenty
       def onSelectionRemoved(_selection, _entity); TwentyTwenty::RMManagers.selection_changed; end
     end
     def selection_changed
-      refresh(:tags) if @dialogs && @dialogs[:tags]
+      return unless @dialogs && @dialogs[:tags]
+      sync_tag_selection
+    end
+    def sync_tag_selection
+      return unless @dialogs && @dialogs[:tags]
+      model = Sketchup.active_model
+      key = selected_model_key
+      return if @last_selection_model.equal?(model) && key == @last_selection_key
+      @last_selection_model, @last_selection_key = model, key
+      js(:tags, 'syncSelection', {key: key})
+    end
+    def start_tag_selection_polling
+      return if @tag_selection_polling
+      @tag_selection_polling = true
+      # SketchUp versions/plugins vary in which selection notifications fire.
+      # Poll only the ID and send JS updates solely when it actually changes.
+      UI.start_timer(0.3, true) do
+        if @tag_selection_polling && @dialogs && @dialogs[:tags]
+          install_selection_observer unless @observed_tag_model.equal?(Sketchup.active_model)
+          sync_tag_selection
+        else
+          @tag_selection_polling = false
+          # SketchUp has no timer cancellation API; this timer becomes inert.
+        end
+      end
     end
     def install_selection_observer
       return unless defined?(Sketchup::SelectionObserver)
@@ -471,12 +497,19 @@ module TwentyTwenty
           two_point: cam.respond_to?(:is_2d?) ? !!cam.is_2d? : false}
        }}
     end
+    # A page GUID can change when SketchUp modifies a page; scene names are
+    # user-editable. Keep our own unique identity, also for copied pages.
     def scene_id(page)
-      guid = page.respond_to?(:guid) ? page.guid.to_s : ''
-      return guid unless guid.empty?
-      id = page.get_attribute(SCENE_DICT, 'stable_id').to_s
-      if id.empty?
-        id = SecureRandom.uuid
+      model = Sketchup.active_model
+      pages = model.pages.to_a
+      id = page.get_attribute(SCENE_DICT, 'stable_id', '').to_s
+      collisions = !id.empty? && pages.any? do |other|
+        !other.equal?(page) && other.get_attribute(SCENE_DICT, 'stable_id', '').to_s == id &&
+          pages.index(other) < pages.index(page)
+      end
+      if id.empty? || collisions
+        used = pages.reject { |other| other.equal?(page) }.map { |other| other.get_attribute(SCENE_DICT, 'stable_id', '').to_s }
+        id = SecureRandom.uuid while id.empty? || used.include?(id)
         page.set_attribute(SCENE_DICT, 'stable_id', id)
       end
       id
@@ -715,17 +748,7 @@ module TwentyTwenty
       window.Manager={
         receive(d){
           data=d;
-          if(TAG_MODE){
-            const key=d.selected_key;
-            const chosen=key ? Object.values(d.objects||{}).flat().find(x=>x.key===key) : null;
-            selected=chosen ? {type:'object',item:chosen} : null;
-            if(chosen){
-              (d.folders||[]).forEach(function reveal(f){
-                if((f.tags||[]).some(t=>t.name===chosen.tag)){expanded[f.id]=true;expanded['tag:'+chosen.tag]=true;}
-                (f.children||[]).forEach(reveal);
-              });
-            }
-          }
+          if(TAG_MODE)this.syncSelection({key:d.selected_key},false);
           draw();
           if(!TAG_MODE && d.current){
             const c=d.current;
@@ -734,6 +757,21 @@ module TwentyTwenty
             if(c.ratio && Array.from(el('viewRatio').options).some(o=>o.value===c.ratio)) el('viewRatio').value=c.ratio;
             el('currentProjection').textContent=(c.two_point?'2-bod ON · ':'')+(c.perspective?'Perspektiva':'Rovnoběžné promítání');
           }
+        },
+        syncSelection(info,redraw=true){
+          if(!TAG_MODE)return;
+          const key=info&&info.key;
+          const chosen=key ? Object.values(data.objects||{}).flat().find(x=>x.key===key) : null;
+          selected=chosen ? {type:'object',item:chosen} : null;
+          if(chosen){
+            (data.folders||[]).forEach(function reveal(f){
+              if((f.tags||[]).some(t=>t.name===chosen.tag)){
+                expanded[f.id]=true;expanded['tag:'+chosen.tag]=true;
+              }
+              (f.children||[]).forEach(reveal);
+            });
+          }
+          if(redraw)draw();
         },notice(s){el('message').textContent=s;},
         act(d){send(d);},
         toggle(id){expanded[id]=!expanded[id];draw();},
