@@ -36,8 +36,19 @@ module TwentyTwenty
       end
       def camera_region(model)
         pts = cameras(model)
-        xs = pts.map(&:x)
-        ys = pts.map(&:y)
+        # Include up to 15 m in front of each camera so the building being
+        # photographed appears on the plan, even if the camera stands outside.
+        views = model.pages.to_a.map(&:camera)
+        views = [model.active_view.camera] if views.empty?
+        focus = views.map do |camera|
+          dir = camera.direction
+          norm = Math.sqrt(dir.x.to_f**2 + dir.y.to_f**2)
+          norm > 0.0001 ?
+            [camera.eye.x + dir.x.to_f/norm*15.m, camera.eye.y + dir.y.to_f/norm*15.m] :
+            [camera.eye.x, camera.eye.y]
+        end
+        xs = pts.map(&:x) + focus.map(&:first)
+        ys = pts.map(&:y) + focus.map(&:last)
         # Fixed padding; irrelevant stray geometry never expands the map.
         xmin, xmax = xs.min - CAMERA_PADDING, xs.max + CAMERA_PADDING
         ymin, ymax = ys.min - CAMERA_PADDING, ys.max + CAMERA_PADDING
@@ -79,9 +90,8 @@ module TwentyTwenty
         return true unless data
         region = data[:region]
         # Grow only after a camera leaves the currently rendered area.
-        cameras(model).any? do |eye|
-          eye.x < region[0] || eye.x > region[2] ||
-            eye.y < region[1] || eye.y > region[3]
+        camera_region(model).each_with_index.any? do |edge,index|
+          index < 2 ? edge < region[index] : edge > region[index]
         end
       end
       def build(model, &callback)
