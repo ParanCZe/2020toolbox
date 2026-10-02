@@ -43,6 +43,10 @@ module TwentyTwenty
         result = super
         model = Sketchup.active_model
         result[:floorplan] = Floorplan.cached_data(model)
+        ground = model.bounds.valid? ? model.bounds.min.z : 0.to_l
+        result[:scenes].each_with_index do |entry, index|
+          entry[:height_1800] = (model.pages.to_a[index].camera.eye.z - ground - 1800.mm).abs < 50.mm
+        end
         result[:scenes].each_with_index do |data, index|
           page = model.pages.to_a[index]
           cam = page.camera
@@ -115,7 +119,7 @@ module TwentyTwenty
             notify(:scenes, ok ? 'Půdorys byl aktualizován.' : "Půdorys se nepodařilo vytvořit: #{error}")
             refresh(:scenes)
           end
-        when 'quick_lens', 'quick_ratio'
+        when 'quick_lens', 'quick_ratio', 'quick_height'
           target = page || model.pages.selected_page
           raise 'Nejdříve vyber scénu ze seznamu.' unless target
           # Activate the saved scene only when the user edits ANOTHER scene.
@@ -124,10 +128,16 @@ module TwentyTwenty
           camera = view.camera
           if kind == 'quick_lens'
             set_focal_35(camera, d['mm'])
-          else
+          elsif kind == 'quick_ratio'
             ratio = d['ratio'].to_s
             raise 'Neplatný poměr stran.' unless RATIOS.key?(ratio) || ratio == 'off'
             camera.aspect_ratio = ratio == 'off' ? 0.0 : RATIOS.fetch(ratio)
+          else
+            ground = model.bounds.valid? ? model.bounds.min.z : 0.to_l
+            height = ground + 1800.mm
+            shift = height - camera.eye.z
+            camera.set(Geom::Point3d.new(camera.eye.x,camera.eye.y,height),
+                       Geom::Point3d.new(camera.target.x,camera.target.y,camera.target.z+shift),camera.up)
           end
           view.camera = camera
           view.invalidate
