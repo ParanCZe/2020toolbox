@@ -5,8 +5,6 @@
   let selectedId=null,clickTimer=null;
   const oldReceive=Manager.receive.bind(Manager);
   const oldDraw=Manager.draw.bind(Manager);
-  const oldPick=Manager.pickScene.bind(Manager);
-  const oldActivate=Manager.activateScene.bind(Manager);
   const escapeHtml=x=>String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const send=data=>sketchup.action(JSON.stringify(data));
   const get=id=>document.getElementById(id);
@@ -152,12 +150,12 @@
       row.addEventListener('click',e=>{
         if(e.detail>1)return;
         if(clickTimer)clearTimeout(clickTimer);
-        clickTimer=setTimeout(()=>{selectedId=row.dataset.id;oldPick(row.dataset.scene);renderRows();renderDetails();},240);
+        clickTimer=setTimeout(()=>{selectedId=row.dataset.id;send({kind:'refresh'});renderRows();renderDetails();},240);
       });
       row.addEventListener('dblclick',()=>{
         if(clickTimer)clearTimeout(clickTimer);
         selectedId=row.dataset.id;
-        oldActivate(row.dataset.scene);renderRows();renderDetails();
+        send({kind:'activate',id:selectedId});renderRows();renderDetails();
       });
     });
   }
@@ -227,12 +225,12 @@
       marker.addEventListener('click',e=>{
         if(e.detail>1)return;
         if(clickTimer)clearTimeout(clickTimer);
-        clickTimer=setTimeout(()=>{selectedId=scene.id;oldPick(scene.name);renderAll();},240);
+        clickTimer=setTimeout(()=>{selectedId=scene.id;renderAll();},240);
       });
       marker.addEventListener('dblclick',()=>{
         if(clickTimer)clearTimeout(clickTimer);
         selectedId=scene.id;
-        oldActivate(scene.name);
+        send({kind:'activate',id:selectedId});
         renderAll();
       });
       stage.appendChild(marker);
