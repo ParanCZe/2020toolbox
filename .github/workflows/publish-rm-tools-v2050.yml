@@ -34,12 +34,65 @@ jobs:
       - name: Build RBZ and verify original tools untouched
         run: |
           python SketchUpPlugins/rmtools_v2050_builder.py
+      - name: Set RM TOOLS as latest in Toolbox (leave legacy plugins alone)
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path("index.html")
+          s=p.read_text(encoding="utf-8")
+          start=s.index("const SU_PLUGIN_CATALOG = [")
+          idpos=s.index("id:'rm-tools-suite'",start)
+          left=s.rfind("{",start,idpos)
+          depth=0
+          quote=None
+          escaped=False
+          end=None
+          for i in range(left,len(s)):
+              c=s[i]
+              if quote:
+                  if escaped:escaped=False
+                  elif c=="\\":escaped=True
+                  elif c==quote:quote=None
+              elif c in ("'",'"',chr(96)):quote=c
+              elif c=="{":depth+=1
+              elif c=="}":
+                  depth-=1
+                  if depth==0:
+                      end=i+1
+                      break
+          assert end is not None
+          block=s[left:end]
+          block,n=re.subn(r"current:'[^']+'","current:'2.0.5.0'",block,count=1)
+          assert n==1
+          block,n=re.subn(r"meta:'[^']*'","meta:'v2.0.5.0: Tag Manager a Scene Manager přímo v RM TOOLS.'",block,count=1)
+          assert n==1
+          name="20-20_RM_TOOLS_v2.0.5.0.rbz"
+          if '"version":"2.0.5.0"' not in block:
+              begin=block.index("[",block.index("versions:["))
+              j=begin+1;level=1
+              while level:
+                  if block[j]=="[":level+=1
+                  elif block[j]=="]":level-=1
+                  j+=1
+              close=j-1
+              versions=block[begin+1:close].rstrip()
+              if versions and not versions.endswith(","):versions+=","
+              size=(Path("SketchUpPlugins")/name).stat().st_size
+              rec='{"version":"2.0.5.0","file":"'+name+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+name+'"}'
+              versions+="\n              "+rec+"\n            "
+              block=block[:begin+1]+versions+block[close:]
+          updated=s[:left]+block+s[end:]
+          assert "id:'rm-tools-suite'" in updated
+          p.write_text(updated,encoding="utf-8")
+          print("PASS: only RM TOOLS latest was updated")
+          PY
       - name: Publish installer
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.5.0.rbz
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.5.0.rbz index.html
           git diff --cached --quiet && exit 0
           git commit -m "Release RM TOOLS v2.0.5.0 Tag and Scene Managers"
           for attempt in 1 2 3; do
