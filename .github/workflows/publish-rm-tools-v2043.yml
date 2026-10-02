@@ -1,0 +1,159 @@
+name: Publish RM TOOLS 2.0.4.3 - invisible Agent and Bridge startup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v2043.yml"
+      - "SketchUpPlugins/rmtools_v2043_builder.py"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2043/twentytwenty_rm_tools_suite/agent_autostart.rb"
+      - "SketchUpPlugins/tests/test_agent_autostart_v2043.rb"
+      - "SketchUpPluginInstaller/bridge_v3.ps1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build all-in-one 2.0.4.3 strictly from original 2.0.4.2
+        run: python SketchUpPlugins/rmtools_v2043_builder.py
+
+      - name: Validate headless Agent, persistent Bridge and unchanged RM modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2043/twentytwenty_rm_tools_suite/agent_autostart.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2043/twentytwenty_rm_tools_suite/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2043/twentytwenty_rm_tools_suite.rb
+          ruby SketchUpPlugins/tests/test_agent_autostart_v2043.rb
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          p=Path("SketchUpPlugins")
+          old=p/"20-20_RM_TOOLS_v2.0.4.2.rbz"
+          new=p/"20-20_RM_TOOLS_v2.0.4.3.rbz"
+          expected_change={"twentytwenty_rm_tools_suite/main.rb","twentytwenty_rm_tools_suite.rb"}
+          expected_new={
+             "twentytwenty_rm_tools_suite/agent_autostart.rb",
+             "twentytwenty_rm_tools_suite/windows_bridge/20-20_BRIDGE_V3.bat",
+             "twentytwenty_rm_tools_suite/windows_bridge/bridge_v3.ps1",
+             "twentytwenty_rm_tools_suite/windows_bridge/bridge_session.ps1",
+             "twentytwenty_rm_tools_suite/windows_bridge/register_protocol_v3.ps1"
+          }
+          with zipfile.ZipFile(old) as baseline,zipfile.ZipFile(new) as integrated:
+              assert integrated.testzip() is None
+              o=set(baseline.namelist())
+              n=set(integrated.namelist())
+              changed={name for name in o if baseline.read(name)!=integrated.read(name)}
+              assert changed==expected_change,changed
+              assert n-o==expected_new,n-o
+              for name in o-expected_change:
+                  assert integrated.read(name)==baseline.read(name),name
+              main=integrated.read("twentytwenty_rm_tools_suite/main.rb").decode()
+              assert "require File.join(__dir__, 'agent_autostart')" in main
+              assert "AgentBoot.install_settings_menu" in main
+              assert "UI.start_timer(1.5, false)" in main
+              assert "AgentBoot.start" in main
+              assert "        show" in main
+              assert main.count("UI::Toolbar.new(TITLE)")==1
+              assert "2.0.4.3" in main and "2.0.4.3" in integrated.read("twentytwenty_rm_tools_suite.rb").decode()
+              agent=integrated.read("twentytwenty_rm_tools_suite/agent_autostart.rb").decode()
+              assert "PREF_SECTION = '20-20 Agent Launcher'" in agent
+              assert "C:/2020agent/dist/adapter-agent.exe" in agent
+              assert "C:/2020agent/dist/sketchup/most.rb" in agent
+              assert "UI.start_timer(CHECK_INTERVAL, true)" in agent
+              assert "sh.Run WScript.Arguments(0), 0, False" in agent
+              assert not any(n.startswith("twentytwenty_agent_launcher") for n in n)
+              ps=integrated.read("twentytwenty_rm_tools_suite/windows_bridge/bridge_session.ps1").decode()
+              assert "[switch]$SketchUpSession" in ps
+              assert "Get-Process -Name 'SketchUp'" in ps
+              assert "while($SketchUpSession -or" in ps
+              assert "$port=8093" in ps
+              assert "Invoke-WebRequest" in ps # Existing install endpoint, not startup
+              assert "twentytwenty_agent_launcher.rb" in integrated.read("twentytwenty_rm_tools_suite/windows_bridge/bridge_v3.ps1").decode()
+          print("PASS: only suite startup changed; RM Checker, direct 0,0,0 insertion, tag tree, Live Mirror byte-identical")
+          print("PASS: embedded Agent Launcher retains preferences and has no separate toolbar")
+          print("PASS: background Bridge stays alive while SketchUp is running and uses existing cached helper")
+          PY
+
+      - name: Register 2.0.4.3 in web Toolbox
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          p=Path("index.html")
+          data=p.read_text(encoding="utf-8")
+          catalog=data.index("const SU_PLUGIN_CATALOG = [")
+          pos=data.index("id:'rm-tools-suite'",catalog)
+          left=data.rfind("{",catalog,pos)
+          quote=None
+          escape=False
+          depth=0
+          right=None
+          for idx in range(left,len(data)):
+              ch=data[idx]
+              if quote:
+                  if escape:escape=False
+                  elif ch=="\\":escape=True
+                  elif ch==quote:quote=None
+              elif ch in ("'",'"',chr(96)):quote=ch
+              elif ch=="{":depth+=1
+              elif ch=="}":
+                  depth-=1
+                  if depth==0:
+                      right=idx+1
+                      break
+          assert right
+          block=data[left:right]
+          assert "current:'2.0.4.2'" in block,block[:200]
+          block=block.replace("current:'2.0.4.2'","current:'2.0.4.3'",1)
+          block,count=re.subn(
+              r"meta:'[^']*'",
+              "meta:'RM TOOLS 2.0.4.3: SketchUp otevře hlavní menu; Agent Launcher 0.1.2, most.rb a lokální Bridge se spustí neviditelně na pozadí.'",
+              block,count=1)
+          assert count==1
+          file="20-20_RM_TOOLS_v2.0.4.3.rbz"
+          size=Path("SketchUpPlugins",file).stat().st_size
+          entry='{"version":"2.0.4.3","file":"'+file+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+file+'"}'
+          assert '"version":"2.0.4.3"' not in block
+          n=block.index("versions:[")
+          start=block.index("[",n)
+          idx=start+1
+          count=1
+          while count:
+              if block[idx]=="[":count+=1
+              elif block[idx]=="]":count-=1
+              idx+=1
+          end=idx-1
+          body=block[start+1:end].rstrip()
+          if body and not body.endswith(","):body+=","
+          body+="\n              "+entry+"\n            "
+          block=block[:start+1]+body+block[end:]
+          data=data[:left]+block+data[right:]
+          assert "let suBridgeActiveUrl=null;" in data
+          assert "const status=await ensureSuBridge(true);" in data
+          p.write_text(data,encoding="utf-8")
+          print("PASS: Toolbox defaults to 2.0.4.3, retains cached website Bridge behavior")
+
+      - name: Publish versioned package and readable source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.3.rbz \
+            SketchUpPlugins/RMToolsSuiteSourceV2043 \
+            index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release 2.0.4.3: open RM TOOLS and autostart Agent plus session Bridge invisibly"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
