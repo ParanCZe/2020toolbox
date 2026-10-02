@@ -21,7 +21,7 @@ module TwentyTwenty
         root
       end
       def page_key(page)
-        id = page.respond_to?(:guid) ? page.guid.to_s : page.name.to_s
+        id = TwentyTwenty::RMManagers.scene_id(page)
         Digest::SHA1.hexdigest(id)
       end
       def file_for(model, page)
