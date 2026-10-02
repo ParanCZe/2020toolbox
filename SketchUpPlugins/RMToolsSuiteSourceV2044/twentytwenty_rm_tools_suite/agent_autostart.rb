@@ -111,7 +111,10 @@ module TwentyTwenty
             End If
           End If
         VBS
-        File.binwrite(path, contents) unless File.file?(path) && File.binread(path) == contents
+        # WScript understands UTF-16 LE with BOM; Windows user paths may have
+        # accented characters that ANSI/UTF-8 .vbs files would corrupt.
+        data = "\xFF\xFE".b + contents.encode('UTF-16LE').b
+        File.binwrite(path, data) unless File.file?(path) && File.binread(path) == data
         path
       end
 
