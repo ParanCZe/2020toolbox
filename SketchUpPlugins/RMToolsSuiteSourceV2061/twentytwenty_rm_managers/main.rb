@@ -2,6 +2,7 @@
 require 'sketchup.rb'
 require 'json'
 require 'cgi'
+require 'securerandom'
 
 module TwentyTwenty
   module RMManagers
@@ -463,12 +464,27 @@ module TwentyTwenty
       {current: camera_info(model.active_view.camera),
        scenes: model.pages.map { |page|
          cam = page.camera
-         {name: page.name, selected: page == selected,
+         {id: scene_id(page), name: page.name, selected: page == selected,
           focal: focal_35(cam),
           ratio: page.get_attribute(SCENE_DICT, 'ratio', '').to_s.empty? ? ratio_name(cam) : page.get_attribute(SCENE_DICT, 'ratio'),
           perspective: cam.perspective?,
           two_point: cam.respond_to?(:is_2d?) ? !!cam.is_2d? : false}
        }}
+    end
+    def scene_id(page)
+      guid = page.respond_to?(:guid) ? page.guid.to_s : ''
+      return guid unless guid.empty?
+      id = page.get_attribute(SCENE_DICT, 'stable_id').to_s
+      if id.empty?
+        id = SecureRandom.uuid
+        page.set_attribute(SCENE_DICT, 'stable_id', id)
+      end
+      id
+    end
+    def page_from_action(data)
+      id = data['id'].to_s
+      return Sketchup.active_model.pages.find { |candidate| scene_id(candidate) == id } unless id.empty?
+      page_by_name(data['name']) # Compatibility for pre-existing dialogs.
     end
     def page_by_name(name)
       Sketchup.active_model.pages.find { |page| page.name == name.to_s }
@@ -476,7 +492,7 @@ module TwentyTwenty
     def scene_action(d)
       model = Sketchup.active_model
       name = d['name'].to_s
-      page = page_by_name(name)
+      page = page_from_action(d)
       view = model.active_view
       case d['kind']
       when 'refresh'
@@ -487,7 +503,7 @@ module TwentyTwenty
       when 'create'
         clean = name.strip
         raise 'Zadej název scény.' if clean.empty?
-        raise 'Scéna s tímto názvem již existuje.' if page
+        raise 'Scéna s tímto názvem již existuje.' if page_by_name(clean)
         model.start_operation('RM vytvořit scénu', true)
         begin
           page = model.pages.add(clean)
@@ -513,8 +529,9 @@ module TwentyTwenty
       when 'rename'
         raise 'Scéna nebyla nalezena.' unless page
         clean = d['new_name'].to_s.strip
-        raise 'Neplatný nový název.' if clean.empty? || (clean != name && page_by_name(clean))
+        raise 'Neplatný nový název.' if clean.empty? || (page_by_name(clean) && page_by_name(clean) != page)
         page.name = clean
+        js(:scenes, 'renamed', {id: scene_id(page), name: clean})
       when 'delete'
         raise 'Scéna nebyla nalezena.' unless page
         model.pages.erase(page)
