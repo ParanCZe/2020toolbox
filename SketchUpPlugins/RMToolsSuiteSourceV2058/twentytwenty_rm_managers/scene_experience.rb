@@ -12,6 +12,9 @@ module TwentyTwenty
         js = File.read(File.join(__dir__, 'scene_ui.js'), encoding: 'UTF-8')
         original = original.sub('</style>', css + "\n</style>")
         original = original.sub('<div id="tree"></div></aside>',
+          '<section class="rm-scene-create"><label for="rmCreateName">NOVÁ SCÉNA</label>' \
+          '<div class="rm-create-row"><input id="rmCreateName" aria-label="Název nové scény" placeholder="02 - EXTERIER - HLAVNI"/>' \
+          '<button class="primary" id="rmCreateScene" type="button">+ Vytvořit scénu</button></div></section>' \
           '<section class="rm-map-area"><div class="rm-map-title">PŮDORYS · KAMERY</div>' \
           '<div class="rm-map-help">Skutečný řez SketchUpu ve výšce 2 m. Přejetím na kameru zobrazíš její záběr.</div>' \
           '<div id="rmMiniMap" class="rm-mini-map"></div><button class="rm-map-refresh" onclick="Manager.act({kind:\'rebuild_plan\'})">↻ Obnovit půdorys</button></section><div id="tree"></div></aside>')
