@@ -203,7 +203,11 @@
       if(!uv.every(Number.isFinite)||uv[0]<0||uv[0]>1||uv[1]<0||uv[1]>1)continue;
       const dir=scene.direction||[0,1];
       // +X world points right; +Y world points up in our north-up top camera.
-      const northRadians=Math.atan2(-dir[1],dir[0]),deg=northRadians*180/Math.PI;
+      // Arrow artwork points up; rotate clockwise from map north toward the camera heading.
+      // Mapping follows the plan's xaxis/yaxis, so east is right and north is up.
+      const screenDx=dir[0]*rect.xaxis[0]+dir[1]*rect.yaxis[0];
+      const screenDy=dir[0]*rect.xaxis[1]+dir[1]*rect.yaxis[1];
+      const deg=Math.atan2(screenDx,-screenDy)*180/Math.PI;
       const selected=scene.id===selectedId||(!selectedId&&scene.selected);
       const col=selected?'#ffdb31':'#ffec8c';
       const marker=document.createElement('button');
