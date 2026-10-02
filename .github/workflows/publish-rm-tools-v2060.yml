@@ -7,6 +7,7 @@ on:
       - "SketchUpPlugins/rmtools_v2060_builder.py"
       - "SketchUpPlugins/rmtools_v2060_tests.rb"
       - "SketchUpPlugins/rmtools_v2060_floorplan_tests.rb"
+      - "SketchUpPlugins/rmtools_v2060_scene_create_tests.rb"
       - "SketchUpPlugins/RMToolsSuiteSourceV2060/**"
       - "SketchUpPlugins/RMToolsSuiteSourceV2060/**"
   workflow_dispatch:
@@ -96,6 +97,7 @@ jobs:
       - name: Verify camera-specific floorplan bounds and automatic expansion
         run: |
           ruby SketchUpPlugins/rmtools_v2060_floorplan_tests.rb
+          ruby SketchUpPlugins/rmtools_v2060_scene_create_tests.rb
       - name: Build RBZ and verify original tools untouched
         run: |
           python SketchUpPlugins/rmtools_v2060_builder.py
