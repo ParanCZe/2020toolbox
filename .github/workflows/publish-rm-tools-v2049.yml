@@ -1,0 +1,112 @@
+name: Publish RM TOOLS v2.0.4.9 - Meye tag and first paint
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v2049.yml"
+      - "SketchUpPlugins/rmtools_v2049_builder.py"
+      - "SketchUpPlugins/MeyeCutoutsSourceV012/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Meye Ruby and release baseline
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/MeyeCutoutsSourceV012/twentytwenty_meye_cutouts/main.rb
+          test -s SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.8.rbz
+          python SketchUpPlugins/rmtools_v2049_builder.py
+      - name: Check packaged plugin and confirm untouched components
+        run: |
+          python - <<'PY'
+          from zipfile import ZipFile
+          from pathlib import Path
+          p=Path("SketchUpPlugins")
+          with ZipFile(p/"20-20_RM_TOOLS_v2.0.4.8.rbz") as a, ZipFile(p/"20-20_RM_TOOLS_v2.0.4.9.rbz") as b:
+              old={n:a.read(n) for n in a.namelist() if not n.endswith("/")}
+              new={n:b.read(n) for n in b.namelist() if not n.endswith("/")}
+              assert old.keys()==new.keys()
+              assert {k for k in old if old[k]!=new[k]}=={
+                  "twentytwenty_meye_cutouts/main.rb",
+                  "twentytwenty_rm_tools_suite/main.rb",
+                  "twentytwenty_rm_tools_suite.rb"
+              }
+              code=new["twentytwenty_meye_cutouts/main.rb"].decode()
+              assert "tag = layers['ZELEN'] || layers.add('ZELEN')" in code
+              assert "root.add_folder('VENEK')" in code
+              assert "entity.layer = @green_tag" in code
+              assert "PAGE_SIZE = 8" in code
+          print("PASS: RM tag observer + smaller Meye batch, only expected files changed")
+          PY
+      - name: Update Toolbox default installer without changing Legacy or Bridge
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path("index.html")
+          s=p.read_text(encoding="utf-8")
+          start=s.index("const SU_PLUGIN_CATALOG = [")
+          pos=s.index("id:'rm-tools-suite'",start)
+          left=s.rfind("{",start,pos)
+          depth=0
+          quote=None
+          escaped=False
+          right=None
+          for i in range(left,len(s)):
+              c=s[i]
+              if quote:
+                  if escaped: escaped=False
+                  elif c=="\\": escaped=True
+                  elif c==quote: quote=None
+              elif c in ("'",'"',chr(96)): quote=c
+              elif c=="{": depth+=1
+              elif c=="}":
+                  depth-=1
+                  if depth==0: right=i+1;break
+          assert right is not None
+          b=s[left:right]
+          assert "current:'2.0.4.8'" in b
+          b=b.replace("current:'2.0.4.8'","current:'2.0.4.9'",1)
+          b,n=re.subn(r"meta:'[^']*'",
+              "meta:'v2.0.4.9: menší první dávka Meye náhledů a automatický tag OKOLI / VENEK / ZELEN při vložení stromu.'",b,count=1)
+          assert n==1
+          name="20-20_RM_TOOLS_v2.0.4.9.rbz"
+          size=(Path("SketchUpPlugins")/name).stat().st_size
+          record='{"version":"2.0.4.9","file":"'+name+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+name+'"}'
+          begin=b.index("[",b.index("versions:["))
+          i=begin+1
+          d=1
+          while d:
+              if b[i]=="[":d+=1
+              elif b[i]=="]":d-=1
+              i+=1
+          end=i-1
+          items=b[begin+1:end].rstrip()
+          if items and not items.endswith(","):items+=","
+          items+="\n              "+record+"\n            "
+          b=b[:begin+1]+items+b[end:]
+          s=s[:left]+b+s[right:]
+          assert 'const archived=SU_PLUGIN_CATALOG.filter(p=>p.id!==\'rm-tools-suite\');' in s
+          p.write_text(s,encoding="utf-8")
+          print("PASS: Toolbox latest=2.0.4.9, historic versions unchanged")
+          PY
+      - name: Publish compiled extension and Toolbox
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.9.rbz index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release RM TOOLS 2.0.4.9: faster Meye preview and green RM tags"
+          for i in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
