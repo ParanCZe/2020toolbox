@@ -6,7 +6,7 @@ require 'cgi'
 module TwentyTwenty
   module RMManagers
     extend self
-    VERSION = '0.1.0'.freeze
+    VERSION = '0.1.1'.freeze
     def html_escape(v); CGI.escapeHTML(v.to_s); end
     def show(which)
       @dialogs ||= {}
@@ -328,7 +328,7 @@ module TwentyTwenty
       const el=id=>document.getElementById(id);
       const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       const send=d=>sketchup.action(JSON.stringify(d));
-      const eye=(target,id,visible)=>'<button class="eye" title="Viditelnost" onclick="event.stopPropagation();Manager.act({kind:\\'visibility\\',target:\\''+target+'\\',id:'+JSON.stringify(id)+',visible:'+(!visible)+'})">'+(visible?'◉':'○')+'</button>';
+      const eye=(target,id,visible)=>'<button class="eye" title="Viditelnost" onclick="event.stopPropagation();Manager.act({kind:\\'visibility\\',target:\\''+target+'\\',id:'+esc(JSON.stringify(id))+',visible:'+(!visible)+'})">'+(visible?'◉':'○')+'</button>';
       const selectedObject=o=>{selected={type:'object',item:o};draw();send({kind:'select',id:o.id});};
       function objects(tag,query){
         const list=(data.objects||{})[tag]||[];
@@ -341,13 +341,13 @@ module TwentyTwenty
         for(const t of folderItems)content+=tag(t,depth+1,query);
         if(query&&!f.name.toLowerCase().includes(query)&&!content)return '';
         const open=expanded[f.id]||!!query;
-        return '<div class="entry" style="padding-left:'+depth*10+'px"><button onclick="Manager.toggle('+JSON.stringify(f.id)+')">'+(open?'▾':'▸')+'</button><span onclick="Manager.toggle('+JSON.stringify(f.id)+')">▣ '+esc(f.name)+'</span>'+eye('folder',f.name,f.visible)+'</div>'+(open?'<div class="children">'+content+'</div>':'');
+        return '<div class="entry" style="padding-left:'+depth*10+'px"><button onclick="Manager.toggle('+esc(JSON.stringify(f.id))+')">'+(open?'▾':'▸')+'</button><span onclick="Manager.toggle('+esc(JSON.stringify(f.id))+')">▣ '+esc(f.name)+'</span>'+eye('folder',f.name,f.visible)+'</div>'+(open?'<div class="children">'+content+'</div>':'');
       }
       function tag(t,depth,query){
         const rows=objects(t.name,query);
         if(query&&!t.name.toLowerCase().includes(query)&&!rows.length)return '';
         const open=expanded[t.id]||!!query;
-        let out='<div class="entry" style="padding-left:'+depth*10+'px"><button onclick="Manager.toggle('+JSON.stringify(t.id)+')">'+(open?'▾':'▸')+'</button><span onclick="Manager.toggle('+JSON.stringify(t.id)+')">▤ '+esc(t.name)+' ('+((data.objects||{})[t.name]||[]).length+')</span>'+eye('tag',t.name,t.visible)+'</div>';
+        let out='<div class="entry" style="padding-left:'+depth*10+'px"><button onclick="Manager.toggle('+esc(JSON.stringify(t.id))+')">'+(open?'▾':'▸')+'</button><span onclick="Manager.toggle('+esc(JSON.stringify(t.id))+')">▤ '+esc(t.name)+' ('+((data.objects||{})[t.name]||[]).length+')</span>'+eye('tag',t.name,t.visible)+'</div>';
         if(open)out+='<div class="children">'+rows.map(o=>'<div class="entry '+(selected&&selected.type==='object'&&selected.item.id===o.id?'active':'')+'" style="padding-left:'+((depth+1)*8)+'px"><span onclick="Manager.pick('+o.id+')">⬡ '+esc(o.name||o.definition)+'</span>'+eye('object',o.id,!o.hidden)+'</div>').join('')+'</div>';
         return out;
       }
@@ -357,11 +357,12 @@ module TwentyTwenty
           el('tree').innerHTML=(data.folders||[]).map(f=>folder(f,0,q)).join('')+(data.root_tags||[]).map(t=>tag(t,0,q)).join('');
         } else {
           el('tree').innerHTML=(data.scenes||[]).filter(s=>s.name.toLowerCase().includes(q)).map(s=>
-            '<div class="entry '+(s.selected?'active':'')+'"><span onclick="Manager.pickScene('+JSON.stringify(s.name)+')">◈ '+esc(s.name)+'</span></div>').join('');
+            '<div class="entry '+(s.selected?'active':'')+'"><span onclick="Manager.pickScene('+esc(JSON.stringify(s.name))+')" ondblclick="Manager.activateScene('+esc(JSON.stringify(s.name))+')" title="Dvojklik aktivuje scénu">◈ '+esc(s.name)+'</span></div>').join('');
         }
         details();
       }
       function line(k,v){return '<div class="line"><span class="small">'+esc(k)+'</span><strong>'+esc(v)+'</strong></div>';}
+      function nextSceneName(){const nums=(data.scenes||[]).map(s=>Number((s.name.match(/^([0-9]+)/)||[])[1])).filter(Number.isFinite);return String(Math.max(0,...nums)+1).padStart(2,'0')+' - EXTERIER - HLAVNI';}
       function details(){
         const box=el('details');
         if(TAG_MODE){
@@ -376,19 +377,19 @@ module TwentyTwenty
             '<button onclick="Manager.act({kind:\\'replace\\',id:'+o.id+',all:true})">Nahradit všechny stejné</button>':'')+'</div>'+
             '<p class="note">Náhrada zachovává instanční transformaci a tag. Model musí obsahovat jednu hlavní komponentu.</p>';
         }else{
-          if(!selected){box.innerHTML='<h2>SCENE MANAGER</h2><p class="note">Klikni na scénu vlevo nebo založ novou.</p><input id="newscene" placeholder="Název nové scény"/><div class="buttons"><button class="primary" onclick="Manager.act({kind:\\'create\\',name:document.getElementById(\\'newscene\\').value})">+ Vytvořit scénu</button></div>';return;}
+          if(!selected){box.innerHTML='<h2>SCENE MANAGER</h2><p class="note">Jedním kliknutím zobrazíš informace, dvojklikem aktivuješ uloženou kameru a nastavení.</p><input id="newscene" placeholder="Název nové scény" value="'+esc(nextSceneName())+'"/><div class="buttons"><button class="primary" onclick="Manager.act({kind:\\'create\\',name:document.getElementById(\\'newscene\\').value})">+ Vytvořit scénu</button></div>';return;}
           const s=(data.scenes||[]).find(x=>x.name===selected.item.name);
           if(!s){selected=null;details();return;}selected.item=s;
           box.innerHTML='<h2>'+esc(s.name)+'</h2>'+line('Ohnisko',s.focal+' mm')+line('Poměr stran',s.ratio||'Dle aktuální kamery')+
             line('Promítání',s.perspective?'Perspektiva':'Rovnoběžné')+
-            '<div class="buttons"><button onclick="Manager.act({kind:\\'activate\\',name:'+JSON.stringify(s.name)+'})">Aktivovat</button>'+
-            '<button onclick="Manager.act({kind:\\'update\\',name:'+JSON.stringify(s.name)+'})">Aktualizovat z aktuálního pohledu</button></div>'+
+            '<div class="buttons"><button onclick="Manager.act({kind:\\'activate\\',name:'+esc(JSON.stringify(s.name))+'})">Aktivovat</button>'+
+            '<button onclick="Manager.act({kind:\\'update\\',name:'+esc(JSON.stringify(s.name))+'})">Aktualizovat z aktuálního pohledu</button></div>'+
             '<div class="line"><span>Ohnisko</span><input id="focal" type="number" min="10" max="200" value="'+s.focal+'" /></div>'+
             '<div class="line"><span>Poměr stran</span><select id="ratio">'+['16:9','4:3','3:2','1:1','9:16'].map(r=>'<option '+(r===s.ratio?'selected':'')+'>'+r+'</option>').join('')+'</select></div>'+
-            '<div class="buttons"><button class="primary" onclick="Manager.act({kind:\\'camera\\',name:'+JSON.stringify(s.name)+',focal:document.getElementById(\\'focal\\').value,ratio:document.getElementById(\\'ratio\\').value})">Uložit kameru</button></div>'+
-            '<div class="line"><input id="rename" value="'+esc(s.name)+'"/><button onclick="Manager.act({kind:\\'rename\\',name:'+JSON.stringify(s.name)+',new_name:document.getElementById(\\'rename\\').value})">Přejmenovat</button></div>'+
-            '<button onclick="if(confirm(\\'Smazat scénu?\\'))Manager.act({kind:\\'delete\\',name:'+JSON.stringify(s.name)+'})">Smazat scénu</button>'+
-            '<hr/><input id="newscene" placeholder="Nová scéna"/><button onclick="Manager.act({kind:\\'create\\',name:document.getElementById(\\'newscene\\').value})">+ Vytvořit další</button>';
+            '<div class="buttons"><button class="primary" onclick="Manager.act({kind:\\'camera\\',name:'+esc(JSON.stringify(s.name))+',focal:document.getElementById(\\'focal\\').value,ratio:document.getElementById(\\'ratio\\').value})">Uložit kameru</button></div>'+
+            '<div class="line"><input id="rename" value="'+esc(s.name)+'"/><button onclick="Manager.act({kind:\\'rename\\',name:'+esc(JSON.stringify(s.name))+',new_name:document.getElementById(\\'rename\\').value})">Přejmenovat</button></div>'+
+            '<button onclick="if(confirm(\\'Smazat scénu?\\'))Manager.act({kind:\\'delete\\',name:'+esc(JSON.stringify(s.name))+'})">Smazat scénu</button>'+
+            '<hr/><input id="newscene" placeholder="Nová scéna" value="'+esc(nextSceneName())+'"/><button onclick="Manager.act({kind:\\'create\\',name:document.getElementById(\\'newscene\\').value})">+ Vytvořit další</button>';
         }
       }
       window.Manager={
@@ -396,7 +397,8 @@ module TwentyTwenty
         act(d){send(d);},
         toggle(id){expanded[id]=!expanded[id];draw();},
         pick(id){const o=Object.values(data.objects||{}).flat().find(x=>x.id===id);if(o)selectedObject(o);},
-        pickScene(name){const s=(data.scenes||[]).find(x=>x.name===name);if(s){selected={type:'scene',item:s};draw();send({kind:'activate',name});}},
+        pickScene(name){const s=(data.scenes||[]).find(x=>x.name===name);if(s){selected={type:'scene',item:s};draw();}},
+        activateScene(name){this.pickScene(name);send({kind:'activate',name});},
         draw
       };
       document.addEventListener('DOMContentLoaded',()=>sketchup.ready());
