@@ -118,7 +118,11 @@ module TwentyTwenty
           log(@state[:ruby_bridge])
         end
         if adapter && !adapter_running?(adapter)
-          launch_hidden(quoted(adapter), File.dirname(adapter))
+          @adapter_launch_requested_at ||= Time.at(0)
+          if Time.now - @adapter_launch_requested_at >= 15
+            launch_hidden(quoted(adapter), File.dirname(adapter))
+            @adapter_launch_requested_at = Time.now
+          end
         end
         @state[:agent] = 'spuštěný' if adapter
         return if @script_loaded || !script || @loading_script
