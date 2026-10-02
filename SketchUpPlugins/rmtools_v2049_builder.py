@@ -32,3 +32,5 @@ with ZipFile(OUTPUT) as z:
 print("PASS: preserved Model Library, Checker, Bridge, UI, and all other assets")
 print("PASS: RM ZELEN placement hook and smaller initial Meye batch; no bundled PNG")
 print("BUILT:",OUTPUT.name,OUTPUT.stat().st_size)
+
+# Release build trigger: generate the installable RBZ in the repository.
