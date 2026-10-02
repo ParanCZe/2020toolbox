@@ -82,7 +82,7 @@ jobs:
           assert "when 'quick_lens', 'quick_ratio', 'quick_height'" in exp
           assert "when 'quick_two_point'" in exp
           assert "when 'update_view'" in exp
-          assert "preserved_focal" in exp and "preserved_ratio" in exp
+          assert "keep_fov" in exp and "keep_ratio" in exp
           assert "rmUpdateView" in ui and "rmDeleteScene" in ui
           assert "rmCreateScene" in exp and "rmMiniMap" in exp
           assert "Smazat scénu" not in s and "Uložit kameru" not in s
