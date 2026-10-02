@@ -26,7 +26,7 @@ assert b"VERSION = '2.0.5.5'" in new["twentytwenty_rm_tools_suite/main.rb"]
 assert b"EXTENSION_VERSION = '2.0.5.5'" in new["twentytwenty_rm_tools_suite.rb"]
 assert b"VERSION = '0.1.5'" in new["twentytwenty_rm_managers/main.rb"]
 assert set(old).issubset(set(new))
-assert {x for x in old if old[x]!=new[x]}==(set(paths) - {"twentytwenty_rm_tools_suite/camera_consistency.rb"}) & set(old)
+assert {x for x in old if old[x]!=new[x]}==(set(paths) - {"twentytwenty_rm_tools_suite/camera_consistency.rb", "twentytwenty_rm_managers/scene_ui.css"}) & set(old)
 with ZipFile(output,"w",compression=ZIP_DEFLATED,compresslevel=6) as f:
     for name,data in sorted(new.items()): f.writestr(name,data)
 with ZipFile(output) as f:
