@@ -144,6 +144,26 @@ module TwentyTwenty
           rm_save_scene(model, target)
           # The refreshed thumbnail will arrive asynchronously when viewport repaints.
           refresh(:scenes)
+        when 'quick_two_point'
+          target = page || model.pages.selected_page
+          raise 'Nejdříve vyber scénu ze seznamu.' unless target
+          rm_instant_scene(model, target) unless model.pages.selected_page == target
+          if view.camera.respond_to?(:is_2d?) && view.camera.is_2d?
+            notify(:scenes, 'Dvoubodová perspektiva je už zapnutá.')
+          else
+            ok = Sketchup.send_action('viewTwoPointPerspective;')
+            ok = Sketchup.send_action(10_627) if !ok && Sketchup.platform == :platform_win
+            if ok
+              UI.start_timer(0.4, false) do
+                if Sketchup.active_model.equal?(model) && model.pages.selected_page == target
+                  rm_save_scene(model, target)
+                  refresh(:scenes)
+                end
+              end
+            else
+              notify(:scenes, 'Dvoubodovou perspektivu se nepodařilo zapnout.')
+            end
+          end
         when 'update_view'
           target = page || model.pages.selected_page
           raise 'Nejdříve vyber scénu ze seznamu.' unless target
