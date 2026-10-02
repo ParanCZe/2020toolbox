@@ -214,6 +214,11 @@ module TwentyTwenty
         @replacement = nil
         notify(:tags, "Nahrazeno komponent: #{targets.length}. Původní pozice a tag zachovány.")
         @dialogs[:tags].show if @dialogs && @dialogs[:tags]
+        library_dialog = Dvacet20::ComponentLibrary.instance_variable_get(:@dialog)
+        UI.start_timer(0.2, false) do
+          library_dialog.close if library_dialog
+          @dialogs[:tags].bring_to_front if @dialogs && @dialogs[:tags]
+        end
         refresh(:tags)
       rescue StandardError
         m.abort_operation
@@ -242,6 +247,7 @@ module TwentyTwenty
       name = d['name'].to_s
       page = page_by_name(name)
       case d['kind']
+      when 'refresh'
       when 'activate'
         raise 'Scéna nenalezena.' unless page
         model.pages.selected_page = page
