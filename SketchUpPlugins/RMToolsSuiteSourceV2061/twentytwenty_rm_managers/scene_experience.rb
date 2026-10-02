@@ -178,29 +178,23 @@ module TwentyTwenty
             end
           end
         when 'update_view'
-          target = page || model.pages.selected_page
-          raise 'Nejdříve vyber scénu ze seznamu.' unless target
-          # Save ONLY eye, target and up from the visible viewport.
-          # Keep focal length and frame ratio from the target's saved camera.
-          # Explicitly avoid activating the saved page first, which would
-          # overwrite the new user-adjusted view.
-          saved = target.camera
+          # A selected card is a stable scene ID. Do not silently update a
+          # different active scene if that ID is missing or stale.
+          raise 'Vyber scénu, kterou chceš aktualizovat.' unless page
+          # Update only the saved camera's orientation directly; page.update
+          # also copies other scene properties, while view.camera= can change
+          # the visible camera, FOV and 2-point perspective unexpectedly.
           current = view.camera
-          preserved_focal = focal_35(saved)
-          preserved_ratio = saved.aspect_ratio
           model.start_operation('RM aktualizovat polohu záběru', true)
           begin
-            replacement_camera = Sketchup::Camera.new(current.eye, current.target, current.up)
-            replacement_camera.perspective = saved.perspective?
-            if saved.perspective? && preserved_focal
-              set_focal_35(replacement_camera, preserved_focal)
-            end
-            replacement_camera.aspect_ratio = preserved_ratio
-            view.camera = replacement_camera
-            view.invalidate
-            rm_save_scene(model, target, ratio_name(saved))
+            saved = page.camera
+            saved.set(current.eye, current.target, current.up)
+            page.use_camera = true
+            # Keep the scene's saved focal length, projection, aspect ratio,
+            # style, shadow and tag visibility unchanged.
             model.commit_operation
-            notify(:scenes, "Poloha scény #{target.name} aktualizována. Ohnisko a poměr zůstaly zachované.")
+            SceneVisuals.clear(model, page)
+            notify(:scenes, "Poloha scény #{page.name} uložena. Ohnisko, poměr stran a pohled zůstaly beze změny; náhled se obnoví po aktivaci.")
             refresh(:scenes)
             rm_plan_if_cameras_moved(model)
           rescue StandardError
