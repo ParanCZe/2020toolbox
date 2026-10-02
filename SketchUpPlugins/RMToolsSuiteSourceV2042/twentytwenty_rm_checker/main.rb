@@ -553,7 +553,7 @@ module TwentyTwenty
 
           if entity.material && entity.material.alpha < 0.98
             unless path =~ /(OKNA|GLASS|ZRCAD|MIRROR)/i
-              findings << finding('warn', 'Průhledný povrch není na tagu OKNA/ZRCADLO', path, false, 'Sklo a zrcadla mají být samostatné plochy/tagy.', [entity.entityID])
+              findings << finding('warn', 'Průhledný povrch není na tagu OKNA/ZRCADLO', path, false, 'Průhledná okna patří pod OKNA; zrcadla nastav podle vlastní RM struktury.', [entity.entityID])
             end
           end
         when Sketchup::Group
