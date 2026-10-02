@@ -1,0 +1,49 @@
+name: Publish RM TOOLS v2.0.5.0 - Tag and Scene Managers
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v2050.yml"
+      - "SketchUpPlugins/rmtools_v2050_builder.py"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2050/**"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Ruby
+        run: |
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2050/twentytwenty_rm_managers/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2050/twentytwenty_rm_tools_suite/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2050/twentytwenty_rm_tools_suite.rb
+      - name: Validate dialog HTML JavaScript
+        run: |
+          ruby -rjson -e '$LOADED_FEATURES << "sketchup.rb"; require_relative "SketchUpPlugins/RMToolsSuiteSourceV2050/twentytwenty_rm_managers/main"; File.write("/tmp/tag-manager.html",TwentyTwenty::RMManagers.html(:tags)); File.write("/tmp/scene-manager.html",TwentyTwenty::RMManagers.html(:scenes))'
+          python - <<'PY'
+          from pathlib import Path
+          for p in [Path("/tmp/tag-manager.html"),Path("/tmp/scene-manager.html")]:
+              s=p.read_text()
+              assert "<script>" in s and "</script>" in s
+              Path("/tmp/"+p.stem+".js").write_text(s.split("<script>",1)[1].split("</script>",1)[0])
+          PY
+          node --check /tmp/tag-manager.js
+          node --check /tmp/scene-manager.js
+      - name: Build RBZ and verify original tools untouched
+        run: |
+          python SketchUpPlugins/rmtools_v2050_builder.py
+      - name: Publish installer
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.5.0.rbz
+          git diff --cached --quiet && exit 0
+          git commit -m "Release RM TOOLS v2.0.5.0 Tag and Scene Managers"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
