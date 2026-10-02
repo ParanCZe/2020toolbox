@@ -65,7 +65,7 @@ jobs:
           assert "renderPlan" in ui and "renderRows" in ui
           assert "state.floorplan" in ui and "state.section" not in ui
           assert "def replacement_root_definition" in s
-          assert "definition = wrapper" in s
+          assert "definition = replacement_root_definition(wrapper)" in s
           assert "target_transform = original.transformation" in s
           assert "Dvacet20::ComponentLibrary.placement_roots" not in s
           assert "when 'rebuild_plan'" in exp
