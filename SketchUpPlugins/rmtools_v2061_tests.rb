@@ -54,7 +54,7 @@ class FakeInstance < Sketchup::ComponentInstance
     @definition=definition
     @parent=entities.owner
     @entities=entities
-    @layer=nil
+    @layer=FakeLayer.new('Untagged')
     @material=nil
     @hidden=false
     @locked=false
