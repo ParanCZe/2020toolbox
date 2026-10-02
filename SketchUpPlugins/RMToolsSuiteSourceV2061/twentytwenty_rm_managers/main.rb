@@ -7,8 +7,10 @@ module TwentyTwenty
   module RMManagers
     extend self
     VERSION = '0.2.1'.freeze
+    # Observer follows the active SketchUp selection without changing it.
     def html_escape(v); CGI.escapeHTML(v.to_s); end
     def show(which)
+      install_selection_observer if which == :tags
       @dialogs ||= {}
       if (dlg = @dialogs[which])
         dlg.show
@@ -127,10 +129,40 @@ module TwentyTwenty
       # only in a separately collapsible virtual group at the bottom.
       other = layers.to_a.reject { |l| expected.include?(l.name) }.sort_by { |l| l.name.downcase }
       roots << rm_folder('DALSI', 'rm:other', [], other.map(&:name), layers) unless other.empty?
-      {folders: roots, root_tags: [],
+      {selected_key: selected_model_key, folders: roots, root_tags: [],
        objects: objs.group_by { |o| o[:tag] },
        tag_options: layers.to_a.sort_by { |l| l.name.downcase }.map { |l| {name: l.name, rm: expected.include?(l.name)} },
        count: objs.length}
+    end
+    # SketchUp only selects entities in the current editing context. Prefix
+    # their persistent IDs with the active component path to match the tree.
+    def selected_model_key
+      model = Sketchup.active_model
+      selected = model.selection.to_a.select do |item|
+        item.valid? && (item.is_a?(Sketchup::ComponentInstance) || item.is_a?(Sketchup::Group))
+      end
+      return nil unless selected.length == 1
+      ancestors = model.respond_to?(:active_path) ? Array(model.active_path) : []
+      (ancestors + selected).map { |entity| entity_id(entity) }.join('/')
+    end
+    class TagSelectionObserver < (defined?(Sketchup::SelectionObserver) ? Sketchup::SelectionObserver : Object)
+      def onSelectionBulkChange(_selection); TwentyTwenty::RMManagers.selection_changed; end
+      def onSelectionCleared(_selection); TwentyTwenty::RMManagers.selection_changed; end
+      def onSelectionAdded(_selection, _entity); TwentyTwenty::RMManagers.selection_changed; end
+      def onSelectionRemoved(_selection, _entity); TwentyTwenty::RMManagers.selection_changed; end
+    end
+    def selection_changed
+      refresh(:tags) if @dialogs && @dialogs[:tags]
+    end
+    def install_selection_observer
+      return unless defined?(Sketchup::SelectionObserver)
+      model = Sketchup.active_model
+      return if @observed_tag_model.equal?(model) && @tag_selection_observer
+      @observed_tag_model.selection.remove_observer(@tag_selection_observer) if
+        @observed_tag_model && @tag_selection_observer && @observed_tag_model.selection.respond_to?(:remove_observer)
+      @tag_selection_observer ||= TagSelectionObserver.new
+      model.selection.add_observer(@tag_selection_observer)
+      @observed_tag_model = model
     end
     def entity_path(key)
       ids = key.to_s.split('/').map { |v| Integer(v, 10) }
@@ -665,7 +697,19 @@ module TwentyTwenty
       }
       window.Manager={
         receive(d){
-          data=d;draw();
+          data=d;
+          if(TAG_MODE){
+            const key=d.selected_key;
+            const chosen=key ? Object.values(d.objects||{}).flat().find(x=>x.key===key) : null;
+            selected=chosen ? {type:'object',item:chosen} : null;
+            if(chosen){
+              (d.folders||[]).forEach(function reveal(f){
+                if((f.tags||[]).some(t=>t.name===chosen.tag)){expanded[f.id]=true;expanded['tag:'+chosen.tag]=true;}
+                (f.children||[]).forEach(reveal);
+              });
+            }
+          }
+          draw();
           if(!TAG_MODE && d.current){
             const c=d.current;
             el('currentFocal').textContent=c.focal ? c.focal+' mm' : 'Rovnoběžné promítání';
