@@ -345,13 +345,11 @@ module TwentyTwenty
       model.start_operation('RM náhrada komponent z Model Library', true)
       begin
         wrapper = model.definitions.load(candidate)
-        # Validate the one-root library structure but instantiate the COMPLETE
-        # imported SKP wrapper. Unwrapping its root drops the source component's
-        # own saved transformation (especially scale), causing size changes.
-        # No auto-fit or scale compensation: old instance transformation stays
-        # exactly the same and new model keeps its original authoring scale.
-        replacement_root_definition(wrapper)
-        definition = wrapper
+        # Replace geometry only: use the imported ROOT definition, not its
+        # wrapper, whose placement transform could multiply the original scale.
+        # Preserve the original instance transformation (position, rotation,
+        # non-uniform scale and mirroring) without auto-fitting or compensation.
+        definition = replacement_root_definition(wrapper)
         targets = request[:all] ? request[:definition].instances.to_a.select(&:valid?) : [old]
         raise 'Žádné komponenty k nahrazení.' if targets.empty?
         raise 'Komponenta nemůže být nahrazena sama sebou.' if definition == request[:definition]
