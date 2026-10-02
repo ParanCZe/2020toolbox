@@ -392,7 +392,26 @@ module TwentyTwenty
         raise 'Náhradní model má kromě hlavní komponenty i další viditelnou geometrii.'
       end
       raise 'Hlavní komponenta nemá platnou definici.' unless selected.definition
-      selected.definition
+      selected
+    end
+    # Fit the imported root's real (possibly pre-scaled) bounding size to the
+    # old definition, before applying the OLD instance's own transformation.
+    # Uniform compensation does not warp the replacement geometry; existing
+    # instance position, rotation, mirroring and non-uniform scale stay intact.
+    def replacement_fit_transform(old_definition, imported_root)
+      source = old_definition.bounds
+      incoming = imported_root.bounds
+      raise 'Původní objekt nemá platné rozměry pro náhradu.' unless source.valid?
+      raise 'Náhradní model nemá platné rozměry.' unless incoming.valid?
+      old_size = [source.width.to_f, source.height.to_f, source.depth.to_f].max
+      new_size = [incoming.width.to_f, incoming.height.to_f, incoming.depth.to_f].max
+      unless old_size.finite? && new_size.finite? && old_size > 0.001 && new_size > 0.001
+        raise 'Nelze bezpečně přepočítat velikost: model má nulové nebo neplatné rozměry.'
+      end
+      factor = old_size / new_size
+      # Include root's original authored scale: the SKP wrapper may contain a
+      # root instance scaled e.g. 0.01, which was lost in prior replacements.
+      [Geom::Transformation.scaling(factor) * imported_root.transformation, factor]
     end
     def replace_from_library(path)
       request = @replacement
@@ -408,11 +427,9 @@ module TwentyTwenty
       model.start_operation('RM náhrada komponent z Model Library', true)
       begin
         wrapper = model.definitions.load(candidate)
-        # Replace geometry only: use the imported ROOT definition, not its
-        # wrapper, whose placement transform could multiply the original scale.
-        # Preserve the original instance transformation (position, rotation,
-        # non-uniform scale and mirroring) without auto-fitting or compensation.
-        definition = replacement_root_definition(wrapper)
+        root_instance = replacement_root_definition(wrapper)
+        definition = root_instance.definition
+        fitting, fit_factor = replacement_fit_transform(request[:definition], root_instance)
         targets = request[:all] ? request[:definition].instances.to_a.select(&:valid?) : [old]
         raise 'Žádné komponenty k nahrazení.' if targets.empty?
         raise 'Komponenta nemůže být nahrazena sama sebou.' if definition == request[:definition]
@@ -421,7 +438,7 @@ module TwentyTwenty
           entities = parent.respond_to?(:entities) ? parent.entities : nil
           raise 'Nepodařilo se najít kontext komponenty.' unless entities
           target_layer = original.layer
-          target_transform = original.transformation
+          target_transform = original.transformation * fitting
           replacement = entities.add_instance(definition, target_transform)
           copy_instance_properties(original, replacement)
           was_locked = original.respond_to?(:locked?) && original.locked?
@@ -442,7 +459,7 @@ module TwentyTwenty
           libdlg.close if libdlg && libdlg.visible?
           @dialogs[:tags].show if @dialogs && @dialogs[:tags]
           refresh(:tags)
-          notify(:tags, "Nahrazeno #{result.length} instancí. Pozice, transformace a tag zachovány.")
+          notify(:tags, "Nahrazeno #{result.length} instancí. Nový model poměrově přizpůsoben rozměru původního (#{format('%.3f', fit_factor)}×).")
         end
       rescue StandardError
         model.abort_operation
