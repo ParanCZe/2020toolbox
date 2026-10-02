@@ -654,19 +654,10 @@ module TwentyTwenty
             '<button onclick="Manager.act({kind:\\'replace\\',key:'+esc(JSON.stringify(o.key))+',all:true})">Nahradit všechny stejné</button>':'')+'</div>'+
             '<p class="note">Náhrada zachovává instanční transformaci a tag. Model musí obsahovat jednu hlavní komponentu.</p>';
         }else{
-          if(!selected){box.innerHTML='<h2>SCENE MANAGER</h2><p class="note">Jedním kliknutím zobrazíš informace, dvojklikem aktivuješ uloženou kameru a nastavení.</p><input id="newscene" placeholder="Název nové scény" value="'+esc(nextSceneName())+'"/><div class="buttons"><button class="primary" onclick="Manager.act({kind:\\'create\\',name:document.getElementById(\\'newscene\\').value})">+ Vytvořit scénu</button></div>';return;}
-          const s=(data.scenes||[]).find(x=>x.name===selected.item.name);
-          if(!s){selected=null;details();return;}selected.item=s;
-          box.innerHTML='<h2>'+esc(s.name)+'</h2>'+line('Ohnisko (35mm ekv.)',(s.focal||'–')+' mm')+line('Poměr stran',s.ratio||'Dle aktuální kamery')+
-            line('Promítání',s.perspective?'Perspektiva':'Rovnoběžné')+
-            '<div class="buttons"><button onclick="Manager.act({kind:\\'activate\\',name:'+esc(JSON.stringify(s.name))+'})">Aktivovat</button>'+
-            '<button onclick="Manager.act({kind:\\'update\\',name:'+esc(JSON.stringify(s.name))+'})">Aktualizovat z aktuálního pohledu</button></div>'+
-            '<div class="line"><span>Ohnisko</span><input id="focal" type="number" min="10" max="200" value="'+(s.focal||35)+'" /></div>'+
-            '<div class="line"><span>Poměr stran</span><select id="ratio">'+['16:9','4:3','3:2','1:1','9:16'].map(r=>'<option '+(r===s.ratio?'selected':'')+'>'+r+'</option>').join('')+'</select></div>'+
-            '<div class="buttons"><button class="primary" onclick="Manager.act({kind:\\'camera\\',name:'+esc(JSON.stringify(s.name))+',focal:document.getElementById(\\'focal\\').value,ratio:document.getElementById(\\'ratio\\').value})">Uložit kameru</button></div>'+
-            '<div class="line"><input id="rename" value="'+esc(s.name)+'"/><button onclick="Manager.act({kind:\\'rename\\',name:'+esc(JSON.stringify(s.name))+',new_name:document.getElementById(\\'rename\\').value})">Přejmenovat</button></div>'+
-            '<button onclick="if(confirm(\\'Smazat scénu?\\'))Manager.act({kind:\\'delete\\',name:'+esc(JSON.stringify(s.name))+'})">Smazat scénu</button>'+
-            '<hr/><input id="newscene" placeholder="Nová scéna" value="'+esc(nextSceneName())+'"/><button onclick="Manager.act({kind:\\'create\\',name:document.getElementById(\\'newscene\\').value})">+ Vytvořit další</button>';
+          // Full scene inspector is supplied by scene_ui.js.
+          // Deliberately keep only a placeholder here: no duplicate
+          // focal/ratio inputs, legacy save-camera or create buttons.
+          box.innerHTML='<p class="note">Vyber scénu vlevo. Ovládání kamery je nahoře.</p>';
         }
       }
       window.Manager={
