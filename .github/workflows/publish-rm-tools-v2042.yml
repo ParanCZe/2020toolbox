@@ -1,0 +1,135 @@
+name: Publish RM TOOLS 2.0.4.2 - OKNA leaf tag
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v2042.yml"
+      - "SketchUpPlugins/rmtools_v2042_builder.py"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2042/**"
+      - "SketchUpPlugins/tests/test_windows_tag_v2042.rb"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build 2.0.4.2 strictly from released 2.0.4.1
+        run: python SketchUpPlugins/rmtools_v2042_builder.py
+
+      - name: Verify Ruby, existing-model migration and package integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2042/twentytwenty_rm_checker/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2042/twentytwenty_rm_checker.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2042/twentytwenty_rm_tools_suite.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2042/twentytwenty_rm_tools_suite/main.rb
+          ruby SketchUpPlugins/tests/test_windows_tag_v2042.rb
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          root=Path("SketchUpPlugins")
+          original=root/"20-20_RM_TOOLS_v2.0.4.1.rbz"
+          hotfix=root/"20-20_RM_TOOLS_v2.0.4.2.rbz"
+          expected={
+              "twentytwenty_rm_checker/main.rb",
+              "twentytwenty_rm_checker.rb",
+              "twentytwenty_rm_tools_suite.rb",
+              "twentytwenty_rm_tools_suite/main.rb"
+          }
+          with zipfile.ZipFile(original) as a, zipfile.ZipFile(hotfix) as b:
+              assert b.testzip() is None
+              assert set(a.namelist())==set(b.namelist())
+              changed={x for x in a.namelist() if a.read(x)!=b.read(x)}
+              assert changed==expected,changed
+              checker=b.read("twentytwenty_rm_checker/main.rb").decode()
+              assert "'OKNA' => []" in checker
+              assert "'OKNA' => %w[RAM SKLO]" not in checker
+              assert "layers.remove(old_tag, false)" in checker
+              assert "Průhledný povrch není na tagu OKNA/ZRCADLO" in checker
+              assert "EXTENSION_VERSION = '1.2.4'" in b.read("twentytwenty_rm_checker.rb").decode()
+              assert "2.0.4.2" in b.read("twentytwenty_rm_tools_suite.rb").decode()
+              assert a.read("dvacet20_component_library/main.rb")==b.read("dvacet20_component_library/main.rb")
+              assert a.read("dvacet20_component_library/ui/library.html")==b.read("dvacet20_component_library/ui/library.html")
+              assert a.read("twentytwenty_live_mirror/main_v0418.rb")==b.read("twentytwenty_live_mirror/main_v0418.rb")
+          print("PASS: zero-origin Model Library, mirror and all other code unchanged")
+          PY
+
+      - name: Register v2.0.4.2 in Toolbox
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          path=Path("index.html")
+          content=path.read_text(encoding="utf-8")
+          head=content.index("const SU_PLUGIN_CATALOG = [")
+          at=content.index("id:'rm-tools-suite'",head)
+          left=content.rfind("{",head,at)
+          depth=0
+          quote=None
+          escape=False
+          right=None
+          for i in range(left,len(content)):
+              ch=content[i]
+              if quote:
+                  if escape:escape=False
+                  elif ch=="\\":escape=True
+                  elif ch==quote:quote=None
+              elif ch in ("'",'"',chr(96)):quote=ch
+              elif ch=="{":depth+=1
+              elif ch=="}":
+                  depth-=1
+                  if depth==0:
+                      right=i+1
+                      break
+          assert right is not None
+          block=content[left:right]
+          assert "current:'2.0.4.1'" in block
+          block=block.replace("current:'2.0.4.1'","current:'2.0.4.2'",1)
+          block,count=re.subn(r"meta:'[^']*'",
+              "meta:'Aktualizace RM tagů: ARCH/OKNA je jediný tag; RAM a SKLO se automaticky sloučí do OKNA bez mazání geometrie. Vkládání zůstává z v2.0.4.1.'",
+              block,count=1)
+          assert count==1
+          size=Path("SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.2.rbz").stat().st_size
+          entry='{"version":"2.0.4.2","file":"20-20_RM_TOOLS_v2.0.4.2.rbz","size":'+str(size)+',"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.2.rbz"}'
+          if '"version":"2.0.4.2"' not in block:
+              i=block.index("versions:[")
+              opening=block.index("[",i)
+              cursor=opening+1
+              d=1
+              while d:
+                  if block[cursor]=="[":d+=1
+                  elif block[cursor]=="]":d-=1
+                  cursor+=1
+              closing=cursor-1
+              current=block[opening+1:closing].rstrip()
+              if current and not current.endswith(","):current+=","
+              current+="\n              "+entry+"\n            "
+              block=block[:opening+1]+current+block[closing:]
+          content=content[:left]+block+content[right:]
+          assert "let suBridgeActiveUrl=null;" in content
+          assert "const status=await ensureSuBridge(true);" in content
+          path.write_text(content,encoding="utf-8")
+          print("PASS: Toolbox suite updated without altering web Bridge or independent library")
+
+      - name: Commit release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.2.rbz \
+                  SketchUpPlugins/RMToolsSuiteSourceV2042 \
+                  index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release 2.0.4.2 with OKNA leaf tag and non-destructive RAM/SKLO migration"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
