@@ -1,0 +1,29 @@
+name: Inspect existing 20-20 materials library UI
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/inspect-materials-ui.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show material library Ruby API and HTML dialogs
+        run: |
+          python - <<'PY'
+          from zipfile import ZipFile
+          with ZipFile("SketchUpPlugins/20-20_AI-TOOLS_v0.4.2.rbz") as z:
+              print("ARCHIVE FILES:",z.namelist())
+              for n in z.namelist():
+                  if n.lower().endswith(('.rb','.html','.js')):
+                      s=z.read(n).decode('utf-8','replace').splitlines()
+                      print("\nSOURCE",n,"LINE COUNT",len(s))
+                      if n.endswith('.rb'):
+                          for i,line in enumerate(s):
+                              if any(x in line.lower() for x in ('material','knihovn','dialog','set_url','set_file','show','https://','main_file','ai_tool')):
+                                  print('\n',str(i+1)+':', '\n'.join(str(j+1)+': '+s[j] for j in range(max(0,i-2),min(len(s),i+4))))
+          PY
