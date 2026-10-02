@@ -64,6 +64,26 @@ def main():
     assert changed==allowed,(changed,allowed)
     assert "file_loaded(__FILE__) unless file_loaded?(__FILE__)" in source
     write(OUT,output)
+    # Standalone library receives the SAME core fix, but keeps its legitimate
+    # own toolbar. The embedded library remains toolbar-less.
+    standalone_old=read(P/"20-20_Component_Library_v0.3.2.rbz")
+    standalone=dict(standalone_old)
+    standalone_original=standalone_old[LIB].decode("utf-8")
+    start=standalone_original.rfind("    unless file_loaded?(__FILE__)\n")
+    end=standalone_original.rfind("\n  end\nend")
+    assert start>=0 and end>start, "Missing original standalone UI registration"
+    original_toolbar=standalone_original[start:end]
+    embedded_stub="    file_loaded(__FILE__) unless file_loaded?(__FILE__)"
+    assert source.count(embedded_stub)==1
+    standalone[LIB]=source.replace(embedded_stub,original_toolbar,1).encode("utf-8")
+    standalone[UI]=output[UI]
+    standalone[LOADER]=exactly_once(
+      standalone_old[LOADER].decode("utf-8"),
+      "EXTENSION_VERSION = '0.3.2'","EXTENSION_VERSION = '0.3.2.1'"
+    ).encode("utf-8")
+    standalone_out=P/"20-20_Component_Library_v0.3.2.1.rbz"
+    write(standalone_out,standalone)
+    print("BUILT",standalone_out.name,standalone_out.stat().st_size)
     for name in sorted(allowed):
         target=SOURCE/name
         target.parent.mkdir(parents=True,exist_ok=True)
