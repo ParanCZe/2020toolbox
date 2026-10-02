@@ -30,7 +30,7 @@ jobs:
           if old in html:
               html=html.replace(old,new,1)
               page.write_text(html,encoding="utf-8")
-          assert "id='rm-tools-suite'" in html
+          assert "id:'rm-tools-suite'" in html
           assert "const archived=SU_PLUGIN_CATALOG.filter(p=>p.id!=='rm-tools-suite');" in html
           assert '<details id="suplugins-legacy"' in html
           assert re.search(r'<details id="suplugins-legacy"[^>]*>',html).group().find(" open")==-1
