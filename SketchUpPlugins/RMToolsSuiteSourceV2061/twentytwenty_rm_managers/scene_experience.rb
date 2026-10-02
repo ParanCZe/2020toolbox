@@ -52,7 +52,8 @@ module TwentyTwenty
           cam = page.camera
           data[:eye] = [cam.eye.x.to_f, cam.eye.y.to_f]
           data[:direction] = [cam.direction.x.to_f, cam.direction.y.to_f]
-          data[:up] = [cam.up.x.to_f, cam.up.y.to_f]
+          up = cam.respond_to?(:up) ? cam.up : nil
+          data[:up] = up ? [up.x.to_f, up.y.to_f] : [0.0, 1.0]
           data[:preview] = SceneVisuals.preview_base64(model, page)
         end
         result
