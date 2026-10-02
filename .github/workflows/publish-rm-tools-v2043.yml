@@ -110,8 +110,10 @@ jobs:
                       break
           assert right
           block=data[left:right]
-          assert "current:'2.0.4.2'" in block,block[:200]
-          block=block.replace("current:'2.0.4.2'","current:'2.0.4.3'",1)
+          if "current:'2.0.4.2'" in block:
+              block=block.replace("current:'2.0.4.2'","current:'2.0.4.3'",1)
+          else:
+              assert "current:'2.0.4.3'" in block,block[:200]
           block,count=re.subn(
               r"meta:'[^']*'",
               "meta:'RM TOOLS 2.0.4.3: SketchUp otevře hlavní menu; Agent Launcher 0.1.2, most.rb a lokální Bridge se spustí neviditelně na pozadí.'",
@@ -120,20 +122,24 @@ jobs:
           file="20-20_RM_TOOLS_v2.0.4.3.rbz"
           size=Path("SketchUpPlugins",file).stat().st_size
           entry='{"version":"2.0.4.3","file":"'+file+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+file+'"}'
-          assert '"version":"2.0.4.3"' not in block
-          n=block.index("versions:[")
-          start=block.index("[",n)
-          idx=start+1
-          count=1
-          while count:
-              if block[idx]=="[":count+=1
-              elif block[idx]=="]":count-=1
-              idx+=1
-          end=idx-1
-          body=block[start+1:end].rstrip()
-          if body and not body.endswith(","):body+=","
-          body+="\n              "+entry+"\n            "
-          block=block[:start+1]+body+block[end:]
+          if '"version":"2.0.4.3"' in block:
+              pattern=r'\\{"version":"2\\.0\\.4\\.3"[^}]*\\}'
+              block,count=re.subn(pattern,lambda _:entry,block,count=1)
+              assert count==1
+          else:
+              n=block.index("versions:[")
+              start=block.index("[",n)
+              idx=start+1
+              count=1
+              while count:
+                  if block[idx]=="[":count+=1
+                  elif block[idx]=="]":count-=1
+                  idx+=1
+              end=idx-1
+              body=block[start+1:end].rstrip()
+              if body and not body.endswith(","):body+=","
+              body+="\n              "+entry+"\n            "
+              block=block[:start+1]+body+block[end:]
           data=data[:left]+block+data[right:]
           assert "let suBridgeActiveUrl=null;" in data
           assert "const status=await ensureSuBridge(true);" in data
