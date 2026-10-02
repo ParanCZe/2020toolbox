@@ -72,7 +72,7 @@ module TwentyTwenty
       # Instead embed the exact validated command and working directory in
       # one private per-command script, escaping VBScript's double quotes.
       def vbs_literal(value)
-        raise 'Neplatný znak v cestě nebo příkazu.' if value.to_s.match?(/[\r\n]/)
+        raise 'Neplatný znak v cestě nebo příkazu.' if value.to_s =~ /[\r\n]/
         '"' + value.to_s.gsub('"', '""') + '"'
       end
 
@@ -136,7 +136,7 @@ module TwentyTwenty
       end
 
       def quoted(file)
-        raise 'Neplatná cesta ke spustitelnému souboru.' if file.to_s.match?(/["\r\n]/)
+        raise 'Neplatná cesta ke spustitelnému souboru.' if file.to_s =~ /["\r\n]/
         %("#{file.tr('/', '\\')}")
       end
 
