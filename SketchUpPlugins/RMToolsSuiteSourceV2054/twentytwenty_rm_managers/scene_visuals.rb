@@ -38,7 +38,7 @@ module TwentyTwenty
         file = file_for(model, page)
         # Call when current viewport displays the exact scene to be saved.
         # write_image is intentionally done AFTER applying the scene's changes.
-        opts = {filename: file, width: 320, height: 180, antialias: true, compression: 0.9}
+        opts = {filename: file, width: 320, height: 180, antialias: true}
         model.active_view.invalidate
         result = model.active_view.write_image(opts)
         raise 'SketchUp neuložil obrázek náhledu.' unless result && File.file?(file)
@@ -54,10 +54,11 @@ module TwentyTwenty
         nil
       end
 
-      def slice_segments(entities, transformation, z, segments, visited, depth)
+      def slice_segments(entities, transformation, z, segments, visited, depth, budget)
         return if depth > 5 || segments.length > SECTION_LIMIT
         entities.each do |entity|
-          break if segments.length > SECTION_LIMIT
+          break if segments.length > SECTION_LIMIT || budget[0] <= 0
+          budget[0] -= 1
           next unless entity.valid? && !(entity.respond_to?(:hidden?) && entity.hidden?)
           if entity.is_a?(Sketchup::Face)
             vertices = entity.outer_loop.vertices.map { |v| v.position.transform(transformation) }
@@ -84,7 +85,7 @@ module TwentyTwenty
           elsif entity.is_a?(Sketchup::ComponentInstance) || entity.is_a?(Sketchup::Group)
             next if visited.include?(entity.definition.object_id)
             slice_segments(entity.definition.entities, transformation * entity.transformation, z,
-                           segments, visited + [entity.definition.object_id], depth + 1)
+                           segments, visited + [entity.definition.object_id], depth + 1, budget)
           end
         end
       end
@@ -93,8 +94,9 @@ module TwentyTwenty
         return {segments:[], bounds:[0,0,1,1], cut_z:0, truncated:false} unless bb.valid?
         z = bb.min.z.to_f + 2000.mm.to_f
         segments = []
+        budget = [14000]
         begin
-          slice_segments(model.entities, Geom::Transformation.new, z, segments, [], 0)
+          slice_segments(model.entities, Geom::Transformation.new, z, segments, [], 0, budget)
         rescue StandardError => e
           puts "[RM SCENES] Půdorysný řez: #{e.message}"
         end
@@ -105,7 +107,7 @@ module TwentyTwenty
         pad = [dx, dy].max*0.08
         {segments:segments.first(SECTION_LIMIT).map { |r| r.map { |v| v.round(2) } },
          bounds:[minx-pad, miny-pad, maxx+pad, maxy+pad],
-         cut_z:z.round(1), truncated:segments.length>SECTION_LIMIT}
+         cut_z:z.round(1), truncated:segments.length>SECTION_LIMIT || budget[0]<=0}
       end
     end
   end
