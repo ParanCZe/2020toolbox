@@ -39,3 +39,40 @@ jobs:
                   else:print('TEXT SAMPLE:',response.text[:320])
               except Exception as e:print('ERROR',url,type(e).__name__,str(e)[:220])
           PY
+      - name: Discover public tree structure and per-item official downloads
+        run: |
+          pip -q install requests beautifulsoup4
+          python - <<'PY'
+          import requests,re,urllib.parse
+          from bs4 import BeautifulSoup
+          S=requests.Session()
+          S.headers.update({'User-Agent':'Mozilla/5.0 (compatible; 20-20 RM TOOLS metadata inspection)'})
+          base='https://meye.dk'
+          homepage=S.get(base,timeout=12).text
+          soup=BeautifulSoup(homepage,'html.parser')
+          for n in soup.select('[class*=alm], [data-post-type], [data-repeater]')[:15]:
+              print('TREE CONTAINER:',str(n)[:2200])
+          for term in ['ajax-load-more','alm-reveal','data-post-type','load-more','tree_list','tree-item','download','2d-cutout']:
+              m=re.search(term,homepage,re.I)
+              if m:print('HTML FEATURE',term,homepage[max(0,m.start()-200):m.start()+600].replace('\\n',' ')[:790])
+          types=S.get(base+'/wp-json/wp/v2/types',timeout=12).json()
+          print('PUBLIC WP TYPES:',[(k,v.get('rest_base')) for k,v in types.items()])
+          tax=S.get(base+'/wp-json/wp/v2/taxonomies',timeout=12).json()
+          print('PUBLIC TAXONOMIES:',[(k,v.get('rest_base'),v.get('types')) for k,v in tax.items()])
+          for posttype,data in types.items():
+              if posttype in ('attachment','wp_block','wp_template','wp_template_part','wp_navigation'):continue
+              u=base+'/wp-json/wp/v2/'+str(data.get('rest_base',posttype))+'?per_page=2'
+              try:
+                  r=S.get(u,timeout=8)
+                  if r.status_code==200 and isinstance(r.json(),list):
+                      print('WP EXAMPLES',u,'COUNT',r.headers.get('x-wp-total'),'DATA',[
+                          {x:y.get(x) for x in ('id','slug','link','title','acf','meta') if x in y}
+                          for y in r.json()][:2])
+              except Exception as e:print('WP ERROR',str(e)[:90])
+          js=S.get(base+'/wp-content/themes/Divi-child/js/meye.js?v=1.7',timeout=12).text
+          print('SITE JS LEN:',len(js))
+          print('SITE JS TOP:',js[:3800])
+          for x in ['download','full','image','png','ajax','tree','season','species','href']:
+              m=re.search(x,js,re.I)
+              if m:print('SITE JS TERM:',x,js[max(0,m.start()-140):m.start()+350].replace('\\n',' ')[:500])
+          PY
