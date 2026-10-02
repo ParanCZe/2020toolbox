@@ -159,11 +159,11 @@ Dir.mktmpdir('2020-meye-test') do |dir|
   raise 'No insertion operation' unless $model.operations==[:start,:commit]
   raise 'Model must be placed by native cursor tool, not immediately' unless $model.placed[1]==false
   raise 'Wrong source attribution' unless defn.attributes[['20-20 MEYE','Credit']].include?('Mikkel Eye')
-  scale=5.0*39.3700787402/5
+  scale=5.0*39.3700787402/4
   pts=defn.face.points
   raise 'Cutout bottom is not z=0' unless pts[0].z.abs<0.001
   raise 'Cutout x=0 should be aligned to visible trunk stem' unless (pts[0].x+2*scale).abs<0.001 && (pts[1].x-3*scale).abs<0.001
-  raise 'Invalid height scale' unless (pts[2].z-5*scale).abs<0.001
+  raise 'Invalid height scale' unless (pts[2].z-5.0*39.3700787402).abs<0.001
   puts 'PASS: full PNG fetched only on plus, reused from private local cache'
   puts 'PASS: PNG alpha finds actual bottom stem and offsets cutout about exact local origin'
   puts 'PASS: 5m transparent two-sided camera-facing component uses native SketchUp cursor placement'
