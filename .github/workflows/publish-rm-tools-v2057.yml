@@ -58,7 +58,7 @@ jobs:
           ui=Path("SketchUpPlugins/RMToolsSuiteSourceV2057/twentytwenty_rm_managers/scene_ui.js").read_text()
           assert "rm_instant_scene" in exp and "rm_schedule_thumbnail" in exp
           assert "when 'activate'" in exp and "when 'refresh'" in exp
-          assert "@rm_map_key" in exp and "currentState" in ui
+          assert "Floorplan.cached_data" in exp and "currentState" in ui
           assert "scene_ratio" in exp and "scene_focal" in exp
           assert "renderPlan" in ui and "renderRows" in ui
           assert "state.floorplan" in ui and "state.section" not in ui
