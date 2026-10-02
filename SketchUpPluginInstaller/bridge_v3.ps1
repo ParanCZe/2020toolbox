@@ -114,7 +114,7 @@ function Expand-RbzSafe([string]$rbz,[string]$ext){
 function Remove-StandaloneLaunchersForSuite($su){
  # The all-in-one RM TOOLS calls the bundled modules directly. Their old
  # standalone root loaders cause duplicate SketchUp toolbar buttons.
- foreach($name in @('twentytwenty_rm_checker.rb','dvacet20_component_library.rb','twentytwenty_live_mirror.rb')){
+ foreach($name in @('twentytwenty_rm_checker.rb','dvacet20_component_library.rb','twentytwenty_live_mirror.rb','twentytwenty_agent_launcher.rb')){
   $old=Join-Path $su.Plugins $name
   if(Test-Path $old){Remove-Item -LiteralPath $old -Force;Log ('REMOVED LEGACY LAUNCHER '+$name)}
  }
