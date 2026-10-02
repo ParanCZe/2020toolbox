@@ -382,7 +382,8 @@ module TwentyTwenty
       model = Sketchup.active_model
       raise 'Ve SketchUpu není otevřený model.' unless model
       width_px = bounds[:width]
-      visible_px = bounds[:bottom_y] - bounds[:top_y] + 1
+      # Opaque top and bottom PIXEL CENTRES define the requested tree height.
+      visible_px = [bounds[:bottom_y] - bounds[:top_y], 1].max
       raise 'PNG nemá platnou výšku.' unless visible_px.positive?
       inch_per_pixel = (height_m * 39.3700787402) / visible_px
       x0 = -bounds[:base_x] * inch_per_pixel
