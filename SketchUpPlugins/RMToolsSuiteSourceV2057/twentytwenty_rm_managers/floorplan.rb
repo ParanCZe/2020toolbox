@@ -57,7 +57,11 @@ module TwentyTwenty
         rendering = model.rendering_options
         flags = {}
         %w[DisplaySectionCuts DisplaySectionPlanes SectionCutFilled].each do |name|
-          begin flags[name] = rendering[name] rescue nil end
+          begin
+            flags[name] = rendering[name]
+          rescue StandardError
+            # Some SketchUp releases do not support every rendering key.
+          end
         end
         z = bounds.min.z + 2000.mm
         dx = [bounds.max.x - bounds.min.x, 3000.mm].max
@@ -82,7 +86,11 @@ module TwentyTwenty
                                     Geom::Vector3d.new(0,1,0))
           top.perspective = false
           view.camera = top
-          view.zoom(bounds)
+          # Fit XY only: building height must not shrink a top-down plan.
+          flat_bounds = Geom::BoundingBox.new
+          flat_bounds.add(Geom::Point3d.new(bounds.min.x,bounds.min.y,z))
+          flat_bounds.add(Geom::Point3d.new(bounds.max.x,bounds.max.y,z+10.mm))
+          view.zoom(flat_bounds)
           view.invalidate
           # Screen positions and pixels MUST use the same viewport dimensions.
           # Screenshot is deferred one repaint; the viewport is restored in ensure.
