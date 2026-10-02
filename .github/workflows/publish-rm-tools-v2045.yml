@@ -1,0 +1,148 @@
+name: Publish RM TOOLS 2.0.4.5 - original left materials icon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v2045.yml"
+      - "SketchUpPlugins/rmtools_v2045_builder.py"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2045/twentytwenty_rm_tools_suite/material_library.rb"
+      - "SketchUpPlugins/tests/test_material_toolbar_v2045.rb"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build v2.0.4.5 with original AI-TOOLS Materials Library icons
+        run: python SketchUpPlugins/rmtools_v2045_builder.py
+
+      - name: Validate SketchUp Ruby, native icon toolbar and retained RM tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2045/twentytwenty_rm_tools_suite/material_library.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2045/twentytwenty_rm_tools_suite/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2045/twentytwenty_rm_tools_suite.rb
+          ruby SketchUpPlugins/tests/test_material_toolbar_v2045.rb
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          path=Path("SketchUpPlugins")
+          suite="twentytwenty_rm_tools_suite/"
+          added={
+            suite+"material_library.rb",
+            suite+"icons/material_library_24.png",
+            suite+"icons/material_library_32.png"
+          }
+          changed={suite+"main.rb", "twentytwenty_rm_tools_suite.rb"}
+          with ZipFile(path/"20-20_RM_TOOLS_v2.0.4.4.rbz") as prev, \
+               ZipFile(path/"20-20_RM_TOOLS_v2.0.4.5.rbz") as current, \
+               ZipFile(path/"20-20_AI-TOOLS_v0.4.2.rbz") as original_ai:
+              assert current.testzip() is None
+              before={n:prev.read(n) for n in prev.namelist() if not n.endswith("/")}
+              after={n:current.read(n) for n in current.namelist() if not n.endswith("/")}
+              assert set(after)-set(before)==added
+              assert {n for n in before if before[n]!=after[n]}==changed
+              for n in before:
+                  if n not in changed: assert after[n]==before[n],n
+              assert after[suite+"icons/material_library_24.png"]==original_ai.read("dvacet20-ai-tools/ikony/knihovna-24.png")
+              assert after[suite+"icons/material_library_32.png"]==original_ai.read("dvacet20-ai-tools/ikony/knihovna-32.png")
+              main=after[suite+"main.rb"].decode()
+              material=after[suite+"material_library.rb"].decode()
+              assert "VERSION = '2.0.4.5'" in main
+              assert "require File.join(__dir__, 'material_library')" in main
+              assert "AgentBoot.start" in main
+              assert "MaterialLibrary.startup" in main
+              assert "MaterialLibrary.install_toolbar" in main
+              assert "UI.start_timer(2.0, false)" in main
+              assert "20-20 Knihovna materiálů" in material
+              assert "http://127.0.0.1:8787/knihovna?cad=sketchup" in material
+              assert "Dvacet20::Most.zobraz_listu" in material
+              assert "UI::Toolbar.new(TOOLBAR_TITLE)" in material
+              assert after["twentytwenty_rm_tools_suite.rb"].decode().count("2.0.4.5")==1
+          print("PASS: actual AI-TOOLS material icons included, original page automatically opened")
+          print("PASS: all 2.0.4.4 Agent, Bridge, Checker, 0,0,0 insertion and Live Mirror bytes preserved")
+          PY
+
+      - name: Register v2.0.4.5 as current in Toolbox
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p=Path("index.html")
+          data=p.read_text(encoding="utf-8")
+          catalog=data.index("const SU_PLUGIN_CATALOG = [")
+          pos=data.index("id:'rm-tools-suite'",catalog)
+          left=data.rfind("{",catalog,pos)
+          level=0
+          quote=None
+          escaped=False
+          right=None
+          for i in range(left,len(data)):
+              ch=data[i]
+              if quote:
+                  if escaped: escaped=False
+                  elif ch=="\\": escaped=True
+                  elif ch==quote: quote=None
+              elif ch in ("'",'"',chr(96)):
+                  quote=ch
+              elif ch=="{":
+                  level+=1
+              elif ch=="}":
+                  level-=1
+                  if level==0:
+                      right=i+1
+                      break
+          assert right is not None
+          block=data[left:right]
+          assert "current:'2.0.4.4'" in block,block[:150]
+          block=block.replace("current:'2.0.4.4'","current:'2.0.4.5'",1)
+          block,n=re.subn(
+              r"meta:'[^']*'",
+              "meta:'RM TOOLS 2.0.4.5: původní ikonka Knihovny materiálů 20/20 na dokovatelné liště SketchUpu; okno se otevře automaticky po startu agenta.'",
+              block,count=1)
+          assert n==1
+          release_file="20-20_RM_TOOLS_v2.0.4.5.rbz"
+          size=Path("SketchUpPlugins",release_file).stat().st_size
+          new_entry='{"version":"2.0.4.5","file":"'+release_file+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+release_file+'"}'
+          assert '"version":"2.0.4.5"' not in block
+          start=block.index("[",block.index("versions:["))
+          cursor=start+1
+          level=1
+          while level:
+              if block[cursor]=="[": level+=1
+              elif block[cursor]=="]": level-=1
+              cursor+=1
+          end=cursor-1
+          prior=block[start+1:end].rstrip()
+          if prior and not prior.endswith(","):prior+=","
+          prior+="\n              "+new_entry+"\n            "
+          block=block[:start+1]+prior+block[end:]
+          data=data[:left]+block+data[right:]
+          assert "let suBridgeActiveUrl=null;" in data
+          assert "const status=await ensureSuBridge(true);" in data
+          p.write_text(data,encoding="utf-8")
+          print("PASS: v2.0.4.5 is current in Toolbox; existing Bridge behavior unchanged")
+
+      - name: Publish release and readable source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.5.rbz \
+                  SketchUpPlugins/RMToolsSuiteSourceV2045 index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release 2.0.4.5: original Materials Library icon and automatic panel"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
