@@ -1,0 +1,142 @@
+name: Publish RM TOOLS v2.0.4.6 - manual materials card
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v2046.yml"
+      - "SketchUpPlugins/rmtools_v2046_builder.py"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2046/twentytwenty_rm_tools_suite/main.rb"
+      - "SketchUpPlugins/tests/test_material_card_v2046.rb"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build v2.0.4.6 based strictly on released v2.0.4.5
+        run: python SketchUpPlugins/rmtools_v2046_builder.py
+
+      - name: Test material card, Ruby syntax and preserve all bundled plugins
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2046/twentytwenty_rm_tools_suite/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2046/twentytwenty_rm_tools_suite.rb
+          ruby SketchUpPlugins/tests/test_material_card_v2046.rb
+          ruby SketchUpPlugins/tests/test_material_toolbar_v2045.rb
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          root=Path("SketchUpPlugins")
+          old=root/"20-20_RM_TOOLS_v2.0.4.5.rbz"
+          new=root/"20-20_RM_TOOLS_v2.0.4.6.rbz"
+          expected={"twentytwenty_rm_tools_suite/main.rb","twentytwenty_rm_tools_suite.rb"}
+          with ZipFile(old) as previous, ZipFile(new) as current:
+              assert current.testzip() is None
+              before={x:previous.read(x) for x in previous.namelist() if not x.endswith("/")}
+              after={x:current.read(x) for x in current.namelist() if not x.endswith("/")}
+              assert set(before)==set(after)
+              changed={name for name in before if before[name]!=after[name]}
+              assert changed==expected,changed
+              module=after["twentytwenty_rm_tools_suite/main.rb"].decode()
+              assert module.count('onclick="sketchup.suite_material_library()"')==1
+              assert "MaterialLibrary.startup" not in module
+              assert "MaterialLibrary.install_toolbar" in module
+              assert "AgentBoot.start" in module
+              assert "dlg.add_action_callback('suite_material_library')" in module
+              assert "height: 650" in module
+              for name in (
+                  "twentytwenty_rm_checker/main.rb",
+                  "dvacet20_component_library/main.rb",
+                  "twentytwenty_live_mirror/main_v0418.rb",
+                  "twentytwenty_rm_tools_suite/agent_autostart.rb",
+                  "twentytwenty_rm_tools_suite/material_library.rb",
+                  "twentytwenty_rm_tools_suite/icons/material_library_24.png",
+                  "twentytwenty_rm_tools_suite/icons/material_library_32.png",
+                  "twentytwenty_rm_tools_suite/windows_bridge/bridge_session.ps1"
+              ):
+                  assert before[name]==after[name],name
+          print("PASS: materials dialog opens ONLY on user click; original dockable toolbar remains")
+          print("PASS: original Agent/Bridge, zero-origin Model Library, Checker and Mirror unchanged")
+          PY
+
+      - name: Register version 2.0.4.6 in web Toolbox
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          p=Path("index.html")
+          s=p.read_text(encoding="utf-8")
+          catalog=s.index("const SU_PLUGIN_CATALOG = [")
+          at=s.index("id:'rm-tools-suite'",catalog)
+          left=s.rfind("{",catalog,at)
+          level=0
+          quote=None
+          escaped=False
+          right=None
+          for i in range(left,len(s)):
+              char=s[i]
+              if quote:
+                  if escaped:escaped=False
+                  elif char=="\\":escaped=True
+                  elif char==quote:quote=None
+              elif char in ("'",'"',chr(96)):
+                  quote=char
+              elif char=="{":
+                  level+=1
+              elif char=="}":
+                  level-=1
+                  if level==0:
+                      right=i+1
+                      break
+          assert right is not None
+          block=s[left:right]
+          assert "current:'2.0.4.5'" in block
+          block=block.replace("current:'2.0.4.5'","current:'2.0.4.6'",1)
+          block,n=re.subn(r"meta:'[^']*'",
+              "meta:'RM TOOLS 2.0.4.6: Knihovna materiálů je čtvrtá karta pod Zrcadlem; okno se již neotevírá samo. Agent i Bridge zůstávají na pozadí a levá ikona je zachována.'",
+              block,count=1)
+          assert n==1
+          name="20-20_RM_TOOLS_v2.0.4.6.rbz"
+          size=Path("SketchUpPlugins",name).stat().st_size
+          entry='{"version":"2.0.4.6","file":"'+name+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+name+'"}'
+          assert '"version":"2.0.4.6"' not in block
+          versions=block.index("[",block.index("versions:["))
+          cursor=versions+1
+          depth=1
+          while depth:
+              if block[cursor]=="[":depth+=1
+              elif block[cursor]=="]":depth-=1
+              cursor+=1
+          end=cursor-1
+          entries=block[versions+1:end].rstrip()
+          if entries and not entries.endswith(","): entries+=","
+          entries+="\n              "+entry+"\n            "
+          block=block[:versions+1]+entries+block[end:]
+          s=s[:left]+block+s[right:]
+          assert "let suBridgeActiveUrl=null;" in s
+          assert "const status=await ensureSuBridge(true);" in s
+          p.write_text(s,encoding="utf-8")
+          print("PASS: Toolbox catalog now defaults to v2.0.4.6")
+
+      - name: Publish versioned archive and source snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.6.rbz \
+                  SketchUpPlugins/RMToolsSuiteSourceV2046 index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release RM TOOLS v2.0.4.6 with manual Materials Library home button"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
