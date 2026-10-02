@@ -13,6 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Read public Meye markup and accessible metadata endpoints
         run: |
+          pip -q install requests beautifulsoup4
           python - <<'PY'
           import requests,re,json,html
           from bs4 import BeautifulSoup
