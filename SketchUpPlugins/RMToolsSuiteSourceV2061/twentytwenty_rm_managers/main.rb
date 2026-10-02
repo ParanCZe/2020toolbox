@@ -169,15 +169,19 @@ module TwentyTwenty
     def start_tag_selection_polling
       return if @tag_selection_polling
       @tag_selection_polling = true
-      # SketchUp versions/plugins vary in which selection notifications fire.
-      # Poll only the ID and send JS updates solely when it actually changes.
-      UI.start_timer(0.3, true) do
-        if @tag_selection_polling && @dialogs && @dialogs[:tags]
-          install_selection_observer unless @observed_tag_model.equal?(Sketchup.active_model)
-          sync_tag_selection
-        else
-          @tag_selection_polling = false
-          # SketchUp has no timer cancellation API; this timer becomes inert.
+      @tag_selection_generation = (@tag_selection_generation || 0) + 1
+      poll_tag_selection(@tag_selection_generation)
+    end
+    def poll_tag_selection(generation)
+      UI.start_timer(0.3, false) do
+        if @tag_selection_polling && generation == @tag_selection_generation && @dialogs && @dialogs[:tags]
+          begin
+            install_selection_observer unless @observed_tag_model.equal?(Sketchup.active_model)
+            sync_tag_selection
+          rescue StandardError => e
+            puts "[RM TAG] Výběr: #{e.class}: #{e.message}"
+          end
+          poll_tag_selection(generation)
         end
       end
     end
