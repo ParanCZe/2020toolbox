@@ -60,6 +60,18 @@
         send({kind:'quick_ratio',name:scene.name,ratio:'off'});
       };
     }
+    const heightButton=Array.from(tools.querySelectorAll('button')).find(x=>x.textContent.trim()==='Výška 1,8 m');
+    if(heightButton)heightButton.onclick=e=>{
+      e.preventDefault();const scene=sceneForSettings();
+      if(!scene){get('message').textContent='Nejdříve vyber scénu.';return;}
+      send({kind:'quick_height',name:scene.name});
+    };
+    const twoButton=Array.from(tools.querySelectorAll('button')).find(x=>x.textContent.trim()==='2-bodová perspektiva');
+    if(twoButton)twoButton.onclick=e=>{
+      e.preventDefault();const scene=sceneForSettings();
+      if(!scene){get('message').textContent='Nejdříve vyber scénu.';return;}
+      send({kind:'quick_two_point',name:scene.name});
+    };
   }
   const create=get('rmCreateName'),createBtn=get('rmCreateScene');
   if(create)create.addEventListener('input',()=>{create.dataset.auto='no';});
@@ -79,6 +91,10 @@
     if(btn){btn.classList.toggle('rm-chosen', selectedRatio==='');btn.setAttribute('aria-pressed',String(selectedRatio===''));}
     const frameButton=get('rmFrameShow');
     if(frameButton){frameButton.classList.toggle('rm-chosen',selectedRatio!==''&&!!selectedRatio);}
+    const two=Array.from(tools.querySelectorAll('button')).find(x=>x.textContent.trim()==='2-bodová perspektiva');
+    if(two){two.classList.toggle('rm-chosen',!!page?.two_point);two.setAttribute('aria-pressed',String(!!page?.two_point));}
+    const height=Array.from(tools.querySelectorAll('button')).find(x=>x.textContent.trim()==='Výška 1,8 m');
+    if(height){height.classList.toggle('rm-chosen',!!page?.height_1800);height.setAttribute('aria-pressed',String(!!page?.height_1800));}
     const caption=get('rmSelectedScene');
     if(caption)caption.textContent=page?'Upravuješ scénu: '+page.name:'Nejdříve vyber scénu.';
   }
