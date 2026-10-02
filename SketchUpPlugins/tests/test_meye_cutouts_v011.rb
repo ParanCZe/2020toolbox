@@ -213,7 +213,7 @@ end
 def filter_png(filter)
   original_rows=[[0,0,255,0,0],[0,255,255,255,0],[255,255,255,255,255],[0,0,255,0,0],[0,0,255,0,0]]
   prev=Array.new(20,0)
-  scan=''
+  scan=+''
   original_rows.each do |alphas|
     row=alphas.flat_map{|a|[32,150,33,a]}
     encoded=row.each_index.map do |i|
