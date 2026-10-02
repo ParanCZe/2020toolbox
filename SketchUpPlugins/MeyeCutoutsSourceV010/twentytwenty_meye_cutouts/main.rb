@@ -164,8 +164,10 @@ module TwentyTwenty
       query = {
         'per_page' => PAGE_SIZE,
         'page' => page,
-        '_embed' => 'wp:featuredmedia',
-        '_fields' => 'id,title,link,featured_media,project_category,_embedded'
+        # WordPress drops _embedded when combined with its _fields filter
+        # on this site's project type. Keep the live full post metadata so
+        # featured media thumbnail and source_url are always available.
+        '_embed' => '1'
       }
       query['search'] = search unless search.empty?
       query['project_category'] = chosen if chosen
