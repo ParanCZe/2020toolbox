@@ -1,0 +1,137 @@
+name: Publish RM TOOLS v2.0.4.7 - Meye 2D cutouts + Legacy plugins
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v2047.yml"
+      - "SketchUpPlugins/rmtools_v2047_builder.py"
+      - "SketchUpPlugins/MeyeCutoutsSourceV010/**"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2047/**"
+      - "SketchUpPlugins/tests/test_meye_cutouts_v010.rb"
+      - "SketchUpPlugins/patch_toolbox_legacy_v2047.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build v2.0.4.7 from original v2.0.4.6
+        run: python SketchUpPlugins/rmtools_v2047_builder.py
+
+      - name: Validate Ruby, 2D cutout origin, licensing and original RM tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -c SketchUpPlugins/MeyeCutoutsSourceV010/twentytwenty_meye_cutouts/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2047/twentytwenty_rm_tools_suite/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2047/twentytwenty_rm_tools_suite.rb
+          ruby SketchUpPlugins/tests/test_meye_cutouts_v010.rb
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          root=Path("SketchUpPlugins")
+          with ZipFile(root/"20-20_RM_TOOLS_v2.0.4.6.rbz") as old, \
+               ZipFile(root/"20-20_RM_TOOLS_v2.0.4.7.rbz") as new:
+              assert new.testzip() is None
+              before={x:old.read(x) for x in old.namelist() if not x.endswith("/")}
+              after={x:new.read(x) for x in new.namelist() if not x.endswith("/")}
+              assert set(after)-set(before)=={
+                  "twentytwenty_meye_cutouts/main.rb",
+                  "twentytwenty_meye_cutouts/ui/library.html"
+              }
+              changed={x for x in before if before[x]!=after[x]}
+              assert changed=={"twentytwenty_rm_tools_suite/main.rb","twentytwenty_rm_tools_suite.rb"},changed
+              assert not any(x.startswith("twentytwenty_meye_cutouts/") and x.endswith(".png") for x in after)
+              for x in ("dvacet20_component_library/main.rb",
+                        "twentytwenty_rm_checker/main.rb",
+                        "twentytwenty_live_mirror/main_v0418.rb",
+                        "twentytwenty_rm_tools_suite/agent_autostart.rb",
+                        "twentytwenty_rm_tools_suite/material_library.rb",
+                        "twentytwenty_rm_tools_suite/windows_bridge/bridge_v3.ps1"):
+                  assert before[x]==after[x],x
+              menu=after["twentytwenty_rm_tools_suite/main.rb"].decode()
+              assert menu.index("<b>MODEL LIBRARY</b>")<menu.index("<b>2D STROMY A KEŘE</b>")<menu.index("<b>NASTAVENÍ SKP")
+              assert "2.0.4.7" in after["twentytwenty_rm_tools_suite.rb"].decode()
+          html=(root/"MeyeCutoutsSourceV010/twentytwenty_meye_cutouts/ui/library.html").read_text()
+          assert html.count("sketchup.meye_insert(")==1
+          assert html.count("sketchup.meye_catalog(")==1
+          assert "https://meye.dk/info/" in html
+          start=html.index("<script>")+len("<script>")
+          end=html.index("</script>",start)
+          Path("/tmp/meye_ui_v2047.js").write_text(html[start:end])
+          print("PASS: zero PNGs bundled; original v2.0.4.6 core byte-identical")
+          PY
+          node --check /tmp/meye_ui_v2047.js
+
+      - name: Smoke-test official Meye public metadata (NEVER download PNG)
+        shell: python
+        run: |
+          import json,urllib.request,urllib.parse
+          base="https://meye.dk/wp-json/wp/v2/"
+          urls=[
+             base+"project_category?per_page=100&_fields=id,name,slug",
+             base+"project?per_page=2&_embed=wp%3Afeaturedmedia&_fields=id%2Ctitle%2Clink%2Cfeatured_media%2Cproject_category%2C_embedded"
+          ]
+          for url in urls:
+              req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 (20-20 Meye catalog metadata test)"})
+              with urllib.request.urlopen(req,timeout=30) as response:
+                  data=json.loads(response.read())
+              assert isinstance(data,list) and data, url
+              if "project_category?" in url:
+                  assert any(x.get("slug")=="summer" for x in data)
+                  assert any(x.get("slug")=="acer" for x in data)
+                  print("PASS: verified Meye live seasons/species REST taxonomy")
+              else:
+                  media=[(x.get("_embedded") or {}).get("wp:featuredmedia",[]) for x in data]
+                  assert all(m and m[0].get("source_url","").startswith("https://meye.dk/wp-content/uploads/") for m in media),media
+                  print("PASS: live Meye metadata, direct original URL + thumbnails available; zero PNG bytes fetched")
+
+      - name: Publish big RM TOOLS download and fold other plugins into Legacy
+        run: python SketchUpPlugins/patch_toolbox_legacy_v2047.py
+
+      - name: Test web UI renderer, maintain all old catalog versions and installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          data=Path("index.html").read_text()
+          assert "current:'2.0.4.7'" in data
+          assert '<details id="suplugins-legacy"' in data
+          assert "SU_PLUGIN_CATALOG.filter(p=>p.id==='rm-tools-suite')" in data
+          assert "SU_PLUGIN_CATALOG.filter(p=>p.id!=='rm-tools-suite')" in data
+          assert "suplugins-grid legacy-grid" in data
+          assert 'id="suplugins-legacy-grid"' in data
+          assert data.count("function renderSketchUpPlugins()")==1
+          assert "let suBridgeActiveUrl=null;" in data
+          assert "const status=await ensureSuBridge(true);" in data
+          assert "id:'agent-launcher'" in data and "id:'component-library-server'" in data
+          a=data.index("function renderSuPluginCard(p){")
+          b=data.index("function toggleSuPluginHistory(",a)
+          Path("/tmp/su_plugin_renderer_v2047.js").write_text(data[a:b])
+          print("PASS: all legacy plugin records untouched and browser cached Bridge preserved")
+          PY
+          node --check /tmp/su_plugin_renderer_v2047.js
+
+      - name: Commit new plugin installer and Toolbox UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.7.rbz \
+                  SketchUpPlugins/RMToolsSuiteSourceV2047 \
+                  index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release RM TOOLS 2.0.4.7 with Meye cutouts and collapsed Legacy plugins"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
