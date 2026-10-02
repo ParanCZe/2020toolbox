@@ -43,7 +43,7 @@
 @media(max-width:820px){.rm-create-row{flex-wrap:wrap}.rm-create-row button{width:100%}}
 
 /* Compact, legible camera markers without covering the floorplan. */
-.rm-mini-map .rm-cam-spot{width:29px;height:29px;filter:drop-shadow(0 1px 2px #000c);}
-.rm-mini-map .rm-cam-spot svg{width:29px;height:29px;max-height:29px;}
+.rm-mini-map .rm-cam-spot{width:22px;height:22px;filter:drop-shadow(0 1px 2px #000c);}
+.rm-mini-map .rm-cam-spot svg{width:22px;height:22px;max-height:22px;}
 .rm-mini-map .rm-cam-selected{z-index:7;filter:drop-shadow(0 0 2px #000) drop-shadow(0 0 4px #e5ad00);}
 .rm-mini-map .rm-cam-spot:hover{z-index:8;scale:1.13;}
