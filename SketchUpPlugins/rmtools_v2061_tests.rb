@@ -153,11 +153,10 @@ Dir.mktmpdir do |root|
   manager.instance_variable_set(:@replacement,{model:model,key:top.persistent_id.to_s,definition:plant,all:false})
   check(!Dvacet20::ComponentLibrary.respond_to?(:placement_roots), 'legacy Model Library lacks placement_roots')
   manager.replace_from_library(path)
-  fresh=model.entities.find { |x| x.definition==wrapper }
+  fresh=model.entities.find { |x| x.definition==replacement_def }
   check(!!fresh && !top.valid? && fresh.layer.name=='SANITA' && fresh.transformation=='at original coordinates', 'model-library replacement preserves transform and current tag')
-  check(fresh.definition.entities.first.definition==replacement_def &&
-    fresh.definition.entities.first.transformation=='library root authored scale 0.25',
-    'source-model own scale and nested root transform remain untouched')
+  check(fresh.definition==replacement_def && fresh.transformation=='at original coordinates',
+    'replacement ignores imported wrapper scale and preserves original instance scale')
   check(second.valid? && second.definition==plant, 'single replacement leaves other instances unchanged')
   check(!manager.replacement_pending?, 'replacement state is cleared on success')
 end
