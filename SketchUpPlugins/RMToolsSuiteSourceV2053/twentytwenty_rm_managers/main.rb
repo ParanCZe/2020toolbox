@@ -164,7 +164,7 @@ module TwentyTwenty
         notify(:tags, 'Tato verze SketchUpu neumožňuje otevřít vnořenou komponentu automaticky.')
         return
       end
-      if target.parent != model.active_entities
+      if !model.active_entities.to_a.include?(target)
         # A stale or locked editing context must not select an unrelated entity.
         notify(:tags, 'Nelze otevřít editační kontext objektu. Otevři jeho rodiče ručně.')
         return
@@ -239,6 +239,11 @@ module TwentyTwenty
         install_library_replace_hook
         Dvacet20::ComponentLibrary.show_dialog
         libdlg = Dvacet20::ComponentLibrary.instance_variable_get(:@dialog)
+        owner = self
+        libdlg.set_on_closed do
+          Dvacet20::ComponentLibrary.instance_variable_set(:@dialog, nil)
+          owner.cancel_replacement
+        end if libdlg
         @dialogs[:tags].hide if @dialogs && @dialogs[:tags]
         notify(:tags, 'Vyber náhradní model z Model Library. Původní objekt zůstane, dokud náhrada neproběhne.')
         return
@@ -277,6 +282,15 @@ module TwentyTwenty
     def replacement_pending?
       !!@replacement
     end
+    def cancel_replacement
+      pending = !!@replacement
+      @replacement = nil
+      if pending && @dialogs && @dialogs[:tags]
+        @dialogs[:tags].show
+        refresh(:tags)
+        notify(:tags, 'Nahrazování zrušeno; původní model zůstal beze změny.')
+      end
+    end
     def copy_instance_properties(from, to)
       to.name = from.name
       to.layer = from.layer
@@ -304,16 +318,16 @@ module TwentyTwenty
       raise 'Soubor SKP není dostupný.' unless File.file?(candidate) && File.extname(candidate).casecmp('.skp').zero?
       old, ancestors = entity_path(request[:key])
       raise 'Původní definice se mezitím změnila.' unless old.is_a?(Sketchup::ComponentInstance) && old.definition == request[:definition]
-      wrapper = model.definitions.load(candidate)
-      roots = Dvacet20::ComponentLibrary.placement_roots(wrapper)
-      raise 'Náhradní SKP musí obsahovat právě jednu hlavní komponentu.' unless roots.length == 1
-      definition = roots.first[:definition]
-      raise 'Nelze použít prázdnou definici.' unless definition
-      targets = request[:all] ? request[:definition].instances.to_a.select(&:valid?) : [old]
-      raise 'Žádné komponenty k nahrazení.' if targets.empty?
-      raise 'Komponenta nemůže být nahrazena sama sebou.' if definition == request[:definition]
       model.start_operation('RM náhrada komponent z Model Library', true)
       begin
+        wrapper = model.definitions.load(candidate)
+        roots = Dvacet20::ComponentLibrary.placement_roots(wrapper)
+        raise 'Náhradní SKP musí obsahovat právě jednu hlavní komponentu.' unless roots.length == 1
+        definition = roots.first[:definition]
+        raise 'Nelze použít prázdnou definici.' unless definition
+        targets = request[:all] ? request[:definition].instances.to_a.select(&:valid?) : [old]
+        raise 'Žádné komponenty k nahrazení.' if targets.empty?
+        raise 'Komponenta nemůže být nahrazena sama sebou.' if definition == request[:definition]
         result = targets.map do |original|
           parent = original.parent
           entities = parent.respond_to?(:entities) ? parent.entities : nil
