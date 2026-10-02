@@ -526,6 +526,36 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
 .suplugin-card.featured .suplugin-desc{font-size:13px;max-width:900px}
 .suplugin-card.featured .suplugin-actions{padding:0 24px 20px}
 .suplugin-divider{grid-column:1/-1;height:1px;background:#c9cbd0;margin:2px 0 0}
+
+/* SketchUp downloads: single full-width RM TOOLS hero + folded legacy tools. */
+#suplugins-grid{display:block;margin-top:21px}
+#suplugins-grid>.suplugin-card.featured{width:100%;min-height:264px;border:2px solid #cfc24c;border-radius:18px;background:linear-gradient(135deg,#fffbe8,#fff 68%);box-shadow:0 16px 44px rgba(24,24,27,.12)}
+#suplugins-grid>.suplugin-card.featured .suplugin-card-main{padding:32px 36px 24px;grid-template-columns:106px minmax(0,1fr);gap:25px}
+#suplugins-grid>.suplugin-card.featured .suplugin-icon{width:106px;height:106px;border-radius:19px}
+#suplugins-grid>.suplugin-card.featured .suplugin-icon svg{width:63px;height:63px}
+#suplugins-grid>.suplugin-card.featured .suplugin-title{font-size:28px}
+#suplugins-grid>.suplugin-card.featured .suplugin-desc{font-size:15px;max-width:920px}
+#suplugins-grid>.suplugin-card.featured .suplugin-actions{padding:0 35px 30px;gap:12px}
+#suplugins-grid>.suplugin-card.featured .suplugin-install{font-size:14px;padding:13px 22px}
+#suplugins-grid>.suplugin-divider{display:none}
+.suplugins-legacy{margin-top:27px;background:#f8f8fa;border:1px solid #d9dbdf;border-radius:13px;overflow:hidden}
+.suplugins-legacy>summary{list-style:none;display:flex;align-items:center;flex-wrap:wrap;gap:12px;cursor:pointer;padding:19px 22px;color:#27272a}
+.suplugins-legacy>summary::-webkit-details-marker{display:none}
+.suplugins-legacy>summary:before{content:'▸';font-size:19px;color:#63666d;transition:transform .15s}
+.suplugins-legacy[open]>summary:before{transform:rotate(90deg)}
+.suplugins-legacy .legacy-title{font-size:17px;font-weight:800}
+.suplugins-legacy .legacy-count{background:#e6e6e8;border-radius:20px;padding:4px 9px;font-size:11px}
+.suplugins-legacy .legacy-hint{margin-left:auto;font-size:11px;color:#757981}
+.suplugins-legacy[open]>summary{border-bottom:1px solid #d9dbdf}
+.suplugins-legacy .legacy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:14px;margin:0;padding:18px}
+@media(max-width:650px){
+ #suplugins-grid>.suplugin-card.featured .suplugin-card-main{grid-template-columns:65px minmax(0,1fr);padding:23px 18px 17px;gap:14px}
+ #suplugins-grid>.suplugin-card.featured .suplugin-icon{width:65px;height:65px}
+ #suplugins-grid>.suplugin-card.featured .suplugin-icon svg{width:38px;height:38px}
+ #suplugins-grid>.suplugin-card.featured .suplugin-title{font-size:21px}
+ #suplugins-grid>.suplugin-card.featured .suplugin-actions{padding:0 18px 23px}
+}
+
 .suplugin-card-main{padding:17px;display:grid;grid-template-columns:54px 1fr;gap:13px;align-items:start}
 .suplugin-icon{width:54px;height:54px;border:1px solid #d7cf52;border-radius:11px;background:#f7f197;display:grid;place-items:center;color:#18181b}
 .suplugin-icon svg{width:35px;height:35px;display:block}
@@ -616,6 +646,11 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
     </div>
 
     <div id="suplugins-grid" class="suplugins-grid"></div>
+    <details id="suplugins-legacy" class="suplugins-legacy">
+      <summary><span class="legacy-title">Legacy plugins</span><span id="legacy-plugin-count" class="legacy-count"></span><span class="legacy-hint">Starší samostatné pluginy</span></summary>
+      <div id="suplugins-legacy-grid" class="suplugins-grid legacy-grid"></div>
+    </details>
+
 
     <div class="suplugins-note"><b>Helper stačí nainstalovat jednou.</b> Potom při otevření této stránky nebo kliknutí na <b>Nainstalovat / aktualizovat</b> Toolbox sám spustí lokální SketchUp Bridge na 2 minuty. Bridge přečte nainstalované verze, zobrazí oranžový puntík, pokud je dostupná novější verze, provede instalaci a po 2 minutách se sám vypne.</div>
     <div id="suplugins-toast" class="suplugins-toast"></div>
@@ -2666,10 +2701,10 @@ const SU_PLUGIN_CATALOG = [
   id:'rm-tools-suite',
   loader:'twentytwenty_rm_tools_suite.rb',
   name:'20-20 RM TOOLS',
-  current:'2.0.4.6',
+  current:'2.0.4.7',
   featured:true,
-  description:'MODEL LIBRARY + Nastavení SKP / Záběr / Checker + LIVE Mirror v jednom pluginu.',
-  meta:'RM TOOLS 2.0.4.6: Knihovna materiálů je čtvrtá karta pod Zrcadlem; okno se již neotevírá samo. Agent i Bridge zůstávají na pozadí a levá ikona je zachována.',
+  description:'MODEL LIBRARY · 2D STROMY A KEŘE (Meye) · CHECKER · LIVE Mirror · Knihovna materiálů · Agent + Bridge',
+  meta:'v2.0.4.7: online katalog Meye se stromovými cutouty. Plné PNG se stáhne až při vložení pomocí +.',
   icon:'library',
   versions:[
     {"version":"2.0.0","file":"20-20_RM_TOOLS_v2.0.0.rbz","size":76481,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.0.rbz"},
@@ -2682,7 +2717,8 @@ const SU_PLUGIN_CATALOG = [
               {"version":"2.0.4.3","file":"20-20_RM_TOOLS_v2.0.4.3.rbz","size":93789,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.3.rbz"},
               {"version":"2.0.4.4","file":"20-20_RM_TOOLS_v2.0.4.4.rbz","size":94660,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.4.rbz"},
               {"version":"2.0.4.5","file":"20-20_RM_TOOLS_v2.0.4.5.rbz","size":97639,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.5.rbz"},
-              {"version":"2.0.4.6","file":"20-20_RM_TOOLS_v2.0.4.6.rbz","size":97701,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.6.rbz"}
+              {"version":"2.0.4.6","file":"20-20_RM_TOOLS_v2.0.4.6.rbz","size":97701,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.6.rbz"},
+              {"version":"2.0.4.7","file":"20-20_RM_TOOLS_v2.0.4.7.rbz","size":109672,"repo_file":"SketchUpPlugins/20-20_RM_TOOLS_v2.0.4.7.rbz"}
             ]
 },
 {
@@ -2802,10 +2838,7 @@ function suPluginIcon(type){
 function suFmtBytes(n){if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(0)+' KB';return (n/1048576).toFixed(1)+' MB'}
 function getSuPlugin(id){return SU_PLUGIN_CATALOG.find(x=>x.id===id)}
 function getSuPluginVersion(plugin,version){return plugin?.versions?.find(x=>x.version===version)}
-function renderSketchUpPlugins(){
-  const grid=document.getElementById('suplugins-grid');
-  if(!grid)return;
-  grid.innerHTML=SU_PLUGIN_CATALOG.map(p=>{
+function renderSuPluginCard(p){
     const latest=getSuPluginVersion(p,p.current)||p.versions[p.versions.length-1];
     const older=[...p.versions].filter(v=>v.version!==p.current).reverse();
     return `<article class="suplugin-card${p.featured?' featured':''}" id="suplugin-${p.id}">
@@ -2827,7 +2860,17 @@ function renderSketchUpPlugins(){
         ${older.length?older.map(v=>`<div class="suplugin-version-row"><span>v${escapeHtml(v.version)} · ${suFmtBytes(v.size)}</span><button onclick="downloadSuPlugin('${p.id}','${v.version}')">Stáhnout</button><button class="install-old" onclick="installSuPlugin('${p.id}','${v.version}')">Nainstalovat</button></div>`).join(''):'<div class="muted" style="font-size:11px">Žádné starší verze.</div>'}
       </div>
     </article>${p.featured?'<div class="suplugin-divider" aria-hidden="true"></div>':''}`;
-  }).join('');
+}
+function renderSketchUpPlugins(){
+  const main=document.getElementById('suplugins-grid');
+  const legacy=document.getElementById('suplugins-legacy-grid');
+  if(!main||!legacy)return;
+  const current=SU_PLUGIN_CATALOG.filter(p=>p.id==='rm-tools-suite');
+  const archived=SU_PLUGIN_CATALOG.filter(p=>p.id!=='rm-tools-suite');
+  main.innerHTML=current.map(renderSuPluginCard).join('');
+  legacy.innerHTML=archived.map(renderSuPluginCard).join('');
+  const counter=document.getElementById('legacy-plugin-count');
+  if(counter)counter.textContent=archived.length+' pluginů';
   refreshSuPluginVersions();
 }
 function toggleSuPluginHistory(id){document.getElementById('suplugin-history-'+id)?.classList.toggle('open')}
