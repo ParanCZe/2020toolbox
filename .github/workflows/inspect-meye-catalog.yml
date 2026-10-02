@@ -76,3 +76,31 @@ jobs:
               m=re.search(x,js,re.I)
               if m:print('SITE JS TERM:',x,js[max(0,m.start()-140):m.start()+350].replace('\\n',' ')[:500])
           PY
+
+      - name: Examine two real tree records, their official PNG links and previews
+        run: |
+          pip -q install requests beautifulsoup4
+          python - <<'PY'
+          import requests,re,json
+          from bs4 import BeautifulSoup
+          S=requests.Session()
+          S.headers['User-Agent']='20-20 RM TOOLS metadata inspection Mozilla/5.0'
+          for id in [8647,7933]:
+              u=f'https://meye.dk/wp-json/wp/v2/project/{id}?_embed=1'
+              r=S.get(u,timeout=16)
+              print('PROJECT REST',id,r.status_code,len(r.content))
+              if r.status_code!=200:continue
+              p=r.json()
+              print('PROJECT FIELDS:',[(k,str(v)[:190]) for k,v in p.items() if k in ('id','slug','link','title','featured_media','content','project_category','project_tag','meta','_embedded')])
+              media=(p.get('_embedded') or {}).get('wp:featuredmedia') or []
+              print('FEATURED MEDIA:',[(m.get('source_url'),m.get('media_details',{}).get('sizes')) for m in media][:1])
+              soup=BeautifulSoup(S.get(p['link'],timeout=16).text,'html.parser')
+              for sel in ['article.project a[href]','.et_pb_lightbox_image','a[href*=".png"]','a[href*=".zip"]','img[data-src]']:
+                  elements=soup.select(sel)
+                  print('PAGE SELECTOR',id,sel,len(elements),[
+                      {'href':x.get('href'),'src':x.get('src'),'data-src':x.get('data-src'),'text':x.get_text(' ',strip=True)[:40]}
+                      for x in elements[:4]
+                  ])
+              for el in soup.select('article.project')[:2]:print('PAGE ARTICLE HTML',str(el)[:3600])
+              print('TAXONOMY:',p.get('project_category'),p.get('project_tag'))
+          PY
