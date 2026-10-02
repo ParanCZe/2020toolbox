@@ -74,6 +74,9 @@ class FakeDefinitions
   attr_accessor :loaded
   def load(_path); @loaded; end
 end
+class FakeSelection < Array
+  def add(entity); self << entity; end
+end
 class FakeModel
   attr_reader :entities,:layers,:selection,:definitions,:active_path
   attr_accessor :active_entities
@@ -81,7 +84,7 @@ class FakeModel
     @entities=FakeEntities.new(self)
     @active_entities=@entities
     @layers=FakeLayers.new
-    @selection=[]
+    @selection=FakeSelection.new
     @definitions=FakeDefinitions.new
     @commits=0
   end
