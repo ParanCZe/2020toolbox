@@ -233,8 +233,11 @@ module TwentyTwenty
     RATIOS = {'16:9'=>16.0/9.0, '3:2'=>1.5, '4:3'=>4.0/3.0,
               '1:1'=>1.0, '9:16'=>9.0/16.0, '21:9'=>21.0/9.0}.freeze
     SCENE_DICT = '20-20 RM SCENES'.freeze
-    SCENE_OPTIONS = PAGE_USE_CAMERA | PAGE_USE_RENDERING_OPTIONS |
-                    PAGE_USE_SHADOWINFO | PAGE_USE_LAYER_VISIBILITY
+    # Evaluate SketchUp constants only inside running SketchUp, not while loading.
+    def scene_options
+      PAGE_USE_CAMERA | PAGE_USE_RENDERING_OPTIONS |
+        PAGE_USE_SHADOWINFO | PAGE_USE_LAYER_VISIBILITY
+    end
 
     def focal_35(camera)
       return nil unless camera && camera.perspective?
@@ -295,7 +298,7 @@ module TwentyTwenty
         model.start_operation('RM vytvořit scénu', true)
         begin
           page = model.pages.add(clean)
-          page.update(SCENE_OPTIONS)
+          page.update(scene_options)
           page.set_attribute(SCENE_DICT, 'ratio', ratio_name(view.camera))
           model.commit_operation
         rescue StandardError
@@ -307,7 +310,7 @@ module TwentyTwenty
         # Current view is source. Do NOT activate saved page before update!
         model.start_operation('RM aktualizovat scénu', true)
         begin
-          page.update(SCENE_OPTIONS)
+          page.update(scene_options)
           page.set_attribute(SCENE_DICT, 'ratio', ratio_name(view.camera))
           model.commit_operation
         rescue StandardError
@@ -334,7 +337,7 @@ module TwentyTwenty
         view.camera = cam
         view.invalidate
         page.set_attribute(SCENE_DICT, 'ratio', ratio)
-        page.update(SCENE_OPTIONS)
+        page.update(scene_options)
       when 'lens'
         cam = view.camera
         set_focal_35(cam, d['mm'])
