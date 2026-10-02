@@ -136,6 +136,12 @@ nested=state[:objects]['SANITA']
 check(nested.length==2 && nested.map { |row| row[:key] }.uniq.length==2, 'nested copies are distinguished by full instance path')
 manager.select_entity(nested[1][:key],false)
 check(model.selection==[inside] && model.active_path==[second], 'nested selection enters correct parent instance edit context')
+check(manager.selected_model_key==nested[1][:key], 'live selection resolves nested component to the proper tree key')
+model.selection.clear
+check(manager.selected_model_key.nil?, 'clearing selection clears the Tag Manager inspector')
+model.active_path=nil
+model.selection.add(top)
+check(manager.selected_model_key==top.persistent_id.to_s, 'live top-level model selection resolves to inspector key')
 manager.tag_action({'kind'=>'retag','key'=>top.persistent_id.to_s,'tag'=>'SANITA'})
 check(top.layer.name=='SANITA', 'changing tag in inspector assigns target component')
 manager.tag_action({'kind'=>'visibility','target'=>'folder','id'=>'rm:other','visible'=>false})
