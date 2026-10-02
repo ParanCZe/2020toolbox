@@ -202,13 +202,27 @@
     }catch(e){suPluginToast('Odinstalace selhala: '+(e?.message||e),true)}
   };
 
-  window.renderSketchUpPlugins=function(){
+  // Preserve index.html's native two-area renderer. The previous override
+  // repainted every plugin into #suplugins-grid, defeating Legacy plugins.
+  // This wrapper only adds the extra Uninstall controls and Bridge panel.
+  const renderSketchUpPluginsNative = window.renderSketchUpPlugins;
+  window.renderSketchUpPlugins = function(){
     configureBridgePanel();
-    const grid=document.getElementById('suplugins-grid');if(!grid)return;
-    grid.innerHTML=SU_PLUGIN_CATALOG.map(p=>{
-      const latest=getSuPluginVersion(p,p.current)||p.versions[p.versions.length-1],older=[...p.versions].filter(v=>v.version!==p.current).reverse();
-      return `<article class="suplugin-card" id="suplugin-${p.id}"><div class="suplugin-card-main"><div class="suplugin-icon">${suPluginIcon(p.icon)}</div><div class="suplugin-copy"><div class="suplugin-title-row"><div class="suplugin-title">${escapeHtml(p.name)}</div><span class="suplugin-version">v${escapeHtml(p.current)}</span><span id="suplugin-state-${p.id}" class="suplugin-state">zjišťuji…</span></div><div class="suplugin-desc">${escapeHtml(p.description)}</div><div class="suplugin-meta">${escapeHtml(p.meta)} · ${latest?suFmtBytes(latest.size):''}</div></div></div><div class="suplugin-actions"><button class="suplugin-install" onclick="installSuPlugin('${p.id}','${p.current}')">Nainstalovat / aktualizovat</button><button class="suplugin-download" onclick="downloadSuPlugin('${p.id}','${p.current}')">Stáhnout RBZ</button><button class="suplugin-uninstall" onclick="uninstallSuPlugin('${p.id}')">Odinstalovat</button><button class="suplugin-old-btn" onclick="toggleSuPluginHistory('${p.id}')">Starší verze ▾</button></div><div class="suplugin-history" id="suplugin-history-${p.id}"><div class="suplugin-history-title">STARŠÍ VERZE</div>${older.length?older.map(v=>`<div class="suplugin-version-row"><span>v${escapeHtml(v.version)} · ${suFmtBytes(v.size)}</span><button onclick="downloadSuPlugin('${p.id}','${v.version}')">Stáhnout</button><button class="install-old" onclick="installSuPlugin('${p.id}','${v.version}')">Nainstalovat</button></div>`).join(''):'<div class="muted" style="font-size:11px">Žádné starší verze.</div>'}</div></article>`;
-    }).join('');
-    refreshSuPluginVersions();
+    if(typeof renderSketchUpPluginsNative !== 'function')return;
+    renderSketchUpPluginsNative();
+    for(const plugin of SU_PLUGIN_CATALOG){
+      const card=document.getElementById('suplugin-'+plugin.id);
+      if(!card)continue;
+      const actions=card.querySelector('.suplugin-actions');
+      if(!actions||actions.querySelector('.suplugin-uninstall'))continue;
+      const button=document.createElement('button');
+      button.type='button';
+      button.className='suplugin-uninstall';
+      button.textContent='Odinstalovat';
+      button.addEventListener('click',()=>uninstallSuPlugin(plugin.id));
+      const older=actions.querySelector('.suplugin-old-btn');
+      if(older)actions.insertBefore(button,older);
+      else actions.appendChild(button);
+    }
   };
 })();
