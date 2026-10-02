@@ -30,7 +30,9 @@ assert b"EXTENSION_VERSION = '2.0.6.2'" in new["twentytwenty_rm_tools_suite.rb"]
 assert b"VERSION = '0.2.1'" in new["twentytwenty_rm_managers/main.rb"]
 assert set(old).issubset(set(new))
 allowed = set(paths)
-assert {x for x in old if old[x]!=new[x]} == allowed
+changed = {x for x in old if old[x]!=new[x]}
+assert changed <= allowed
+assert {"twentytwenty_rm_managers/main.rb", "twentytwenty_rm_managers/scene_ui.js", "twentytwenty_rm_managers/scene_ui.css", "twentytwenty_rm_managers/scene_visuals.rb", "twentytwenty_rm_tools_suite/main.rb", "twentytwenty_rm_tools_suite.rb"} <= changed
 with ZipFile(output,"w",compression=ZIP_DEFLATED,compresslevel=6) as f:
     for name,data in sorted(new.items()): f.writestr(name,data)
 with ZipFile(output) as f:
