@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safely release v2.0.6.3 from the existing v2.0.4.9 RBZ, preserving all other plugins."""
+"""Build RM TOOLS v2.0.6.3 from v2.0.6.2 with camera heading/view fixes."""
 from pathlib import Path
 from zipfile import ZipFile,ZIP_DEFLATED
 P=Path(__file__).resolve().parent
