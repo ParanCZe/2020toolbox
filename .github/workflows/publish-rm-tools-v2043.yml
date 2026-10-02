@@ -123,7 +123,7 @@ jobs:
           size=Path("SketchUpPlugins",file).stat().st_size
           entry='{"version":"2.0.4.3","file":"'+file+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+file+'"}'
           if '"version":"2.0.4.3"' in block:
-              pattern=r'\\{"version":"2\\.0\\.4\\.3"[^}]*\\}'
+              pattern=r'\{"version":"2\.0\.4\.3"[^}]*\}'
               block,count=re.subn(pattern,lambda _:entry,block,count=1)
               assert count==1
           else:
