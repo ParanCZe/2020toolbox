@@ -38,7 +38,7 @@ def main():
     with zipfile.ZipFile(OUTPUT,"w",zipfile.ZIP_DEFLATED) as z:
         for name,data in sorted(output.items()): z.writestr(name,data)
     assert files(OUTPUT)==output
-    for name in sorted(changed):
+    for name in sorted(changed | {n for n in base if n.startswith('twentytwenty_rm_tools_suite/windows_bridge/')}):
         path=SRC/name
         path.parent.mkdir(parents=True,exist_ok=True)
         path.write_bytes(output[name])
