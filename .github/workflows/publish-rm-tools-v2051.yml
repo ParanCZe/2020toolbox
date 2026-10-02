@@ -1,0 +1,114 @@
+name: Publish RM TOOLS v2.0.5.1 - Tag and Scene Manager click fixes
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v2051.yml"
+      - "SketchUpPlugins/rmtools_v2051_builder.py"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2051/**"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Ruby
+        run: |
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2051/twentytwenty_rm_managers/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2051/twentytwenty_rm_tools_suite/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2051/twentytwenty_rm_tools_suite.rb
+      - name: Validate dialog HTML JavaScript
+        run: |
+          ruby -rjson -e '$LOADED_FEATURES << "sketchup.rb"; require_relative "SketchUpPlugins/RMToolsSuiteSourceV2051/twentytwenty_rm_managers/main"; File.write("/tmp/tag-manager.html",TwentyTwenty::RMManagers.html(:tags)); File.write("/tmp/scene-manager.html",TwentyTwenty::RMManagers.html(:scenes))'
+          python - <<'PY'
+          from pathlib import Path
+          for p in [Path("/tmp/tag-manager.html"),Path("/tmp/scene-manager.html")]:
+              s=p.read_text()
+              assert "<script>" in s and "</script>" in s
+              Path("/tmp/"+p.stem+".js").write_text(s.split("<script>",1)[1].split("</script>",1)[0])
+          PY
+          node --check /tmp/tag-manager.js
+          node --check /tmp/scene-manager.js
+      - name: Assert corrected handlers and naming template
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path("SketchUpPlugins/RMToolsSuiteSourceV2051/twentytwenty_rm_managers/main.rb").read_text()
+          assert "esc(JSON.stringify(f.id))" in s
+          assert "esc(JSON.stringify(t.id))" in s
+          assert "ondblclick=" in s and "Manager.activateScene" in s
+          assert "EXTERIER - HLAVNI" in s
+          assert "activateScene(name)" in s
+          print("PASS: folder/tag/scene handler quotes, double-click and naming preset")
+          PY
+      - name: Build RBZ and verify original tools untouched
+        run: |
+          python SketchUpPlugins/rmtools_v2051_builder.py
+      - name: Set RM TOOLS as latest in Toolbox (leave legacy plugins alone)
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path("index.html")
+          s=p.read_text(encoding="utf-8")
+          start=s.index("const SU_PLUGIN_CATALOG = [")
+          idpos=s.index("id:'rm-tools-suite'",start)
+          left=s.rfind("{",start,idpos)
+          depth=0
+          quote=None
+          escaped=False
+          end=None
+          for i in range(left,len(s)):
+              c=s[i]
+              if quote:
+                  if escaped:escaped=False
+                  elif c=="\\":escaped=True
+                  elif c==quote:quote=None
+              elif c in ("'",'"',chr(96)):quote=c
+              elif c=="{":depth+=1
+              elif c=="}":
+                  depth-=1
+                  if depth==0:
+                      end=i+1
+                      break
+          assert end is not None
+          block=s[left:end]
+          block,n=re.subn(r"current:'[^']+'","current:'2.0.5.1'",block,count=1)
+          assert n==1
+          block,n=re.subn(r"meta:'[^']*'","meta:'v2.0.5.1: Tag Manager a Scene Manager přímo v RM TOOLS.'",block,count=1)
+          assert n==1
+          name="20-20_RM_TOOLS_v2.0.5.1.rbz"
+          if '"version":"2.0.5.1"' not in block:
+              begin=block.index("[",block.index("versions:["))
+              j=begin+1;level=1
+              while level:
+                  if block[j]=="[":level+=1
+                  elif block[j]=="]":level-=1
+                  j+=1
+              close=j-1
+              versions=block[begin+1:close].rstrip()
+              if versions and not versions.endswith(","):versions+=","
+              size=(Path("SketchUpPlugins")/name).stat().st_size
+              rec='{"version":"2.0.5.1","file":"'+name+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+name+'"}'
+              versions+="\n              "+rec+"\n            "
+              block=block[:begin+1]+versions+block[close:]
+          updated=s[:left]+block+s[end:]
+          assert "id:'rm-tools-suite'" in updated
+          p.write_text(updated,encoding="utf-8")
+          print("PASS: only RM TOOLS latest was updated")
+          PY
+      - name: Publish installer
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.5.1.rbz index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release RM TOOLS v2.0.5.1 Tag and Scene Managers"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
