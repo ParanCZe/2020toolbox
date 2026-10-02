@@ -9,8 +9,9 @@ module TwentyTwenty
     module Floorplan
       extend self
       # One initial camera gets a readable local plan, rather than model extents.
-      CAMERA_PADDING = 15.m
-      MIN_DIAMETER = 40.m
+      # Resolve SketchUp Length helpers at runtime, not during bare Ruby import.
+      def camera_padding; 15.m; end
+      def min_diameter; 40.m; end
 
       def cache_dir(model)
         base = Sketchup.platform == :platform_win ?
@@ -50,11 +51,11 @@ module TwentyTwenty
         xs = pts.map(&:x) + focus.map(&:first)
         ys = pts.map(&:y) + focus.map(&:last)
         # Fixed padding; irrelevant stray geometry never expands the map.
-        xmin, xmax = xs.min - CAMERA_PADDING, xs.max + CAMERA_PADDING
-        ymin, ymax = ys.min - CAMERA_PADDING, ys.max + CAMERA_PADDING
+        xmin, xmax = xs.min - camera_padding, xs.max + camera_padding
+        ymin, ymax = ys.min - camera_padding, ys.max + camera_padding
         midx, midy = (xmin + xmax)/2.0, (ymin + ymax)/2.0
-        halfw = [(xmax - xmin)/2.0, MIN_DIAMETER/2.0].max
-        halfh = [(ymax - ymin)/2.0, MIN_DIAMETER/2.0].max
+        halfw = [(xmax - xmin)/2.0, min_diameter/2.0].max
+        halfh = [(ymax - ymin)/2.0, min_diameter/2.0].max
         [midx-halfw, midy-halfh, midx+halfw, midy+halfh]
       end
       def cut_height(model)
