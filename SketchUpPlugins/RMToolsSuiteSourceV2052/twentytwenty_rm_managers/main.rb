@@ -252,9 +252,8 @@ module TwentyTwenty
     def ratio_name(camera)
       val = camera.aspect_ratio.to_f
       return '' if val <= 0
-      RATIOS.min_by { |_name, ratio| (ratio - val).abs }.then { |name, ratio|
-        (ratio - val).abs < 0.007 ? name : format('%.3f', val)
-      }
+      nearest = RATIOS.min_by { |_name, ratio| (ratio - val).abs }
+      (nearest[1] - val).abs < 0.007 ? nearest[0] : format('%.3f', val)
     end
     def camera_info(camera)
       {focal: focal_35(camera), ratio: ratio_name(camera),
