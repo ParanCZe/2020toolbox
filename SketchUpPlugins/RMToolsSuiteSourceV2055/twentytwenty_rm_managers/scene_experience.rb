@@ -98,6 +98,7 @@ module TwentyTwenty
         when 'refresh'
           @rm_map_key = nil
           super
+        when 'activate'
           raise 'Scéna nebyla nalezena.' unless page
           rm_instant_scene(model, page)
           rm_schedule_thumbnail(model, page) unless SceneVisuals.preview_base64(model, page)
