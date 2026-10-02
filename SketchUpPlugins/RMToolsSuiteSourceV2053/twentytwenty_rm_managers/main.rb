@@ -282,7 +282,7 @@ module TwentyTwenty
       to.layer = from.layer
       to.material = from.material if from.material
       to.hidden = from.hidden?
-      to.locked = from.locked? if to.respond_to?(:locked=)
+      # Lock only after replacement is created and original is erased.
       if from.respond_to?(:casts_shadows?) && to.respond_to?(:casts_shadows=)
         to.casts_shadows = from.casts_shadows?
       end
@@ -322,7 +322,10 @@ module TwentyTwenty
           target_transform = original.transformation
           replacement = entities.add_instance(definition, target_transform)
           copy_instance_properties(original, replacement)
+          was_locked = original.respond_to?(:locked?) && original.locked?
+          original.locked = false if was_locked
           original.erase!
+          replacement.locked = true if replacement.respond_to?(:locked=) && was_locked
           replacement
         end
         model.selection.clear
@@ -563,7 +566,7 @@ module TwentyTwenty
       const el=id=>document.getElementById(id);
       const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       const send=d=>sketchup.action(JSON.stringify(d));
-      const eye=(target,id,visible,key)=>'<button class="eye" title="Viditelnost" onclick="event.stopPropagation();Manager.act({kind:\\'visibility\\',target:\\''+target+'\\',id:'+esc(JSON.stringify(id))+',key:'+esc(JSON.stringify(key||''))+',visible:+(!visible)+'})">'+(visible?'◉':'○')+'</button>';
+      const eye=(target,id,visible,key)=>'<button class="eye" title="Viditelnost" onclick="event.stopPropagation();Manager.act({kind:\\'visibility\\',target:\\''+target+'\\',id:'+esc(JSON.stringify(id))+',key:'+esc(JSON.stringify(key||''))+',visible:'+(!visible)+'})">'+(visible?'◉':'○')+'</button>';
       const selectedObject=o=>{selected={type:'object',item:o};draw();send({kind:'select',key:o.key});};
       function objects(tag,query){
         const list=(data.objects||{})[tag]||[];
@@ -610,9 +613,9 @@ module TwentyTwenty
              '<optgroup label="DALŠÍ">'+(data.tag_options||[]).filter(x=>!x.rm).map(x=>'<option value="'+esc(x.name)+'" '+(x.name===o.tag?'selected':'')+'>'+esc(x.name)+'</option>').join('')+'</optgroup></select></div>'+
             line('Materiály',(o.materials||[]).join(', ')||'Žádné na první úrovni')+line('Vnořeno',o.path.length?'Ano':'Ne')+
             '<div class="buttons"><button onclick="Manager.act({kind:\\'select\\',key:'+esc(JSON.stringify(o.key))+'})">Označit v modelu</button>'+
-            '<button onclick="Manager.act({kind:\\'zoom\\',id:'+o.id+'})">Zaměřit</button>'+
-            (o.kind==='Component'?'<button class="primary" onclick="Manager.act({kind:\\'replace\\',id:'+o.id+',all:false})">Nahradit z Model Library</button>'+
-            '<button onclick="Manager.act({kind:\\'replace\\',id:'+o.id+',all:true})">Nahradit všechny stejné</button>':'')+'</div>'+
+            '<button onclick="Manager.act({kind:\\'zoom\\',key:'+esc(JSON.stringify(o.key))+'})">Zaměřit</button>'+
+            (o.kind==='Component'?'<button class="primary" onclick="Manager.act({kind:\\'replace\\',key:'+esc(JSON.stringify(o.key))+',all:false})">Nahradit z Model Library</button>'+
+            '<button onclick="Manager.act({kind:\\'replace\\',key:'+esc(JSON.stringify(o.key))+',all:true})">Nahradit všechny stejné</button>':'')+'</div>'+
             '<p class="note">Náhrada zachovává instanční transformaci a tag. Model musí obsahovat jednu hlavní komponentu.</p>';
         }else{
           if(!selected){box.innerHTML='<h2>SCENE MANAGER</h2><p class="note">Jedním kliknutím zobrazíš informace, dvojklikem aktivuješ uloženou kameru a nastavení.</p><input id="newscene" placeholder="Název nové scény" value="'+esc(nextSceneName())+'"/><div class="buttons"><button class="primary" onclick="Manager.act({kind:\\'create\\',name:document.getElementById(\\'newscene\\').value})">+ Vytvořit scénu</button></div>';return;}
