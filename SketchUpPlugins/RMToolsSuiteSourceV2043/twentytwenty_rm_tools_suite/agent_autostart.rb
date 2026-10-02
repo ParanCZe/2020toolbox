@@ -121,7 +121,7 @@ module TwentyTwenty
           launch_hidden(quoted(adapter), File.dirname(adapter))
         end
         @state[:agent] = 'spuštěný' if adapter
-        return if @script_loaded || !script
+        return if @script_loaded || !script || @loading_script
 
         # Postpone most.rb until the adapter has had time to open its socket.
         @loading_script = true
@@ -140,7 +140,7 @@ module TwentyTwenty
           ensure
             @loading_script = false
           end
-        end unless @loading_script
+        end
       rescue StandardError => e
         @state[:agent] = "#{e.class}: #{e.message}"
         log("Agent startup: #{@state[:agent]}")
