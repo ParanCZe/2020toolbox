@@ -26,10 +26,30 @@ class FakeLayers < Array
     value.is_a?(String) ? find { |l| l.name==value } : super
   end
 end
+class FakeBounds
+  attr_reader :width,:height,:depth
+  def initialize(width=100, height=100, depth=100)
+    @width,@height,@depth=width,height,depth
+  end
+  def valid?; true; end
+end
+class FakeTransform
+  attr_reader :desc
+  def initialize(desc); @desc=desc.to_s; end
+  def *(other); FakeTransform.new("#{desc} * #{other}"); end
+  def ==(other); desc==other.to_s; end
+  def to_s; desc; end
+end
+module Geom
+  class Transformation
+    def self.scaling(factor); FakeTransform.new("fit(#{factor.round(3)})"); end
+  end
+end
 class FakeDefinition
-  attr_accessor :name,:entities,:instances
+  attr_accessor :name,:entities,:instances,:bounds
   def initialize(name)
     @name=name
+    @bounds=FakeBounds.new
     @instances=[]
     @entities=FakeEntities.new(self)
   end
@@ -58,11 +78,13 @@ class FakeInstance < Sketchup::ComponentInstance
     @material=nil
     @hidden=false
     @locked=false
-    @transformation=transform
+    @transformation=FakeTransform.new(transform)
     @valid=true
     definition.instances << self
   end
   def valid?; @valid; end
+  def bounds; @bounds ||= FakeBounds.new(50,50,50); end
+  def bounds=(b); @bounds=b; end
   def hidden?; @hidden; end
   def locked?; @locked; end
   def attribute_dictionaries; nil; end
@@ -153,16 +175,17 @@ Dir.mktmpdir do |root|
   Dvacet20::ComponentLibrary.library_root=root
   replacement_def=FakeDefinition.new('NewPlant')
   wrapper=FakeDefinition.new('wrapper')
-  wrapper.entities.add_instance(replacement_def,'library root authored scale 0.25')
+  library_root=wrapper.entities.add_instance(replacement_def,'library root authored scale 0.25')
+  library_root.bounds=FakeBounds.new(50,50,50)
   model.definitions.loaded=wrapper
   Dvacet20::ComponentLibrary.target=replacement_def
   manager.instance_variable_set(:@replacement,{model:model,key:top.persistent_id.to_s,definition:plant,all:false})
   check(!Dvacet20::ComponentLibrary.respond_to?(:placement_roots), 'legacy Model Library lacks placement_roots')
   manager.replace_from_library(path)
   fresh=model.entities.find { |x| x.definition==replacement_def }
-  check(!!fresh && !top.valid? && fresh.layer.name=='SANITA' && fresh.transformation=='at original coordinates', 'model-library replacement preserves transform and current tag')
-  check(fresh.definition==replacement_def && fresh.transformation=='at original coordinates',
-    'replacement ignores imported wrapper scale and preserves original instance scale')
+  check(!!fresh && !top.valid? && fresh.layer.name=='SANITA', 'model-library replacement preserves identity properties and tag')
+  check(fresh.definition==replacement_def && fresh.transformation.to_s=='at original coordinates * fit(2.0) * library root authored scale 0.25',
+    'replacement includes library root scale and fits old size without giant geometry')
   check(second.valid? && second.definition==plant, 'single replacement leaves other instances unchanged')
   check(!manager.replacement_pending?, 'replacement state is cleared on success')
 end
