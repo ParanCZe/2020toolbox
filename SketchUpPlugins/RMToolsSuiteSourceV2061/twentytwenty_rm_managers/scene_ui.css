@@ -57,3 +57,11 @@
 .rm-street-card input[type="password"],.rm-street-card input[type="text"],.rm-street-card input[type="number"],#rmStreetUrl{width:100%;min-width:0}
 #rmStreetDistance{max-width:90px}
 .rm-street-state{margin-top:8px;color:#aeb8c2}
+
+.rm-scene-sets{margin:0 0 14px;padding:11px;border:1px solid #424b54;border-radius:10px;background:#20252b}
+.rm-scene-sets>label{display:block;color:#e7edf0;font-size:11px;font-weight:800;margin-bottom:8px}
+.rm-scene-sets .rm-create-row+.rm-create-row{margin-top:7px}
+.rm-scene-sets select{min-width:0;flex:1;background:#171c22;color:#eef2f5;border:1px solid #46515d;border-radius:7px;padding:8px}
+.rm-mini-map .rm-cam-spot{touch-action:none;user-select:none}
+.rm-mini-map .rm-cam-spot.rm-dragging{z-index:20;scale:1.28;cursor:grabbing;filter:drop-shadow(0 0 8px #ffd63d)}
+.rm-mini-map .rm-cam-spot.rm-dragging svg{pointer-events:none}
