@@ -9,7 +9,7 @@ module TwentyTwenty
   module RMToolsSuite
     extend self
 
-    VERSION = '2.0.6.10'.freeze
+    VERSION = '2.0.6.9'.freeze
     TITLE = '20-20 RM TOOLS'.freeze
 
     def dialog
@@ -228,7 +228,7 @@ module TwentyTwenty
         </head>
         <body>
           <div class="shell">
-            <div class="top"><div class="brand"><div class="mark">20-20</div><div><div class="title">20-20 RM TOOLS</div><div class="sub">Jedno místo pro přípravu SketchUp modelu pro RENDERMAKER</div></div></div><div id="version" class="ver">v2.0.6.10</div></div>
+            <div class="top"><div class="brand"><div class="mark">20-20</div><div><div class="title">20-20 RM TOOLS</div><div class="sub">Jedno místo pro přípravu SketchUp modelu pro RENDERMAKER</div></div></div><div id="version" class="ver">v2.0.6.9</div></div>
             <section id="home" class="page on">
               <div class="grid">
                 <button class="launcher" onclick="sketchup.suite_model_library()"><div class="ico">▦</div><div><b>MODEL LIBRARY</b><span>Serverová knihovna SKP komponent, vyhledávání a vložení modelu jedním kliknutím.</span></div><div class="arrow">›</div></button>
