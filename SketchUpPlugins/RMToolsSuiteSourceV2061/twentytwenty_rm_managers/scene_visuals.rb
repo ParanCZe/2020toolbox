@@ -8,7 +8,6 @@ module TwentyTwenty
     module SceneVisuals
       extend self
       SECTION_LIMIT = 4000
-      PREVIEW_CACHE_LIMIT = 80
       def preview_dir(model)
         # Each project has its own disk cache; snapshots need not be stored in SKP attributes.
         project = model.path.to_s.empty? ? model.guid.to_s : File.expand_path(model.path)
@@ -22,10 +21,7 @@ module TwentyTwenty
         root
       end
       def page_key(page)
-        # Stable IDs are created by Scene Manager. Read directly so every
-        # thumbnail lookup doesn't rescan all pages for duplicate IDs.
-        id = page.get_attribute(TwentyTwenty::RMManagers::SCENE_DICT, 'stable_id', '').to_s
-        id = TwentyTwenty::RMManagers.scene_id(page) if id.empty?
+        id = TwentyTwenty::RMManagers.scene_id(page)
         Digest::SHA1.hexdigest(id)
       end
       def file_for(model, page)
@@ -42,7 +38,6 @@ module TwentyTwenty
         end
         result = 'data:image/png;base64,' + Base64.strict_encode64(File.binread(file))
         @preview_cache[file] = [stat.size, stat.mtime.to_f, result]
-        @preview_cache.shift while @preview_cache.length > PREVIEW_CACHE_LIMIT
         result
       rescue StandardError => e
         puts "[RM SCENES] Náhled nelze přečíst: #{e.message}"
