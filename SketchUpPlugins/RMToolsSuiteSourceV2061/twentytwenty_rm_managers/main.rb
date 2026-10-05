@@ -510,6 +510,11 @@ module TwentyTwenty
       camera.set(eye, target, up)
       mm
     end
+    def same_xyz?(a, b, tolerance)
+      (a.x.to_f - b.x.to_f).abs <= tolerance &&
+        (a.y.to_f - b.y.to_f).abs <= tolerance &&
+        (a.z.to_f - b.z.to_f).abs <= tolerance
+    end
     def set_aspect_ratio_fixed(camera, ratio)
       value = Float(ratio)
       raise 'Neplatný poměr stran.' unless value.finite? && value >= 0.0
@@ -517,9 +522,9 @@ module TwentyTwenty
       target = camera.target.clone
       up = camera.up.clone
       camera.aspect_ratio = value
-      moved = camera.eye.distance(eye) > 0.001 ||
-              camera.target.distance(target) > 0.001 ||
-              camera.up.angle_between(up) > 0.00001
+      moved = !same_xyz?(camera.eye, eye, 0.001) ||
+              !same_xyz?(camera.target, target, 0.001) ||
+              !same_xyz?(camera.up, up, 0.00001)
       camera.set(eye, target, up) if moved
       value
     end
