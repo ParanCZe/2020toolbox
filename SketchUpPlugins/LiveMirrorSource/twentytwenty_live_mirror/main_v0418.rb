@@ -698,7 +698,7 @@ module TwentyTwenty
         opaque.clear
         transparent.clear
         edges.clear
-        retry_record = record.dup
+        retry_record = working_record.dup
         retry_record[:cull_planes] = nil
         stats = {
           triangles: 0,
@@ -724,7 +724,7 @@ module TwentyTwenty
           edges,
           stats,
           1.0,
-          {}
+          count_cache
         )
       end
 
