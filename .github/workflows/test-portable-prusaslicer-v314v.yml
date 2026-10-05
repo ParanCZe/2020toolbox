@@ -1,4 +1,4 @@
-name: Test V3.14v Portable PrusaSlicer
+name: Test PrusaBridge 3.14y Portable PrusaSlicer
 
 on:
   push:
@@ -37,7 +37,7 @@ jobs:
             if($status.ok -and $status.slicerManaged){break}
           }
           if(-not $status){throw 'Bridge status unavailable'}
-          if($status.bridgeVersion -ne '3.14v'){throw "Wrong Bridge: $($status.bridgeVersion)"}
+          if($status.bridgeVersion -ne '3.14y'){throw "Wrong Bridge: $($status.bridgeVersion)"}
           if(-not $status.ok){throw 'Bridge did not become ready'}
           if(-not $status.slicerManaged){throw 'Bridge used an external PrusaSlicer instead of its managed runtime'}
           if(-not (Test-Path $status.slicerPath)){throw 'Managed prusa-slicer-console.exe missing'}
