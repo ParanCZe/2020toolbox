@@ -11,21 +11,8 @@ module TwentyTwenty
       MAX_VISITS = 18000
       MAX_FACES = 5500
       MAX_SEGMENTS = 8500
-      CACHE_LIMIT = 4
-      def touch_model_cache(model)
-        key = model.object_id
-        @cache_order ||= []
-        @cache_order.delete(key)
-        @cache_order << key
-        while @cache_order.length > CACHE_LIMIT
-          stale = @cache_order.shift
-          @cache.delete(stale) if @cache
-          @errors.delete(stale) if @errors
-        end
-        key
-      end
       def last_error(model); (@errors ||= {})[model.object_id]; end
-      def set_error(model, value); (@errors ||= {})[touch_model_cache(model)] = value; end
+      def set_error(model, value); (@errors ||= {})[model.object_id] = value; end
       def cameras(model)
         pages = model.pages.to_a
         pages.empty? ? [model.active_view.camera] : pages.map(&:camera)
