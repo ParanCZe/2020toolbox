@@ -543,6 +543,24 @@ module TwentyTwenty
     def page_by_name(name)
       Sketchup.active_model.pages.find { |page| page.name == name.to_s }
     end
+    def camera_snapshot(camera)
+      snapshot = Sketchup::Camera.new(camera.eye, camera.target, camera.up)
+      snapshot.perspective = camera.perspective?
+      snapshot.fov = camera.fov if camera.perspective?
+      snapshot.aspect_ratio = camera.aspect_ratio
+      snapshot
+    end
+
+    def apply_camera_snapshot(page, snapshot)
+      cam = page.camera
+      cam.set(snapshot.eye, snapshot.target, snapshot.up)
+      cam.perspective = snapshot.perspective?
+      cam.fov = snapshot.fov if snapshot.perspective?
+      cam.aspect_ratio = snapshot.aspect_ratio
+      page.use_camera = true
+      cam
+    end
+
     def scene_action(d)
       model = Sketchup.active_model
       name = d['name'].to_s
@@ -558,11 +576,20 @@ module TwentyTwenty
         clean = name.strip
         raise 'Zadej název scény.' if clean.empty?
         raise 'Scéna s tímto názvem již existuje.' if page_by_name(clean)
+        # Freeze the viewport camera BEFORE Pages#add. Some SketchUp versions
+        # change selected-page state while creating a page; using page.camera
+        # implicitly can otherwise make consecutive scenes inherit one view.
+        snapshot = camera_snapshot(view.camera)
+        saved_ratio = ratio_name(snapshot)
         model.start_operation('RM vytvořit scénu', true)
         begin
           page = model.pages.add(clean)
+          # Copy non-camera scene properties, then explicitly write the frozen
+          # camera only into this newly-created page.
           page.update(scene_options)
-          page.set_attribute(SCENE_DICT, 'ratio', ratio_name(view.camera))
+          apply_camera_snapshot(page, snapshot)
+          page.set_attribute(SCENE_DICT, 'ratio', saved_ratio)
+          scene_id(page)
           model.commit_operation
         rescue StandardError
           model.abort_operation
