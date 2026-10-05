@@ -45,6 +45,7 @@ module TwentyTwenty
         result[:floorplan] = Floorplan.cached_data(model)
         result[:floorplan_error] = Floorplan.last_error(model)
         result[:street_api_key_set] = StreetView.configured?
+        result[:scene_sets] = scene_sets(model).map { |set| {'name'=>set['name'].to_s,'count'=>Array(set['scenes']).length} }
         ground = model.bounds.valid? ? model.bounds.min.z : 0.to_l
         result[:scenes].each_with_index do |entry, index|
           entry[:height_1800] = (model.pages.to_a[index].camera.eye.z - ground - 1800.mm).abs < 50.mm
@@ -60,6 +61,92 @@ module TwentyTwenty
           data[:street_view] = StreetView.config(page)
         end
         result
+      end
+
+      SCENE_SET_DICT = '20-20 RM SCENE SETS'.freeze
+
+      def scene_sets(model)
+        return [] unless model.respond_to?(:get_attribute)
+        raw = model.get_attribute(SCENE_SET_DICT, 'sets_json', '[]').to_s
+        parsed = JSON.parse(raw)
+        parsed.is_a?(Array) ? parsed : []
+      rescue JSON::ParserError
+        []
+      end
+
+      def write_scene_sets(model, sets)
+        raise 'Model nepodporuje ukládání sad scén.' unless model.respond_to?(:set_attribute)
+        model.set_attribute(SCENE_SET_DICT, 'sets_json', JSON.generate(sets))
+      end
+
+      def scene_set_snapshot(page)
+        cam = page.camera
+        {
+          'name'=>page.name,
+          'eye'=>[cam.eye.x.to_f,cam.eye.y.to_f,cam.eye.z.to_f],
+          'target'=>[cam.target.x.to_f,cam.target.y.to_f,cam.target.z.to_f],
+          'up'=>[cam.up.x.to_f,cam.up.y.to_f,cam.up.z.to_f],
+          'perspective'=>cam.perspective?,
+          'fov'=>cam.fov.to_f,
+          'aspect_ratio'=>cam.aspect_ratio.to_f,
+          'ratio'=>page.get_attribute(SCENE_DICT,'ratio','').to_s,
+          'street_view'=>StreetView.config(page)
+        }
+      end
+
+      def save_scene_set(model, name)
+        clean = name.to_s.strip
+        raise 'Zadej název sady scén.' if clean.empty?
+        scenes = model.pages.to_a.map { |page| scene_set_snapshot(page) }
+        raise 'V modelu není žádná scéna k uložení.' if scenes.empty?
+        sets = scene_sets(model).reject { |set| set['name'].to_s.casecmp(clean).zero? }
+        sets << {'name'=>clean,'scenes'=>scenes}
+        write_scene_sets(model, sets)
+        scenes.length
+      end
+
+      def restore_street_config(page, cfg)
+        return unless cfg.is_a?(Hash)
+        {
+          'enabled'=>'enabled','source_url'=>'source_url','pano'=>'pano','location'=>'location',
+          'heading'=>'heading','pitch'=>'pitch','fov'=>'fov','distance_m'=>'distance_m'
+        }.each do |key, attr|
+          value = cfg[key] || cfg[key.to_sym]
+          page.set_attribute(StreetView::DICT, attr, value) unless value.nil?
+        end
+      end
+
+      def apply_scene_set(model, name)
+        set = scene_sets(model).find { |item| item['name'].to_s == name.to_s }
+        raise 'Sada scén nebyla nalezena.' unless set
+        rows = set['scenes']
+        raise 'Sada neobsahuje žádné scény.' unless rows.is_a?(Array) && !rows.empty?
+        model.start_operation('RM použít sadu scén', true)
+        begin
+          rows.each do |row|
+            scene_name = row['name'].to_s
+            next if scene_name.empty?
+            page = page_by_name(scene_name) || model.pages.add(scene_name)
+            cam = page.camera
+            eye = Geom::Point3d.new(*row['eye'].map(&:to_f))
+            target = Geom::Point3d.new(*row['target'].map(&:to_f))
+            up = Geom::Vector3d.new(*row['up'].map(&:to_f))
+            cam.set(eye,target,up)
+            perspective = !!row['perspective']
+            cam.perspective = perspective
+            cam.fov = row['fov'].to_f if perspective && row['fov']
+            cam.aspect_ratio = row['aspect_ratio'].to_f if row['aspect_ratio']
+            page.use_camera = true
+            page.set_attribute(SCENE_DICT,'ratio',row['ratio'].to_s)
+            restore_street_config(page,row['street_view'])
+            scene_id(page)
+          end
+          model.commit_operation
+        rescue StandardError
+          model.abort_operation
+          raise
+        end
+        rows.length
       end
 
       # No visual scene-camera interpolation for RM button clicks.
@@ -124,7 +211,8 @@ module TwentyTwenty
       end
 
       def rm_save_scene(model, page, ratio = nil)
-        page.update(scene_options)
+        # Camera presets must not silently overwrite style, shadows or tag visibility.
+        page.update(PAGE_USE_CAMERA)
         page.set_attribute(SCENE_DICT, 'ratio', ratio || ratio_name(model.active_view.camera))
         rm_schedule_thumbnail(model, page)
       end
@@ -151,6 +239,52 @@ module TwentyTwenty
         case kind
         when 'refresh'
           super
+        when 'move_scene_marker'
+          raise 'Scéna nebyla nalezena.' unless page
+          x = Float(d['x'])
+          y = Float(d['y'])
+          raise 'Neplatná pozice kamery.' unless x.finite? && y.finite?
+          cam = page.camera
+          old_eye = cam.eye
+          old_target = cam.target
+          dx = x - old_eye.x.to_f
+          dy = y - old_eye.y.to_f
+          model.start_operation('RM přesun kamery na minimapě', true)
+          begin
+            eye = Geom::Point3d.new(x,y,old_eye.z)
+            target = Geom::Point3d.new(old_target.x + dx,old_target.y + dy,old_target.z)
+            cam.set(eye,target,cam.up)
+            page.use_camera = true
+            if model.pages.selected_page == page
+              view.camera = cam
+              view.invalidate
+            end
+            model.commit_operation
+          rescue StandardError
+            model.abort_operation
+            raise
+          end
+          SceneVisuals.clear(model,page)
+          rm_apply_street_view(model,page) if model.pages.selected_page == page
+          refresh(:scenes)
+          rm_plan_if_cameras_moved(model)
+        when 'scene_set_save'
+          count = save_scene_set(model,d['set_name'])
+          notify(:scenes,"Sada #{d['set_name']} uložena (#{count} scén).")
+          refresh(:scenes)
+        when 'scene_set_apply'
+          count = apply_scene_set(model,d['set_name'])
+          notify(:scenes,"Sada #{d['set_name']} použita (#{count} scén).")
+          refresh(:scenes)
+          rm_plan_if_cameras_moved(model)
+        when 'scene_set_delete'
+          name_to_delete = d['set_name'].to_s
+          sets = scene_sets(model)
+          kept = sets.reject { |set| set['name'].to_s == name_to_delete }
+          raise 'Sada scén nebyla nalezena.' if kept.length == sets.length
+          write_scene_sets(model,kept)
+          notify(:scenes,"Sada #{name_to_delete} smazána.")
+          refresh(:scenes)
         when 'street_key'
           key = d['api_key'].to_s.strip
           raise 'API klíč je prázdný.' if key.empty?
