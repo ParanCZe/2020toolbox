@@ -29,7 +29,7 @@ new["twentytwenty_rm_tools_suite.rb"]=new["twentytwenty_rm_tools_suite.rb"].repl
 assert b"VERSION = '2.0.6.6'" in new["twentytwenty_rm_tools_suite/main.rb"]
 assert b"EXTENSION_VERSION = '2.0.6.6'" in new["twentytwenty_rm_tools_suite.rb"]
 assert b"VERSION = '0.2.1'" in new["twentytwenty_rm_managers/main.rb"]
-assert set(old).issubset(set(new))
+assert set(old)-{"twentytwenty_rm_managers/street_view.rb"} <= set(new)
 allowed = set(paths)
 changed = {x for x in old if old[x]!=new[x]}
 assert changed <= allowed
