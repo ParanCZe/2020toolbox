@@ -600,14 +600,32 @@ module TwentyTwenty
       snapshot
     end
 
+    def apply_camera_values(camera, snapshot)
+      camera.set(snapshot.eye, snapshot.target, snapshot.up)
+      camera.perspective = snapshot.perspective?
+      camera.fov = snapshot.fov if snapshot.perspective?
+      set_aspect_ratio_fixed(camera, snapshot.aspect_ratio)
+      camera
+    end
+
     def apply_camera_snapshot(page, snapshot)
-      cam = page.camera
-      cam.set(snapshot.eye, snapshot.target, snapshot.up)
-      cam.perspective = snapshot.perspective?
-      cam.fov = snapshot.fov if snapshot.perspective?
-      set_aspect_ratio_fixed(cam, snapshot.aspect_ratio)
+      cam = apply_camera_values(page.camera, snapshot)
       page.use_camera = true if page.respond_to?(:use_camera=)
       cam
+    end
+
+    def select_page_without_transition(model, page)
+      options = (model.options['PageOptions'] rescue nil)
+      previous = nil
+      begin
+        previous = options['ShowTransition'] if options
+        options['ShowTransition'] = false if options && !previous.nil?
+      rescue StandardError
+        options = nil
+      end
+      model.pages.selected_page = page
+    ensure
+      options['ShowTransition'] = previous if options && !previous.nil?
     end
 
     def scene_action(d)
@@ -633,10 +651,19 @@ module TwentyTwenty
         model.start_operation('RM vytvořit scénu', true)
         begin
           page = model.pages.add(clean)
-          # Copy non-camera scene properties, then explicitly write the frozen
-          # camera only into this newly-created page.
-          page.update(scene_options)
-          apply_camera_snapshot(page, snapshot)
+
+          # IMPORTANT: Page#update reads from the CURRENT view. Updating a page
+          # while another scene remains selected can cause SketchUp/other
+          # extensions to write the current view back into that selected scene.
+          # Select the newly-created scene first, then restore the frozen current
+          # camera into the viewport and update only this exact page.
+          select_page_without_transition(model, page)
+          apply_camera_values(view.camera, snapshot)
+          view.invalidate
+
+          ok = page.update(scene_options)
+          raise 'SketchUp neuložil novou scénu.' if ok == false
+          page.use_camera = true if page.respond_to?(:use_camera=)
           page.set_attribute(SCENE_DICT, 'ratio', saved_ratio)
           scene_id(page)
           model.commit_operation
