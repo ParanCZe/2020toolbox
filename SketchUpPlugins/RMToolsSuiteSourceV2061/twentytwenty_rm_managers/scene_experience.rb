@@ -150,7 +150,8 @@ module TwentyTwenty
           opts = nil
         end
         model.pages.selected_page = page
-        view.camera = page.camera
+        # Selecting the page applies its camera. Reassigning page.camera back
+        # into View#camera is redundant and can trigger a second camera solve.
         view.invalidate
       ensure
         opts['ShowTransition'] = previous if opts && !previous.nil?
@@ -224,9 +225,10 @@ module TwentyTwenty
             eye = Geom::Point3d.new(x,y,old_eye.z)
             target = Geom::Point3d.new(old_target.x + dx,old_target.y + dy,old_target.z)
             cam.set(eye,target,cam.up)
-            page.use_camera = true
+            page.use_camera = true if page.respond_to?(:use_camera=)
             if model.pages.selected_page == page
-              view.camera = cam
+              active = view.camera
+              active.set(eye, target, active.up)
               view.invalidate
             end
             model.commit_operation
