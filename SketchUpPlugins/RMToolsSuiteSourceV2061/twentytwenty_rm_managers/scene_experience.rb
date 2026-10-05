@@ -116,7 +116,7 @@ module TwentyTwenty
           'enabled'=>'enabled','source_url'=>'source_url','pano'=>'pano','location'=>'location',
           'heading'=>'heading','pitch'=>'pitch','fov'=>'fov','distance_m'=>'distance_m'
         }.each do |key, attr|
-          value = cfg[key] || cfg[key.to_sym]
+          value = cfg.key?(key) ? cfg[key] : cfg[key.to_sym]
           page.set_attribute(StreetView::DICT, attr, value) unless value.nil?
         end
       end
