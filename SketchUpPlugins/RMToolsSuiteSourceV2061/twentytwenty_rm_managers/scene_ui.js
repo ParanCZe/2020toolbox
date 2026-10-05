@@ -161,6 +161,42 @@
     }
   }
 
+  function renderSceneSets(){
+    const select=get('rmSetSelect');
+    if(!select)return;
+    const previous=select.value;
+    const sets=state.scene_sets||[];
+    select.innerHTML=sets.length
+      ? sets.map(set=>'<option value="'+escapeHtml(set.name)+'">'+escapeHtml(set.name)+' · '+Number(set.count||0)+' scén</option>').join('')
+      : '<option value="">Žádné uložené sady</option>';
+    if(previous && sets.some(set=>set.name===previous))select.value=previous;
+
+    const save=get('rmSaveSet'),apply=get('rmApplySet'),del=get('rmDeleteSet'),name=get('rmSetName');
+    if(save&&!save.dataset.rmBound){
+      save.dataset.rmBound='yes';
+      save.addEventListener('click',()=>{
+        const value=name.value.trim();
+        if(!value){get('message').textContent='Zadej název sady scén.';return;}
+        send({kind:'scene_set_save',set_name:value});
+      });
+    }
+    if(apply&&!apply.dataset.rmBound){
+      apply.dataset.rmBound='yes';
+      apply.addEventListener('click',()=>{
+        if(!select.value){get('message').textContent='Nejdřív vyber uloženou sadu.';return;}
+        if(confirm('Použít sadu '+select.value+'? Existující scény stejného názvu se nastaví podle sady a chybějící se vytvoří.'))
+          send({kind:'scene_set_apply',set_name:select.value});
+      });
+    }
+    if(del&&!del.dataset.rmBound){
+      del.dataset.rmBound='yes';
+      del.addEventListener('click',()=>{
+        if(!select.value)return;
+        if(confirm('Smazat sadu '+select.value+'?'))send({kind:'scene_set_delete',set_name:select.value});
+      });
+    }
+  }
+
   function renderRows(){
     const tree=get('tree');
     if(!tree)return;
@@ -213,6 +249,20 @@
       return [rect.origin[0]+deltaX*rect.xaxis[0]+deltaY*rect.yaxis[0],
               rect.origin[1]+deltaX*rect.xaxis[1]+deltaY*rect.yaxis[1]];
     };
+    const toWorld=(u,v)=>{
+      const sx=u-rect.origin[0], sy=v-rect.origin[1];
+      const a=rect.xaxis[0], b=rect.yaxis[0], c=rect.xaxis[1], d=rect.yaxis[1];
+      const det=a*d-b*c;
+      if(!Number.isFinite(det)||Math.abs(det)<1e-12)return null;
+      const dx=(sx*d-b*sy)/det*rect.world_unit;
+      const dy=(a*sy-sx*c)/det*rect.world_unit;
+      return [rect.world_center[0]+dx,rect.world_center[1]+dy];
+    };
+    const pointerUV=e=>{
+      const box=stage.getBoundingClientRect();
+      return [Math.max(0,Math.min(1,(e.clientX-box.left)/box.width)),
+              Math.max(0,Math.min(1,(e.clientY-box.top)/box.height))];
+    };
     const move=e=>{
       const r=stage.getBoundingClientRect(),w=tip.offsetWidth||166,h=tip.offsetHeight||145;
       tip.style.left=Math.max(2,Math.min(e.clientX-r.left+12,r.width-w-2))+'px';
@@ -247,20 +297,65 @@
         '<circle cx="18" cy="20" r="8" fill="'+col+'" stroke="#141b20" stroke-width="2.2"/>'+
         '<circle cx="18" cy="20" r="2.4" fill="#1a222b"/></g></svg>';
       marker.addEventListener('mouseenter',e=>{
+        if(marker.classList.contains('rm-dragging'))return;
         tip.innerHTML='<strong>'+escapeHtml(scene.name)+'</strong>'+
           (scene.preview?'<img src="'+scene.preview+'" alt="Náhled záběru"/>':
            '<div class="rm-map-no-preview">Náhled vznikne po aktivaci nebo uložení scény.</div>');
         tip.style.display='block';
         move(e);
       });
-      marker.addEventListener('mousemove',move);
-      marker.addEventListener('mouseleave',()=>{tip.style.display='none';});
+      marker.addEventListener('mousemove',e=>{if(!marker.classList.contains('rm-dragging'))move(e);});
+      marker.addEventListener('mouseleave',()=>{if(!marker.classList.contains('rm-dragging'))tip.style.display='none';});
+
+      let holdTimer=null,dragging=false,downPoint=null;
+      const cancelHold=()=>{if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}};
+      marker.addEventListener('pointerdown',e=>{
+        if(e.button!==0)return;
+        downPoint=[e.clientX,e.clientY];
+        marker.setPointerCapture?.(e.pointerId);
+        cancelHold();
+        holdTimer=setTimeout(()=>{
+          dragging=true;
+          marker.classList.add('rm-dragging');
+          tip.style.display='none';
+          selectedId=scene.id;
+          if(navigator.vibrate)navigator.vibrate(20);
+        },1500);
+      });
+      marker.addEventListener('pointermove',e=>{
+        if(!downPoint)return;
+        if(!dragging){
+          if(Math.hypot(e.clientX-downPoint[0],e.clientY-downPoint[1])>7)cancelHold();
+          return;
+        }
+        e.preventDefault();
+        const pos=pointerUV(e);
+        marker.style.left=(pos[0]*100)+'%';
+        marker.style.top=(pos[1]*100)+'%';
+      });
+      const finishDrag=e=>{
+        cancelHold();
+        if(dragging){
+          e.preventDefault();
+          const pos=pointerUV(e),world=toWorld(pos[0],pos[1]);
+          marker.dataset.dragged='yes';
+          dragging=false;
+          marker.classList.remove('rm-dragging');
+          if(world)send({kind:'move_scene_marker',id:scene.id,x:world[0],y:world[1]});
+          setTimeout(()=>{delete marker.dataset.dragged;},350);
+        }
+        downPoint=null;
+        try{marker.releasePointerCapture?.(e.pointerId);}catch(_err){}
+      };
+      marker.addEventListener('pointerup',finishDrag);
+      marker.addEventListener('pointercancel',e=>{cancelHold();dragging=false;downPoint=null;marker.classList.remove('rm-dragging');});
       marker.addEventListener('click',e=>{
-        if(e.detail>1)return;
+        if(marker.dataset.dragged==='yes'||e.detail>1)return;
         if(clickTimer)clearTimeout(clickTimer);
         clickTimer=setTimeout(()=>{selectedId=scene.id;renderAll();},240);
       });
       marker.addEventListener('dblclick',()=>{
+        if(marker.dataset.dragged==='yes')return;
         if(clickTimer)clearTimeout(clickTimer);
         selectedId=scene.id;
         send({kind:'activate',id:selectedId});
@@ -269,7 +364,7 @@
       stage.appendChild(marker);
     }
   }
-  function renderAll(){renderRows();renderPlan();renderDetails();newSceneForm();}
+  function renderAll(){renderSceneSets();renderRows();renderPlan();renderDetails();newSceneForm();}
 
   Manager.receive=function(data){
     state=data;
