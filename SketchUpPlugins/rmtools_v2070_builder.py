@@ -41,8 +41,10 @@ assert {"twentytwenty_rm_tools_suite/main.rb", "twentytwenty_rm_tools_suite.rb",
         "twentytwenty_rm_managers/scene_experience.rb",
         "twentytwenty_rm_managers/scene_visuals.rb",
         "twentytwenty_rm_managers/floorplan.rb",
-        "twentytwenty_rm_checker/main.rb",
-        "twentytwenty_live_mirror/main_v0418.rb"} <= changed
+        "twentytwenty_rm_checker/main.rb"} <= changed
+assert "twentytwenty_live_mirror/main_v0418.rb" in new
+assert b"count_cache = {}" in new["twentytwenty_live_mirror/main_v0418.rb"]
+assert b"working_record[:edge_color] = reflection_edge_color" in new["twentytwenty_live_mirror/main_v0418.rb"]
 assert "twentytwenty_rm_managers/street_view.rb" not in new
 with ZipFile(output,"w",compression=ZIP_DEFLATED,compresslevel=6) as f:
     for name,data in sorted(new.items()): f.writestr(name,data)
