@@ -16,8 +16,13 @@ module TwentyTwenty
           '<section class="rm-scene-create"><label for="rmCreateName">NOVÁ SCÉNA</label>' \
           '<div class="rm-create-row"><input id="rmCreateName" aria-label="Název nové scény" placeholder="02 - EXTERIER - HLAVNI"/>' \
           '<button class="primary" id="rmCreateScene" type="button">+ Vytvořit scénu</button></div></section>' \
+          '<section class="rm-scene-sets"><label for="rmSetName">SADY SCÉN</label>' \
+          '<div class="rm-create-row"><input id="rmSetName" aria-label="Název sady scén" placeholder="Varianta A"/>' \
+          '<button id="rmSaveSet" type="button">Uložit sadu</button></div>' \
+          '<div class="rm-create-row"><select id="rmSetSelect" aria-label="Uložené sady scén"></select>' \
+          '<button class="primary" id="rmApplySet" type="button">Použít</button><button id="rmDeleteSet" type="button">Smazat</button></div></section>' \
           '<section class="rm-map-area"><div class="rm-map-title">PŮDORYS · KAMERY</div>' \
-          '<div class="rm-map-help">Geometrický řez +2 m, bez pohybu aktivní kamery. Přejetím zobrazíš záběr.</div>' \
+          '<div class="rm-map-help">Přejetím zobrazíš záběr. Podrž kameru 1,5 s a pak ji přetáhni na nové místo.</div>' \
           '<div id="rmMiniMap" class="rm-mini-map"></div><button class="rm-map-refresh" onclick="Manager.act({kind:\'rebuild_plan\'})">↻ Obnovit půdorys</button></section><div id="tree"></div></aside>')
         original.sub('</body>', "<script>\n#{js}\n</script></body>")
       end
