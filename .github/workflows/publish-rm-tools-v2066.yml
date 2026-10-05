@@ -1,0 +1,183 @@
+name: Publish RM TOOLS v2.0.6.6 - Scene Sets and draggable cameras
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v2066.yml"
+      - "SketchUpPlugins/rmtools_v2066_builder.py"
+      - "SketchUpPlugins/rmtools_v2061_tests.rb"
+      - "SketchUpPlugins/rmtools_v2061_floorplan_tests.rb"
+      - "SketchUpPlugins/rmtools_v2061_scene_create_tests.rb"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2061/**"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2061/**"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Ruby
+        run: |
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/scene_experience.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/scene_visuals.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/floorplan.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_tools_suite/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_tools_suite.rb
+      - name: Validate dialog HTML JavaScript
+        run: |
+          ruby -rjson -e '$LOADED_FEATURES << "sketchup.rb"; require_relative "SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/main"; File.write("/tmp/tag-manager.html",TwentyTwenty::RMManagers.html(:tags)); File.write("/tmp/scene-manager.html",TwentyTwenty::RMManagers.html(:scenes))'
+          python - <<'PY'
+          from pathlib import Path
+          for p in [Path("/tmp/tag-manager.html"),Path("/tmp/scene-manager.html")]:
+              s=p.read_text()
+              assert "<script>" in s and "</script>" in s
+              Path("/tmp/"+p.stem+".js").write_text(s.split("<script>",1)[1].split("</script>",1)[0])
+          PY
+          node --check /tmp/tag-manager.js
+          node --check /tmp/scene-manager.js
+          node --check SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/scene_ui.js
+      - name: Assert corrected handlers and naming template
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path("SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/main.rb").read_text()
+          assert "esc(JSON.stringify(f.id))" in s
+          assert "esc(JSON.stringify(t.id))" in s
+          assert "ondblclick=" in s and "Manager.activateScene" in s
+          assert "EXTERIER - HLAVNI" in s
+          assert "set_focal_35" in s and "Math.tan" in s
+          assert "kind:'frame'" in s and "kind:'two_point'" in s
+          assert "scene_options" in s
+          assert "when 'retag'" in s
+          assert "def entity_path" in s
+          assert "def cancel_replacement" in s
+          assert "rm:other" in s
+          assert "model.active_entities.to_a.include?(target)" in s
+          exp=Path("SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/scene_experience.rb").read_text()
+          ui=Path("SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/scene_ui.js").read_text()
+          assert "rm_instant_scene" in exp and "rm_schedule_thumbnail" in exp
+          assert "when 'activate'" in exp and "when 'refresh'" in exp
+          assert "Floorplan.cached_data" in exp and "currentState" in ui
+          assert "scene_ratio" in exp and "scene_focal" in exp
+          assert "renderPlan" in ui and "renderRows" in ui
+          assert "state.floorplan" in ui and "state.section" not in ui
+          assert "selected_model_key" in s and "poll_tag_selection" in s
+          assert "stable_id" in s and "scene_id(page)" in s
+          assert "createBtn.dataset.rmBound" in ui
+          assert "scene.up||[0,1]" in ui
+          assert "page.update(PAGE_USE_CAMERA)" in exp
+          assert "def replacement_root_definition" in s
+          assert "root_instance = replacement_root_definition(wrapper)" in s
+          assert "replacement_fit_transform" in s
+          assert "target_transform = original.transformation * fitting" in s
+          assert "target_transform = original.transformation * fitting" in s
+          assert "Dvacet20::ComponentLibrary.placement_roots" not in s
+          assert "when 'rebuild_plan'" in exp
+          assert "when 'move_scene_marker'" in exp
+          assert "when 'scene_set_save'" in exp and "when 'scene_set_apply'" in exp
+          assert "SCENE_SET_DICT" in exp and "rmSaveSet" in ui
+          assert "StreetView" not in exp and "rmStreet" not in ui
+          assert "pointerdown" in ui and "1500" in ui
+          floorplan=Path("SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/floorplan.rb").read_text()
+          assert "def camera_region" in floorplan and "def needs_rebuild?" in floorplan
+          assert "view.camera =" not in floorplan and "add_section_plane" not in floorplan
+          assert "data:image/svg+xml;base64," in floorplan
+          assert "result[:floorplan_error]" in exp and "state.floorplan_error" in ui
+          assert "when 'quick_lens', 'quick_ratio', 'quick_height'" in exp
+          assert "when 'quick_two_point'" in exp
+          assert "when 'update_view'" in exp
+          assert "keep_fov" in exp and "keep_ratio" in exp
+          assert "rmUpdateView" in ui and "rmDeleteScene" in ui
+          assert "rmCreateScene" in exp and "rmMiniMap" in exp
+          assert "Smazat scénu" not in s and "Uložit kameru" not in s
+          assert "addEventListener('dblclick'" in ui
+          assert "key:'+esc(JSON.stringify(o.key))+" in s
+          assert "visible:'+(!visible)" in s
+          assert "activateScene(name)" in s
+          checker=Path("SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_tools_suite/camera_consistency.rb").read_text()
+          assert "cam.fov =" in checker and "36.0" in checker
+          print("PASS: folder/tag/scene handler quotes, double-click and naming preset")
+          PY
+      - name: Verify lens relationship and Ruby compatibility
+        run: |
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_tools_suite/camera_consistency.rb
+          ruby -e 'f=lambda{|x| 2*Math.atan(36.0/(2*x))*180/Math::PI}; abort "Wrong lens mapping" unless f.call(18)>f.call(50); puts "PASS: 18mm is wider than 50mm"'
+      - name: Test Tag Manager regression cases
+        run: |
+          ruby SketchUpPlugins/rmtools_v2061_tests.rb
+      - name: Verify camera-specific floorplan bounds and automatic expansion
+        run: |
+          ruby SketchUpPlugins/rmtools_v2061_floorplan_tests.rb
+          ruby SketchUpPlugins/rmtools_v2061_scene_create_tests.rb
+      - name: Build RBZ and verify original tools untouched
+        run: |
+          python SketchUpPlugins/rmtools_v2066_builder.py
+      - name: Set RM TOOLS as latest in Toolbox (leave legacy plugins alone)
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path("index.html")
+          s=p.read_text(encoding="utf-8")
+          start=s.index("const SU_PLUGIN_CATALOG = [")
+          idpos=s.index("id:'rm-tools-suite'",start)
+          left=s.rfind("{",start,idpos)
+          depth=0
+          quote=None
+          escaped=False
+          end=None
+          for i in range(left,len(s)):
+              c=s[i]
+              if quote:
+                  if escaped:escaped=False
+                  elif c=="\\":escaped=True
+                  elif c==quote:quote=None
+              elif c in ("'",'"',chr(96)):quote=c
+              elif c=="{":depth+=1
+              elif c=="}":
+                  depth-=1
+                  if depth==0:
+                      end=i+1
+                      break
+          assert end is not None
+          block=s[left:end]
+          block,n=re.subn(r"current:'[^']+'","current:'2.0.6.6'",block,count=1)
+          assert n==1
+          block,n=re.subn(r"meta:'[^']*'","meta:'v2.0.6.6: sady scén a přesouvání kamer po minimapě.'",block,count=1)
+          assert n==1
+          name="20-20_RM_TOOLS_v2.0.6.6.rbz"
+          if '"version":"2.0.6.6"' not in block:
+              begin=block.index("[",block.index("versions:["))
+              j=begin+1;level=1
+              while level:
+                  if block[j]=="[":level+=1
+                  elif block[j]=="]":level-=1
+                  j+=1
+              close=j-1
+              versions=block[begin+1:close].rstrip()
+              if versions and not versions.endswith(","):versions+=","
+              size=(Path("SketchUpPlugins")/name).stat().st_size
+              rec='{"version":"2.0.6.6","file":"'+name+'","size":'+str(size)+',"repo_file":"SketchUpPlugins/'+name+'"}'
+              versions+="\n              "+rec+"\n            "
+              block=block[:begin+1]+versions+block[close:]
+          updated=s[:left]+block+s[end:]
+          assert "id:'rm-tools-suite'" in updated
+          p.write_text(updated,encoding="utf-8")
+          print("PASS: only RM TOOLS latest was updated")
+          PY
+      - name: Publish installer
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.6.6.rbz index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Release RM TOOLS v2.0.6.6 Tag and Scene Managers"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
