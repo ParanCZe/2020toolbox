@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require File.join(__dir__, 'scene_visuals')
 require File.join(__dir__, 'floorplan')
+require File.join(__dir__, 'street_view')
 
 module TwentyTwenty
   module RMManagers
@@ -43,6 +44,7 @@ module TwentyTwenty
         model = Sketchup.active_model
         result[:floorplan] = Floorplan.cached_data(model)
         result[:floorplan_error] = Floorplan.last_error(model)
+        result[:street_api_key_set] = StreetView.configured?
         ground = model.bounds.valid? ? model.bounds.min.z : 0.to_l
         result[:scenes].each_with_index do |entry, index|
           entry[:height_1800] = (model.pages.to_a[index].camera.eye.z - ground - 1800.mm).abs < 50.mm
@@ -55,6 +57,7 @@ module TwentyTwenty
           up = cam.respond_to?(:up) ? cam.up : nil
           data[:up] = up ? [up.x.to_f, up.y.to_f] : [0.0, 1.0]
           data[:preview] = SceneVisuals.preview_base64(model, page)
+          data[:street_view] = StreetView.config(page)
         end
         result
       end
@@ -73,8 +76,27 @@ module TwentyTwenty
         model.pages.selected_page = page
         view.camera = page.camera
         view.invalidate
+        rm_apply_street_view(model, page)
       ensure
         opts['ShowTransition'] = previous if opts && !previous.nil?
+      end
+
+      def rm_apply_street_view(model, page)
+        if !StreetView.config(page)[:enabled]
+          StreetView.clear(model)
+          return
+        end
+        UI.start_timer(0.01, false) do
+          begin
+            if Sketchup.active_model.equal?(model) && model.pages.selected_page == page
+              StreetView.apply(model, page)
+              notify(:scenes, "Street View pozadí aktivní pro scénu #{page.name}.")
+            end
+          rescue StandardError => e
+            StreetView.clear(model)
+            notify(:scenes, "Street View: #{e.message}")
+          end
+        end
       end
 
       def rm_schedule_thumbnail(model, page)
@@ -129,6 +151,53 @@ module TwentyTwenty
         case kind
         when 'refresh'
           super
+        when 'street_key'
+          key = d['api_key'].to_s.strip
+          raise 'API klíč je prázdný.' if key.empty?
+          StreetView.api_key = key
+          notify(:scenes, 'Google Maps API klíč uložen lokálně v nastavení SketchUpu.')
+          refresh(:scenes)
+        when 'street_open'
+          raise 'Vyber scénu.' unless page
+          cfg = StreetView.config(page)
+          url = if cfg[:pano].to_s.empty? && cfg[:location].to_s.empty?
+            'https://www.google.com/maps'
+          else
+            StreetView.maps_url(cfg)
+          end
+          UI.openURL(url)
+        when 'street_apply'
+          raise 'Vyber scénu.' unless page
+          key = d['api_key'].to_s.strip
+          StreetView.api_key = key unless key.empty?
+          model.start_operation('RM Street View pozadí', true)
+          begin
+            StreetView.save_config(page, d)
+            page.set_attribute(StreetView::DICT, 'enabled', true)
+            model.commit_operation
+          rescue StandardError
+            model.abort_operation
+            raise
+          end
+          rm_apply_street_view(model, page) if model.pages.selected_page == page
+          refresh(:scenes)
+        when 'street_toggle'
+          raise 'Vyber scénu.' unless page
+          enabled = !!d['enabled']
+          if enabled
+            cfg = StreetView.config(page)
+            raise 'Nejdřív vlož Street View odkaz a klikni Použít.' if cfg[:pano].to_s.empty? && cfg[:location].to_s.empty?
+          end
+          page.set_attribute(StreetView::DICT, 'enabled', enabled)
+          if model.pages.selected_page == page
+            enabled ? rm_apply_street_view(model, page) : StreetView.clear(model)
+          end
+          refresh(:scenes)
+        when 'street_remove'
+          raise 'Vyber scénu.' unless page
+          page.set_attribute(StreetView::DICT, 'enabled', false)
+          StreetView.clear(model) if model.pages.selected_page == page
+          refresh(:scenes)
         when 'rebuild_plan'
           notify(:scenes,'Počítám půdorys podle pozic kamer bez změny pohledu…')
           ok,error = Floorplan.build(model)
