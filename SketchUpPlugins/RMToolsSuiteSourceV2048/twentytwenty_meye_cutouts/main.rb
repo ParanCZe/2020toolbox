@@ -319,14 +319,15 @@ module TwentyTwenty
       raise 'Již probíhá stahování tohoto cutoutu.' if (@busy ||= {})[id]
       @busy[id] = true
       @messages ||= Queue.new
+      revision = @revision || 0
       send_js("MeyeLibrary.setBusy(#{id},true)")
       Thread.new do
         begin
           path = download_full_png(item)
           bounds = cached_png_opaque_bounds(path)
-          @messages << [:insert, id, item, height, path, bounds]
+          @messages << [:insert, revision, id, item, height, path, bounds]
         rescue StandardError => e
-          @messages << [:insert_error, id, e.message]
+          @messages << [:insert_error, revision, id, e.message]
         end
       end
     rescue StandardError, ArgumentError => e
@@ -552,8 +553,9 @@ module TwentyTwenty
           rev, error = args
           send_js("MeyeLibrary.error(#{JSON.generate(error)})") if rev == @revision
         when :insert
-          id, item, height, path, bounds = args
+          rev, id, item, height, path, bounds = args
           @busy.delete(id) if @busy
+          next unless rev == (@revision || 0) && @dialog
           begin
             place_png(item, height, path, bounds)
             send_js("MeyeLibrary.insertDone(#{id})")
@@ -561,8 +563,9 @@ module TwentyTwenty
             send_js("MeyeLibrary.insertError(#{id},#{JSON.generate(e.message)})")
           end
         when :insert_error
-          id, error = args
+          rev, id, error = args
           @busy.delete(id) if @busy
+          next unless rev == (@revision || 0) && @dialog
           send_js("MeyeLibrary.insertError(#{id},#{JSON.generate(error)})")
         end
       end
