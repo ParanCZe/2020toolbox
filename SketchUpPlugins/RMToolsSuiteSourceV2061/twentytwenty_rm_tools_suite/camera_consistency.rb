@@ -9,9 +9,12 @@ module TwentyTwenty
         return notify('Ohnisko musí být mezi 10 a 200 mm.', 'warn') unless val.between?(10.0, 200.0)
         view = model.active_view
         cam = view.camera
+        eye = cam.eye.clone
+        target = cam.target.clone
+        up = cam.up.clone
         cam.perspective = true unless cam.perspective?
         cam.fov = 2.0 * Math.atan(36.0 / (2.0 * val)) * 180.0 / Math::PI
-        view.camera = cam
+        cam.set(eye, target, up)
         view.invalidate
         notify("Ohnisko: #{val.round} mm (35mm ekv.).")
       rescue StandardError => e
