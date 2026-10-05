@@ -489,8 +489,15 @@ module TwentyTwenty
     def set_focal_35(camera, millimeters)
       mm = Float(millimeters)
       raise 'Ohnisko musí být v rozsahu 10–200 mm.' unless mm.finite? && mm.between?(10, 200)
+      # Lens changes must NEVER dolly/orbit the camera. SketchUp can recalc the
+      # view when perspective/FOV is changed in some projection states, so keep
+      # the exact camera vectors and restore them after changing only the lens.
+      eye = camera.eye.clone
+      target = camera.target.clone
+      up = camera.up.clone
       camera.perspective = true unless camera.perspective?
       camera.fov = (2.0 * Math.atan(36.0 / (2.0 * mm)) * 180.0 / Math::PI)
+      camera.set(eye, target, up)
       mm
     end
     def ratio_name(camera)
