@@ -557,7 +557,7 @@ module TwentyTwenty
       cam.perspective = snapshot.perspective?
       cam.fov = snapshot.fov if snapshot.perspective?
       cam.aspect_ratio = snapshot.aspect_ratio
-      page.use_camera = true
+      page.use_camera = true if page.respond_to?(:use_camera=)
       cam
     end
 
