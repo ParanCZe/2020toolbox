@@ -1,0 +1,64 @@
+name: Publish RM TOOLS v2.0.7.0 TEST - duplicate scene fix
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-rm-tools-v2070-scene-fix.yml"
+      - "SketchUpPlugins/rmtools_v2070_scene_fix_builder.py"
+      - "SketchUpPlugins/rmtools_v2061_scene_create_tests.rb"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/main.rb"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/scene_experience.rb"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/scene_ui.js"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_tools_suite/main.rb"
+      - "SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_tools_suite.rb"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax checks
+        run: |
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/scene_experience.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_tools_suite/main.rb
+          ruby -c SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_tools_suite.rb
+          node --check SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/scene_ui.js
+      - name: Reproduce and test duplicate-scene regression
+        run: |
+          ruby SketchUpPlugins/rmtools_v2061_scene_create_tests.rb
+      - name: Keep existing manager regressions green
+        run: |
+          ruby SketchUpPlugins/rmtools_v2061_tests.rb
+          ruby SketchUpPlugins/rmtools_v2061_floorplan_tests.rb
+      - name: Assert surgical scope
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path("SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/main.rb").read_text()
+          exp=Path("SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/scene_experience.rb").read_text()
+          ui=Path("SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/scene_ui.js").read_text()
+          assert "select_page_without_transition(model, page)" in s
+          assert "apply_camera_values(view.camera, snapshot)" in s
+          assert "ok = page.update(scene_options)" in s
+          assert "js(:scenes, 'created'" in exp
+          assert "Manager.created=function(info)" in ui
+          print("PASS: only duplicate scene creation path is intentionally changed")
+          PY
+      - name: Build test RBZ
+        run: python SketchUpPlugins/rmtools_v2070_scene_fix_builder.py
+      - name: Publish test RBZ without replacing 2.0.6.9 STABLE
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SketchUpPlugins/20-20_RM_TOOLS_v2.0.7.0.rbz
+          git diff --cached --quiet && exit 0
+          git commit -m "Publish RM TOOLS v2.0.7.0 TEST duplicate scene fix"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin main
+          done
+          git push
