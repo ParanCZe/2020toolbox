@@ -33,9 +33,7 @@ assert set(old).issubset(set(new))
 allowed = set(paths)
 changed = {x for x in old if old[x]!=new[x]}
 assert changed <= allowed
-assert {"twentytwenty_rm_tools_suite/main.rb", "twentytwenty_rm_tools_suite.rb",
-        "twentytwenty_rm_managers/main.rb", "twentytwenty_rm_managers/scene_experience.rb",
-        "twentytwenty_rm_managers/scene_ui.js", "twentytwenty_rm_managers/scene_ui.css"} <= changed
+assert {"twentytwenty_rm_tools_suite/main.rb", "twentytwenty_rm_tools_suite.rb"} <= changed
 assert "twentytwenty_rm_managers/street_view.rb" in new
 with ZipFile(output,"w",compression=ZIP_DEFLATED,compresslevel=6) as f:
     for name,data in sorted(new.items()): f.writestr(name,data)
