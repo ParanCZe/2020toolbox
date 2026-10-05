@@ -7,6 +7,7 @@ P=Path(__file__).resolve().parent
 SRC=P/"RMToolsSuiteSourceV2061"
 BASE=P/"20-20_RM_TOOLS_v2.0.6.9.rbz"
 OUT=P/"20-20_RM_TOOLS_v2.0.7.0.rbz"
+assert BASE.is_file() and BASE.stat().st_size == 145657, "v2.0.6.9 STABLE base changed unexpectedly"
 
 PATHS={
     "twentytwenty_rm_tools_suite/main.rb": SRC/"twentytwenty_rm_tools_suite/main.rb",
