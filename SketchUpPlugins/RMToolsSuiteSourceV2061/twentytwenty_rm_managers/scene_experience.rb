@@ -50,12 +50,12 @@ module TwentyTwenty
         result[:floorplan_error] = Floorplan.last_error(model)
         result[:scene_sets] = scene_sets(model).map { |set| {'name'=>set['name'].to_s,'count'=>Array(set['scenes']).length} }
         ground = model.bounds.valid? ? model.bounds.min.z : 0.to_l
-        result[:scenes].each_with_index do |entry, index|
-          entry[:height_1800] = (model.pages.to_a[index].camera.eye.z - ground - 1800.mm).abs < 50.mm
-        end
+        pages = model.pages.to_a
         result[:scenes].each_with_index do |data, index|
-          page = model.pages.to_a[index]
+          page = pages[index]
+          next unless page
           cam = page.camera
+          data[:height_1800] = (cam.eye.z - ground - 1800.mm).abs < 50.mm
           data[:eye] = [cam.eye.x.to_f, cam.eye.y.to_f]
           data[:direction] = [cam.direction.x.to_f, cam.direction.y.to_f]
           up = cam.respond_to?(:up) ? cam.up : nil
@@ -126,7 +126,7 @@ module TwentyTwenty
             cam.perspective = perspective
             cam.fov = row['fov'].to_f if perspective && row['fov']
             cam.aspect_ratio = row['aspect_ratio'].to_f if row['aspect_ratio']
-            page.use_camera = true
+            page.use_camera = true if page.respond_to?(:use_camera=)
             page.set_attribute(SCENE_DICT,'ratio',row['ratio'].to_s)
             scene_id(page)
           end
