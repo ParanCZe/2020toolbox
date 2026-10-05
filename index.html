@@ -7532,7 +7532,13 @@ function apply3DPrintPrusaStats(gcode,origin='auto'){
 }
 function get3DPrintPrusaSliceKey(){
   if(!print3dState.root||!print3dState.file)return '';
-  try{print3dState.root.updateMatrixWorld?.(true);const matrix=Array.from(print3dState.root.matrixWorld?.elements||[]).map(v=>Number(v.toFixed(6))),f=print3dState.file;return JSON.stringify({file:[f.name,f.size,f.lastModified],matrix,settings:get3DPrintPrusaBridgeSettings()})}catch(e){return ''}
+  try{
+    print3dState.root.updateMatrixWorld?.(true);
+    const matrix=Array.from(print3dState.root.matrixWorld?.elements||[]).map(v=>Number(v.toFixed(6))),f=print3dState.file;
+    const profileKey=(document.getElementById('print3d-material')?.value||'pla').toLowerCase();
+    const finalTemps=[num3D('print3d-nozzle-first',230),num3D('print3d-nozzle-temp',240),num3D('print3d-bed-first',85),num3D('print3d-bed-temp',90)];
+    return JSON.stringify({file:[f.name,f.size,f.lastModified],matrix,profileKey,finalTemps,settings:get3DPrintPrusaBridgeSettings()});
+  }catch(e){return ''}
 }
 async function run3DPrintPrusaSlice(silent=false){
   if(!(await check3DPrintPrusaBridge(true)))throw new Error('PrusaBridge není spuštěný nebo PrusaSlicer ještě není připravený.');
