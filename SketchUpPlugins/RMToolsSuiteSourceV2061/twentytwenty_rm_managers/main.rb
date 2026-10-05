@@ -591,7 +591,7 @@ module TwentyTwenty
       snapshot = Sketchup::Camera.new(camera.eye, camera.target, camera.up)
       snapshot.perspective = camera.perspective?
       snapshot.fov = camera.fov if camera.perspective?
-      snapshot.aspect_ratio = camera.aspect_ratio
+      set_aspect_ratio_fixed(snapshot, camera.aspect_ratio)
       snapshot
     end
 
@@ -600,7 +600,7 @@ module TwentyTwenty
       cam.set(snapshot.eye, snapshot.target, snapshot.up)
       cam.perspective = snapshot.perspective?
       cam.fov = snapshot.fov if snapshot.perspective?
-      cam.aspect_ratio = snapshot.aspect_ratio
+      set_aspect_ratio_fixed(cam, snapshot.aspect_ratio)
       page.use_camera = true if page.respond_to?(:use_camera=)
       cam
     end
@@ -689,7 +689,6 @@ module TwentyTwenty
       when 'lens'
         cam = view.camera
         set_focal_35(cam, d['mm'])
-        view.camera = cam
         view.invalidate
         notify(:scenes, "Aktuální kamera: #{focal_35(cam)} mm (35mm ekv.). Pro zachování změny aktualizuj scénu.")
       when 'frame'
@@ -707,7 +706,6 @@ module TwentyTwenty
         eye = Geom::Point3d.new(cam.eye.x, cam.eye.y, desired)
         target = Geom::Point3d.new(cam.target.x, cam.target.y, cam.target.z + delta)
         cam.set(eye, target, cam.up)
-        view.camera = cam
         view.invalidate
       when 'two_point'
         return notify(:scenes, 'Dvoubodová perspektiva už je aktivní.') if view.camera.respond_to?(:is_2d?) && view.camera.is_2d?
