@@ -584,11 +584,25 @@ module TwentyTwenty
         raise 'Scéna nebyla nalezena.' unless page
         clean = d['new_name'].to_s.strip
         raise 'Neplatný nový název.' if clean.empty? || (page_by_name(clean) && page_by_name(clean) != page)
-        page.name = clean
+        model.start_operation('RM přejmenovat scénu', true)
+        begin
+          page.name = clean
+          model.commit_operation
+        rescue StandardError
+          model.abort_operation
+          raise
+        end
         js(:scenes, 'renamed', {id: scene_id(page), name: clean})
       when 'delete'
         raise 'Scéna nebyla nalezena.' unless page
-        model.pages.erase(page)
+        model.start_operation('RM smazat scénu', true)
+        begin
+          model.pages.erase(page)
+          model.commit_operation
+        rescue StandardError
+          model.abort_operation
+          raise
+        end
       when 'camera'
         raise 'Scéna nebyla nalezena.' unless page
         ratio = d['ratio'].to_s
