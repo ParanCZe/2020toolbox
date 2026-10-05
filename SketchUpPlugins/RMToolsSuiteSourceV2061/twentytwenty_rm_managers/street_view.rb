@@ -13,10 +13,19 @@ module TwentyTwenty
       ATTR = '20-20 RM STREETVIEW TEMP'.freeze
 
       def api_key
-        Sketchup.read_default(PREF, 'api_key', '').to_s
+        if Sketchup.respond_to?(:read_default)
+          Sketchup.read_default(PREF, 'api_key', '').to_s
+        else
+          @fallback_api_key.to_s
+        end
       end
       def api_key=(value)
-        Sketchup.write_default(PREF, 'api_key', value.to_s.strip)
+        value = value.to_s.strip
+        if Sketchup.respond_to?(:write_default)
+          Sketchup.write_default(PREF, 'api_key', value)
+        else
+          @fallback_api_key = value
+        end
       end
       def configured?
         !api_key.empty?
@@ -160,7 +169,7 @@ module TwentyTwenty
         2.0 * Math.atan(36.0 / (2.0 * f)) * 180.0 / Math::PI
       end
 
-      class SaveObserver < Sketchup::ModelObserver
+      class SaveObserver < (defined?(Sketchup::ModelObserver) ? Sketchup::ModelObserver : Object)
         def onPreSaveModel(model)
           @restore_page = model.pages.selected_page
           StreetView.clear(model)
