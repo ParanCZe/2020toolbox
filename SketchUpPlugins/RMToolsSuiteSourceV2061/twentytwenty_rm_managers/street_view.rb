@@ -170,7 +170,7 @@ module TwentyTwenty
         def onPostSaveModel(model)
           page = @restore_page
           @restore_page = nil
-          return unless page && page.valid? rescue return
+          return unless page && model.pages.to_a.include?(page)
           UI.start_timer(0.05, false) do
             begin
               StreetView.apply(model, page) if StreetView.config(page)[:enabled]
