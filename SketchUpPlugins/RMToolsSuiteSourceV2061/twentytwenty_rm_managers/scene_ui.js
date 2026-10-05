@@ -120,11 +120,32 @@
       '<p class="note">Uloží novou polohu a směr kamery ze současného pohledu, ale ponechá uložené ohnisko a poměr stran.</p>'+
       '<div class="line"><input id="rmRename" value="'+escapeHtml(scene.name)+'" aria-label="Název scény"/>'+
       '<button id="rmRenameBtn" type="button">Přejmenovat</button></div>'+
-      '<button id="rmDeleteScene" class="rm-delete" type="button">Smazat scénu</button>';
+      '<button id="rmDeleteScene" class="rm-delete" type="button">Smazat scénu</button>'+
+      '<section class="rm-street-card">'+
+        '<div class="rm-street-head"><strong>STREET VIEW POZADÍ</strong>'+
+          '<label class="rm-switch"><input id="rmStreetEnabled" type="checkbox" '+(scene.street_view?.enabled?'checked':'')+'/><span>Zapnout pro scénu</span></label></div>'+
+        '<p class="note">Vyber si pohled v Google Street View, zkopíruj celý odkaz z adresního řádku a vlož ho sem. Pozadí se načítá jen dočasně a při uložení SKP se do modelu neukládá.</p>'+
+        '<div class="line"><input id="rmStreetUrl" value="'+escapeHtml(scene.street_view?.source_url||'')+'" placeholder="https://www.google.com/maps/…"/></div>'+
+        '<div class="line"><span class="small">Vzdálenost pozadí</span><input id="rmStreetDistance" type="number" min="5" max="1000" step="5" value="'+escapeHtml(scene.street_view?.distance_m||80)+'"/><span class="small">m</span></div>'+
+        '<div class="line"><input id="rmStreetKey" type="password" autocomplete="off" placeholder="'+(state.street_api_key_set?'API klíč už je uložen':'Google Maps API key')+'"/></div>'+
+        '<div class="buttons"><button id="rmStreetOpen" type="button">Otevřít Street View</button><button id="rmStreetApply" class="primary" type="button">Použít / obnovit</button></div>'+
+        '<div class="small rm-street-state">'+(scene.street_view?.enabled?'Aktivní pro tuto scénu':'Vypnuto pro tuto scénu')+'</div>'+
+      '</section>';
     get('rmUpdateView').addEventListener('click',()=>send({kind:'update_view',id:scene.id}));
     get('rmRenameBtn').addEventListener('click',()=>send({kind:'rename',id:scene.id,new_name:get('rmRename').value}));
     get('rmDeleteScene').addEventListener('click',()=>{
       if(confirm('Opravdu smazat scénu '+scene.name+'?'))send({kind:'delete',id:scene.id});
+    });
+    get('rmStreetOpen').addEventListener('click',()=>send({kind:'street_open',id:scene.id}));
+    get('rmStreetApply').addEventListener('click',()=>{
+      const url=get('rmStreetUrl').value.trim();
+      if(!url){get('message').textContent='Vlož celý odkaz na Street View.';return;}
+      send({kind:'street_apply',id:scene.id,url,
+        distance_m:Number(get('rmStreetDistance').value||80),
+        api_key:get('rmStreetKey').value.trim()});
+    });
+    get('rmStreetEnabled').addEventListener('change',function(){
+      send({kind:'street_toggle',id:scene.id,enabled:this.checked});
     });
     renderSettings();
   }
