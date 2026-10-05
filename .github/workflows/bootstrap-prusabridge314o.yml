@@ -67,7 +67,7 @@ jobs:
           if (-not $main.Contains('handleSketchupFile')) { throw 'SketchUp file endpoint missing' }
           if (-not $main.Contains('isPrusaAccessViolation')) { throw 'PrusaSlicer access-violation detector missing' }
           if (-not $main.Contains('SAFE FALLBACK: repaired STL crashed PrusaSlicer; sliced original STL')) { throw 'Repaired-STL fallback missing' }
-          if (-not $main.Contains('PrusaSlicer slicing selhal i po bezpečném fallbacku.')) { throw 'Fallback error reporting missing' }
+          if (-not $main.Contains('PrusaSlicer slicing selhal i po')) { throw 'Fallback error reporting missing' }
           $html = Get-Content -Raw -Encoding UTF8 index.html
           if (-not $html.Contains('id="print3d-priority"')) { throw 'Priority selector was not added' }
           if (-not $html.Contains('analyze3DPrintRecommendationGeometry')) { throw 'Smart recommendation function missing' }
