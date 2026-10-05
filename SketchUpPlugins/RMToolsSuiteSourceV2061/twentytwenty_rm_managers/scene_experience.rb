@@ -125,7 +125,7 @@ module TwentyTwenty
             perspective = !!row['perspective']
             cam.perspective = perspective
             cam.fov = row['fov'].to_f if perspective && row['fov']
-            cam.aspect_ratio = row['aspect_ratio'].to_f if row['aspect_ratio']
+            set_aspect_ratio_fixed(cam, row['aspect_ratio'].to_f) if row['aspect_ratio']
             page.use_camera = true if page.respond_to?(:use_camera=)
             page.set_attribute(SCENE_DICT,'ratio',row['ratio'].to_s)
             scene_id(page)
@@ -271,7 +271,7 @@ module TwentyTwenty
           elsif kind == 'quick_ratio'
             ratio = d['ratio'].to_s
             raise 'Neplatný poměr stran.' unless RATIOS.key?(ratio) || ratio == 'off'
-            camera.aspect_ratio = ratio == 'off' ? 0.0 : RATIOS.fetch(ratio)
+            set_aspect_ratio_fixed(camera, ratio == 'off' ? 0.0 : RATIOS.fetch(ratio))
           else
             ground = model.bounds.valid? ? model.bounds.min.z : 0.to_l
             height = ground + 1800.mm
@@ -328,7 +328,7 @@ module TwentyTwenty
             # stored lens and aspect (user-adjustable via the top presets).
             saved.perspective = keep_perspective if saved.perspective? != keep_perspective
             saved.fov = keep_fov if keep_perspective && keep_fov
-            saved.aspect_ratio = keep_ratio
+            set_aspect_ratio_fixed(saved, keep_ratio)
             page.use_camera = true
             model.commit_operation
             SceneVisuals.clear(model, page)
@@ -356,9 +356,9 @@ module TwentyTwenty
           if kind == 'scene_ratio' || kind == 'camera'
             chosen = d['ratio'].to_s
             raise 'Neplatný poměr stran.' unless RATIOS.key?(chosen)
-            camera.aspect_ratio = RATIOS.fetch(chosen)
+            set_aspect_ratio_fixed(camera, RATIOS.fetch(chosen))
           end
-          view.camera = camera unless kind == 'scene_focal'
+          view.camera = camera unless kind == 'scene_focal' || kind == 'scene_ratio'
           view.invalidate
           rm_save_scene(model, page)
           refresh(:scenes)
@@ -371,8 +371,7 @@ module TwentyTwenty
           chosen = d['ratio'].to_s
           raise 'Neplatný poměr stran.' unless RATIOS.key?(chosen) || chosen == 'off'
           camera = view.camera
-          camera.aspect_ratio = chosen == 'off' ? 0.0 : RATIOS.fetch(chosen)
-          view.camera = camera
+          set_aspect_ratio_fixed(camera, chosen == 'off' ? 0.0 : RATIOS.fetch(chosen))
           view.invalidate
           js(:scenes, 'currentState', camera_info(camera))
         when 'create', 'update'
