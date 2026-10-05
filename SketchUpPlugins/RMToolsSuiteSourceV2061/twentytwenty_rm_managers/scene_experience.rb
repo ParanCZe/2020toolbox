@@ -279,7 +279,9 @@ module TwentyTwenty
             camera.set(Geom::Point3d.new(camera.eye.x,camera.eye.y,height),
                        Geom::Point3d.new(camera.target.x,camera.target.y,camera.target.z+shift),camera.up)
           end
-          view.camera = camera
+          # set_focal_35 mutates the active camera in place; reassigning the
+          # same camera object to view.camera can make SketchUp dolly it.
+          view.camera = camera unless kind == 'quick_lens'
           view.invalidate
           rm_save_scene(model, target)
           # The refreshed thumbnail will arrive asynchronously when viewport repaints.
@@ -356,14 +358,13 @@ module TwentyTwenty
             raise 'Neplatný poměr stran.' unless RATIOS.key?(chosen)
             camera.aspect_ratio = RATIOS.fetch(chosen)
           end
-          view.camera = camera
+          view.camera = camera unless kind == 'scene_focal'
           view.invalidate
           rm_save_scene(model, page)
           refresh(:scenes)
         when 'lens'
           camera = view.camera
           set_focal_35(camera, d['mm'])
-          view.camera = camera
           view.invalidate
           js(:scenes, 'currentState', camera_info(camera))
         when 'frame'
