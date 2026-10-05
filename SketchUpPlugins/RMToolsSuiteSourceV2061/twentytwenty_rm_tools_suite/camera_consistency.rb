@@ -4,6 +4,25 @@
 module TwentyTwenty
   module RMToolsSuite
     module CameraConsistency
+      def set_aspect_ratio(ratio)
+        val = ratio.to_f
+        return notify('Neplatný poměr stran.', 'warn') if val.negative?
+        cam = model.active_view.camera
+        eye = cam.eye.clone
+        target = cam.target.clone
+        up = cam.up.clone
+        cam.aspect_ratio = val
+        moved = cam.eye.distance(eye) > 0.001 ||
+                cam.target.distance(target) > 0.001 ||
+                cam.up.angle_between(up) > 0.00001
+        cam.set(eye, target, up) if moved
+        model.active_view.invalidate
+        notify(val.zero? ? 'Rámeček záběru vypnutý.' : "Rámeček záběru: #{format('%.3f', val)}")
+        push_state
+      rescue StandardError => e
+        notify("Poměr stran: #{e.message}", 'error')
+      end
+
       def set_focal_length(mm)
         val = mm.to_f
         return notify('Ohnisko musí být mezi 10 a 200 mm.', 'warn') unless val.between?(10.0, 200.0)
