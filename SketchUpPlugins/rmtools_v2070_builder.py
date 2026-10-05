@@ -37,11 +37,12 @@ assert set(old)-{"twentytwenty_rm_managers/street_view.rb"} <= set(new)
 allowed = set(paths)
 changed = {x for x in old if x in new and old[x]!=new[x]}
 assert changed <= allowed
-assert {"twentytwenty_rm_tools_suite/main.rb", "twentytwenty_rm_tools_suite.rb",
-        "twentytwenty_rm_managers/scene_experience.rb",
-        "twentytwenty_rm_managers/scene_visuals.rb",
-        "twentytwenty_rm_managers/floorplan.rb",
-        "twentytwenty_rm_checker/main.rb"} <= changed
+assert {"twentytwenty_rm_tools_suite/main.rb", "twentytwenty_rm_tools_suite.rb"} <= changed
+assert b"view.camera = page.camera" not in new["twentytwenty_rm_managers/scene_experience.rb"]
+assert b"active.set(eye, target, active.up)" in new["twentytwenty_rm_managers/scene_experience.rb"]
+assert b"PREVIEW_CACHE_LIMIT = 80" in new["twentytwenty_rm_managers/scene_visuals.rb"]
+assert b"CACHE_LIMIT = 4" in new["twentytwenty_rm_managers/floorplan.rb"]
+assert b"assigning it back can" in new["twentytwenty_rm_checker/main.rb"]
 assert "twentytwenty_live_mirror/main_v0418.rb" in new
 assert b"count_cache = {}" in new["twentytwenty_live_mirror/main_v0418.rb"]
 assert b"working_record[:edge_color] = reflection_edge_color" in new["twentytwenty_live_mirror/main_v0418.rb"]
