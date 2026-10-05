@@ -628,6 +628,8 @@ module TwentyTwenty
       # objects that should clearly be visible.
       working_record = record.dup
       working_record[:cull_planes] = nil
+      working_record[:edge_color] = reflection_edge_color
+      count_cache = {}
 
       # v0.4.17 adaptive LOD. First estimate how much of the model sits on the
       # reflective side of the mirror. Low-poly architectural faces are kept in
@@ -639,7 +641,8 @@ module TwentyTwenty
         Geom::Transformation.new,
         {},
         0,
-        working_record
+        working_record,
+        count_cache
       )
       simple_est = estimate[:simple].to_i
       dense_est = estimate[:dense].to_i
@@ -685,7 +688,7 @@ module TwentyTwenty
         edges,
         stats,
         1.0,
-        {}
+        count_cache
       )
 
       # Fail-safe: if the conservative view culler somehow rejected the whole
@@ -726,7 +729,7 @@ module TwentyTwenty
       end
 
       bg = background_color
-      edge_color = reflection_edge_color
+      edge_color = working_record[:edge_color]
       bb = model.bounds
       scene = {
         opaque: opaque,
@@ -1097,7 +1100,7 @@ module TwentyTwenty
         return
       end
 
-      c = reflection_edge_color
+      c = record[:edge_color] || reflection_edge_color
       # Same interleaved format as face vertices: xyz + rgba + normal.
       # The edge color is dark, so the lighting term does not materially alter it.
       [a, b].each do |p|
