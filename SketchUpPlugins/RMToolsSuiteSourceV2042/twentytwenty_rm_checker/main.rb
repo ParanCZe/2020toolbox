@@ -455,8 +455,7 @@ module TwentyTwenty
       new_eye = Geom::Point3d.new(eye.x, eye.y, desired_z)
       new_target = Geom::Point3d.new(target.x, target.y, target.z + dz)
       cam.set(new_eye, new_target, cam.up)
-      # Camera#set already mutates the active camera; assigning it back can
-      # trigger another viewport solve.
+      view.camera = cam
       view.invalidate
       notify('Kamera nastavena na 1,8 m nad nejnižší bod modelu.')
     rescue StandardError => e
