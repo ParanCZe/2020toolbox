@@ -376,6 +376,7 @@ module TwentyTwenty
         when 'create', 'update'
           super
           target = kind == 'create' ? page_by_name(name.strip) : page
+          js(:scenes, 'created', {id: scene_id(target)}) if kind == 'create' && target
           rm_schedule_thumbnail(model, target) if target
           rm_plan_if_cameras_moved(model)
         when 'delete'
