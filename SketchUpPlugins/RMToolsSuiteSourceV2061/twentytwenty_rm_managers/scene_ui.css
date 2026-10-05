@@ -48,15 +48,6 @@
 .rm-mini-map .rm-cam-selected{z-index:7;filter:drop-shadow(0 0 2px #000) drop-shadow(0 0 4px #e5ad00);}
 .rm-mini-map .rm-cam-spot:hover{z-index:8;scale:1.13;}
 
-.rm-street-card{margin-top:18px;padding:12px;border:1px solid #46515d;border-radius:9px;background:#1c2229}
-.rm-street-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
-.rm-street-head>strong{font-size:11px;letter-spacing:.04em;color:#f4f7f9}
-.rm-switch{display:flex;align-items:center;gap:6px;font-size:10px;color:#d5dce3;white-space:nowrap}
-.rm-switch input{accent-color:#ffd63d}
-.rm-street-card .line{gap:7px}
-.rm-street-card input[type="password"],.rm-street-card input[type="text"],.rm-street-card input[type="number"],#rmStreetUrl{width:100%;min-width:0}
-#rmStreetDistance{max-width:90px}
-.rm-street-state{margin-top:8px;color:#aeb8c2}
 
 .rm-scene-sets{margin:0 0 14px;padding:11px;border:1px solid #424b54;border-radius:10px;background:#20252b}
 .rm-scene-sets>label{display:block;color:#e7edf0;font-size:11px;font-weight:800;margin-bottom:8px}
