@@ -161,36 +161,54 @@ module Dvacet20
         }
       end
 
-      # Síťový disk S: může být u Dir.glob('**/*') překvapivě pomalý nebo
-      # se na některých Windows konfiguracích zaseknout. Procházíme proto pouze
-      # adresáře a SKP soubory explicitně.
-      files = []
+      # Síťový disk: každý File.file?/File.directory? je další round-trip.
+      # Proto uděláme jeden File.stat na položku a zároveň si v jednom průchodu
+      # zaindexujeme sidecar náhledy ve stejné složce.
+      records = []
       stack = [root]
       until stack.empty?
         dir = stack.pop
         begin
-          Dir.each_child(dir) do |name|
-            next if name == '.' || name == '..'
+          entries = Dir.children(dir)
+          files_in_dir = {}
+          entries.each do |name|
             path = File.join(dir, name)
-            if File.directory?(path)
-              stack << path
-            elsif File.file?(path) && File.extname(path).casecmp('.skp').zero?
-              files << path
+            begin
+              stat = File.stat(path)
+            rescue SystemCallError
+              next
             end
+            if stat.directory?
+              stack << path
+            elsif stat.file?
+              files_in_dir[name.downcase] = [path, stat]
+            end
+          end
+
+          files_in_dir.each_value do |path, stat|
+            next unless File.extname(path).casecmp('.skp').zero?
+            stem = File.basename(path, File.extname(path))
+            candidate_names = [
+              "#{stem}.png", "#{stem}.jpg", "#{stem}.jpeg", "#{stem}.webp",
+              'preview.png', 'preview.jpg', 'preview.jpeg', 'preview.webp'
+            ]
+            preview = candidate_names.lazy.map { |name| files_in_dir[name.downcase]&.first }.find(&:itself)
+            unless preview
+              cached = thumbnail_cache_path(path, stat)
+              preview = cached if File.file?(cached) && File.size?(cached)
+            end
+            records << [path, stat, preview]
           end
         rescue SystemCallError => e
           puts "[20-20 KOMPONENTY] Nelze projít #{dir}: #{e.class}: #{e.message}"
         end
       end
 
-      components = files.sort_by { |path| relative_path(path, root).downcase }.map.with_index do |path, index|
-        stat = File.stat(path)
+      components = records.sort_by { |path, _stat, _preview| relative_path(path, root).downcase }.map.with_index do |record, index|
+        path, stat, preview = record
         parsed = parse_component_name(path)
-        # DŮLEŽITÉ: při prvním načtení NIKDY negenerujeme thumbnail každého SKP.
-        # To by u síťové knihovny blokovalo UI i několik minut. Použijeme pouze
-        # existující sidecar obrázek; chybějící thumbnaily se generují líně až
-        # po vykreslení karet v HtmlDialogu.
-        preview = existing_preview(path, stat)
+        # Náhledy se při scanu pouze dohledají; chybějící se stále generují
+        # líně až po požadavku HtmlDialogu.
         {
           id: index.to_s,
           name: human_name(path),
