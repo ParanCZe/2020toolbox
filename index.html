@@ -7189,7 +7189,7 @@ const PRINT3D_QUALITY={
 const PRINT3D_MATERIALS={
   pla:{label:'PLA',nozzleFirst:215,nozzle:210,bedFirst:60,bed:60,fan:100,speedFactor:1,density:1.24,note:'PLA: hladký nebo saténový PEI; plné chlazení po prvních vrstvách.'},
   petg:{label:'PETG Standard',nozzleFirst:230,nozzle:240,bedFirst:85,bed:90,fan:50,speedFactor:.9,density:1.27,note:'PETG Standard: původní Prusa profil. Texturovaný/saténový plát; první vrstvy bez ventilátoru, potom přibližně 50 %.'},
-  petg_white:{label:'PETG White / Low Temp',nozzleFirst:230,nozzle:225,bedFirst:85,bed:80,fan:50,speedFactor:.9,density:1.27,note:'Bílý PETG – chladnější zkušební profil pro cívku, která se při 240 °C přepaluje. Pokud vrstvy hůř drží, zvyš teplotu dalších vrstev po 5 °C.'},
+  petg_white:{label:'PETG White / Low Temp',nozzleFirst:230,nozzle:225,bedFirst:85,bed:80,fan:50,speedFactor:.9,density:1.27,note:'Bílý PETG – chladnější profil. Slicing používá stabilní PETG Standard základ a finální G-code dostane 230/225 °C + podložku 85/80 °C, aby se obešel pád PrusaSliceru 0xc0000005.'},
   asa:{label:'ASA',nozzleFirst:260,nozzle:260,bedFirst:105,bed:110,fan:0,speedFactor:.82,density:1.07,note:'ASA: vyšší teplota okolí / enclosure je vhodný; chlazení minimální, pozor na kroucení a větrání místnosti.'},
   flex:{label:'FLEX / TPU',nozzleFirst:240,nozzle:240,bedFirst:70,bed:70,fan:0,speedFactor:.45,density:1.20,note:'Flex: tisknout pomalu, chlazení vypnout a podle konkrétní značky doladit teplotu/retrakce.'}
 };
@@ -7539,7 +7539,7 @@ async function run3DPrintPrusaSlice(silent=false){
   const baked=await p3CurrentBakedSTL(),form=new FormData();form.append('file',new Blob([baked.buffer],{type:'application/sla'}),'toolbox_input.stl');form.append('settings',JSON.stringify({...get3DPrintPrusaBridgeSettings(),sourceMode:'Windows RepairAsync → PrusaSlicer'}));
   const st=document.getElementById('st-3dprint'),status=document.getElementById('print3d-cura-status');if(!silent&&st)st.textContent='Windows RepairAsync opravuje tiskovou kopii a PrusaSlicer ji slicuje…';if(!silent&&status)status.innerHTML='<b>WINDOWS REPAIRASYNC → PRUSASLICER</b><br>Před slicingem se přesná STL z vieweru opraví Windows 3D repair algoritmem. Až opravený výstup dostane PrusaSlicer.';
   const resp=await p3BridgeFetch('/slice',{method:'POST',body:form},900000);if(!resp.ok)throw new Error(await p3BridgeError(resp));
-  let gcode=await resp.text();gcode=validate3DPrintSlicerGcode(gcode);const bounds=inspect3DPrintGcodeBounds(gcode,null),bz=num3D('print3d-bedz',210);if(!bounds.size||bounds.count<10)throw new Error('PrusaSlicer vrátil G-code bez dostatečného množství tiskových pohybů.');if(bounds.size.z>bz*1.15)throw new Error(`G-code má zjevně neplatnou výšku ${bounds.size.z.toFixed(1)} mm (limit tiskárny ${bz.toFixed(1)} mm).`);
+  let gcode=await resp.text();gcode=apply3DPrintFinalMaterialGcode(gcode);gcode=validate3DPrintSlicerGcode(gcode);const bounds=inspect3DPrintGcodeBounds(gcode,null),bz=num3D('print3d-bedz',210);if(!bounds.size||bounds.count<10)throw new Error('PrusaSlicer vrátil G-code bez dostatečného množství tiskových pohybů.');if(bounds.size.z>bz*1.15)throw new Error(`G-code má zjevně neplatnou výšku ${bounds.size.z.toFixed(1)} mm (limit tiskárny ${bz.toFixed(1)} mm).`);
   return {gcode,bounds,ver:resp.headers.get('X-PrusaSlicer-Version')||p3BridgeState().status?.slicerVersion||'PrusaSlicer',mode:resp.headers.get('X-Prusa-Slice-Mode')||'',repairMode:resp.headers.get('X-Prusa-Repair-Mode')||'Windows RepairAsync',engine:resp.headers.get('X-Repair-Engine')||'Windows.Graphics.Printing3D.RepairAsync'};
 }
 function start3DPrintPrusaEstimate(token){
@@ -8808,15 +8808,30 @@ function get3DPrintSlicerMaterial(){
 }
 function get3DPrintPrusaBridgeSettings(){
   const n=(id,f)=>{const v=Number(document.getElementById(id)?.value);return Number.isFinite(v)?v:f};
+  const materialKey=(document.getElementById('print3d-material')?.value||'pla').toLowerCase(),whitePetg=materialKey==='petg_white';
+  // PETG White používá při samotném slicingu stejný stabilní Prusament PETG základ jako funkční PETG Standard.
+  // Jeho nižší teploty se aplikují až na hotový G-code níže. Tím obejdeme PrusaSlicer 0xc0000005,
+  // který se na některých Windows/CLI kombinacích objeví právě při low-temp override profilu.
   return {
     printer:'mk3s',material:get3DPrintSlicerMaterial(),
     nozzle:n('print3d-nozzle',.4),layerHeight:n('print3d-layer-height',.15),firstLayer:n('print3d-first-layer',.20),
     perimeters:Math.round(n('print3d-perimeters',3)),infill:Math.round(n('print3d-infill',12)),infillPattern:document.getElementById('print3d-infill-pattern')?.value||'gyroid',
     supports:document.getElementById('print3d-supports')?.value||'off',brim:n('print3d-brim',0),topSolid:Math.round(n('print3d-top-solid',5)),bottomSolid:Math.round(n('print3d-bottom-solid',4)),
     retract:n('print3d-retract',.8),zHop:n('print3d-zhop',.4),supportInterface:Math.round(n('print3d-support-interface',2)),supportThreshold:Math.round(n('print3d-support-threshold',60)),
-    nozzleFirst:Math.round(n('print3d-nozzle-first',230)),nozzleTemp:Math.round(n('print3d-nozzle-temp',240)),bedFirst:Math.round(n('print3d-bed-first',85)),bedTemp:Math.round(n('print3d-bed-temp',90)),fan:Math.round(n('print3d-fan',50)),
+    nozzleFirst:whitePetg?230:Math.round(n('print3d-nozzle-first',230)),nozzleTemp:whitePetg?240:Math.round(n('print3d-nozzle-temp',240)),bedFirst:whitePetg?85:Math.round(n('print3d-bed-first',85)),bedTemp:whitePetg?90:Math.round(n('print3d-bed-temp',90)),fan:Math.round(n('print3d-fan',50)),
     speedPerimeter:n('print3d-speed-perim',35),speedInfill:n('print3d-speed-infill',50),speedTravel:n('print3d-speed-travel',180),scaleLabel:String(document.getElementById('print3d-scale')?.value||1)
   };
+}
+function apply3DPrintFinalMaterialGcode(gcode){
+  const key=(document.getElementById('print3d-material')?.value||'pla').toLowerCase();
+  if(key!=='petg_white')return String(gcode||'');
+  const nf=Math.round(num3D('print3d-nozzle-first',230)),nt=Math.round(num3D('print3d-nozzle-temp',225)),bf=Math.round(num3D('print3d-bed-first',85)),bt=Math.round(num3D('print3d-bed-temp',80));
+  let out=String(gcode||'');
+  // Bridge slicuje PETG White se stabilním PETG Standard teplotním základem 230/240 + 85/90.
+  // Teplotní příkazy přepíšeme až ve výsledném G-code na hodnoty vybraného bílého profilu.
+  out=out.replace(/^(M(?:104|109)\b[^\r\n]*\bS)(230|240)(?:\.0+)?\b/gmi,(m,p,t)=>p+(Number(t)===230?nf:nt));
+  out=out.replace(/^(M(?:140|190)\b[^\r\n]*\bS)(85|90)(?:\.0+)?\b/gmi,(m,p,t)=>p+(Number(t)===85?bf:bt));
+  return out;
 }
 async function p3CurrentBakedSTL(){
   const baked=await build3DPrintBakedSTL();const buffer=to3DPrintArrayBuffer(baked.buffer);return {baked,buffer};
