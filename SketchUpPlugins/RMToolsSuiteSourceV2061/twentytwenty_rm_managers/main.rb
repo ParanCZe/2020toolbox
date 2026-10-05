@@ -67,7 +67,7 @@ module TwentyTwenty
     def entity_id(ent)
       ent.respond_to?(:persistent_id) ? ent.persistent_id : ent.entityID
     end
-    def nested_members(entities, parents, output, seen = {})
+    def nested_members(entities, parents, output, seen = {}, material_cache = {})
       entities.each do |ent|
         next unless ent.valid?
         next unless ent.is_a?(Sketchup::ComponentInstance) || ent.is_a?(Sketchup::Group)
@@ -76,26 +76,34 @@ module TwentyTwenty
         output << {
           id: id, key: path.join('/'), path: parents, name: (ent.name.to_s.empty? ? ent.definition.name : ent.name),
           definition: ent.definition.name, tag: ent.layer.name,
-          hidden: ent.hidden?, materials: component_materials(ent),
+          hidden: ent.hidden?, materials: component_materials(ent, material_cache),
           kind: ent.is_a?(Sketchup::Group) ? 'Group' : 'Component'
         }
         definition = ent.definition
         next unless definition && path.length < 9 && !seen[definition.object_id]
-        nested_members(definition.entities, path, output, seen.merge(definition.object_id => true))
+        nested_members(definition.entities, path, output, seen.merge(definition.object_id => true), material_cache)
       end
     end
-    def component_materials(ent)
+    def definition_materials(definition, cache)
+      key = definition.object_id
+      return cache[key] if cache.key?(key)
       names = []
-      names << ent.material.name if ent.material
-      ent.definition.entities.each do |child|
+      definition.entities.each do |child|
         names << child.material.name if child.respond_to?(:material) && child.material
         names << child.back_material.name if child.respond_to?(:back_material) && child.back_material
       end
+      cache[key] = names.compact.uniq.first(30).freeze
+    end
+    def component_materials(ent, cache = {})
+      names = []
+      names << ent.material.name if ent.material
+      names.concat(definition_materials(ent.definition, cache))
       names.compact.uniq.first(30)
     end
     def object_cache
       output = []
-      nested_members(Sketchup.active_model.entities, [], output)
+      material_cache = {}
+      nested_members(Sketchup.active_model.entities, [], output, {}, material_cache)
       output
     end
     def rm_folder(name, id, children, tags, layers)
@@ -258,24 +266,26 @@ module TwentyTwenty
       case d['kind']
       when 'refresh'
       when 'visibility'
-        if d['target'] == 'object'
-          target = find_entity(d['key'])
-          model.start_operation('RM viditelnost objektu', true)
-          begin
+        model.start_operation('RM změna viditelnosti', true)
+        begin
+          if d['target'] == 'object'
+            target = find_entity(d['key'])
             target.hidden = !d['visible']
-            model.commit_operation
-          rescue StandardError
-            model.abort_operation
-            raise
+          elsif d['target'] == 'tag'
+            layer = model.layers[d['id'].to_s]
+            raise 'Tag nebyl nalezen.' unless layer
+            layer.visible = !!d['visible']
+          elsif d['target'] == 'folder'
+            names = layer_names_in_folder(d['id'].to_s)
+            layers = names.map { |name| model.layers[name] }.compact
+            layers.each { |layer| layer.visible = !!d['visible'] }
+          else
+            raise 'Neznámý cíl viditelnosti.'
           end
-        elsif d['target'] == 'tag'
-          layer = model.layers[d['id'].to_s]
-          raise 'Tag nebyl nalezen.' unless layer
-          layer.visible = !!d['visible']
-        elsif d['target'] == 'folder'
-          names = layer_names_in_folder(d['id'].to_s)
-          layers = names.map { |name| model.layers[name] }.compact
-          layers.each { |layer| layer.visible = !!d['visible'] }
+          model.commit_operation
+        rescue StandardError
+          model.abort_operation
+          raise
         end
       when 'select', 'zoom'
         select_entity(d['key'], d['kind'] == 'zoom')
@@ -515,10 +525,11 @@ module TwentyTwenty
     def scene_data
       model = Sketchup.active_model
       selected = model.pages.selected_page
+      ids = ensure_scene_ids(model)
       {current: camera_info(model.active_view.camera),
        scenes: model.pages.map { |page|
          cam = page.camera
-         {id: scene_id(page), name: page.name, selected: page == selected,
+         {id: scene_id(page, ids), name: page.name, selected: page == selected,
           focal: focal_35(cam),
           ratio: page.get_attribute(SCENE_DICT, 'ratio', '').to_s.empty? ? ratio_name(cam) : page.get_attribute(SCENE_DICT, 'ratio'),
           perspective: cam.perspective?,
@@ -527,24 +538,36 @@ module TwentyTwenty
     end
     # A page GUID can change when SketchUp modifies a page; scene names are
     # user-editable. Keep our own unique identity, also for copied pages.
-    def scene_id(page)
-      model = Sketchup.active_model
-      pages = model.pages.to_a
-      id = page.get_attribute(SCENE_DICT, 'stable_id', '').to_s
-      collisions = !id.empty? && pages.any? do |other|
-        !other.equal?(page) && other.get_attribute(SCENE_DICT, 'stable_id', '').to_s == id &&
-          pages.index(other) < pages.index(page)
+    def ensure_scene_ids(model = Sketchup.active_model)
+      used = {}
+      ids = {}
+      model.pages.to_a.each do |page|
+        id = page.get_attribute(SCENE_DICT, 'stable_id', '').to_s
+        if id.empty? || used[id]
+          begin
+            id = SecureRandom.uuid
+          end while used[id]
+          page.set_attribute(SCENE_DICT, 'stable_id', id)
+        end
+        used[id] = true
+        ids[page.object_id] = id
       end
-      if id.empty? || collisions
-        used = pages.reject { |other| other.equal?(page) }.map { |other| other.get_attribute(SCENE_DICT, 'stable_id', '').to_s }
-        id = SecureRandom.uuid while id.empty? || used.include?(id)
+      ids
+    end
+    def scene_id(page, ids = nil)
+      (ids || ensure_scene_ids)[page.object_id] || begin
+        id = SecureRandom.uuid
         page.set_attribute(SCENE_DICT, 'stable_id', id)
+        id
       end
-      id
     end
     def page_from_action(data)
       id = data['id'].to_s
-      return Sketchup.active_model.pages.find { |candidate| scene_id(candidate) == id } unless id.empty?
+      unless id.empty?
+        model = Sketchup.active_model
+        ids = ensure_scene_ids(model)
+        return model.pages.find { |candidate| ids[candidate.object_id] == id }
+      end
       page_by_name(data['name']) # Compatibility for pre-existing dialogs.
     end
     def page_by_name(name)
