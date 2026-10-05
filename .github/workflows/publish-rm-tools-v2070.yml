@@ -85,7 +85,7 @@ jobs:
           assert "def set_aspect_ratio" in checker_consistency
           assert "view.camera = page.camera" not in exp
           assert "PREVIEW_CACHE_LIMIT = 80" in Path("SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/scene_visuals.rb").read_text()
-          assert "CACHE_LIMIT = 4" in floorplan
+          assert "CACHE_LIMIT = 4" in Path("SketchUpPlugins/RMToolsSuiteSourceV2061/twentytwenty_rm_managers/floorplan.rb").read_text()
           mirror=Path("SketchUpPlugins/LiveMirrorSource/twentytwenty_live_mirror/main_v0418.rb").read_text()
           assert "count_cache = {}" in mirror
           assert "working_record[:edge_color] = reflection_edge_color" in mirror
