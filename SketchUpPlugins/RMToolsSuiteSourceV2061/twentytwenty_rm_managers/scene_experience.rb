@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 require File.join(__dir__, 'scene_visuals')
 require File.join(__dir__, 'floorplan')
-require File.join(__dir__, 'street_view')
 
 module TwentyTwenty
   module RMManagers
@@ -49,7 +48,6 @@ module TwentyTwenty
         model = Sketchup.active_model
         result[:floorplan] = Floorplan.cached_data(model)
         result[:floorplan_error] = Floorplan.last_error(model)
-        result[:street_api_key_set] = StreetView.configured?
         result[:scene_sets] = scene_sets(model).map { |set| {'name'=>set['name'].to_s,'count'=>Array(set['scenes']).length} }
         ground = model.bounds.valid? ? model.bounds.min.z : 0.to_l
         result[:scenes].each_with_index do |entry, index|
@@ -63,7 +61,6 @@ module TwentyTwenty
           up = cam.respond_to?(:up) ? cam.up : nil
           data[:up] = up ? [up.x.to_f, up.y.to_f] : [0.0, 1.0]
           data[:preview] = SceneVisuals.preview_base64(model, page)
-          data[:street_view] = StreetView.config(page)
         end
         result
       end
@@ -94,8 +91,7 @@ module TwentyTwenty
           'perspective'=>cam.perspective?,
           'fov'=>cam.fov.to_f,
           'aspect_ratio'=>cam.aspect_ratio.to_f,
-          'ratio'=>page.get_attribute(SCENE_DICT,'ratio','').to_s,
-          'street_view'=>StreetView.config(page)
+          'ratio'=>page.get_attribute(SCENE_DICT,'ratio','').to_s
         }
       end
 
@@ -108,17 +104,6 @@ module TwentyTwenty
         sets << {'name'=>clean,'scenes'=>scenes}
         write_scene_sets(model, sets)
         scenes.length
-      end
-
-      def restore_street_config(page, cfg)
-        return unless cfg.is_a?(Hash)
-        {
-          'enabled'=>'enabled','source_url'=>'source_url','pano'=>'pano','location'=>'location',
-          'heading'=>'heading','pitch'=>'pitch','fov'=>'fov','distance_m'=>'distance_m'
-        }.each do |key, attr|
-          value = cfg.key?(key) ? cfg[key] : cfg[key.to_sym]
-          page.set_attribute(StreetView::DICT, attr, value) unless value.nil?
-        end
       end
 
       def apply_scene_set(model, name)
@@ -143,7 +128,6 @@ module TwentyTwenty
             cam.aspect_ratio = row['aspect_ratio'].to_f if row['aspect_ratio']
             page.use_camera = true
             page.set_attribute(SCENE_DICT,'ratio',row['ratio'].to_s)
-            restore_street_config(page,row['street_view'])
             scene_id(page)
           end
           model.commit_operation
@@ -168,27 +152,8 @@ module TwentyTwenty
         model.pages.selected_page = page
         view.camera = page.camera
         view.invalidate
-        rm_apply_street_view(model, page)
       ensure
         opts['ShowTransition'] = previous if opts && !previous.nil?
-      end
-
-      def rm_apply_street_view(model, page)
-        if !StreetView.config(page)[:enabled]
-          StreetView.clear(model)
-          return
-        end
-        UI.start_timer(0.01, false) do
-          begin
-            if Sketchup.active_model.equal?(model) && model.pages.selected_page == page
-              StreetView.apply(model, page)
-              notify(:scenes, "Street View pozadí aktivní pro scénu #{page.name}.")
-            end
-          rescue StandardError => e
-            StreetView.clear(model)
-            notify(:scenes, "Street View: #{e.message}")
-          end
-        end
       end
 
       def rm_schedule_thumbnail(model, page)
@@ -270,7 +235,6 @@ module TwentyTwenty
             raise
           end
           SceneVisuals.clear(model,page)
-          rm_apply_street_view(model,page) if model.pages.selected_page == page
           refresh(:scenes)
           rm_plan_if_cameras_moved(model)
         when 'scene_set_save'
@@ -289,53 +253,6 @@ module TwentyTwenty
           raise 'Sada scén nebyla nalezena.' if kept.length == sets.length
           write_scene_sets(model,kept)
           notify(:scenes,"Sada #{name_to_delete} smazána.")
-          refresh(:scenes)
-        when 'street_key'
-          key = d['api_key'].to_s.strip
-          raise 'API klíč je prázdný.' if key.empty?
-          StreetView.api_key = key
-          notify(:scenes, 'Google Maps API klíč uložen lokálně v nastavení SketchUpu.')
-          refresh(:scenes)
-        when 'street_open'
-          raise 'Vyber scénu.' unless page
-          cfg = StreetView.config(page)
-          url = if cfg[:pano].to_s.empty? && cfg[:location].to_s.empty?
-            'https://www.google.com/maps'
-          else
-            StreetView.maps_url(cfg)
-          end
-          UI.openURL(url)
-        when 'street_apply'
-          raise 'Vyber scénu.' unless page
-          key = d['api_key'].to_s.strip
-          StreetView.api_key = key unless key.empty?
-          model.start_operation('RM Street View pozadí', true)
-          begin
-            StreetView.save_config(page, d)
-            page.set_attribute(StreetView::DICT, 'enabled', true)
-            model.commit_operation
-          rescue StandardError
-            model.abort_operation
-            raise
-          end
-          rm_apply_street_view(model, page) if model.pages.selected_page == page
-          refresh(:scenes)
-        when 'street_toggle'
-          raise 'Vyber scénu.' unless page
-          enabled = !!d['enabled']
-          if enabled
-            cfg = StreetView.config(page)
-            raise 'Nejdřív vlož Street View odkaz a klikni Použít.' if cfg[:pano].to_s.empty? && cfg[:location].to_s.empty?
-          end
-          page.set_attribute(StreetView::DICT, 'enabled', enabled)
-          if model.pages.selected_page == page
-            enabled ? rm_apply_street_view(model, page) : StreetView.clear(model)
-          end
-          refresh(:scenes)
-        when 'street_remove'
-          raise 'Vyber scénu.' unless page
-          page.set_attribute(StreetView::DICT, 'enabled', false)
-          StreetView.clear(model) if model.pages.selected_page == page
           refresh(:scenes)
         when 'rebuild_plan'
           notify(:scenes,'Počítám půdorys podle pozic kamer bez změny pohledu…')
