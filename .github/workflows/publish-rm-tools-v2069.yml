@@ -1,17 +1,5 @@
-name: Publish RM TOOLS v2.0.6.9 - Audit fixes and safe optimizations
+name: Publish RM TOOLS v2.0.6.9 - STABLE (manual only)
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/publish-rm-tools-v2069.yml"
-      - "SketchUpPlugins/rmtools_v2069_builder.py"
-      - "SketchUpPlugins/rmtools_v2061_tests.rb"
-      - "SketchUpPlugins/rmtools_v2061_floorplan_tests.rb"
-      - "SketchUpPlugins/rmtools_v2061_scene_create_tests.rb"
-      - "SketchUpPlugins/RMToolsSuiteSourceV2061/**"
-      - "SketchUpPlugins/RMToolsSuiteSourceV206/dvacet20_component_library/main.rb"
-      - "SketchUpPlugins/RMToolsSuiteSourceV2042/twentytwenty_rm_checker/main.rb"
-      - "SketchUpPlugins/RMToolsSuiteSourceV2048/twentytwenty_meye_cutouts/main.rb"
   workflow_dispatch:
 permissions:
   contents: write
