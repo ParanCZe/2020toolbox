@@ -160,7 +160,38 @@ module TwentyTwenty
         2.0 * Math.atan(36.0 / (2.0 * f)) * 180.0 / Math::PI
       end
 
+      class SaveObserver < Sketchup::ModelObserver
+        def onPreSaveModel(model)
+          @restore_page = model.pages.selected_page
+          StreetView.clear(model)
+        rescue StandardError => e
+          puts "[RM STREETVIEW] pre-save: #{e.class}: #{e.message}"
+        end
+        def onPostSaveModel(model)
+          page = @restore_page
+          @restore_page = nil
+          return unless page && page.valid? rescue return
+          UI.start_timer(0.05, false) do
+            begin
+              StreetView.apply(model, page) if StreetView.config(page)[:enabled]
+            rescue StandardError => e
+              puts "[RM STREETVIEW] post-save: #{e.class}: #{e.message}"
+            end
+          end
+        end
+      end
+
+      def install_save_observer(model)
+        @save_observers ||= {}
+        key = model.object_id
+        return if @save_observers[key]
+        obs = SaveObserver.new
+        model.add_observer(obs)
+        @save_observers[key] = obs
+      end
+
       def apply(model, page)
+        install_save_observer(model)
         clear(model)
         cfg = config(page)
         return false unless cfg[:enabled]
@@ -191,7 +222,7 @@ module TwentyTwenty
         group.name = "RM STREETVIEW · #{page.name}"
         group.set_attribute(ATTR, 'background', true)
         group.set_attribute(ATTR, 'scene_id', TwentyTwenty::RMManagers.scene_id(page))
-        image = group.entities.add_image(file, ORIGIN, width, height)
+        image = group.entities.add_image(file, Geom::Point3d.new(0,0,0), width, height)
         raise 'SketchUp nevytvořil Street View pozadí.' unless image
         axes = Geom::Transformation.axes(origin, right, up, direction.reverse)
         group.transformation = axes
