@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-const bridgeVersion = "3.14x"
+const bridgeVersion = "3.14y"
 const latestJSONURL = "https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/PrusaBridge/latest.json"
 const prusaLatestReleaseAPI = "https://api.github.com/repos/prusa3d/PrusaSlicer/releases/latest"
 const prusaFallbackZipURL = "https://github.com/prusa3d/PrusaSlicer/releases/download/version_2.9.6/PrusaSlicer-2.9.6.zip"
@@ -966,21 +966,53 @@ func handleSlice(w http.ResponseWriter, r *http.Request) {
 	}
 	runMu.Lock()
 	defer runMu.Unlock()
-	repaired, repairMode, err := repairWithWindows(data)
-	if err != nil {
-		writeErr(w, 500, "Windows repair před slicingem selhal.", err.Error())
+
+	repaired, repairMode, repairErr := repairWithWindows(data)
+	sliceInput := repaired
+	repairEngine := "Native WinRT Printing3DModel.RepairAsync"
+
+	// Some Windows RepairAsync outputs trigger a native PrusaSlicer
+	// access violation (0xc0000005). The original STL may still be perfectly
+	// sliceable. In that specific crash case, keep repair as the preferred
+	// path but automatically fall back to the original uploaded STL.
+	if repairErr != nil {
+		if isPrusaAccessViolation(repairErr) {
+			sliceInput = data
+			repairMode = "SAFE FALLBACK: RepairAsync/PrusaSlicer crash → original STL"
+			repairEngine = "Native WinRT RepairAsync + original STL fallback"
+		} else {
+			writeErr(w, 500, "Windows repair před slicingem selhal.", repairErr.Error())
+			return
+		}
+	}
+
+	gcode, sliceMode, sliceErr := sliceWithPrusa(sliceInput, settings)
+	if sliceErr != nil && repairErr == nil && isPrusaAccessViolation(sliceErr) {
+		// The repair completed, but PrusaSlicer crashed on the repaired STL.
+		// Retry once with the exact original STL from the browser.
+		fallbackGcode, fallbackMode, fallbackErr := sliceWithPrusa(data, settings)
+		if fallbackErr == nil {
+			gcode = fallbackGcode
+			sliceMode = fallbackMode
+			repairMode = repairMode + " → SAFE FALLBACK: repaired STL crashed PrusaSlicer; sliced original STL"
+			repairEngine = "Native WinRT RepairAsync + original STL fallback"
+			sliceErr = nil
+		} else {
+			writeErr(w, 500, "PrusaSlicer slicing selhal i po bezpečném fallbacku.",
+				fmt.Sprintf("Opravený STL: %v\n\nPůvodní STL: %v", sliceErr, fallbackErr))
+			return
+		}
+	}
+	if sliceErr != nil {
+		writeErr(w, 500, "PrusaSlicer slicing selhal.", sliceErr.Error())
 		return
 	}
-	gcode, sliceMode, err := sliceWithPrusa(repaired, settings)
-	if err != nil {
-		writeErr(w, 500, "PrusaSlicer slicing selhal.", err.Error())
-		return
-	}
+
 	w.Header().Set("Content-Type", "text/x-gcode; charset=utf-8")
 	w.Header().Set("X-PrusaSlicer-Version", slicerVer)
 	w.Header().Set("X-Prusa-Repair-Mode", repairMode)
 	w.Header().Set("X-Prusa-Slice-Mode", sliceMode)
-	w.Header().Set("X-Repair-Engine", "Native WinRT Printing3DModel.RepairAsync")
+	w.Header().Set("X-Repair-Engine", repairEngine)
 	w.Write(gcode)
 }
 
@@ -1193,6 +1225,16 @@ func materialProfile(m string) string {
 		return ""
 	}
 }
+func isPrusaAccessViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "0xc0000005") ||
+		strings.Contains(msg, "3221225477") ||
+		strings.Contains(msg, "access violation")
+}
+
 func cleanPattern(p string) string {
 	p = strings.ToLower(strings.TrimSpace(p))
 	switch p {
