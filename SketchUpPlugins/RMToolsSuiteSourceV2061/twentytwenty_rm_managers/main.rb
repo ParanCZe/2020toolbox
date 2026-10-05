@@ -510,6 +510,20 @@ module TwentyTwenty
       camera.set(eye, target, up)
       mm
     end
+    def set_aspect_ratio_fixed(camera, ratio)
+      value = Float(ratio)
+      raise 'Neplatný poměr stran.' unless value.finite? && value >= 0.0
+      eye = camera.eye.clone
+      target = camera.target.clone
+      up = camera.up.clone
+      camera.aspect_ratio = value
+      moved = camera.eye.distance(eye) > 0.001 ||
+              camera.target.distance(target) > 0.001 ||
+              camera.up.angle_between(up) > 0.00001
+      camera.set(eye, target, up) if moved
+      value
+    end
+
     def ratio_name(camera)
       val = camera.aspect_ratio.to_f
       return '' if val <= 0
@@ -668,8 +682,7 @@ module TwentyTwenty
         model.pages.selected_page = page
         cam = view.camera
         set_focal_35(cam, d['focal'])
-        cam.aspect_ratio = RATIOS.fetch(ratio)
-        view.camera = cam
+        set_aspect_ratio_fixed(cam, RATIOS.fetch(ratio))
         view.invalidate
         page.set_attribute(SCENE_DICT, 'ratio', ratio)
         page.update(scene_options)
@@ -683,8 +696,7 @@ module TwentyTwenty
         cam = view.camera
         ratio = d['ratio'].to_s
         raise 'Vyber platný poměr stran.' unless RATIOS.key?(ratio) || ratio == 'off'
-        cam.aspect_ratio = ratio == 'off' ? 0.0 : RATIOS.fetch(ratio)
-        view.camera = cam
+        set_aspect_ratio_fixed(cam, ratio == 'off' ? 0.0 : RATIOS.fetch(ratio))
         view.invalidate
       when 'height'
         cam = view.camera
