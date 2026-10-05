@@ -169,7 +169,7 @@ module Dvacet20
       until stack.empty?
         dir = stack.pop
         begin
-          entries = Dir.children(dir)
+          entries = Dir.entries(dir).reject { |name| name == '.' || name == '..' }
           files_in_dir = {}
           entries.each do |name|
             path = File.join(dir, name)
