@@ -11,6 +11,16 @@ class Numeric
   def to_l; self; end
 end
 module Sketchup
+  class Camera
+    attr_accessor :fov,:aspect_ratio,:perspective
+    attr_reader :eye,:target,:up
+    def initialize(eye,target,up)
+      @eye,@target,@up=eye,target,up
+      @perspective=true;@fov=60.0;@aspect_ratio=16.0/9
+    end
+    def perspective?;@perspective;end
+    def set(eye,target,up);@eye,@target,@up=eye,target,up;end
+  end
   class ComponentInstance; end
   class Group; end
   class Face; end
@@ -24,22 +34,25 @@ end
 Eye=Struct.new(:x,:y,:z)
 Direction=Struct.new(:x,:y,:z)
 class Cam
-  attr_accessor :fov,:aspect_ratio
-  def initialize
-    @fov=60.0;@aspect_ratio=16.0/9
-    @eye=Eye.new(0,0,1800)
+  attr_accessor :fov,:aspect_ratio,:perspective
+  attr_reader :eye,:target,:up
+  def initialize(x=0,y=0)
+    @fov=60.0;@aspect_ratio=16.0/9;@perspective=true
+    @eye=Eye.new(x,y,1800);@target=Eye.new(x+1000,y,1800);@up=Direction.new(0,0,1)
     @direction=Direction.new(1,0,0)
   end
-  def eye; @eye; end
   def direction; @direction; end
-  def perspective?;true;end
+  def perspective?;@perspective;end
   def is_2d?;false;end
+  def set(eye,target,up);@eye,@target,@up=eye,target,up;end
 end
 class Page
   attr_accessor :name
   attr_reader :camera,:updates
   def initialize(name,cam)
-    @name=name;@camera=cam
+    @name=name;@camera=Cam.new
+    @camera.set(cam.eye,cam.target,cam.up)
+    @camera.fov=cam.fov;@camera.aspect_ratio=cam.aspect_ratio
     @updates=[];@attrs={}
   end
   def update(flags);@updates << flags;true;end
@@ -78,5 +91,13 @@ raise 'Scene missing!' unless model.pages.length==1
 raise 'Scene name wrong!' unless model.pages.first.name=='02 - EXTERIER - HLAVNI'
 raise 'Scene camera changed!' unless model.active_view.camera.equal?(before)
 raise 'Scene update flags not used!' unless model.pages.first.updates==[39]
+first_eye=model.pages.first.camera.eye
+model.active_view.camera=Cam.new(5000,7000)
+mgr.scene_action({'kind'=>'create','name'=>'03 - EXTERIER - DETAIL'})
+raise 'Second scene missing!' unless model.pages.length==2
+raise 'First scene camera was overwritten!' unless model.pages.first.camera.eye==first_eye
+raise 'Second scene did not keep current viewport!' unless model.pages.last.camera.eye.x==5000 && model.pages.last.camera.eye.y==7000
+raise 'Consecutive scenes share camera object!' if model.pages.first.camera.equal?(model.pages.last.camera)
+puts 'PASS consecutive scene creation preserves independent camera snapshots'
 puts 'PASS new scene is actually created with camera/shadow/style/tag flags'
 puts 'PASS opening and creating does not change active camera'
