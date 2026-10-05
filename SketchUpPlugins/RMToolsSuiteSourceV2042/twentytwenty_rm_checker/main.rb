@@ -784,6 +784,34 @@ module TwentyTwenty
       nil
     end
 
+    def find_entities_by_ids(entities, wanted, tr = nil, path = [], stack = {}, out = [])
+      tr ||= Geom::Transformation.new
+      entities.each do |e|
+        next unless e.respond_to?(:valid?) ? e.valid? : true
+        bounds_tr = tr
+        child_tr = tr
+        child_path = path
+        if e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance)
+          child_tr = tr * e.transformation
+          child_path = path + [e]
+        end
+        out << [e, bounds_tr, path] if wanted.include?(e.entityID)
+        child = if e.is_a?(Sketchup::Group)
+                  e.entities
+                elsif e.is_a?(Sketchup::ComponentInstance)
+                  e.definition.entities
+                end
+        next unless child
+        definition = e.respond_to?(:definition) ? e.definition : nil
+        key = definition ? definition.object_id : e.object_id
+        next if stack[key]
+        stack[key] = true
+        find_entities_by_ids(child, wanted, child_tr, child_path, stack, out)
+        stack.delete(key)
+      end
+      out
+    end
+
     def transformed_bounds(entity, tr)
       bb = Geom::BoundingBox.new
       if entity.respond_to?(:bounds)
@@ -797,30 +825,33 @@ module TwentyTwenty
       ids = Array(ids).map(&:to_i).uniq.first(30)
       return notify('U tohoto nálezu není konkrétní objekt k zaměření.', 'warn') if ids.empty?
 
+      wanted = ids.each_with_object({}) { |id, hash| hash[id] = true }
+      hits = find_entities_by_ids(model.entities, wanted)
       boxes = []
-      zoom_entity = nil
+      zoom_entities = []
       edit_path = nil
-      ids.each do |id|
-        hit = find_entity_by_id(model.entities, [id])
-        next unless hit
-        entity, tr, parent_path = hit
+      hits.each do |entity, tr, parent_path|
         next unless entity.respond_to?(:valid?) ? entity.valid? : true
-        zoom_entity ||= entity
+        bb = transformed_bounds(entity, tr)
+        boxes << bb if bb.valid?
+        # View#zoom can take an array of top-level entities. For nested
+        # definition geometry zoom the owning top-level instance instead.
+        root = parent_path.first || entity
+        zoom_entities << root if root.respond_to?(:valid?) ? root.valid? : true
         edit_path ||= if entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
                         parent_path + [entity]
                       else
                         parent_path
                       end
-        bb = transformed_bounds(entity, tr)
-        boxes << bb if bb.valid?
       end
 
-      return notify('Objekt už v modelu není nebo ho nelze zaměřit.', 'warn') if boxes.empty? || zoom_entity.nil?
+      zoom_entities.uniq!
+      return notify('Objekt už v modelu není nebo ho nelze zaměřit.', 'warn') if boxes.empty? || zoom_entities.empty?
 
       begin
-        model.active_view.zoom(zoom_entity)
+        model.active_view.zoom(zoom_entities)
       rescue StandardError
-        model.active_view.zoom_extents
+        model.active_view.zoom(zoom_entities.first)
       end
 
       model.select_tool(FindingHighlighter.new(boxes, edit_path))
@@ -840,7 +871,13 @@ module TwentyTwenty
         shadows: !!model.shadow_info['DisplayShadows'],
         camera: {
           aspect_ratio: model.active_view.camera.aspect_ratio.to_f,
-          focal_length_mm: (model.active_view.camera.respond_to?(:focal_length) ? model.active_view.camera.focal_length.to_f : nil),
+          focal_length_mm: begin
+            cam = model.active_view.camera
+            if cam.perspective?
+              fov = cam.fov.to_f
+              fov > 0.0 && fov < 180.0 ? (36.0 / (2.0 * Math.tan(fov * Math::PI / 360.0))).round(1) : nil
+            end
+          end,
           two_point: (model.active_view.camera.respond_to?(:is_2d?) ? model.active_view.camera.is_2d? : nil)
         },
         checker: @last_report || { findings: [], stats: {}, counts: {} }
