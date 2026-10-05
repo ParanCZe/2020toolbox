@@ -360,6 +360,10 @@
     if(ratio && current.ratio && Array.from(ratio.options).some(o=>o.value===current.ratio))ratio.value=current.ratio;
     if(projection)projection.textContent=(current.two_point?'2-bod ON · ':'')+(current.perspective?'Perspektiva':'Rovnoběžné promítání');
   };
+  Manager.created=function(info){
+    selectedId=info&&info.id?info.id:selectedId;
+    renderAll();
+  };
   Manager.renamed=function(info){
     selectedId=info.id;
     const scene=state.scenes.find(x=>x.id===info.id);
