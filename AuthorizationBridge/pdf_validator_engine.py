@@ -174,8 +174,11 @@ def check(pdf: Path) -> dict:
     with pdf.open("rb") as f:
         if f.read(5) != b"%PDF-":
             raise ValueError("Soubor nemá PDF hlavičku.")
+    digest = hashlib.sha256()
     with pdf.open("rb") as digest_file:
-        checksum = hashlib.file_digest(digest_file, "sha256").hexdigest()
+        for chunk in iter(lambda: digest_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    checksum = digest.hexdigest()
     result = {
         "file": pdf.name,
         "sha256": checksum,
