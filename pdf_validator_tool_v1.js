@@ -91,9 +91,9 @@
       const t=await session();
       const s=await fetch(API+'/validator-status',{headers:{'X-20-20-Session':t},cache:'no-store'}),d=await s.json();
       if(!s.ok||!d.ok)throw Error(d.error||'Nelze načíst stav');
-      ready=!!(d.verapdf_ready&&d.eidas_ready);
+      ready=!!(d.verapdf_ready&&d.eidas_ready&&d.tsa_ready);
       $('pv-health').textContent='AuthorizationBridge '+(d.bridge_version||'')+' · veraPDF: '+(d.verapdf_ready?'připraveno':'chybí')
-        +' · eIDAS: '+(d.eidas_ready?'připraveno':'chybí')+(ready?' · Připraveno.':' · Doinstaluj lokální PDF Validator.');
+        +' · eIDAS: '+(d.eidas_ready?'připraveno':'chybí')+' · QTSA: '+(d.tsa_ready?'připraveno':'chybí')+(ready?' · Připraveno.':' · Aktualizuj lokální Bridge nebo PDF Validator.');
     }catch(e){token='';ready=false;$('pv-health').textContent='Validátor zatím není připraven: '+(e?.message||e)+'. Spusť instalátor nové verze AuthorizationBridge.';}
     render();
   }
