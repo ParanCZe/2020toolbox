@@ -68,19 +68,12 @@ def parse_ades(code: int, stdout: str, stderr: str) -> dict:
     crypto_bad = any("The signature is cryptographically unsound." in f for f in fields)
     crypto_good = all("The signature is cryptographically sound." in f for f in fields)
     full = all("The signature covers the entire file." in f for f in fields)
-    tsa_bad = any("The timestamp token is cryptographically unsound." in f for f in fields)
-    tsa_present = all("Signature timestamp token:" in f for f in fields)
-    tsa_sound = all("The timestamp token is cryptographically sound." in f for f in fields)
+    # Embedded timestamp tokens are validated independently using ASN.1/CMS,
+    # never by searching the signature's free-form pretty-print text.
     trusted_qualified = all(
         "The signature is judged VALID." in f
         and "The signer's certificate is trusted." in f
         and "The signer's certificate is qualified." in f
-        for f in fields
-    )
-    qualified_tsa = all(
-        "The TSA certificate is trusted." in f
-        and "The time stamping authority's certificate is qualified." in f
-        and "The time stamping authority is directly identified as a QTST." in f
         for f in fields
     )
     trust_problem = ("Failed to download trusted list" in stderr
@@ -93,20 +86,15 @@ def parse_ades(code: int, stdout: str, stderr: str) -> dict:
                         "Podpis se proto nepovažuje za neplatný; kvalifikaci nelze ověřit.")
     if not full:
         messages.append("Nelze potvrdit, že podpis pokrývá celý PDF soubor.")
-    if not tsa_present:
-        messages.append("Chybí samostatně ověřené podpisové časové razítko.")
     if crypto_bad:
         messages.append("Kryptografická integrita alespoň jednoho podpisu selhala.")
-    if tsa_bad:
-        messages.append("Kryptografická integrita alespoň jednoho časového razítka selhala.")
-    if code != 0 and not trust_problem and not (crypto_bad or tsa_bad):
+    if code != 0 and not trust_problem and not crypto_bad:
         messages.append("eIDAS ověřování se nedokončilo; detail je v reportu.")
 
     return dict(
         signature=("invalid" if crypto_bad else
                    "valid" if code == 0 and trusted_qualified and crypto_good and full else "unverified"),
-        timestamp=("invalid" if tsa_bad else
-                   "valid" if code == 0 and qualified_tsa and tsa_sound and tsa_present else "unverified"),
+        timestamp="unverified",  # overwritten only by independent RFC3161 validation
         crypto="invalid" if crypto_bad else "valid" if crypto_good and full else "unverified",
         count=count,
         messages=messages
@@ -237,6 +225,43 @@ def check(pdf: Path) -> dict:
                                (proc.stderr or "")[-MAX_OUTPUT:])
         except (OSError, subprocess.TimeoutExpired) as ex:
             result["messages"].append("pyHanko eIDAS nelze dokončit: " + str(ex))
+    # Do not reuse the AdES-LTA signature pretty-print for RFC3161 evidence.
+    # Validate every embedded token independently, even when signer trust
+    # could not be established (e.g. missing CZ trusted list).
+    tsa_checker = Path(__file__).with_name("qualified_tsa_check.py")
+    if not tsa_checker.is_file():
+        result["messages"].append("Chybí samostatný validátor RFC3161/QTSA; nainstaluj novou verzi Bridge.")
+    elif not py.is_file():
+        result["messages"].append("Bez pyHanko eIDAS nelze ověřit kvalifikaci časového razítka.")
+    else:
+        try:
+            ts_proc = subprocess.run(
+                [str(py), str(tsa_checker), str(pdf)],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=240, stdin=subprocess.DEVNULL,
+                env={**env, "PYTHONUTF8": "1"},
+            )
+            ts_result = json.loads(ts_proc.stdout)
+            stamp_status = ts_result.get("status")
+            if ts_proc.returncode == 0 and stamp_status in ("valid", "invalid", "unverified"):
+                result["timestamp"] = stamp_status
+            else:
+                result["messages"].append("Samostatná kontrola TSA se nedokončila.")
+            result["timestamp_count"] = int(ts_result.get("total_tokens", 0))
+            for row in ts_result.get("details", []):
+                if isinstance(row, str):
+                    result["messages"].append("TSA: " + row[:400])
+                elif isinstance(row, dict):
+                    for token in row.get("tokens", []):
+                        result["messages"].append(
+                            "RFC3161 / " + str(row.get("field","")) + ": "
+                            + str(token.get("reason",""))[:400]
+                        )
+            text_report.append("Samostatná kontrola kvalifikovaných RFC3161 TSA:\n"
+                               + json.dumps(ts_result, ensure_ascii=False, indent=2)[:MAX_OUTPUT]
+                               + "\n--- STDERR ---\n" + (ts_proc.stderr or "")[-6000:])
+        except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+            result["messages"].append("Samostatnou kontrolu QTSA se nepodařilo dokončit: " + str(exc))
     result["report"] = ("\n\n".join(text_report))[-MAX_OUTPUT:]
     return result
 
