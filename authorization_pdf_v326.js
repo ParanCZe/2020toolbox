@@ -23,6 +23,8 @@
     bridge: null,
     bridgeToken: null,
     tsaVaultConfigured: false,
+    tsaVaultUrl: '',
+    tsaVaultUser: '',
     approvalSessionId: null,
     zoom: 1,
     stampSourceName: '',
@@ -323,6 +325,8 @@
       const data = await r.json().catch(()=>({}));
       if (!r.ok || !data.ok) throw new Error(data.error || 'Úložiště není dostupné.');
       state.tsaVaultConfigured = !!data.configured;
+      state.tsaVaultUrl = data.tsa_url || '';
+      state.tsaVaultUser = data.tsa_user || '';
       if (status) status.textContent = data.configured
         ? 'Bezpečně uloženo pro: ' + (data.tsa_user || '') + ' · heslo se nezobrazuje'
         : 'Ve Windows není uložené žádné TSA heslo.';
@@ -346,7 +350,11 @@
       toast('Nejdřív zadej TSA heslo a klikni „Uložit údaje bezpečně“.', true);
       return;
     }
-    if (cb?.checked) document.getElementById('auth-tsa-pass').value = '';
+    if (cb?.checked) {
+      document.getElementById('auth-tsa-pass').value = '';
+      document.getElementById('auth-tsa').value = state.tsaVaultUrl;
+      document.getElementById('auth-tsa-user').value = state.tsaVaultUser;
+    }
     if (authRememberEnabled()) authSaveSettings(false);
   };
 
