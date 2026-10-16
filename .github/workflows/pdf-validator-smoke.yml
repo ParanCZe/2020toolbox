@@ -16,9 +16,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check Python syntax
-        run: python -m py_compile AuthorizationBridge/authorization_bridge.py AuthorizationBridge/pdf_validator_engine.py
+        run: python -m py_compile AuthorizationBridge/authorization_bridge.py AuthorizationBridge/pdf_validator_engine.py AuthorizationBridge/qualified_tsa_check.py
       - name: Validator fail-closed parsing tests
         run: python AuthorizationBridge/pdf_validator_engine.py --self-test
+      - name: Independent qualified RFC3161 timestamp status tests
+        run: python AuthorizationBridge/qualified_tsa_check.py --self-test
+      - name: Install pyHanko for integration import checks
+        run: python -m pip install --quiet "pyHanko[etsi,async-http]" pyhanko-cli
+      - name: Check qualified timestamp APIs
+        run: |
+          python - <<'PY'
+          from pyhanko.sign.validation.ades import ades_timestamp_validation
+          from pyhanko.sign.validation.policy_decl import QualificationRequirements
+          from pyhanko.sign.validation.qualified.tsp import QTST_URI
+          from pyhanko.cli._trust import init_trust_manager, TrustManagerSettings
+          from pyhanko_certvalidator.context import CertValidationPolicySpec
+          from pyhanko_certvalidator.policy_decl import CertRevTrustPolicy, RevocationCheckingPolicy
+          print("RFC3161 and signed EU trusted-list APIs available", QTST_URI)
+          PY
       - name: Check JavaScript syntax
         run: node --check pdf_validator_tool_v1.js
       - name: Assert PDF/A signer does not oversize PDF string
