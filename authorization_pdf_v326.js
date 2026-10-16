@@ -416,13 +416,13 @@
 
   function injectMenuTile() {
     if (document.getElementById('auth-menu-tile')) return;
-    const row = document.querySelector('.menu-app-row.beta') || document.querySelector('.menu-app-row');
+    const row = document.querySelector('#menu-view .menu-app-groups > .menu-app-row') || document.querySelector('.menu-app-row');
     if (!row) return;
     const tile = document.createElement('div');
     tile.id = 'auth-menu-tile';
     tile.className = 'tile';
     tile.setAttribute('onclick', "openTool('authorization')");
-    tile.innerHTML = '<b>Autorizace PDF <small class="menu-status">BETA</small></b><span>Hromadné razítkování a PAdES podpis certifikátem</span>';
+    tile.innerHTML = '<b>Autorizace PDF</b><span>Hromadné razítkování a PAdES podpis certifikátem</span>';
     row.appendChild(tile);
   }
 
