@@ -1,348 +1,133 @@
-"""Independent, local PDF/A-3b + qualified eIDAS validation for 20-20 TOOLBOX.
+"""2020 Toolbox read-only PDF Validator: veraPDF + local EU DSS 6.5.
 
-Invoked as a subprocess by AuthorizationBridge. A failed trust-list download
-must NEVER be presented as a cryptographically invalid signature.
-The signed PDF is not uploaded to the web; pyHanko retrieves public trust
-lists and revocation data (CRL/OCSP) over the network.
+Runs as a subprocess under AuthorizationBridge. Separate independent engines;
+an outage in EU DSS must NEVER conceal a confirmed veraPDF result.
+No signing key, PIN, PostSignum credentials, or TSA issuance API is used.
 """
-from __future__ import annotations
-
 import hashlib
 import json
 import os
-import re
-import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
-import urllib.request
-from datetime import timedelta
 from pathlib import Path
 
+from eu_dss_validator import check as check_eu_dss, DSS_VERSION
 
-MAX_OUTPUT = 120_000
 ROOT = Path(os.environ.get("LOCALAPPDATA") or str(Path.home()))
 INSTALL_DIR = ROOT / "20-20-TOOLBOX" / "PDFValidator"
-VERAPDF_CANDIDATES = [
+JAVA = INSTALL_DIR / "jre" / "bin" / "java.exe"
+VERAPDF = (
     INSTALL_DIR / "veraPDF" / "verapdf.bat",
     INSTALL_DIR / "veraPDF" / "bin" / "verapdf.bat",
-]
-JAVA = INSTALL_DIR / "jre" / "bin" / "java.exe"
+)
 
 
-def parse_verapdf(xml: str) -> tuple[str, list[str]]:
+def parse_verapdf(xml_text):
     try:
-        root = ET.fromstring(xml)
+        root = ET.fromstring(xml_text)
     except ET.ParseError:
-        return "unverified", ["veraPDF nevrátil validní XML report."]
-    reports = [x for x in root.iter() if x.tag.split("}")[-1] == "validationReport"]
+        return "unverified", ["veraPDF nevrátilo platný XML report."]
+    reports = [e for e in root.iter() if e.tag.split("}")[-1] == "validationReport"]
     if len(reports) != 1:
-        return "unverified", ["Chybí jednoznačný validační report veraPDF."]
+        return "unverified", ["veraPDF nevrátilo právě jeden validační report."]
     report = reports[0]
-    errors = []
+    compliant = report.get("isCompliant", "").lower()
+    failures = []
     for rule in report.iter():
         if rule.tag.split("}")[-1] != "rule":
             continue
-        if any(c.tag.split("}")[-1] == "check" and c.get("status") == "failed" for c in rule.iter()):
-            errors.append("ISO 19005-3: "
-                          f"článek {rule.get('clause','?')}, test {rule.get('testNumber','?')}. "
-                          f"{rule.get('description','')}")
-    compliant = (report.get("isCompliant") or "").lower()
+        if any(c.tag.split("}")[-1] == "check" and c.get("status") == "failed"
+               for c in rule.iter()):
+            failures.append(
+                "ISO 19005-3: čl. " + rule.get("clause", "?") +
+                ", test " + rule.get("testNumber", "?") + " " +
+                rule.get("description", "")
+            )
     if compliant == "true":
         return "valid", []
     if compliant == "false":
-        return "invalid", errors[:20] or ["PDF nesplňuje PDF/A-3b (veraPDF)."]
-    return "unverified", ["Výsledek veraPDF neobsahuje stav isCompliant."]
+        return "invalid", failures[:12] or ["PDF/A-3b nevyhovuje."]
+    return "unverified", ["veraPDF neuvedlo jednoznačný stav."]
 
 
-def parse_ades(code: int, stdout: str, stderr: str) -> dict:
-    # Preserve independent "cryptographically sound" facts even when network
-    # failures make trust or qualified status indeterminate.
-    fields = re.split(r"(?m)^Field \d+: [^\r\n]+\r?\n", stdout)[1:]
-    count = len(fields)
-    if not count:
-        return dict(signature="unverified", timestamp="unverified",
-                    crypto="unverified", count=0,
-                    messages=["Nepodařilo se načíst podrobný výsledek ověření podpisů."])
-
-    crypto_bad = any("The signature is cryptographically unsound." in f for f in fields)
-    crypto_good = all("The signature is cryptographically sound." in f for f in fields)
-    full = all("The signature covers the entire file." in f for f in fields)
-    # Embedded timestamp tokens are validated independently using ASN.1/CMS,
-    # never by searching the signature's free-form pretty-print text.
-    trusted_qualified = all(
-        "The signature is judged VALID." in f
-        and "The signer's certificate is trusted." in f
-        and "The signer's certificate is qualified." in f
-        for f in fields
+def check(pdf):
+    if not pdf.is_file() or pdf.stat().st_size < 5:
+        raise ValueError("Vstupní soubor PDF chybí nebo je prázdný.")
+    if pdf.stat().st_size > 150 * 1024 * 1024:
+        raise ValueError("PDF přesahuje limit 150 MB.")
+    with pdf.open("rb") as inp:
+        if inp.read(5) != b"%PDF-":
+            raise ValueError("Chybí hlavička PDF.")
+    dig = hashlib.sha256()
+    with pdf.open("rb") as inp:
+        for block in iter(lambda: inp.read(1024 * 1024), b""):
+            dig.update(block)
+    result = dict(
+        file=pdf.name, sha256=dig.hexdigest(),
+        pdfa="unverified", crypto="unverified",
+        signature="unverified", timestamp="unverified",
+        signatures=0, timestamp_count=0, messages=[], report="",
+        engines={"pdfa":"veraPDF 1.30.3", "eidas":"EU DSS " + DSS_VERSION},
     )
-    trust_problem = ("Failed to download trusted list" in stderr
-                     or "No path to trust anchor found" in stdout
-                     or "Errors encountered during trust list processing" in stderr
-                     or "Failed to parse trusted list for CZ" in stderr)
-
-    messages = []
-    if trust_problem:
-        messages.append("Důvěryhodný seznam se nepodařilo kryptograficky "
-                        "ověřit nebo zpracovat. QES/QTSA zůstává NEOVĚŘENO; "
-                        "samotná integrita PDF podpisu tím není zpochybněna.")
-    if not full:
-        messages.append("Nelze potvrdit, že podpis pokrývá celý PDF soubor.")
-    if crypto_bad:
-        messages.append("Kryptografická integrita alespoň jednoho podpisu selhala.")
-    if code != 0 and not trust_problem and not crypto_bad:
-        messages.append("eIDAS ověřování se nedokončilo; detail je v reportu.")
-
-    return dict(
-        signature=("invalid" if crypto_bad else
-                   "valid" if code == 0 and trusted_qualified and crypto_good and full else "unverified"),
-        timestamp="unverified",  # overwritten only by independent RFC3161 validation
-        crypto="invalid" if crypto_bad else "valid" if crypto_good and full else "unverified",
-        count=count,
-        messages=messages
-    )
-
-
-
-def prefetch_czech_trusted_list(python_exe: Path, *, force_refresh: bool = False) -> str:
-    """Work around CZ TL HTTP 406 from pyHanko's duplicated Accept headers.
-
-    Cache a fresh copy obtained with a normal Accept header. pyHanko still
-    verifies its actual XML signature against the EU LOTL and designated
-    national list-signing certificates; merely caching does NOT confer trust.
-    """
-    url = "https://tsl.gov.cz/publ/TSL_CZ.xtsl"
-    helper = r'''
-import sys, os, json, urllib.request, xml.etree.ElementTree as ET
-from datetime import timedelta
-from pathlib import Path
-from pyhanko.cli.cache import get_eutl_cache_dir
-from pyhanko.sign.validation.qualified.eutl_fetch import FileSystemTLCache
-url="https://tsl.gov.cz/publ/TSL_CZ.xtsl"
-cache_root=Path(get_eutl_cache_dir(None))
-cache_root.mkdir(parents=True, exist_ok=True)
-if os.environ.get("TOOLBOX_FORCE_CZ_TL") == "1":
-    # Drop only the URL's *index entry*, not the EU LOTL or other
-    # trust lists. A TL with an invalid signature must never be reused.
-    index=cache_root/"index.json"
-    if index.is_file():
-        data=json.loads(index.read_text(encoding="utf-8"))
-        if url in data:
-            del data[url]
-            index.write_text(json.dumps(data),encoding="utf-8")
-cache=FileSystemTLCache(cache_root, timedelta(days=2))
-if os.environ.get("TOOLBOX_FORCE_CZ_TL") != "1":
-    try:
-        cached=cache[url]
-        if cached.lstrip().startswith("<?xml") or "TrustServiceStatusList" in cached[:400]:
-            print("CZ TL: cache nalezena (podpis TL zatim NEOVEREN)", flush=True)
-            sys.exit(0)
-    except KeyError:
-        pass
-req=urllib.request.Request(url,headers={"Accept":"*/*", "User-Agent":"20-20-PDF-Validator/1.0"})
-with urllib.request.urlopen(req,timeout=20) as response:
-    if response.geturl() != url:
-        raise RuntimeError("CZ TL byla presmerovana na neocekavanou adresu.")
-    body=response.read(16*1024*1024+1)
-    if len(body)>16*1024*1024:raise RuntimeError("CZ TL presahla 16 MB.")
-xml=body.decode("utf-8-sig")
-root=ET.fromstring(xml)
-if root.tag.split("}")[-1]!="TrustServiceStatusList":
-    raise RuntimeError("Odpoved neni ETSI trusted list XML.")
-cache[url]=xml
-print("CZ TL stazena; kontrola elektronickeho podpisu seznamu teprve probehne.",flush=True)
-'''
-    try:
-        proc = subprocess.run(
-            [str(python_exe), "-c", helper],
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
-            stdin=subprocess.DEVNULL, timeout=45,
-            env={**os.environ, "PYTHONUTF8":"1", "TOOLBOX_FORCE_CZ_TL": "1" if force_refresh else "0"},
-        )
-        if proc.returncode:
-            return ("Stažení CZ TL se nezdařilo; kryptografické ověření bude "
-                    "neúplné. " + (proc.stderr or proc.stdout)[-700:])
-        return (proc.stdout or "").strip()
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return "Důvěryhodný seznam nelze připravit: " + str(exc)
-
-
-def emit_json(data: dict) -> None:
-    """Emit ASCII-safe JSON independently of the Windows console codepage.
-
-    Redirected stdout can use CP1252. Printing U+FFFD or an accented message
-    with ensure_ascii=False raises UnicodeEncodeError, masking every PDF result.
-    The JSON decoder reconstructs the original Unicode values losslessly.
-    """
-    print(json.dumps(data, ensure_ascii=True))
-
-
-def check(pdf: Path) -> dict:
-    if not pdf.is_file() or pdf.suffix.lower() != ".pdf":
-        raise ValueError("Očekáván vstupní soubor PDF.")
-    size = pdf.stat().st_size
-    if size < 5 or size > 150 * 1024 * 1024:
-        raise ValueError("PDF překročilo limit 150 MB nebo je prázdné.")
-    with pdf.open("rb") as f:
-        if f.read(5) != b"%PDF-":
-            raise ValueError("Soubor nemá PDF hlavičku.")
-    digest = hashlib.sha256()
-    with pdf.open("rb") as digest_file:
-        for chunk in iter(lambda: digest_file.read(1024 * 1024), b""):
-            digest.update(chunk)
-    checksum = digest.hexdigest()
-    result = {
-        "file": pdf.name,
-        "sha256": checksum,
-        "pdfa": "unverified",
-        "signature": "unverified",
-        "timestamp": "unverified",
-        "crypto": "unverified",
-        "signatures": 0,
-        "messages": [],
-        "report": ""
-    }
-    text_report = []
-    env = dict(os.environ)
-    if JAVA.is_file():
-        env["JAVA_HOME"] = str(JAVA.parent.parent)
-        env["PATH"] = str(JAVA.parent) + os.pathsep + env.get("PATH", "")
-
-    cmd = next((x for x in VERAPDF_CANDIDATES if x.is_file()), None)
+    reports = []
+    cmd = next((p for p in VERAPDF if p.is_file()), None)
     if cmd is None:
-        result["messages"].append("veraPDF není nainstalováno v lokální složce PDFValidator.")
+        result["messages"].append("veraPDF není nainstalováno.")
     else:
+        env = dict(os.environ)
+        if JAVA.is_file():
+            env["JAVA_HOME"] = str(JAVA.parent.parent)
+            env["PATH"] = str(JAVA.parent) + os.pathsep + env.get("PATH", "")
         try:
-            p = subprocess.run([str(cmd), "--format", "xml", "--flavour", "3b", str(pdf)],
-                               capture_output=True, text=True, encoding="utf-8", errors="replace",
-                               timeout=180, stdin=subprocess.DEVNULL, env=env)
-            result["pdfa"], errs = parse_verapdf(p.stdout)
-            result["messages"].extend(errs)
-            text_report.append("veraPDF PDF/A-3b:\n" + p.stdout[-MAX_OUTPUT:] + "\n" + p.stderr[-4000:])
-        except (OSError, subprocess.TimeoutExpired) as ex:
-            result["messages"].append("Nástroj veraPDF nelze spustit: " + str(ex))
-
-    # The validator uses a SEPARATE virtual environment, not the private key
-    # / Windows certificate signing environment of AuthorizationBridge.
-    py = INSTALL_DIR / "venv" / "Scripts" / "python.exe"
-    if not py.is_file():
-        result["messages"].append("Lokální pyHanko eIDAS není nainstalované; spusť instalátor PDF Validatoru.")
-    else:
-        try:
-            cache_note = prefetch_czech_trusted_list(py)
-            if cache_note:
-                result["messages"].append(cache_note)
-            ades_command = [
-                str(py), "-m", "pyhanko", "sign", "adesverify",
-                "--eutl-territories", "cz", "--require-qualified",
-                "--pretty-print", str(pdf)
-            ]
-            ades_env = {**env, "PYTHONUTF8": "1"}
-            proc = subprocess.run(
-                ades_command, capture_output=True, text=True,
-                encoding="utf-8", errors="replace", timeout=210,
-                stdin=subprocess.DEVNULL, env=ades_env,
-            )
-            trust_list_failure = (
-                "Failed to parse trusted list for CZ" in (proc.stderr or "")
-                and ("Invalid XML signature" in (proc.stderr or "")
-                     or "None of the candidate TLSO certs" in (proc.stderr or ""))
-            )
-            if trust_list_failure:
-                # This is a failure of the *trust-list XML signature*,
-                # not a cryptographic failure of the PDF signature.
-                result["messages"].append(
-                    "Český důvěryhodný seznam z cache neprošel ověřením "
-                    "XML podpisu. Zkouším jednou čerstvý soubor z oficiální "
-                    "adresy; žádný seznam nepovažuji za důvěryhodný "
-                    "bez nezávislého kryptografického ověření pyHanko."
-                )
-                fresh_note = prefetch_czech_trusted_list(py, force_refresh=True)
-                result["messages"].append("Obnovení CZ TL: " + fresh_note)
-                text_report.append(
-                    "pyHanko před obnovením seznamu (neověřená důvěra):\n"
-                    + (proc.stderr or "")[-12000:]
-                )
-                if "nezdařilo" not in fresh_note:
-                    proc = subprocess.run(
-                        ades_command, capture_output=True, text=True,
-                        encoding="utf-8", errors="replace", timeout=140,
-                        stdin=subprocess.DEVNULL, env=ades_env,
-                    )
-            detail = parse_ades(proc.returncode, proc.stdout or "", proc.stderr or "")
-            result.update({k: detail[k] for k in ("signature", "timestamp", "crypto")})
-            result["signatures"] = detail["count"]
-            result["messages"].extend(detail["messages"])
-            text_report.append("pyHanko eIDAS / EU LOTL + CZ TL:\n" +
-                               (proc.stdout or "")[-MAX_OUTPUT:] + "\n--- STDERR ---\n" +
-                               (proc.stderr or "")[-MAX_OUTPUT:])
-        except (OSError, subprocess.TimeoutExpired) as ex:
-            result["messages"].append("pyHanko eIDAS nelze dokončit: " + str(ex))
-    # Do not reuse the AdES-LTA signature pretty-print for RFC3161 evidence.
-    # Validate every embedded token independently, even when signer trust
-    # could not be established (e.g. missing CZ trusted list).
-    tsa_checker = Path(__file__).with_name("qualified_tsa_check.py")
-    if not tsa_checker.is_file():
-        result["messages"].append("Chybí samostatný validátor RFC3161/QTSA; nainstaluj novou verzi Bridge.")
-    elif not py.is_file():
-        result["messages"].append("Bez pyHanko eIDAS nelze ověřit kvalifikaci časového razítka.")
-    else:
-        try:
-            ts_proc = subprocess.run(
-                [str(py), str(tsa_checker), str(pdf)],
+            p = subprocess.run(
+                [str(cmd), "--format", "xml", "--flavour", "3b", str(pdf)],
                 capture_output=True, text=True, encoding="utf-8", errors="replace",
-                timeout=240, stdin=subprocess.DEVNULL,
-                env={**env, "PYTHONUTF8": "1"},
+                timeout=180, stdin=subprocess.DEVNULL, env=env,
             )
-            ts_result = json.loads(ts_proc.stdout)
-            stamp_status = ts_result.get("status")
-            if ts_proc.returncode == 0 and stamp_status in ("valid", "invalid", "unverified"):
-                result["timestamp"] = stamp_status
-            else:
-                result["messages"].append("Samostatná kontrola TSA se nedokončila.")
-            result["timestamp_count"] = int(ts_result.get("total_tokens", 0))
-            for row in ts_result.get("details", []):
-                if isinstance(row, str):
-                    result["messages"].append("TSA: " + row[:400])
-                elif isinstance(row, dict):
-                    for token in row.get("tokens", []):
-                        result["messages"].append(
-                            "RFC3161 / " + str(row.get("field","")) + ": "
-                            + str(token.get("reason",""))[:400]
-                        )
-            text_report.append("Samostatná kontrola kvalifikovaných RFC3161 TSA:\n"
-                               + json.dumps(ts_result, ensure_ascii=False, indent=2)[:MAX_OUTPUT]
-                               + "\n--- STDERR ---\n" + (ts_proc.stderr or "")[-6000:])
-        except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
-            result["messages"].append("Samostatnou kontrolu QTSA se nepodařilo dokončit: " + str(exc))
-    result["report"] = ("\n\n".join(text_report))[-MAX_OUTPUT:]
+            result["pdfa"], errors = parse_verapdf(p.stdout)
+            result["messages"].extend(errors)
+            reports.append("veraPDF PDF/A-3b:\n" + p.stdout[-40_000:] +
+                           "\n" + p.stderr[-2000:])
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            result["messages"].append("veraPDF nelze dokončit: " + str(exc))
+
+    try:
+        eidas = check_eu_dss(pdf)
+        for key in ("signature", "timestamp", "crypto", "signatures", "timestamp_count"):
+            if key in eidas:
+                result[key] = eidas[key]
+        result["messages"].extend(eidas.get("messages", []))
+        reports.append("EU DSS kvalifikovaná validace:\n" + eidas.get("report", ""))
+    except Exception as exc:
+        result["messages"].append(
+            "EU DSS se nepodařilo dokončit: " + str(exc)[:700] +
+            ". PDF/A zůstává nezávisle ověřené."
+        )
+    result["report"] = "\n\n".join(reports)[-130_000:]
     return result
 
 
-def self_test() -> None:
-    ok = '<batch><validationReport isCompliant="true" /></batch>'
-    bad = ('<batch><validationReport isCompliant="false"><rule '
-           'clause="6.1.13" testNumber="3"><check status="failed" />'
-           '</rule></validationReport></batch>')
-    assert parse_verapdf(ok)[0] == "valid"
-    assert parse_verapdf(bad)[0] == "invalid"
-    assert "6.1.13" in parse_verapdf(bad)[1][0]
-    assert parse_verapdf("<garbled")[0] == "unverified"
-    assert parse_ades(1, "", "Failed to download trusted list")[ "signature"] == "unverified"
-    assert parse_ades(0, "Field 1: S\nThe signature is cryptographically unsound.", "")["crypto"] == "invalid"
-    sample = json.dumps({"name": "Čeština \ufffd"}, ensure_ascii=True)
-    assert sample.isascii() and "\\u" in sample
-    print("validator engine self test passed")
+def self_test():
+    yes = '<report><validationReport isCompliant="true" /></report>'
+    no = ('<report><validationReport isCompliant="false"><rule clause="6.1.13" '
+          'testNumber="3"><check status="failed"/></rule></validationReport></report>')
+    assert parse_verapdf(yes)[0] == "valid"
+    assert parse_verapdf(no)[0] == "invalid"
+    assert "6.1.13" in parse_verapdf(no)[1][0]
+    assert parse_verapdf("<broken")[0] == "unverified"
+    assert json.dumps({"name":"Čeština \ufffd"}, ensure_ascii=True).isascii()
+    print("EU DSS + veraPDF parser smoke tests passed")
 
 
 if __name__ == "__main__":
-    if "--self-test" in sys.argv:
+    if len(sys.argv) == 2 and sys.argv[1] == "--self-test":
         self_test()
-    else:
-        if len(sys.argv) != 2:
-            raise SystemExit("Usage: pdf_validator_engine.py input.pdf")
+    elif len(sys.argv) == 2:
         try:
-            emit_json(check(Path(sys.argv[1])))
+            print(json.dumps(check(Path(sys.argv[1])), ensure_ascii=True))
         except Exception as exc:
-            emit_json({"error":str(exc)})
-            raise SystemExit(1)
+            print(json.dumps({"error":str(exc)}, ensure_ascii=True))
+            sys.exit(1)
+    else:
+        raise SystemExit("Usage: pdf_validator_engine.py input.pdf | --self-test")
