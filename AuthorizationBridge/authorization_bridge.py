@@ -47,7 +47,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.1.8"
+APP_VERSION = "2.1.9"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -464,7 +464,10 @@ if (-not $cert.HasPrivateKey) { throw 'Privátní klíč vybraného certifikátu
 
 $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
 if ($null -eq $rsa) { throw 'Toolbox zatím podporuje podpis certifikátem s RSA privátním klíčem.' }
+$publicRsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
+if ($null -eq $publicRsa) { $rsa.Dispose(); throw 'Veřejný RSA klíč certifikátu není dostupný.' }
 try {
+  if ($publicRsa.KeySize -lt 2048) { throw 'Veřejný RSA klíč certifikátu je kratší než 2048 bitů.' }
   $sig = $rsa.SignData(
     $data,
     [System.Security.Cryptography.HashAlgorithmName]::SHA256,
@@ -473,6 +476,12 @@ try {
 
   if ($null -eq $sig) { throw 'Windows provider nevrátil žádný RSA podpis.' }
   if ($sig.Length -lt 128) { throw ('Windows provider vrátil příliš krátký RSA podpis: ' + $sig.Length + ' B.') }
+  if ($sig.Length -ne [int][Math]::Ceiling($publicRsa.KeySize / 8.0)) {
+    throw 'Windows provider vrátil podpis o jiné délce než veřejný klíč certifikátu.'
+  }
+  if (-not $publicRsa.VerifyData($data, $sig, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)) {
+    throw 'Windows podpis neodpovídá veřejnému klíči vybraného certifikátu.'
+  }
 
   [System.IO.File]::WriteAllBytes($outFile, [byte[]]$sig)
 
@@ -486,6 +495,7 @@ try {
   }
 } finally {
   $rsa.Dispose()
+  $publicRsa.Dispose()
 }
 """
 
@@ -517,13 +527,18 @@ try {
   if ($null -eq $cert) { throw 'Vybraný certifikát už není ve Windows úložišti.' }
   if (-not $cert.HasPrivateKey) { throw 'Privátní klíč vybraného certifikátu není dostupný.' }
 
-  $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
-  if ($null -eq $rsa) { throw 'Toolbox zatím podporuje podpis certifikátem s RSA privátním klíčem.' }
-  if ($rsa.KeySize -lt 2048) { throw 'RSA klíč je kratší než 2048 bitů.' }
-
-  Write-Protocol ('READY|' + $rsa.KeySize)
-
+  # Verify key length using the public certificate, not the QSCD's
+  # potentially misleading private-key provider KeySize property.
+  $publicRsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
+  if ($null -eq $publicRsa) { throw 'Veřejný RSA klíč certifikátu není dostupný.' }
+  $rsa = $null
   try {
+    if ($publicRsa.KeySize -lt 2048) { throw 'Veřejný RSA klíč certifikátu je kratší než 2048 bitů.' }
+    $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
+    if ($null -eq $rsa) { throw 'Privátní RSA klíč certifikátu není dostupný.' }
+
+    Write-Protocol ('READY|' + $publicRsa.KeySize)
+
     while ($true) {
       $line = [Console]::In.ReadLine()
       if ($null -eq $line -or $line -eq 'QUIT') { break }
@@ -539,6 +554,12 @@ try {
         if ($null -eq $sig -or $sig.Length -lt 128) {
           throw 'Windows provider nevrátil platný RSA podpis.'
         }
+        if ($sig.Length -ne [int][Math]::Ceiling($publicRsa.KeySize / 8.0)) {
+          throw 'Windows provider vrátil jinou velikost podpisu než veřejný klíč certifikátu.'
+        }
+        if (-not $publicRsa.VerifyData($data, $sig, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)) {
+          throw 'Windows podpis neodpovídá veřejnému klíči vybraného certifikátu.'
+        }
         Write-Protocol ('OK|' + [Convert]::ToBase64String($sig))
       } catch {
         $msg = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($_.Exception.Message))
@@ -546,7 +567,8 @@ try {
       }
     }
   } finally {
-    $rsa.Dispose()
+    if ($null -ne $rsa) { $rsa.Dispose() }
+    $publicRsa.Dispose()
   }
 } catch {
   $msg = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($_.Exception.Message))
@@ -576,10 +598,13 @@ if (-not $cert.HasPrivateKey) { throw 'Vybraný certifikát nemá dostupný priv
 
 $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
 if ($null -eq $rsa) { throw 'Privátní RSA klíč není dostupný přes Windows provider.' }
+$publicRsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
+if ($null -eq $publicRsa) { $rsa.Dispose(); throw 'Veřejný RSA klíč certifikátu není dostupný.' }
 try {
-  if ($rsa.KeySize -lt 2048) { throw 'RSA klíč je kratší než 2048 bitů.' }
+  if ($publicRsa.KeySize -lt 2048) { throw 'Veřejný RSA klíč certifikátu je kratší než 2048 bitů.' }
 } finally {
   $rsa.Dispose()
+  $publicRsa.Dispose()
 }
 """
 
@@ -747,6 +772,17 @@ class WindowsRsaBatchSession:
                     detail = "Windows podpisovou session se nepodařilo otevřít."
                 raise RuntimeError(detail)
             raise RuntimeError("Windows podpisovou session se nepodařilo inicializovat.")
+        try:
+            public_key_bits = int(line.split("|", 1)[1])
+        except (ValueError, IndexError):
+            self.close()
+            raise RuntimeError("Windows worker vrátil neplatnou délku veřejného RSA klíče.")
+        if public_key_bits != self.expected_signature_size * 8:
+            self.close()
+            raise RuntimeError(
+                f"Windows worker použil jiný veřejný RSA klíč ({public_key_bits} bitů) "
+                f"než vybraný certifikát ({self.expected_signature_size * 8} bitů)."
+            )
         return self
 
     def sign(self, data: bytes) -> bytes:
@@ -1262,6 +1298,7 @@ def status():
             "tsa_nonconsuming_preflight": True,
             "fixed_signature_reservation": True,
             "persistent_qscd_batch_session": True,
+            "rsa_public_key_validation": True,
             "test_tsa_counter": True,
         },
     )
@@ -1304,6 +1341,8 @@ def preflight_sign():
 
         signer = WindowsStoreSigner(cert_thumbprint)
         cert_info = _cert_payload(signer)
+        if signer.signature_size * 8 < 2048:
+            return jsonify(ok=False, error="Veřejný RSA klíč certifikátu je kratší než 2048 bitů."), 400
         crypto_cert = x509.load_der_x509_certificate(signer.signing_cert.dump())
 
         now = datetime.now(timezone.utc)
