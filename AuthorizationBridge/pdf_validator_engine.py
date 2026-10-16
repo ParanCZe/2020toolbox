@@ -153,6 +153,16 @@ print("CZ TL pripravena pro kryptograficke overeni pyHanko.",flush=True)
         return "Důvěryhodný seznam nelze připravit: " + str(exc)
 
 
+def emit_json(data: dict) -> None:
+    """Emit ASCII-safe JSON independently of the Windows console codepage.
+
+    Redirected stdout can use CP1252. Printing U+FFFD or an accented message
+    with ensure_ascii=False raises UnicodeEncodeError, masking every PDF result.
+    The JSON decoder reconstructs the original Unicode values losslessly.
+    """
+    print(json.dumps(data, ensure_ascii=True))
+
+
 def check(pdf: Path) -> dict:
     if not pdf.is_file() or pdf.suffix.lower() != ".pdf":
         raise ValueError("Očekáván vstupní soubor PDF.")
@@ -190,7 +200,7 @@ def check(pdf: Path) -> dict:
     else:
         try:
             p = subprocess.run([str(cmd), "--format", "xml", "--flavour", "3b", str(pdf)],
-                               capture_output=True, text=True, errors="replace",
+                               capture_output=True, text=True, encoding="utf-8", errors="replace",
                                timeout=180, stdin=subprocess.DEVNULL, env=env)
             result["pdfa"], errs = parse_verapdf(p.stdout)
             result["messages"].extend(errs)
@@ -212,7 +222,7 @@ def check(pdf: Path) -> dict:
                 [str(py), "-m", "pyhanko", "sign", "adesverify",
                  "--eutl-territories", "cz", "--require-qualified",
                  "--pretty-print", str(pdf)],
-                capture_output=True, text=True, errors="replace",
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
                 timeout=330, stdin=subprocess.DEVNULL,
                 env={**env, "PYTHONUTF8": "1"}
             )
@@ -277,6 +287,8 @@ def self_test() -> None:
     assert parse_verapdf("<garbled")[0] == "unverified"
     assert parse_ades(1, "", "Failed to download trusted list")[ "signature"] == "unverified"
     assert parse_ades(0, "Field 1: S\nThe signature is cryptographically unsound.", "")["crypto"] == "invalid"
+    sample = json.dumps({"name": "Čeština \ufffd"}, ensure_ascii=True)
+    assert sample.isascii() and "\\u" in sample
     print("validator engine self test passed")
 
 
@@ -287,7 +299,7 @@ if __name__ == "__main__":
         if len(sys.argv) != 2:
             raise SystemExit("Usage: pdf_validator_engine.py input.pdf")
         try:
-            print(json.dumps(check(Path(sys.argv[1])), ensure_ascii=False))
+            emit_json(check(Path(sys.argv[1])))
         except Exception as exc:
-            print(json.dumps({"error":str(exc)}, ensure_ascii=False))
+            emit_json({"error":str(exc)})
             raise SystemExit(1)
