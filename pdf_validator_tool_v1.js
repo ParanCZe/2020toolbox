@@ -3,6 +3,7 @@
   'use strict';
   const API='http://127.0.0.1:8094';
   const files=[], results=new Map();
+  let dssPoll=null;
   let token='',ready=false,busy=false;
   const css=document.createElement('style');
   css.textContent='#tool-pdfvalidator .pv-drop{border:1px dashed #a1a1aa;border-radius:10px;background:#fafafa;min-height:100px;padding:24px;text-align:center;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:6px}'
@@ -24,12 +25,13 @@
   view.innerHTML='<button class="back-btn" onclick="closeTool()">← Zpět do menu</button>'
     +'<h1>PDF Validator</h1><p class="muted">Lokální nezávislá kontrola PDF/A-3b, elektronických podpisů a kvalifikovaných časových razítek.</p>'
     +'<div id="pv-health" class="pv-note">Kontroluji lokální validační engine…</div>'
+    +'<div class="pv-actions"><button id="pv-install-dss" type="button">Nainstalovat EU DSS (cca 630 MB)</button><span id="pv-install-note" class="muted"></span></div>'
     +'<div id="pv-drop" class="pv-drop" tabindex="0" role="button"><strong>Přetáhni PDF nebo klikni pro výběr</strong><small>PDF soubory zůstávají na tomto počítači.</small></div>'
     +'<input id="pv-input" type="file" accept=".pdf,application/pdf" multiple hidden>'
     +'<div class="pv-actions"><button id="pv-start">Spustit kontrolu</button><button id="pv-clear">Vyčistit</button><button id="pv-refresh">Stav validátoru</button><span id="pv-progress"></span></div>'
     +'<div id="pv-error" class="pv-error" role="alert" hidden></div>'
     +'<div class="pv-table-wrap"><table><thead><tr><th>Soubor</th><th>PDF/A-3b</th><th>Kryptografie</th><th>QES</th><th>QTSA</th><th>Report</th></tr></thead><tbody id="pv-results"></tbody></table></div>'
-    +'<p class="pv-note">Zelená PDF/A znamená skutečnou kontrolu veraPDF. Pokud nelze stáhnout nebo ověřit český důvěryhodný seznam (např. HTTP 406), je eIDAS stav NEOVĚŘENO, ne „neplatné“. '
+    +'<p class="pv-note">PDF/A-3b ověřuje lokální veraPDF; QES a QTSA přímo lokální evropský engine EU DSS 6.5. PDF se neodesílá na vzdálený validační server. EU DSS může stahovat veřejné evropské důvěryhodné seznamy a OCSP/CRL. '
     +'<a target="_blank" rel="noopener noreferrer" href="https://ec.europa.eu/digital-building-blocks/DSS/webapp-demo/validation">Oficiální online EU DSS ↗</a> (nahrání PDF na externí server).</p>';
   host.appendChild(view);
   const $=id=>document.getElementById(id);
@@ -89,16 +91,45 @@
   async function health(){
     try{
       const r=await fetch(API+'/status',{cache:'no-store'}),j=await r.json();
-      if(!r.ok||!j.features?.integrated_pdf_validator)throw Error('Vyžadován aktualizovaný AuthorizationBridge 2.2.0.');
+      if(!r.ok||!j.features?.local_eu_dss_validator)throw Error('Vyžadován aktualizovaný AuthorizationBridge 2.3.0.');
       const t=await session();
       const s=await fetch(API+'/validator-status',{headers:{'X-20-20-Session':t},cache:'no-store'}),d=await s.json();
       if(!s.ok||!d.ok)throw Error(d.error||'Nelze načíst stav');
-      ready=!!(d.verapdf_ready&&d.eidas_ready&&d.tsa_ready);
-      $('pv-health').textContent='AuthorizationBridge '+(d.bridge_version||'')+' · veraPDF: '+(d.verapdf_ready?'připraveno':'chybí')
-        +' · eIDAS: '+(d.eidas_ready?'připraveno':'chybí')+' · QTSA: '+(d.tsa_ready?'připraveno':'chybí')+(ready?' · Připraveno.':' · Aktualizuj lokální Bridge nebo PDF Validator.');
+      ready=!!d.verapdf_ready;
+      $('pv-health').textContent='AuthorizationBridge '+(d.bridge_version||'')+
+        ' · veraPDF: '+(d.verapdf_ready?'připraveno':'chybí')+
+        ' · EU DSS 6.5 (QES/QTSA): '+(d.dss_ready?'nainstalováno':d.dss_installing?'probíhá instalace':'není nainstalováno')+
+        (ready?' · Kontrola PDF/A je připravená.':' · Nainstaluj veraPDF.');
+      $('pv-install-dss').hidden=!!d.dss_installed;
+      $('pv-install-dss').disabled=!!d.dss_installing;
+      $('pv-install-note').textContent=d.dss_install_error||(
+        d.dss_installing?'Stahuji a rozbaluji oficiální instalační balíček…':
+        d.dss_ready?'EU DSS se při první kontrole automaticky spustí.':''
+      );
+      if(d.dss_installing && !dssPoll)dssPoll=setInterval(health,8000);
+      if(!d.dss_installing && dssPoll){clearInterval(dssPoll);dssPoll=null;}
     }catch(e){token='';ready=false;$('pv-health').textContent='Validátor zatím není připraven: '+(e?.message||e)+'. Spusť instalátor nové verze AuthorizationBridge.';}
     render();
   }
+  $('pv-install-dss').onclick=async()=>{
+    const consent=confirm('Stáhnout přibližně 630 MB oficiálního EU DSS 6.5 do tohoto PC?\nDSS bude běžet jen lokálně (127.0.0.1).');
+    if(!consent)return;
+    $('pv-install-dss').disabled=true;
+    $('pv-install-note').textContent='Spouštím instalaci EU DSS…';
+    try {
+      const t=await session();
+      const response=await fetch(API+'/install-eu-dss',{
+        method:'POST',headers:{'X-20-20-Session':t}
+      });
+      const j=await response.json();
+      if(!response.ok||!j.ok)throw Error(j.error||'Instalaci nelze spustit.');
+      if(!dssPoll)dssPoll=setInterval(health,8000);
+      await health();
+    }catch(e){
+      $('pv-install-note').textContent='Instalace selhala: '+String(e?.message||e);
+      $('pv-install-dss').disabled=false;
+    }
+  };
   $('pv-refresh').onclick=health;
   $('pv-start').onclick=async()=>{
     if(busy||!ready)return;
