@@ -148,7 +148,7 @@ def cors(response):
     if origin and _origin_allowed(origin):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-20-20-Session"
         response.headers["Access-Control-Allow-Private-Network"] = "true"
     response.headers["Cache-Control"] = "no-store"
