@@ -47,7 +47,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.1.8"
+APP_VERSION = "2.1.9"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -517,11 +517,24 @@ try {
   if ($null -eq $cert) { throw 'Vybraný certifikát už není ve Windows úložišti.' }
   if (-not $cert.HasPrivateKey) { throw 'Privátní klíč vybraného certifikátu není dostupný.' }
 
-  $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
-  if ($null -eq $rsa) { throw 'Toolbox zatím podporuje podpis certifikátem s RSA privátním klíčem.' }
-  if ($rsa.KeySize -lt 2048) { throw 'RSA klíč je kratší než 2048 bitů.' }
+  # QSCD/token providers may report 0 or a wrong KeySize on the private RSA handle.
+  # Validate the cryptographic strength using the public RSA modulus in the
+  # selected certificate; the actual signature must also verify against it.
+  $publicRsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
+  if ($null -eq $publicRsa) { throw 'Veřejný RSA klíč certifikátu není dostupný.' }
+  if ($publicRsa.KeySize -lt 2048) {
+    $publicRsa.Dispose()
+    throw 'Veřejný RSA klíč certifikátu je kratší než 2048 bitů.'
+  }
 
-  Write-Protocol ('READY|' + $rsa.KeySize)
+  $expectedSignatureSize = [int][Math]::Ceiling($publicRsa.KeySize / 8.0)
+  $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
+  if ($null -eq $rsa) {
+    $publicRsa.Dispose()
+    throw 'Toolbox zatím podporuje podpis certifikátem s RSA privátním klíčem.'
+  }
+
+  Write-Protocol ('READY|' + $publicRsa.KeySize)
 
   try {
     while ($true) {
@@ -536,8 +549,16 @@ try {
           [System.Security.Cryptography.HashAlgorithmName]::SHA256,
           [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
         )
-        if ($null -eq $sig -or $sig.Length -lt 128) {
-          throw 'Windows provider nevrátil platný RSA podpis.'
+        if ($null -eq $sig -or $sig.Length -ne $expectedSignatureSize) {
+          throw 'Windows provider vrátil RSA podpis neodpovídající délky.'
+        }
+        if (-not ($publicRsa.VerifyData(
+          $data,
+          $sig,
+          [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+          [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
+        ))) {
+          throw 'Windows provider vytvořil podpis, který neodpovídá vybranému certifikátu.'
         }
         Write-Protocol ('OK|' + [Convert]::ToBase64String($sig))
       } catch {
@@ -547,6 +568,7 @@ try {
     }
   } finally {
     $rsa.Dispose()
+    $publicRsa.Dispose()
   }
 } catch {
   $msg = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($_.Exception.Message))
@@ -574,12 +596,15 @@ if ($null -eq $cert) {
 if ($null -eq $cert) { throw 'Vybraný certifikát nebyl nalezen ve Windows úložišti.' }
 if (-not $cert.HasPrivateKey) { throw 'Vybraný certifikát nemá dostupný privátní klíč.' }
 
-$rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
-if ($null -eq $rsa) { throw 'Privátní RSA klíč není dostupný přes Windows provider.' }
+$publicRsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
+if ($null -eq $publicRsa) { throw 'Veřejný RSA klíč certifikátu není dostupný.' }
 try {
-  if ($rsa.KeySize -lt 2048) { throw 'RSA klíč je kratší než 2048 bitů.' }
-} finally {
+  if ($publicRsa.KeySize -lt 2048) { throw 'Veřejný RSA klíč certifikátu je kratší než 2048 bitů.' }
+  $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
+  if ($null -eq $rsa) { throw 'Privátní RSA klíč není dostupný přes Windows provider.' }
   $rsa.Dispose()
+} finally {
+  $publicRsa.Dispose()
 }
 """
 
@@ -1262,6 +1287,7 @@ def status():
             "tsa_nonconsuming_preflight": True,
             "fixed_signature_reservation": True,
             "persistent_qscd_batch_session": True,
+            "verified_rsa_signatures": True,
             "test_tsa_counter": True,
         },
     )
