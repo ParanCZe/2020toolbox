@@ -27,6 +27,20 @@ h1{font-family:'Antarctican Mono', monospace;font-weight:normal;margin:0 0 4px;f
 .menu-status{display:inline-block;margin-left:7px;padding:1px 5px;border:1px solid #d4d4d8;border-radius:999px;background:#f4f4f5;color:#71717a;font:500 9px/1.45 system-ui,Segoe UI,sans-serif;letter-spacing:.45px;vertical-align:2px;text-transform:uppercase}
 
 
+/* Kompaktni hlavni menu: sbalene experimenty v pristupnem <details>. */
+.menu-beta-fold{border:1px solid var(--border);border-radius:11px;background:#fafafa;overflow:hidden}
+.menu-beta-toggle{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 16px;user-select:none}
+.menu-beta-toggle::-webkit-details-marker{display:none}
+.menu-beta-toggle:focus-visible{outline:2px solid #9c9027;outline-offset:-3px}
+.menu-beta-toggle:hover{background:#f7f7f7}
+.menu-beta-toggle-text{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap}
+.menu-beta-toggle-text b{font-family:'Antarctican Mono',monospace;font-size:14px;font-weight:normal;letter-spacing:.6px}
+.menu-beta-toggle-text small{font-size:11px;color:var(--muted)}
+.menu-beta-chevron{font:24px system-ui,sans-serif;line-height:1;transition:transform .18s}
+.menu-beta-fold[open] .menu-beta-chevron{transform:rotate(180deg)}
+.menu-beta-fold>.menu-app-row{padding:0 12px 12px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+@media(max-width:580px){.menu-beta-toggle{padding:12px}.menu-beta-fold>.menu-app-row{grid-template-columns:1fr}}
+
 /* HLAVNI MENU — V3.14u: stabilni / beta + vyuziti dat */
 .menu-app-groups{display:flex;flex-direction:column;gap:16px}
 .menu-app-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
@@ -610,14 +624,17 @@ button.action:disabled{opacity:.4;cursor:not-allowed}
         <div class="tile" onclick="openPanelProjects()"><b>Prezentační nástroj</b><span>Vytvářejte prezentace v pár kliknutích</span></div>
         <div class="tile" onclick="openTool('sketchupplugins')"><b>SketchUp pluginy</b><span>20-20 pluginy, aktualizace a starší verze</span></div>
         <div class="tile" onclick="openTool('3dprint')"><b>3D tisk</b><span>Prusa MK3S, slicerové vrstvy, odhad a export G-code</span></div>
+        <div id="ups-menu-tile" class="tile" onclick="openTool('upscaler'); initUpscalerApp()"><b>Upscaler</b><span>Lokální deblur, sharp fix a AI upscale 2× / 4×</span></div>
       </div>
-      <div class="menu-app-row beta">
-        <div class="tile" onclick="openTool('docs'); openDocsSection('preflight')"><b>Dokumentační nástroje <small class="menu-status">BETA</small></b><span>Pre-flight, seznam výkresů, přejmenování a porovnání PDF</span></div>
-        <div class="tile" onclick="openTool('designcheck')"><b>Kontrola návrhu <small class="menu-status">BETA</small></b><span>Audit výkresů, místností, schodišť a vzájemné konzistence PDF</span></div>
-        <div class="tile" onclick="openTool('3dmodels')"><b>3D knihovna výrobků <small class="menu-status">BETA</small></b><span>Reálné produkty, BIM/CAD odkazy a živé 3D náhledy</span></div>
-        <div class="tile" onclick="openTool('norms'); initNormsApp()"><b>Normy <small class="menu-status">BETA</small></b><span>Interiér, urbanismus, projektování, dokumentace a stavební požadavky</span></div>
-        <div id="ups-menu-tile" class="tile" onclick="openTool('upscaler'); initUpscalerApp()"><b>Upscaler <small class="menu-status">BETA</small></b><span>Lokální deblur, sharp fix a AI upscale 2× / 4×</span></div>
-      </div>
+      <details id="toolbox-beta-menu" class="menu-beta-fold">
+        <summary class="menu-beta-toggle"><span class="menu-beta-toggle-text"><b>BETA</b><small>Rozpracované a experimentální nástroje</small></span><span class="menu-beta-chevron" aria-hidden="true">⌄</span></summary>
+        <div class="menu-app-row beta">
+          <div class="tile" onclick="openTool('docs'); openDocsSection('preflight')"><b>Dokumentační nástroje <small class="menu-status">BETA</small></b><span>Pre-flight, seznam výkresů, přejmenování a porovnání PDF</span></div>
+          <div class="tile" onclick="openTool('designcheck')"><b>Kontrola návrhu <small class="menu-status">BETA</small></b><span>Audit výkresů, místností, schodišť a vzájemné konzistence PDF</span></div>
+          <div class="tile" onclick="openTool('3dmodels')"><b>3D knihovna výrobků <small class="menu-status">BETA</small></b><span>Reálné produkty, BIM/CAD odkazy a živé 3D náhledy</span></div>
+          <div class="tile" onclick="openTool('norms'); initNormsApp()"><b>Normy <small class="menu-status">BETA</small></b><span>Interiér, urbanismus, projektování, dokumentace a stavební požadavky</span></div>
+        </div>
+      </details>
     </div>
     <div class="menu-section-divider" aria-hidden="true"></div>
     <div class="session-data-overview">
