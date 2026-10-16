@@ -117,6 +117,12 @@
           throw Error('HTTP '+response.status+': '+description);
         }
         results.set(f,j.result);
+        if(['pdfa','crypto','signature','timestamp'].every(k=>j.result?.[k]!=='valid'&&j.result?.[k]!=='invalid')){
+          const details=(j.result?.messages||[]).filter(Boolean).slice(0,6).join(' | ');
+          const reason=f.name+': '+(details||'Všechny dílčí kontroly vrátily NEOVĚŘENO. Stáhni TXT report.');
+          $('pv-error').hidden=false;
+          $('pv-error').textContent+=reason+'\n';
+        }
       }catch(e){
         const message=String(e?.message||e);
         const reason=f.name+': '+message;
