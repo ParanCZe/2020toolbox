@@ -47,7 +47,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.1.9"
+APP_VERSION = "2.2.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -78,6 +78,11 @@ _TEST_TSA_COUNTER_LOCK = threading.Lock()
 _PREFLIGHTS: Dict[str, Dict[str, Any]] = {}
 _SIGN_APPROVALS: Dict[str, Dict[str, Any]] = {}
 _APPROVAL_TTL_SECONDS = 600
+_APPROVAL_SESSION_TTL_SECONDS = 900
+_APPROVAL_SESSION_MAX_BATCHES = 20
+_TRUSTED_APPROVAL_SESSIONS: Dict[str, Dict[str, Any]] = {}
+_TSA_VAULT_FILE = (Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
+                   / "20-20-TOOLBOX" / "AuthorizationBridge" / "tsa-credentials.dpapi")
 
 
 def _origin_allowed(origin: Optional[str]) -> bool:
@@ -143,7 +148,7 @@ def cors(response):
     if origin and _origin_allowed(origin):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-20-20-Session"
         response.headers["Access-Control-Allow-Private-Network"] = "true"
     response.headers["Cache-Control"] = "no-store"
@@ -162,6 +167,126 @@ def session():
     return jsonify(ok=True, token=_SESSION_TOKEN)
 
 
+@app.route("/tsa-vault", methods=["GET", "POST", "DELETE"])
+def tsa_vault():
+    try:
+        if request.method == "DELETE":
+            _TSA_VAULT_FILE.unlink(missing_ok=True)
+            return jsonify(ok=True, configured=False)
+        if request.method == "GET":
+            stored = _load_tsa_vault()
+            return jsonify(ok=True, configured=bool(stored),
+                           tsa_url=stored["tsa_url"] if stored else "",
+                           tsa_user=stored["tsa_user"] if stored else "")
+        payload = request.get_json(silent=True) or {}
+        url = str(payload.get("tsa_url") or "").strip()
+        user = str(payload.get("tsa_user") or "").strip()
+        password = str(payload.get("tsa_password") or "")
+        if not _is_postsignum_https(url) or not user or not password or len(password) > 4096:
+            return jsonify(ok=False, error="Uložit lze jen HTTPS PostSignum server s loginem a heslem."), 400
+        _save_tsa_vault({"tsa_url": url, "tsa_user": user, "tsa_password": password})
+        return jsonify(ok=True, configured=True, tsa_url=url, tsa_user=user)
+    except Exception as exc:
+        # Never include secrets or raw payload in the error response/log.
+        print("[AuthorizationBridge] TSA vault operation failed:", type(exc).__name__, flush=True)
+        return jsonify(ok=False, error="Bezpečné úložiště TSA ve Windows selhalo."), 500
+
+
+@app.post("/approval-session/clear")
+def clear_approval_session():
+    data = request.get_json(silent=True) or {}
+    session_id = str(data.get("session_id") or "")
+    _TRUSTED_APPROVAL_SESSIONS.pop(session_id, None)
+    return jsonify(ok=True)
+
+
+
+# Optional Windows-user DPAPI vault. The password is never returned by any API.
+# This feature only applies to the real HTTPS PostSignum service, not TEST TSA.
+class _DpapiBlob(ctypes.Structure):
+    _fields_ = [("cbData", ctypes.c_ulong), ("pbData", ctypes.POINTER(ctypes.c_ubyte))]
+
+
+def _dpapi_transform(data: bytes, decrypt: bool) -> bytes:
+    if os.name != "nt":
+        raise RuntimeError("Ukládání hesla TSA vyžaduje Windows.")
+    src = ctypes.create_string_buffer(data)
+    incoming = _DpapiBlob(len(data), ctypes.cast(src, ctypes.POINTER(ctypes.c_ubyte)))
+    outgoing = _DpapiBlob()
+    crypt = ctypes.windll.crypt32
+    kernel = ctypes.windll.kernel32
+    kernel.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel.LocalFree.restype = ctypes.c_void_p
+    args = (ctypes.byref(incoming), None, None, None, None, 0x01, ctypes.byref(outgoing))
+    ok = crypt.CryptUnprotectData(*args) if decrypt else crypt.CryptProtectData(
+        ctypes.byref(incoming), "20-20 Toolbox PostSignum", None, None, None, 0x01,
+        ctypes.byref(outgoing),
+    )
+    if not ok:
+        raise RuntimeError("Windows DPAPI nemohlo " + ("načíst" if decrypt else "uložit") + " přihlašovací údaje TSA.")
+    try:
+        return ctypes.string_at(outgoing.pbData, outgoing.cbData)
+    finally:
+        kernel.LocalFree(ctypes.cast(outgoing.pbData, ctypes.c_void_p))
+
+
+def _load_tsa_vault() -> Optional[Dict[str, str]]:
+    if not _TSA_VAULT_FILE.is_file():
+        return None
+    payload = json.loads(_dpapi_transform(_TSA_VAULT_FILE.read_bytes(), True).decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Uložené přihlašovací údaje TSA jsou poškozené.")
+    return {
+        "tsa_url": str(payload.get("tsa_url") or ""),
+        "tsa_user": str(payload.get("tsa_user") or ""),
+        "tsa_password": str(payload.get("tsa_password") or ""),
+    }
+
+
+def _save_tsa_vault(data: Dict[str, str]) -> None:
+    _TSA_VAULT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    encrypted = _dpapi_transform(payload, False)
+    fd, temporary = tempfile.mkstemp(prefix=".tsa-", dir=str(_TSA_VAULT_FILE.parent))
+    try:
+        with os.fdopen(fd, "wb") as file:
+            file.write(encrypted)
+        os.replace(temporary, _TSA_VAULT_FILE)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _is_postsignum_https(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+        return (parsed.scheme == "https"
+                and parsed.hostname is not None
+                and (parsed.hostname == "postsignum.cz" or parsed.hostname.endswith(".postsignum.cz"))
+                and not parsed.username and not parsed.password
+                and not parsed.fragment)
+    except ValueError:
+        return False
+
+
+def _with_vault_credentials(meta: Dict[str, Any]) -> Dict[str, Any]:
+    if not bool(meta.get("use_saved_tsa", False)):
+        return meta
+    if bool(meta.get("tsa_test_mode")) or str(meta.get("profile") or "bt").lower() != "bt":
+        raise ValueError("Uložené TSA údaje nelze použít v TEST režimu ani bez časového razítka.")
+    vault = _load_tsa_vault()
+    if not vault:
+        raise ValueError("Heslo TSA není ve Windows uloženo. Zadej ho nebo ulož znovu.")
+    tsa_url = str(meta.get("tsa_url") or "").strip()
+    tsa_user = str(meta.get("tsa_user") or "").strip()
+    if not _is_postsignum_https(tsa_url) or tsa_url != vault["tsa_url"] or tsa_user != vault["tsa_user"]:
+        raise ValueError("TSA server nebo login neodpovídá uloženým údajům. Vyber uložený účet.")
+    if str(meta.get("tsa_password") or ""):
+        raise ValueError("Vymaž ručně zadané TSA heslo, pokud chceš použít zabezpečené uložené údaje.")
+    return {**meta, "tsa_password": vault["tsa_password"]}
+
+
+
 def _cleanup_approvals() -> None:
     now = datetime.now(timezone.utc).timestamp()
     for store in (_PREFLIGHTS, _SIGN_APPROVALS):
@@ -171,6 +296,15 @@ def _cleanup_approvals() -> None:
         ]
         for token in stale:
             store.pop(token, None)
+
+
+
+def _approval_scope(context: Dict[str, Any]) -> str:
+    # This omits the document count intentionally: every new batch still gets
+    # SHA-256-bound per-file approval but can reuse a short-lived consent.
+    scope = {key: value for key, value in context.items() if key != "document_count"}
+    scope["origin"] = request.headers.get("Origin", "")
+    return hashlib.sha256(json.dumps(scope, sort_keys=True).encode("utf-8")).hexdigest()
 
 
 def _approval_context(meta: Dict[str, Any], document_count: int) -> Dict[str, Any]:
@@ -223,6 +357,7 @@ def _native_sign_confirmation(
     tsa_url: str,
     documents: Optional[List[Dict[str, Any]]] = None,
     signing_intent: Optional[Dict[str, Any]] = None,
+    remember_session: bool = False,
 ) -> bool:
     if os.name != "nt":
         return False
@@ -255,7 +390,9 @@ def _native_sign_confirmation(
         f"Místo: {location or 'neuvedeno'}\n"
         f"Otisk dávky: {fingerprint_short}\n\n"
         + (("Dokumenty:\n" + file_lines + "\n\n") if file_lines else "")
-        + "Povolit tuto jednu podpisovou dávku?"
+        + ("Povolit tuto dávku a dalších nejvýše 20 dávek spuštěných v Toolboxu během "
+           "následujících 15 minut se stejným certifikátem a TSA, bez tohoto okna?"
+           if remember_session else "Povolit tuto jednu podpisovou dávku?")
     )
     result = ctypes.windll.user32.MessageBoxW(
         None,
@@ -1283,6 +1420,8 @@ def status():
             "local_test_tsa": True,
             "tsa_preflight": True,
             "local_sign_approval": True,
+            "approval_session_opt_in": True,
+            "windows_dpapi_tsa_vault": True,
             "docmdp_annotate": True,
             "tsa_nonconsuming_preflight": True,
             "fixed_signature_reservation": True,
@@ -1315,7 +1454,7 @@ def windows_certificate_info():
 @app.post("/preflight-sign")
 def preflight_sign():
     try:
-        meta = request.get_json(silent=True) or {}
+        meta = _with_vault_credentials(request.get_json(silent=True) or {})
         document_count = int(meta.get("document_count") or 0)
         if document_count < 1 or document_count > 10000:
             return jsonify(ok=False, error="Neplatný počet dokumentů pro podpis."), 400
@@ -1390,6 +1529,10 @@ def approve_sign():
     try:
         payload = request.get_json(silent=True) or {}
         preflight_token = str(payload.get("preflight_token") or "")
+        remember_session = bool(payload.get("remember_session", False))
+        approval_session_id = str(payload.get("approval_session_id") or "")
+        if remember_session and not re.fullmatch(r"[a-fA-F0-9-]{24,64}", approval_session_id):
+            return jsonify(ok=False, error="Neplatná podpisová relace."), 400
         documents = payload.get("documents")
         signing_intent = payload.get("signing_intent")
 
@@ -1418,15 +1561,30 @@ def approve_sign():
                 return jsonify(ok=False, error="Neplatný SHA-256 otisk finálního PDF."), 400
             clean_docs.append({"name": name, "sha256": digest, "size": size})
 
-        if not _native_sign_confirmation(
-            str(preflight.get("certificate_name") or "Windows certifikát"),
-            len(clean_docs),
-            str(context.get("profile") or "bt"),
-            str(context.get("tsa_url") or ""),
-            clean_docs,
-            signing_intent,
-        ):
-            return jsonify(ok=False, error="Podpisová dávka nebyla ve Windows potvrzena."), 403
+        # Native confirmation remains mandatory for the first batch. Additional
+        # batches require explicit user click in Toolbox and each has a fresh,
+        # one-time SHA-256 approval; only the extra Windows prompt is suppressed.
+        scope = _approval_scope(context)
+        previous = _TRUSTED_APPROVAL_SESSIONS.get(approval_session_id) if remember_session else None
+        now = datetime.now(timezone.utc).timestamp()
+        reuse = bool(
+            previous and previous.get("scope") == scope
+            and float(previous.get("expires") or 0) > now
+            and int(previous.get("remaining") or 0) > 0
+        )
+        if not reuse:
+            if not _native_sign_confirmation(
+                str(preflight.get("certificate_name") or "Windows certifikát"),
+                len(clean_docs),
+                str(context.get("profile") or "bt"),
+                str(context.get("tsa_url") or ""),
+                clean_docs,
+                signing_intent,
+                remember_session=remember_session,
+            ):
+                return jsonify(ok=False, error="Podpisová dávka nebyla ve Windows potvrzena."), 403
+        else:
+            previous["remaining"] -= 1
 
         preflight["used"] = True
         approval_token = secrets.token_urlsafe(32)
@@ -1434,6 +1592,9 @@ def approve_sign():
             "context": context,
             "documents": clean_docs,
             "intent_digest": _intent_digest(signing_intent),
+            "session_id": approval_session_id if remember_session else "",
+            "session_scope": scope if remember_session else "",
+            "session_grant_on_success": remember_session and not reuse,
             "expires": datetime.now(timezone.utc).timestamp() + _APPROVAL_TTL_SECONDS,
             "used": False,
         }
@@ -1457,9 +1618,9 @@ def sign_batch():
             return jsonify(ok=False, error="Nebyla odeslána žádná PDF."), 400
 
         try:
-            meta = json.loads(metadata_raw)
-        except Exception:
-            return jsonify(ok=False, error="Metadata požadavku nejsou platný JSON."), 400
+            meta = _with_vault_credentials(json.loads(metadata_raw))
+        except Exception as exc:
+            return jsonify(ok=False, error="Neplatná metadata nebo uložené TSA údaje: " + str(exc)), 400
 
         test_mode = request.path.endswith("/sign-batch-test") or bool(meta.get("test_mode"))
         cert_thumbprint = str(meta.get("certificate_thumbprint") or "").strip()
@@ -1605,6 +1766,14 @@ def sign_batch():
                 "files": manifest_files,
             }
             zf.writestr("20-20_autorizace_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+
+        # Enable the opt-in session only once a real batch signed successfully.
+        if approval is not None and approval.get("session_grant_on_success"):
+            _TRUSTED_APPROVAL_SESSIONS[str(approval["session_id"])] = {
+                "scope": str(approval["session_scope"]),
+                "expires": datetime.now(timezone.utc).timestamp() + _APPROVAL_SESSION_TTL_SECONDS,
+                "remaining": _APPROVAL_SESSION_MAX_BATCHES,
+            }
 
         out_zip.seek(0)
         return send_file(
