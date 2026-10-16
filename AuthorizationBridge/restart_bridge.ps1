@@ -2,7 +2,7 @@ param(
     [string]$PythonExe,
     [string]$BridgeScript,
     [string]$LogFile,
-    [string]$ExpectedVersion = "2.2.3"
+    [string]$ExpectedVersion = "2.3.0"
 )
 
 $ErrorActionPreference = 'Stop'
