@@ -15,6 +15,8 @@ import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+import urllib.request
+from datetime import timedelta
 from pathlib import Path
 
 
@@ -111,6 +113,58 @@ def parse_ades(code: int, stdout: str, stderr: str) -> dict:
     )
 
 
+
+def prefetch_czech_trusted_list(python_exe: Path) -> str:
+    """Work around CZ TL HTTP 406 from pyHanko's duplicated Accept headers.
+
+    Cache a fresh copy obtained with a normal Accept header. pyHanko still
+    verifies its actual XML signature against the EU LOTL and designated
+    national list-signing certificates; merely caching does NOT confer trust.
+    """
+    url = "https://tsl.gov.cz/publ/TSL_CZ.xtsl"
+    helper = r'''
+import sys, urllib.request, xml.etree.ElementTree as ET
+from datetime import timedelta
+from pyhanko.cli.cache import get_eutl_cache_dir
+from pyhanko.sign.validation.qualified.eutl_fetch import FileSystemTLCache
+url="https://tsl.gov.cz/publ/TSL_CZ.xtsl"
+cache=FileSystemTLCache(get_eutl_cache_dir(None), timedelta(days=2))
+try:
+    cached=cache[url]
+    if cached.startswith("<?xml") or "TrustServiceStatusList" in cached[:400]:
+        print("CZ TL: platna cache", flush=True)
+        sys.exit(0)
+except KeyError:
+    pass
+req=urllib.request.Request(url,headers={"Accept":"*/*", "User-Agent":"20-20-PDF-Validator/1.0"})
+with urllib.request.urlopen(req,timeout=20) as response:
+    if response.geturl() != url:
+        raise RuntimeError("CZ TL byla presmerovana na neocekavanou adresu.")
+    body=response.read(16*1024*1024+1)
+    if len(body)>16*1024*1024:raise RuntimeError("CZ TL presahla 16 MB.")
+xml=body.decode("utf-8-sig")
+root=ET.fromstring(xml)
+if root.tag.split("}")[-1]!="TrustServiceStatusList":
+    raise RuntimeError("Odpoved neni ETSI trusted list XML.")
+cache[url]=xml
+print("CZ TL pripravena pro kryptograficke overeni pyHanko.",flush=True)
+'''
+    try:
+        proc = subprocess.run(
+            [str(python_exe), "-c", helper],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            stdin=subprocess.DEVNULL, timeout=45,
+            env={**os.environ, "PYTHONUTF8":"1"},
+        )
+        if proc.returncode:
+            return ("Předběžné stažení CZ TL se nezdařilo; "
+                    "eIDAS validace ji zkusí sama. " +
+                    (proc.stderr or proc.stdout)[-700:])
+        return (proc.stdout or "").strip()
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return "Důvěryhodný seznam nelze připravit: " + str(exc)
+
+
 def check(pdf: Path) -> dict:
     if not pdf.is_file() or pdf.suffix.lower() != ".pdf":
         raise ValueError("Očekáván vstupní soubor PDF.")
@@ -120,9 +174,11 @@ def check(pdf: Path) -> dict:
     with pdf.open("rb") as f:
         if f.read(5) != b"%PDF-":
             raise ValueError("Soubor nemá PDF hlavičku.")
+    with pdf.open("rb") as digest_file:
+        checksum = hashlib.file_digest(digest_file, "sha256").hexdigest()
     result = {
         "file": pdf.name,
-        "sha256": hashlib.file_digest(pdf.open("rb"), "sha256").hexdigest(),
+        "sha256": checksum,
         "pdfa": "unverified",
         "signature": "unverified",
         "timestamp": "unverified",
@@ -158,6 +214,9 @@ def check(pdf: Path) -> dict:
         result["messages"].append("Lokální pyHanko eIDAS není nainstalované; spusť instalátor PDF Validatoru.")
     else:
         try:
+            cache_note = prefetch_czech_trusted_list(py)
+            if cache_note:
+                result["messages"].append(cache_note)
             proc = subprocess.run(
                 [str(py), "-m", "pyhanko", "sign", "adesverify",
                  "--eutl-territories", "cz", "--require-qualified",
