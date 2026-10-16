@@ -7,7 +7,7 @@
 
   const BRIDGE_URL = 'http://127.0.0.1:8094';
   const BRIDGE_SCHEME = 'twentytwentyauth://start';
-  const INSTALLER_URL = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/19c6e1a81ba30c02d57b0a976dd1d0f684d76a9b/AuthorizationBridge/INSTALL_AND_START.bat';
+  const INSTALLER_URL = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/f207d15efd4bff09dce0203a428068b4b0d99066/AuthorizationBridge/INSTALL_AND_START.bat';
 
   const state = {
     files: [],
@@ -1528,8 +1528,8 @@
       toast('Běží bridge bez podpory TEST podpisu. Spusť znovu aktuální Instalátor.', true);
       return;
     }
-    if (!testMode && (!authVersionAtLeast(bridge.version, '2.1.8') || !bridge.features?.tsa_preflight || !bridge.features?.local_sign_approval || !bridge.features?.docmdp_annotate)) {
-      toast('Kvůli bezpečnému podpisu a správnému DocMDP omezení aktualizuj AuthorizationBridge na 2.1.8.', true);
+    if (!testMode && (!authVersionAtLeast(bridge.version, '2.1.9') || !bridge.features?.tsa_preflight || !bridge.features?.local_sign_approval || !bridge.features?.docmdp_annotate || !bridge.features?.rsa_public_key_validation)) {
+      toast('Pro bezpečný podpis USB/QSCD certifikátem aktualizuj AuthorizationBridge na 2.1.9 (oprava RSA KeySize).', true);
       return;
     }
     if (authTestToolsEnabled() && localTestTsa && !bridge.features?.test_tsa_counter) {
