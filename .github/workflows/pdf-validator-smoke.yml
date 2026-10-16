@@ -47,7 +47,7 @@ jobs:
                              env={**os.environ, "PYTHONIOENCODING":"cp1252:strict"})
           assert p.returncode == 0, p.stderr
           payload = json.loads(p.stdout)
-          assert payload["message"].startswith("\\ufffd Časové")
+          assert payload["message"].startswith(chr(0xfffd) + " Časové")
           print("Windows CP1252 JSON transport passed")
           PY
       - name: Check JavaScript syntax
