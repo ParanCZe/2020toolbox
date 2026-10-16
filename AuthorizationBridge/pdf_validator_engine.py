@@ -78,12 +78,14 @@ def parse_ades(code: int, stdout: str, stderr: str) -> dict:
     )
     trust_problem = ("Failed to download trusted list" in stderr
                      or "No path to trust anchor found" in stdout
-                     or "Errors encountered during trust list processing" in stderr)
+                     or "Errors encountered during trust list processing" in stderr
+                     or "Failed to parse trusted list for CZ" in stderr)
 
     messages = []
     if trust_problem:
-        messages.append("Důvěryhodný seznam se nepodařilo zpracovat (např. HTTP 406). "
-                        "Podpis se proto nepovažuje za neplatný; kvalifikaci nelze ověřit.")
+        messages.append("Důvěryhodný seznam se nepodařilo kryptograficky "
+                        "ověřit nebo zpracovat. QES/QTSA zůstává NEOVĚŘENO; "
+                        "samotná integrita PDF podpisu tím není zpochybněna.")
     if not full:
         messages.append("Nelze potvrdit, že podpis pokrývá celý PDF soubor.")
     if crypto_bad:
@@ -102,7 +104,7 @@ def parse_ades(code: int, stdout: str, stderr: str) -> dict:
 
 
 
-def prefetch_czech_trusted_list(python_exe: Path) -> str:
+def prefetch_czech_trusted_list(python_exe: Path, *, force_refresh: bool = False) -> str:
     """Work around CZ TL HTTP 406 from pyHanko's duplicated Accept headers.
 
     Cache a fresh copy obtained with a normal Accept header. pyHanko still
@@ -111,19 +113,32 @@ def prefetch_czech_trusted_list(python_exe: Path) -> str:
     """
     url = "https://tsl.gov.cz/publ/TSL_CZ.xtsl"
     helper = r'''
-import sys, urllib.request, xml.etree.ElementTree as ET
+import sys, os, json, urllib.request, xml.etree.ElementTree as ET
 from datetime import timedelta
+from pathlib import Path
 from pyhanko.cli.cache import get_eutl_cache_dir
 from pyhanko.sign.validation.qualified.eutl_fetch import FileSystemTLCache
 url="https://tsl.gov.cz/publ/TSL_CZ.xtsl"
-cache=FileSystemTLCache(get_eutl_cache_dir(None), timedelta(days=2))
-try:
-    cached=cache[url]
-    if cached.startswith("<?xml") or "TrustServiceStatusList" in cached[:400]:
-        print("CZ TL: platna cache", flush=True)
-        sys.exit(0)
-except KeyError:
-    pass
+cache_root=Path(get_eutl_cache_dir(None))
+cache_root.mkdir(parents=True, exist_ok=True)
+if os.environ.get("TOOLBOX_FORCE_CZ_TL") == "1":
+    # Drop only the URL's *index entry*, not the EU LOTL or other
+    # trust lists. A TL with an invalid signature must never be reused.
+    index=cache_root/"index.json"
+    if index.is_file():
+        data=json.loads(index.read_text(encoding="utf-8"))
+        if url in data:
+            del data[url]
+            index.write_text(json.dumps(data),encoding="utf-8")
+cache=FileSystemTLCache(cache_root, timedelta(days=2))
+if os.environ.get("TOOLBOX_FORCE_CZ_TL") != "1":
+    try:
+        cached=cache[url]
+        if cached.lstrip().startswith("<?xml") or "TrustServiceStatusList" in cached[:400]:
+            print("CZ TL: cache nalezena (podpis TL zatim NEOVEREN)", flush=True)
+            sys.exit(0)
+    except KeyError:
+        pass
 req=urllib.request.Request(url,headers={"Accept":"*/*", "User-Agent":"20-20-PDF-Validator/1.0"})
 with urllib.request.urlopen(req,timeout=20) as response:
     if response.geturl() != url:
@@ -135,19 +150,18 @@ root=ET.fromstring(xml)
 if root.tag.split("}")[-1]!="TrustServiceStatusList":
     raise RuntimeError("Odpoved neni ETSI trusted list XML.")
 cache[url]=xml
-print("CZ TL pripravena pro kryptograficke overeni pyHanko.",flush=True)
+print("CZ TL stazena; kontrola elektronickeho podpisu seznamu teprve probehne.",flush=True)
 '''
     try:
         proc = subprocess.run(
             [str(python_exe), "-c", helper],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
             stdin=subprocess.DEVNULL, timeout=45,
-            env={**os.environ, "PYTHONUTF8":"1"},
+            env={**os.environ, "PYTHONUTF8":"1", "TOOLBOX_FORCE_CZ_TL": "1" if force_refresh else "0"},
         )
         if proc.returncode:
-            return ("Předběžné stažení CZ TL se nezdařilo; "
-                    "eIDAS validace ji zkusí sama. " +
-                    (proc.stderr or proc.stdout)[-700:])
+            return ("Stažení CZ TL se nezdařilo; kryptografické ověření bude "
+                    "neúplné. " + (proc.stderr or proc.stdout)[-700:])
         return (proc.stdout or "").strip()
     except (OSError, subprocess.TimeoutExpired) as exc:
         return "Důvěryhodný seznam nelze připravit: " + str(exc)
@@ -218,14 +232,43 @@ def check(pdf: Path) -> dict:
             cache_note = prefetch_czech_trusted_list(py)
             if cache_note:
                 result["messages"].append(cache_note)
+            ades_command = [
+                str(py), "-m", "pyhanko", "sign", "adesverify",
+                "--eutl-territories", "cz", "--require-qualified",
+                "--pretty-print", str(pdf)
+            ]
+            ades_env = {**env, "PYTHONUTF8": "1"}
             proc = subprocess.run(
-                [str(py), "-m", "pyhanko", "sign", "adesverify",
-                 "--eutl-territories", "cz", "--require-qualified",
-                 "--pretty-print", str(pdf)],
-                capture_output=True, text=True, encoding="utf-8", errors="replace",
-                timeout=330, stdin=subprocess.DEVNULL,
-                env={**env, "PYTHONUTF8": "1"}
+                ades_command, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=210,
+                stdin=subprocess.DEVNULL, env=ades_env,
             )
+            trust_list_failure = (
+                "Failed to parse trusted list for CZ" in (proc.stderr or "")
+                and ("Invalid XML signature" in (proc.stderr or "")
+                     or "None of the candidate TLSO certs" in (proc.stderr or ""))
+            )
+            if trust_list_failure:
+                # This is a failure of the *trust-list XML signature*,
+                # not a cryptographic failure of the PDF signature.
+                result["messages"].append(
+                    "Český důvěryhodný seznam z cache neprošel ověřením "
+                    "XML podpisu. Zkouším jednou čerstvý soubor z oficiální "
+                    "adresy; žádný seznam nepovažuji za důvěryhodný "
+                    "bez nezávislého kryptografického ověření pyHanko."
+                )
+                fresh_note = prefetch_czech_trusted_list(py, force_refresh=True)
+                result["messages"].append("Obnovení CZ TL: " + fresh_note)
+                text_report.append(
+                    "pyHanko před obnovením seznamu (neověřená důvěra):\n"
+                    + (proc.stderr or "")[-12000:]
+                )
+                if "nezdařilo" not in fresh_note:
+                    proc = subprocess.run(
+                        ades_command, capture_output=True, text=True,
+                        encoding="utf-8", errors="replace", timeout=140,
+                        stdin=subprocess.DEVNULL, env=ades_env,
+                    )
             detail = parse_ades(proc.returncode, proc.stdout or "", proc.stderr or "")
             result.update({k: detail[k] for k in ("signature", "timestamp", "crypto")})
             result["signatures"] = detail["count"]
