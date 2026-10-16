@@ -40,18 +40,25 @@ async def validate_file(pdf_path: Path):
     from pyhanko.sign.validation.ades import ades_timestamp_validation
     from pyhanko.sign.validation.policy_decl import SignatureValidationSpec, QualificationRequirements
     from pyhanko.sign.validation.qualified.tsp import QTST_URI
-    from pyhanko.cli._trust import derive_cert_validation_policy, TrustManagerSettings
+    from pyhanko.cli._trust import init_trust_manager, TrustManagerSettings
+    from pyhanko_certvalidator.context import CertValidationPolicySpec
+    from pyhanko_certvalidator.policy_decl import CertRevTrustPolicy, RevocationCheckingPolicy
 
-    # Keep the *exact* signed national TL and revocation requirements used in
-    # the existing eIDAS CLI validation. The main engine primes CZ TL cache
-    # separately to work around pyHanko's HTTP 406 Accept-header issue.
-    policy = derive_cert_validation_policy(
-        cli_config=None,
-        trust_manager_settings=TrustManagerSettings(
+    # Keep the *exact* signed national TL and revocation requirements used
+    # by eIDAS validation. Do not invoke an asyncio.run() wrapper here:
+    # this function already runs inside the event loop.
+    trust_manager = await init_trust_manager(
+        TrustManagerSettings(
             trust=None, trust_replace=False, eutl=True,
             eutl_force_redownload=False, territories="cz",
         ),
-        revinfo_policy="require",
+        cli_config=None,
+    )
+    policy = CertValidationPolicySpec(
+        trust_manager=trust_manager,
+        revinfo_policy=CertRevTrustPolicy(
+            RevocationCheckingPolicy.from_legacy("require")
+        ),
     )
     spec = SignatureValidationSpec(
         cert_validation_policy=policy,
