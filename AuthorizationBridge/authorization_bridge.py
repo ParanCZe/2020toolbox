@@ -47,7 +47,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.1.9"
+APP_VERSION = "2.1.10"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -1250,14 +1250,35 @@ def _sign_one(
         stamp_style=appearance,
         new_field_spec=new_field,
     )
-    # Explicit reservation skips pyHanko's dummy CMS/timestamp size
-    # estimation. 262144 hex bytes leaves ample room for the signer CMS
-    # and qualified RFC 3161 timestamp without consuming an extra TSA token.
-    pdf_signer.sign_pdf(
-        writer,
-        output=output_stream,
-        bytes_reserved=262144,
-    )
+    # IMPORTANT: PDF/A-3 (ISO 19005-3, 6.1.13) limits string values to
+    # 32767 decoded bytes. pyHanko's bytes_reserved counts hexadecimal
+    # characters, two per decoded byte, NOT decoded bytes.
+    #
+    # Previously 262144 => a 131072-byte /Contents string, causing a
+    # veraPDF failure despite the signature being cryptographically valid.
+    # 65532 hex chars => 32766 bytes, strictly within the PDF/A limit.
+    #
+    # Still pass an explicit reservation: an implicit estimate requests a
+    # real RFC3161 token during sizing, doubling paid TSA consumption.
+    # Never retry signing automatically if the CMS exceeds this reservation:
+    # an overflow may already have consumed one PostSignum timestamp.
+    pdfa3b_signature_hex_reservation = 65532
+    if pdfa3b_signature_hex_reservation // 2 > 32767:
+        raise RuntimeError("Podpisová rezervace přesahuje limit PDF/A-3b.")
+    try:
+        pdf_signer.sign_pdf(
+            writer,
+            output=output_stream,
+            bytes_reserved=pdfa3b_signature_hex_reservation,
+        )
+    except Exception as exc:
+        if "reserved" in str(exc).lower() or "space" in str(exc).lower():
+            raise RuntimeError(
+                "Podpis nebo časové razítko se nevešly do PDF/A-3b "
+                "limitu 32767 bajtů. Proces se nesmí automaticky opakovat, "
+                "protože jedno TSA razítko už mohlo být vydáno."
+            ) from exc
+        raise
     return output_stream.getvalue()
 
 
@@ -1286,6 +1307,7 @@ def status():
             "docmdp_annotate": True,
             "tsa_nonconsuming_preflight": True,
             "fixed_signature_reservation": True,
+            "pdfa3b_signature_string_limit": True,
             "persistent_qscd_batch_session": True,
             "verified_rsa_signatures": True,
             "test_tsa_counter": True,
