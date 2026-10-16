@@ -1,8 +1,6 @@
 name: PDF validator and PDF/A smoke tests
 
 on:
-  push:
-    branches: [feature/integrated-pdf-validator-pdfa3b]
   pull_request:
     paths:
       - 'AuthorizationBridge/**'
@@ -16,53 +14,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check Python syntax
-        run: python -m py_compile AuthorizationBridge/authorization_bridge.py AuthorizationBridge/pdf_validator_engine.py AuthorizationBridge/qualified_tsa_check.py
-      - name: Validator fail-closed parsing tests
+        run: python -m py_compile AuthorizationBridge/authorization_bridge.py AuthorizationBridge/pdf_validator_engine.py AuthorizationBridge/eu_dss_validator.py
+      - name: EU DSS structured report and QTSA tests
+        run: python AuthorizationBridge/eu_dss_validator.py --self-test
+      - name: veraPDF parse and encoding tests
         run: python AuthorizationBridge/pdf_validator_engine.py --self-test
-      - name: Independent qualified RFC3161 timestamp status tests
-        run: python AuthorizationBridge/qualified_tsa_check.py --self-test
-      - name: Install pyHanko for integration import checks
-        run: python -m pip install --quiet "pyHanko[etsi,async-http]" pyhanko-cli
-      - name: Check qualified timestamp APIs
-        run: |
-          python - <<'PY'
-          from pyhanko.sign.validation.ades import ades_timestamp_validation
-          from pyhanko.sign.validation.policy_decl import QualificationRequirements
-          from pyhanko.sign.validation.qualified.tsp import QTST_URI
-          from pyhanko.cli._trust import init_trust_manager, TrustManagerSettings
-          from pyhanko_certvalidator.context import CertValidationPolicySpec
-          from pyhanko_certvalidator.policy_decl import CertRevTrustPolicy, RevocationCheckingPolicy
-          print("RFC3161 and signed EU trusted-list APIs available", QTST_URI)
-          PY
-      - name: Assert Windows CP1252 stdout cannot crash validator JSON
-        env:
-          PYTHONIOENCODING: "cp1252:strict"
-        run: |
-          python - <<'PY'
-          import json, subprocess, sys, os
-          code = ("from AuthorizationBridge.pdf_validator_engine import emit_json;"
-                  "emit_json({'message':'\\ufffd Časové razítko'})")
-          p = subprocess.run([sys.executable, "-c", code], text=True,
-                             capture_output=True, encoding="ascii",
-                             env={**os.environ, "PYTHONIOENCODING":"cp1252:strict"})
-          assert p.returncode == 0, p.stderr
-          payload = json.loads(p.stdout)
-          assert payload["message"].startswith(chr(0xfffd) + " Časové")
-          print("Windows CP1252 JSON transport passed")
-          PY
       - name: Check JavaScript syntax
         run: node --check pdf_validator_tool_v1.js
-      - name: Assert PDF/A signer does not oversize PDF string
+      - name: Ensure independent validation and original signing invariants
         run: |
           python - <<'PY'
           from pathlib import Path
-          import ast
-          text=Path('AuthorizationBridge/authorization_bridge.py').read_text(encoding='utf8')
-          assert 'hex_reservation = 65532' in text
-          assert 'bytes_reserved=hex_reservation' in text
-          assert 'bytes_reserved=262144' not in text
-          assert 65532 // 2 <= 32767
-          assert 'def validate_pdf_endpoint()' in text
-          ast.parse(text)
-          print('PDF/A placeholder and local validator endpoint assertions passed')
+          source = Path('AuthorizationBridge/authorization_bridge.py').read_text('utf-8')
+          assert 'hex_reservation = 65532' in source
+          assert 'bytes_reserved=hex_reservation' in source
+          assert 'bytes_reserved=262144' not in source
+          assert 'def validate_pdf_endpoint()' in source
+          assert 'def install_eu_dss_endpoint()' in source
+          engine = Path('AuthorizationBridge/pdf_validator_engine.py').read_text('utf-8')
+          assert 'from eu_dss_validator import check' in engine
+          assert 'adesverify' not in engine
+          print('Read-only DSS integration and PDF/A signing invariants passed')
           PY
+  windows-script:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse Windows DSS installer without executing
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'AuthorizationBridge/INSTALL_EU_DSS.ps1'),
+            [ref]$tokens,[ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.ToString() }
+            exit 1
+          }
+          Write-Host 'Windows installer PowerShell syntax OK'

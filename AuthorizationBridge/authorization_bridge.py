@@ -48,7 +48,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.2.3"
+APP_VERSION = "2.3.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -1284,6 +1284,15 @@ def _sign_one(
 @app.get("/validator-status")
 def validator_status():
     validator_root = Path(os.environ.get("LOCALAPPDATA") or str(Path.home())) / "20-20-TOOLBOX" / "PDFValidator"
+    dss_dir = Path(os.environ.get("LOCALAPPDATA") or str(Path.home())) / "20-20-TOOLBOX" / "EU-DSS"
+    dss_install = dss_dir / "6.5" / "Webapp-Startup.bat"
+    proc = _DSS_INSTALL_PROCESS
+    installing = proc is not None and proc.poll() is None
+    dss_install_error = ""
+    if proc is not None and proc.poll() not in (None, 0):
+        log_path = dss_dir / "install.log"
+        if log_path.is_file():
+            dss_install_error = log_path.read_text(encoding="utf-8-sig", errors="replace")[-800:]
     verapdf_ready = any(p.is_file() for p in (
         validator_root / "veraPDF" / "verapdf.bat",
         validator_root / "veraPDF" / "bin" / "verapdf.bat",
@@ -1292,9 +1301,45 @@ def validator_status():
         ok=True, bridge_version=APP_VERSION,
         verapdf_ready=verapdf_ready,
         eidas_ready=(validator_root / "venv" / "Scripts" / "python.exe").is_file(),
-        tsa_ready=Path(__file__).with_name("qualified_tsa_check.py").is_file(),
+        tsa_ready=False,  # legacy pyHanko QTSA no longer used
+        dss_ready=dss_install.is_file(),
+        dss_installed=dss_install.is_file(),
+        dss_installing=installing,
+        dss_install_error=dss_install_error,
         read_only=True,
     )
+
+
+# DSS download is deliberately initiated only by an explicit Toolbox click.
+# It downloads the official read-only demonstration bundle; no signing access.
+_DSS_INSTALL_PROCESS = None
+
+
+@app.post("/install-eu-dss")
+def install_eu_dss_endpoint():
+    global _DSS_INSTALL_PROCESS
+    if os.name != "nt":
+        return jsonify(ok=False, error="Automatická instalace EU DSS je určena pro Windows."), 400
+    root = Path(os.environ.get("LOCALAPPDATA") or str(Path.home())) / "20-20-TOOLBOX" / "EU-DSS"
+    if (root / "6.5" / "Webapp-Startup.bat").is_file():
+        return jsonify(ok=True, status="installed")
+    if _DSS_INSTALL_PROCESS is not None and _DSS_INSTALL_PROCESS.poll() is None:
+        return jsonify(ok=True, status="installing")
+    installer = Path(__file__).with_name("INSTALL_EU_DSS.ps1")
+    if not installer.is_file():
+        return jsonify(ok=False, error="Chybí lokální INSTALL_EU_DSS.ps1; aktualizuj Bridge."), 503
+    root.mkdir(parents=True, exist_ok=True)
+    try:
+        _DSS_INSTALL_PROCESS = subprocess.Popen(
+            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+             "-File", str(installer)],
+            cwd=str(root), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except OSError as exc:
+        return jsonify(ok=False, error="Nelze spustit instalátor EU DSS: " + str(exc)), 500
+    return jsonify(ok=True, status="installing")
 
 
 @app.post("/validate-pdf")
@@ -1366,6 +1411,7 @@ def status():
             "fixed_signature_reservation": True,
             "pdfa3b_signature_string_limit": True,
             "integrated_pdf_validator": True,
+            "local_eu_dss_validator": True,
             "persistent_qscd_batch_session": True,
             "verified_rsa_signatures": True,
             "test_tsa_counter": True,
