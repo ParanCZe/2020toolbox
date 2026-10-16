@@ -132,10 +132,10 @@ if __name__=="__main__":
         self_test()
     elif len(sys.argv)==2:
         try:
-            print(json.dumps(asyncio.run(validate_file(Path(sys.argv[1]))),ensure_ascii=False))
+            print(json.dumps(asyncio.run(validate_file(Path(sys.argv[1]))),ensure_ascii=True))
         except Exception as exc:
             print(json.dumps({"status":"unverified","total_tokens":0,
-                              "details":[str(exc)[:1200]],"error":True},ensure_ascii=False))
+                              "details":[str(exc)[:1200]],"error":True},ensure_ascii=True))
             sys.exit(1)
     else:
         raise SystemExit("Usage: qualified_tsa_check.py input.pdf | --self-test")
