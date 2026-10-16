@@ -15,6 +15,7 @@ import io
 import json
 import os
 import re
+import sys
 import secrets
 import asyncio
 import hashlib
@@ -47,7 +48,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.1.9"
+APP_VERSION = "2.2.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -1250,15 +1251,91 @@ def _sign_one(
         stamp_style=appearance,
         new_field_spec=new_field,
     )
-    # Explicit reservation skips pyHanko's dummy CMS/timestamp size
-    # estimation. 262144 hex bytes leaves ample room for the signer CMS
-    # and qualified RFC 3161 timestamp without consuming an extra TSA token.
-    pdf_signer.sign_pdf(
-        writer,
-        output=output_stream,
-        bytes_reserved=262144,
-    )
+    # ISO 19005-3 clause 6.1.13: decoded PDF strings must not exceed
+    # 32767 bytes. This value is HEX CHARACTERS, not decoded bytes.
+    # 65532 hex characters => 32766 decoded bytes, within PDF/A-3b.
+    #
+    # Keep explicit sizing: pyHanko's automatic CMS/TSA estimation can
+    # consume an ADDITIONAL paid timestamp for every drawing.
+    # Never automatically retry after a CMS reservation overflow; the TSA
+    # could already have issued one chargeable timestamp.
+    hex_reservation = 65532
+    if hex_reservation // 2 > 32767:
+        raise RuntimeError("Podpisová rezervace přesahuje limit PDF/A-3b.")
+    try:
+        pdf_signer.sign_pdf(
+            writer,
+            output=output_stream,
+            bytes_reserved=hex_reservation,
+        )
+    except Exception as exc:
+        if "reserved" in str(exc).lower() or "space" in str(exc).lower():
+            raise RuntimeError(
+                "Podpis nebo TSA překročily kapacitu PDF/A-3b rezervace. "
+                "Podepisování neopakuj automaticky — TSA už mohla vydat razítko."
+            ) from exc
+        raise
     return output_stream.getvalue()
+
+
+
+# Independent read-only local validation; never accesses Windows private keys.
+# Origin and X-20-20-Session are enforced by protect_local_bridge().
+@app.get("/validator-status")
+def validator_status():
+    validator_root = Path(os.environ.get("LOCALAPPDATA") or str(Path.home())) / "20-20-TOOLBOX" / "PDFValidator"
+    verapdf_ready = any(p.is_file() for p in (
+        validator_root / "veraPDF" / "verapdf.bat",
+        validator_root / "veraPDF" / "bin" / "verapdf.bat",
+    ))
+    return jsonify(
+        ok=True, bridge_version=APP_VERSION,
+        verapdf_ready=verapdf_ready,
+        eidas_ready=(validator_root / "venv" / "Scripts" / "python.exe").is_file(),
+        read_only=True,
+    )
+
+
+@app.post("/validate-pdf")
+def validate_pdf_endpoint():
+    upload = request.files.get("file")
+    if not upload:
+        return jsonify(ok=False, error="Nebyl přiložen PDF soubor."), 400
+    # Multipart upload limit 150 MB. The checker itself re-verifies size.
+    if request.content_length and request.content_length > 151 * 1024 * 1024:
+        return jsonify(ok=False, error="PDF je větší než 150 MB."), 413
+    runner = Path(__file__).with_name("pdf_validator_engine.py")
+    if not runner.is_file():
+        return jsonify(ok=False, error="Chybí modul pdf_validator_engine.py; spusť nový instalátor Bridge."), 503
+    with tempfile.TemporaryDirectory(prefix="2020-pdf-validate-") as tmp:
+        input_path = Path(tmp) / "input.pdf"
+        size = 0
+        with input_path.open("wb") as out:
+            while True:
+                chunk = upload.stream.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > 150 * 1024 * 1024:
+                    return jsonify(ok=False, error="PDF překročilo 150 MB."), 413
+                out.write(chunk)
+        try:
+            check = subprocess.run(
+                [sys.executable, str(runner), str(input_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True, encoding="utf-8", errors="replace",
+                stdin=subprocess.DEVNULL, timeout=540,
+            )
+        except subprocess.TimeoutExpired:
+            return jsonify(ok=False, error="Časový limit lokální validace byl překročen (540 s)."), 504
+        if check.returncode != 0:
+            return jsonify(ok=False, error="Lokální validace selhala.", detail=(check.stderr or check.stdout)[-1500:]), 500
+        try:
+            result = json.loads(check.stdout)
+        except (ValueError, TypeError):
+            return jsonify(ok=False, error="Lokální validační proces nevrátil správný JSON."), 500
+        return jsonify(ok=True, result=result)
 
 
 @app.get("/status")
@@ -1286,6 +1363,8 @@ def status():
             "docmdp_annotate": True,
             "tsa_nonconsuming_preflight": True,
             "fixed_signature_reservation": True,
+            "pdfa3b_signature_string_limit": True,
+            "integrated_pdf_validator": True,
             "persistent_qscd_batch_session": True,
             "verified_rsa_signatures": True,
             "test_tsa_counter": True,

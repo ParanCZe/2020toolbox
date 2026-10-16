@@ -1,0 +1,37 @@
+name: PDF validator and PDF/A smoke tests
+
+on:
+  push:
+    branches: [feature/integrated-pdf-validator-pdfa3b]
+  pull_request:
+    paths:
+      - 'AuthorizationBridge/**'
+      - 'pdf_validator_tool_v1.js'
+      - 'index.html'
+      - '.github/workflows/pdf-validator-smoke.yml'
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Python syntax
+        run: python -m py_compile AuthorizationBridge/authorization_bridge.py AuthorizationBridge/pdf_validator_engine.py
+      - name: Validator fail-closed parsing tests
+        run: python AuthorizationBridge/pdf_validator_engine.py --self-test
+      - name: Check JavaScript syntax
+        run: node --check pdf_validator_tool_v1.js
+      - name: Assert PDF/A signer does not oversize PDF string
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import ast
+          text=Path('AuthorizationBridge/authorization_bridge.py').read_text(encoding='utf8')
+          assert 'hex_reservation = 65532' in text
+          assert 'bytes_reserved=hex_reservation' in text
+          assert 'bytes_reserved=262144' not in text
+          assert 65532 // 2 <= 32767
+          assert 'def validate_pdf_endpoint()' in text
+          ast.parse(text)
+          print('PDF/A placeholder and local validator endpoint assertions passed')
+          PY
