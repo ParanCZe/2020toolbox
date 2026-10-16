@@ -48,7 +48,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.2.1"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -1292,6 +1292,7 @@ def validator_status():
         ok=True, bridge_version=APP_VERSION,
         verapdf_ready=verapdf_ready,
         eidas_ready=(validator_root / "venv" / "Scripts" / "python.exe").is_file(),
+        tsa_ready=Path(__file__).with_name("qualified_tsa_check.py").is_file(),
         read_only=True,
     )
 
