@@ -14,7 +14,8 @@
     +'#tool-pdfvalidator th,#tool-pdfvalidator td{text-align:left;padding:11px;border-bottom:1px solid #eee}#tool-pdfvalidator th{background:#fafafa;color:#71717a}'
     +'#tool-pdfvalidator .pv-tag{display:inline-block;padding:4px 6px;border-radius:5px;background:#f1f1f3;white-space:nowrap}'
     +'#tool-pdfvalidator .pv-tag.valid{color:#086b3d;background:#ddf7e7}#tool-pdfvalidator .pv-tag.invalid{color:#ac2020;background:#ffe0e0}'
-    +'#tool-pdfvalidator .pv-tag.unverified{color:#8a5900;background:#fff1d0}';
+    +'#tool-pdfvalidator .pv-tag.unverified{color:#8a5900;background:#fff1d0}'
+    +'#tool-pdfvalidator .pv-error{background:#fff0ea;border:1px solid #f0b6a2;border-radius:8px;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;color:#852b12;margin:8px 0;font-size:12px}';
   document.head.appendChild(css);
   const host=document.getElementById('tool-3dprint')?.parentElement||document.querySelector('.card');
   if(!host)return;
@@ -26,6 +27,7 @@
     +'<div id="pv-drop" class="pv-drop" tabindex="0" role="button"><strong>Přetáhni PDF nebo klikni pro výběr</strong><small>PDF soubory zůstávají na tomto počítači.</small></div>'
     +'<input id="pv-input" type="file" accept=".pdf,application/pdf" multiple hidden>'
     +'<div class="pv-actions"><button id="pv-start">Spustit kontrolu</button><button id="pv-clear">Vyčistit</button><button id="pv-refresh">Stav validátoru</button><span id="pv-progress"></span></div>'
+    +'<div id="pv-error" class="pv-error" role="alert" hidden></div>'
     +'<div class="pv-table-wrap"><table><thead><tr><th>Soubor</th><th>PDF/A-3b</th><th>Kryptografie</th><th>QES</th><th>QTSA</th><th>Report</th></tr></thead><tbody id="pv-results"></tbody></table></div>'
     +'<p class="pv-note">Zelená PDF/A znamená skutečnou kontrolu veraPDF. Pokud nelze stáhnout nebo ověřit český důvěryhodný seznam (např. HTTP 406), je eIDAS stav NEOVĚŘENO, ne „neplatné“. '
     +'<a target="_blank" rel="noopener noreferrer" href="https://ec.europa.eu/digital-building-blocks/DSS/webapp-demo/validation">Oficiální online EU DSS ↗</a> (nahrání PDF na externí server).</p>';
@@ -77,7 +79,7 @@
   for(const event of ['dragenter','dragover'])$('pv-drop').addEventListener(event,e=>{e.preventDefault();$('pv-drop').classList.add('over');});
   for(const event of ['dragleave','drop'])$('pv-drop').addEventListener(event,e=>{e.preventDefault();$('pv-drop').classList.remove('over');});
   $('pv-drop').addEventListener('drop',e=>add(e.dataTransfer.files));
-  $('pv-clear').onclick=()=>{files.length=0;results.clear();render();};
+  $('pv-clear').onclick=()=>{files.length=0;results.clear();$('pv-error').hidden=true;$('pv-error').textContent='';render();};
   async function session(){
     if(token)return token;
     const r=await fetch(API+'/session',{cache:'no-store'}),j=await r.json();
@@ -100,7 +102,7 @@
   $('pv-refresh').onclick=health;
   $('pv-start').onclick=async()=>{
     if(busy||!ready)return;
-    busy=true;render();
+    busy=true;$('pv-error').hidden=true;$('pv-error').textContent='';render();
     for(let i=0;i<files.length;i++){
       const f=files[i];$('pv-progress').textContent='Kontroluji '+(i+1)+'/'+files.length+': '+f.name;
       try{
@@ -110,10 +112,17 @@
         try{response=await fetch(API+'/validate-pdf',{method:'POST',body:data,headers:{'X-20-20-Session':t},signal:ac.signal});}
         finally{clearTimeout(timer);}
         const j=await response.json();
-        if(!response.ok||!j.ok)throw Error(j.error||'Lokální kontrola selhala.');
+        if(!response.ok||!j.ok){
+          const description=[j.error||'Lokální kontrola selhala.',j.detail].filter(Boolean).join(' — ');
+          throw Error('HTTP '+response.status+': '+description);
+        }
         results.set(f,j.result);
       }catch(e){
-        results.set(f,{pdfa:'unverified',crypto:'unverified',signature:'unverified',timestamp:'unverified',messages:[String(e?.message||e)],report:''});
+        const message=String(e?.message||e);
+        const reason=f.name+': '+message;
+        results.set(f,{pdfa:'unverified',crypto:'unverified',signature:'unverified',timestamp:'unverified',messages:[reason],report:'Kontrola se vůbec nedokončila. Jde o chybu programu nebo komunikace, nikoliv potvrzenou neplatnost podpisu.\n'+reason});
+        $('pv-error').hidden=false;
+        $('pv-error').textContent+=reason+'\n';
       }render();
     }
     busy=false;render();$('pv-progress').textContent='Dokončeno: '+files.length+' souborů.';
