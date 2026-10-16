@@ -64,3 +64,11 @@ Toolbox obsahuje volbu **přidat _EAR za název exportovaného PDF**. Výchozí 
 U některých ovladačů USB tokenů může RSA privátní handle hlásit nepřesnou délku `KeySize`, přestože veřejný certifikát má např. RSA 4096 bitů. Dávkový podpis proto ověřuje sílu klíče podle veřejné části vybraného certifikátu (minimálně 2048 bitů) a po každém použití privátního klíče kryptograficky ověřuje vrácený podpis proti témuž certifikátu. PIN se nikde neukládá; úspěšné jednorázové ověření pro celou dávku závisí na tokenu a jeho ovladači.
 
 Tato oprava **nemění** časová razítka: PAdES B-T používá jeden RFC 3161 podpisový timestamp na výstupní PDF a zachovává pevnou rezervaci podpisu bez dalšího odhadového TSA požadavku. Před ostrým podepisováním doporučujeme 8 PDF proti lokální TEST TSA, ověřit počítadlo 8/8 a počet PIN výzev. Ostrou spotřebu u poskytovatele tato lokální kontrola sama o sobě nepotvrzuje.
+
+## PDF/A-3b signature placeholder fix (2.1.10)
+
+The previous `bytes_reserved=262144` reserved a 131072-byte decoded hexadecimal `/Contents` string, violating ISO 19005-3:2012, 6.1.13 (strings must not exceed 32767 bytes). The signature could be a valid PAdES B-T/QES signature and still fail veraPDF because PDF/A compliance and cryptographic validity are separate.
+
+The signer now reserves **65532 hex characters** (32766 decoded bytes), within the PDF/A-3b string limit. This reservation remains explicit to avoid an extra RFC3161 timestamp request during CMS size estimation. **Do not retry automatically** if an unexpectedly large certificate chain or TSA token causes a signing failure; even failed signing may already have consumed one PostSignum timestamp.
+
+Before production, verify 1 PDF through the real QSCD and local TEST TSA, then check the resulting signed PDF in veraPDF 3b mode and DSS. Confirm `1 PDF = 1 TEST TSA token`; confirm PIN dialog behaviour. Then, if needed, use a single small real PostSignum test and check both the account balance and `QTSA PASSED` with independent DSS. Keep the existing 2.1.9 production installation until the regression tests pass. Never modify an already-signed PDF: a corrected document must be re-exported and newly signed.
