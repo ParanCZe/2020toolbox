@@ -49,9 +49,14 @@ try {
 
     New-Item -ItemType Directory -Path $stage -Force | Out-Null
     Expand-Archive -LiteralPath $archive -DestinationPath $stage -Force
-    $start = Join-Path $stage 'Webapp-Startup.bat'
-    if (-not (Test-Path $start)) { Fail 'DSS bundle does not contain Webapp-Startup.bat.' }
-    $tomcat = Get-ChildItem $stage -Directory | Where-Object { $_.Name -like 'apache-tomcat-*' } | Select-Object -First 1
+    # Maven archives may have one enclosing directory. Normalize its root.
+    $start = Get-ChildItem -Path $stage -Filter 'Webapp-Startup.bat' -File -Recurse |
+        Where-Object {
+            $_.FullName.Substring($stage.Length).TrimStart([char]'\').Split([char]'\').Count -le 3
+        } | Select-Object -First 1
+    if (-not $start) { Fail 'DSS bundle does not contain Webapp-Startup.bat.' }
+    $appRoot = $start.Directory.FullName
+    $tomcat = Get-ChildItem $appRoot -Directory | Where-Object { $_.Name -like 'apache-tomcat-*' } | Select-Object -First 1
     if (-not $tomcat) { Fail 'Tomcat folder is missing in downloaded official DSS bundle.' }
     $serverXml = Join-Path $tomcat.FullName 'conf\server.xml'
     if (-not (Test-Path $serverXml)) { Fail 'Tomcat server.xml is missing.' }
@@ -75,7 +80,12 @@ try {
 
     # Move completed, verified, locally-restricted installation into place.
     if (Test-Path $target) { Remove-Item $target -Recurse -Force }
-    Move-Item -LiteralPath $stage -Destination $target
+    if ($appRoot -eq $stage) {
+        Move-Item -LiteralPath $stage -Destination $target
+    } else {
+        Move-Item -LiteralPath $appRoot -Destination $target
+        Remove-Item -Path $stage -Recurse -Force
+    }
     Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
     Log 'SUCCESS: EU DSS installed. Starts on demand on loopback port 18080.'
     exit 0
