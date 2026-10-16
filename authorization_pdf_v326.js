@@ -1,4 +1,4 @@
-// 20-20 TOOLBOX · AUTORIZACE PDF · V3.52
+// 20-20 TOOLBOX · AUTORIZACE PDF · V3.53
 // Hromadné PAdES podepisování PDF přes lokální AuthorizationBridge.
 // Podpis používá certifikát přímo z Windows Certificate Store; privátní klíč neopouští Windows.
 
@@ -22,6 +22,8 @@
     certInfo: null,
     bridge: null,
     bridgeToken: null,
+    tsaVaultConfigured: false,
+    approvalSessionId: null,
     zoom: 1,
     stampSourceName: '',
     placementPreviewUrl: null,
@@ -135,6 +137,7 @@
       profile: document.getElementById('auth-profile')?.value || 'bt',
       tsa: document.getElementById('auth-tsa')?.value || '',
       tsaUser: document.getElementById('auth-tsa-user')?.value || '',
+      useSavedTsa: !!document.getElementById('auth-tsa-use-saved')?.checked,
       // Test-only state is deliberately not persisted into production settings.
       localTestTsa: false,
       certificateThumbprint: state.selectedCertThumbprint || '',
@@ -291,6 +294,7 @@
       setValue('auth-profile', saved.profile || 'bt');
       setValue('auth-tsa', saved.tsa || 'https://www3.postsignum.cz/TSS/TSS_user/');
       setValue('auth-tsa-user', saved.tsaUser || '');
+      setChecked('auth-tsa-use-saved', !!saved.useSavedTsa);
       setChecked('auth-local-test-tsa', false);
       state.selectedCertThumbprint = saved.certificateThumbprint || state.selectedCertThumbprint || '';
       setValue('auth-reason', saved.reason || 'Autorizace dokumentace');
@@ -309,6 +313,91 @@
     state.settingsRestored = true;
     authUpdateLocalStatus(saved ? 'Uložené nastavení načteno.' : 'Žádné uložené nastavení.');
     if (requestFilePermission) toast(saved ? 'Uložené nastavení bylo načteno.' : 'Žádné uložené nastavení nebylo nalezeno.');
+  };
+
+
+  async function authRefreshTsaVault() {
+    const status = document.getElementById('auth-tsa-vault-status');
+    try {
+      const r = await bridgeFetch('/tsa-vault', {method:'GET'}, 5000);
+      const data = await r.json().catch(()=>({}));
+      if (!r.ok || !data.ok) throw new Error(data.error || 'Úložiště není dostupné.');
+      state.tsaVaultConfigured = !!data.configured;
+      if (status) status.textContent = data.configured
+        ? 'Bezpečně uloženo pro: ' + (data.tsa_user || '') + ' · heslo se nezobrazuje'
+        : 'Ve Windows není uložené žádné TSA heslo.';
+      if (!data.configured) {
+        const cb = document.getElementById('auth-tsa-use-saved');
+        if (cb) cb.checked = false;
+      } else if (document.getElementById('auth-tsa-use-saved')?.checked) {
+        document.getElementById('auth-tsa').value = data.tsa_url;
+        document.getElementById('auth-tsa-user').value = data.tsa_user;
+      }
+    } catch (e) {
+      state.tsaVaultConfigured = false;
+      if (status) status.textContent = 'Úložiště TSA zatím není dostupné (vyžaduje Bridge 2.2.0).';
+    }
+  }
+
+  window.authTsaVaultChoiceChanged = function() {
+    const cb = document.getElementById('auth-tsa-use-saved');
+    if (cb?.checked && !state.tsaVaultConfigured) {
+      cb.checked = false;
+      toast('Nejdřív zadej TSA heslo a klikni „Uložit údaje bezpečně“.', true);
+      return;
+    }
+    if (cb?.checked) document.getElementById('auth-tsa-pass').value = '';
+    if (authRememberEnabled()) authSaveSettings(false);
+  };
+
+  window.authSaveTsaVault = async function() {
+    const tsa_url = document.getElementById('auth-tsa')?.value.trim() || '';
+    const tsa_user = document.getElementById('auth-tsa-user')?.value.trim() || '';
+    const tsa_password = document.getElementById('auth-tsa-pass')?.value || '';
+    if (!tsa_user || !tsa_password) {
+      toast('Vyplň PostSignum login i heslo pro bezpečné uložení.', true); return;
+    }
+    try {
+      const r = await bridgeFetch('/tsa-vault', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({tsa_url, tsa_user, tsa_password})
+      }, 8000);
+      const data = await r.json().catch(()=>({}));
+      if (!r.ok || !data.ok) throw new Error(data.error || 'Uložení TSA údajů selhalo.');
+      document.getElementById('auth-tsa-pass').value = '';
+      document.getElementById('auth-tsa-use-saved').checked = true;
+      state.tsaVaultConfigured = true;
+      if (authRememberEnabled()) authSaveSettings(false);
+      await authRefreshTsaVault();
+      toast('PostSignum údaje jsou bezpečně zašifrované v tomto účtu Windows.');
+    } catch (e) { toast(e.message || String(e), true); }
+  };
+
+  window.authDeleteTsaVault = async function() {
+    try {
+      const r = await bridgeFetch('/tsa-vault', {method:'DELETE'}, 5000);
+      const data = await r.json().catch(()=>({}));
+      if (!r.ok || !data.ok) throw new Error(data.error || 'Smazání selhalo.');
+      state.tsaVaultConfigured = false;
+      document.getElementById('auth-tsa-use-saved').checked = false;
+      if (authRememberEnabled()) authSaveSettings(false);
+      await authRefreshTsaVault();
+      toast('PostSignum heslo bylo smazáno z lokálního úložiště Windows.');
+    } catch (e) { toast(e.message || String(e), true); }
+  };
+
+  window.authApproveSessionChanged = async function() {
+    const enabled = !!document.getElementById('auth-approval-session')?.checked;
+    if (enabled) return;
+    if (!state.approvalSessionId) return;
+    try {
+      await bridgeFetch('/approval-session/clear', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({session_id:state.approvalSessionId})
+      }, 5000);
+    } catch (_) {}
   };
 
   window.authClearSavedSettings = async function() {
@@ -331,6 +420,8 @@
       #tool-authorization{width:calc(100vw - 32px);max-width:none;margin-left:50%;transform:translateX(-50%);background:var(--card);padding:18px 20px;border-radius:12px}
       .auth-titlebar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:2px 0 6px}
       .auth-titlebar h1{margin:0}
+      .auth-row-actions{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+      .auth-stored-tsa{margin-top:8px}
       .auth-test-control{display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid var(--border);border-radius:999px;background:#fff;white-space:nowrap}
       .auth-test-control b{font:normal 11px 'Antarctican Mono',monospace}
       .auth-test-switch{position:relative;width:42px;height:22px;display:inline-block}
@@ -554,8 +645,16 @@
               <div id="auth-tsa-wrap">
                 <div class="auth-field"><label>RFC 3161 TSA server</label><input id="auth-tsa" type="url" value="https://www3.postsignum.cz/TSS/TSS_user/" placeholder="https://www3.postsignum.cz/TSS/TSS_user/"></div>
                 <div class="auth-field"><label>PostSignum login</label><input id="auth-tsa-user" type="text" autocomplete="username" placeholder="uživatelské jméno"></div>
-                <div class="auth-field"><label>PostSignum heslo</label><input id="auth-tsa-pass" type="password" autocomplete="off" placeholder="Heslo k TSA se neukládá"></div>
-                <div class="auth-note">Údaje slouží pouze pro přihlášení k serveru časových razítek. Login lze uložit lokálně s nastavením, heslo k TSA se neukládá.</div>
+                <div class="auth-field"><label>PostSignum heslo</label><input id="auth-tsa-pass" type="password" autocomplete="off" placeholder="Zadej heslo, nebo použij bezpečně uložené"></div>
+                <div class="auth-stored-tsa">
+                  <label class="auth-check"><input id="auth-tsa-use-saved" type="checkbox" onchange="authTsaVaultChoiceChanged()"> použít heslo uložené ve Windows (DPAPI)</label>
+                  <div class="auth-row-actions">
+                    <button class="auth-secondary" type="button" onclick="authSaveTsaVault()">Uložit údaje bezpečně</button>
+                    <button class="auth-secondary" type="button" onclick="authDeleteTsaVault()">Smazat uložené heslo</button>
+                  </div>
+                  <div id="auth-tsa-vault-status" class="auth-small">Kontroluji úložiště Windows…</div>
+                </div>
+                <div class="auth-note">Heslo se ukládá pouze po kliknutí na „Uložit údaje bezpečně“ a je šifrované pro aktuálního uživatele Windows. Do prohlížeče se ze zabezpečeného úložiště nevrací. Uložení je dostupné pouze pro HTTPS PostSignum.</div>
               </div>
             </div>
 
@@ -572,7 +671,13 @@
               <div id="auth-output-name-info" class="auth-cert-card ok"><b>PDF/A-3b + PAdES</b><br>Každý soubor bude exportovaný jako <b>název_EAR.pdf</b>. Pořadí je záměrně PDF/A-3b → podpis, aby se podpis následnou konverzí nezneplatnil.</div>
             </div>
 
-            <div class="auth-warn">Podpisový certifikát se používá přímo z Windows Certificate Store a jeho privátní klíč se neexportuje ani neposílá do prohlížeče. Heslo k TSA se trvale neukládá. TSA login/heslo používá pouze lokální bridge pro přihlášení k nastavenému serveru časových razítek.</div>
+            <div class="auth-box">
+              <h3>POTVRZENÍ PODPISU</h3>
+              <label class="auth-check"><input id="auth-approval-session" type="checkbox" onchange="authApproveSessionChanged()"> zapamatovat první potvrzení na 15 minut (max. 20 dalších dávek)</label>
+              <div class="auth-note">Při první dávce schválíš ve Windows také časově omezenou relaci. Další dávky musíš vždy samostatně spustit tlačítkem „Podepsat“, ale dodatečné potvrzovací okno se už nemusí zobrazit. PIN tokenu se nikdy neukládá.</div>
+            </div>
+
+            <div class="auth-warn">Privátní podpisový klíč zůstává ve Windows / USB tokenu. PIN se neukládá. Volitelně uložené heslo TSA je chráněno Windows DPAPI a používá ho jen lokální AuthorizationBridge. Při podepisování se zachovává kontrola přesných SHA-256 otisků PDF.</div>
 
             <button id="auth-sign-btn" class="auth-primary" onclick="signAuthorizationBatch()">PDF/A-3b + podepsat + stáhnout ZIP</button>
             <button class="auth-secondary" onclick="authClearAll()">Vyčistit dokumenty</button>
@@ -1495,10 +1600,12 @@
     const profile = testMode ? 'bb' : document.getElementById('auth-profile').value;
     const tsa = testMode ? '' : document.getElementById('auth-tsa').value.trim();
     const tsaUser = testMode ? '' : document.getElementById('auth-tsa-user')?.value.trim() || '';
-    const tsaPass = testMode ? '' : document.getElementById('auth-tsa-pass')?.value || '';
     const localTestTsa = !testMode && !!document.getElementById('auth-local-test-tsa')?.checked;
+    const useSavedTsa = !testMode && !localTestTsa && profile === 'bt' && !!document.getElementById('auth-tsa-use-saved')?.checked;
+    const tsaPass = testMode || useSavedTsa ? '' : document.getElementById('auth-tsa-pass')?.value || '';
     if (!testMode && profile==='bt' && !tsa) { toast('Pro PAdES B-T zadej RFC 3161 TSA server.', true); return; }
-    if (!testMode && profile==='bt' && (!!tsaUser !== !!tsaPass)) {
+    if (useSavedTsa && !state.tsaVaultConfigured) { toast('Uložené TSA heslo není dostupné. Ulož ho znovu.', true); return; }
+    if (!testMode && profile==='bt' && (!!tsaUser !== (!!tsaPass || useSavedTsa))) {
       toast('Pro přihlášení k TSA vyplň login i heslo, nebo nech obě pole prázdná.', true);
       return;
     }
@@ -1528,8 +1635,8 @@
       toast('Běží bridge bez podpory TEST podpisu. Spusť znovu aktuální Instalátor.', true);
       return;
     }
-    if (!testMode && (!authVersionAtLeast(bridge.version, '2.1.9') || !bridge.features?.tsa_preflight || !bridge.features?.local_sign_approval || !bridge.features?.docmdp_annotate || !bridge.features?.verified_rsa_signatures)) {
-      toast('Kvůli správnému ověření USB RSA podpisu aktualizuj AuthorizationBridge na verzi 2.1.9 přes Instalátor.', true);
+    if (!testMode && (!authVersionAtLeast(bridge.version, '2.2.0') || !bridge.features?.windows_dpapi_tsa_vault || !bridge.features?.approval_session_opt_in || !bridge.features?.tsa_preflight || !bridge.features?.local_sign_approval || !bridge.features?.docmdp_annotate || !bridge.features?.verified_rsa_signatures)) {
+      toast('Pro ukládání hesla a potvrzování po relaci nainstaluj AuthorizationBridge 2.2.0.', true);
       return;
     }
     if (authTestToolsEnabled() && localTestTsa && !bridge.features?.test_tsa_counter) {
@@ -1565,6 +1672,7 @@
           tsa_url: tsa,
           tsa_user: tsaUser,
           tsa_password: tsaPass,
+          use_saved_tsa: useSavedTsa,
           tsa_test_mode: localTestTsa,
           certificate_thumbprint: state.selectedCertThumbprint,
           document_count: state.files.length
@@ -1697,7 +1805,9 @@
           body:JSON.stringify({
             preflight_token: preflightToken,
             documents: approvedDocs,
-            signing_intent: signingIntent
+            signing_intent: signingIntent,
+            remember_session: !!document.getElementById('auth-approval-session')?.checked,
+            approval_session_id: state.approvalSessionId || (state.approvalSessionId = uid())
           })
         }, 120000);
         const approved = await approveResp.json().catch(()=>({}));
@@ -1714,6 +1824,7 @@
         tsa_url: tsa,
         tsa_user: tsaUser,
         tsa_password: tsaPass,
+        use_saved_tsa: useSavedTsa,
         tsa_test_mode: localTestTsa,
         certificate_thumbprint: testMode ? '' : state.selectedCertThumbprint,
         approval_token: testMode ? '' : approvalToken,
@@ -1868,6 +1979,7 @@
     // visit in the current page session. This fixes "Uložit -> zavřít -> otevřít".
     await authLoadSavedSettings(false);
     const bridge = await checkAuthorizationBridge(true);
+    if (bridge?.features?.windows_dpapi_tsa_vault) await authRefreshTsaVault();
     if (!authIsTestMode() && bridge?.features?.windows_cert_store) await authLoadWindowsCertificates(false);
     renderFileList();
   };
