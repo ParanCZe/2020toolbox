@@ -34,6 +34,22 @@ jobs:
           from pyhanko_certvalidator.policy_decl import CertRevTrustPolicy, RevocationCheckingPolicy
           print("RFC3161 and signed EU trusted-list APIs available", QTST_URI)
           PY
+      - name: Assert Windows CP1252 stdout cannot crash validator JSON
+        env:
+          PYTHONIOENCODING: "cp1252:strict"
+        run: |
+          python - <<'PY'
+          import json, subprocess, sys, os
+          code = ("from AuthorizationBridge.pdf_validator_engine import emit_json;"
+                  "emit_json({'message':'\\ufffd Časové razítko'})")
+          p = subprocess.run([sys.executable, "-c", code], text=True,
+                             capture_output=True, encoding="ascii",
+                             env={**os.environ, "PYTHONIOENCODING":"cp1252:strict"})
+          assert p.returncode == 0, p.stderr
+          payload = json.loads(p.stdout)
+          assert payload["message"].startswith("\\ufffd Časové")
+          print("Windows CP1252 JSON transport passed")
+          PY
       - name: Check JavaScript syntax
         run: node --check pdf_validator_tool_v1.js
       - name: Assert PDF/A signer does not oversize PDF string
