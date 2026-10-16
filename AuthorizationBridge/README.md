@@ -57,3 +57,11 @@ Autorizace používá až dva samostatné Web Workery s Ghostscript WASM, takže
 ## Volitelný suffix _EAR v1.6
 
 Toolbox obsahuje volbu **přidat _EAR za název exportovaného PDF**. Výchozí stav je zapnutý kvůli zpětné kompatibilitě. Po vypnutí bridge zachová běžný název PDF bez suffixu `_EAR`.
+
+## RSA/QSCD token compatibility in 2.1.9
+
+Windows USB-token middleware may report a misleading private-key provider `KeySize`, even though the public RSA key in the certificate is 4096 bits. The signing worker validates the **public certificate RSA key size** (at least 2048 bits), keeps one private-key handle open for the entire batch, and checks each returned RSA-SHA256 PKCS#1 signature against the certificate's public key before it can be used in the PDF.
+
+This change does **not** cache PIN values or bypass the token's consent policy. Whether the PIN dialog appears once or repeatedly is still controlled by the token driver.
+
+TSA behaviour is unchanged: explicit `bytes_reserved` avoids extra size-estimation timestamps. Validate with the local TEST TSA counter before production signing, and always check the AuthorizationBridge version in the Toolbox.
