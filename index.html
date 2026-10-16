@@ -9055,6 +9055,65 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>check3DPrintPrus
 
 
 <script src="sketchup_plugin_status_v360.js?v=378"></script>
+
+<script>
+/* Udrzuje experimentalni aplikace pod jednim BETA rozbalenim,
+   i kdyz se jejich dlazdice vykresli dodatecne z modulu. */
+(function(){
+  const experimental = new Set([
+    'dokumentacni nastroje','kontrola navrhu','3d knihovna vyrobku',
+    'normy','interierove standardy','cenova nabidka','knihovna materialu'
+  ]);
+  const fold = value => String(value||'').trim().toLocaleLowerCase('cs-CZ')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ');
+  const group = document.querySelector('#menu-view .menu-app-groups');
+  const working = group?.querySelector(':scope > .menu-app-row');
+  const beta = group?.querySelector('#toolbox-beta-menu .menu-app-row.beta');
+  if(!group||!working||!beta)return;
+  let scheduled=false;
+  function arrange(){
+    scheduled=false;
+    for (const tile of group.querySelectorAll('.tile')) {
+      const heading=tile.querySelector('b');
+      if(!heading)continue;
+      const label=fold(heading.firstChild?.textContent||heading.textContent);
+      const dst=experimental.has(label) ? beta : (
+        tile.id==='auth-menu-tile'||tile.id==='ups-menu-tile' ? working : null
+      );
+      if(dst && tile.parentElement!==dst)dst.appendChild(tile);
+    }
+  }
+  const observer=new MutationObserver(()=>{
+    if(scheduled)return;
+    scheduled=true;
+    queueMicrotask(arrange);
+  });
+  observer.observe(group,{subtree:true,childList:true});
+  arrange();
+
+  // Budouci integrace PDF Validatoru: tlacitko vznikne teprve
+  // kdyz validacni modul doda skutecny open handler.
+  window.toolboxRegisterPDFValidator=function(openHandler){
+    if(typeof openHandler!=='function')return false;
+    let tile=document.getElementById('pdf-validator-menu-tile');
+    if(!tile){
+      tile=document.createElement('button');
+      tile.type='button';
+      tile.id='pdf-validator-menu-tile';
+      tile.className='tile';
+      const title=document.createElement('b');
+      title.textContent='PDF Validator';
+      const desc=document.createElement('span');
+      desc.textContent='Kontrola platnosti podpisu, QTSA a plneho PDF/A-3b';
+      tile.append(title,desc);
+      working.appendChild(tile);
+    }
+    tile.onclick=openHandler;
+    return true;
+  };
+})();
+</script>
+
 </body>
 </html>
 
