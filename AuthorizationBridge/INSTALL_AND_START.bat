@@ -5,7 +5,7 @@ title 20-20 TOOLBOX - AuthorizationBridge
 
 set "DIR=%LOCALAPPDATA%\20-20-TOOLBOX\AuthorizationBridge"
 set "VENV=%DIR%\venv"
-set "PAYLOAD_REF=dbaae2796b2d0ef76de2c40f6f6c3170c2b38d2c"
+set "PAYLOAD_REF=a2d2349c6dc81353a0216018fdf01966e1cce0a6"
 set "RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/%PAYLOAD_REF%/AuthorizationBridge"
 set "STAGE=%TEMP%\20-20-auth-stage-%RANDOM%-%RANDOM%"
 set "PYFINDER=%DIR%\find_python.ps1"
@@ -20,7 +20,7 @@ echo 20-20 TOOLBOX - instalace AuthorizationBridge
 echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
-echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.2.3...
+echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.3.0...
 if exist "%STAGE%" rmdir /s /q "%STAGE%" >nul 2>nul
 mkdir "%STAGE%" >nul 2>nul
 if errorlevel 1 goto :download_error
@@ -28,6 +28,10 @@ if errorlevel 1 goto :download_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/authorization_bridge.py' -OutFile '%STAGE%\authorization_bridge.py'"
 if errorlevel 1 goto :download_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/pdf_validator_engine.py' -OutFile '%STAGE%\pdf_validator_engine.py'"
+if errorlevel 1 goto :download_error
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/eu_dss_validator.py' -OutFile '%STAGE%\eu_dss_validator.py'"
+if errorlevel 1 goto :download_error
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/INSTALL_EU_DSS.ps1' -OutFile '%STAGE%\INSTALL_EU_DSS.ps1'"
 if errorlevel 1 goto :download_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/qualified_tsa_check.py' -OutFile '%STAGE%\qualified_tsa_check.py'"
 if errorlevel 1 goto :download_error
@@ -39,9 +43,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -U
 if errorlevel 1 goto :download_error
 
 echo Overuji SHA-256 vsech souboru...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\authorization_bridge.py').Hash.ToLowerInvariant(); if($h -ne '3f87b3a73c6dd3c78ddaf8734adfeb5bae8bb31578afb7faf34bf1fd2f2f1ca7'){Write-Error ('SHA-256 nesouhlasi: authorization_bridge.py = '+$h); exit 1}"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\authorization_bridge.py').Hash.ToLowerInvariant(); if($h -ne '77d8a793bb9d9dec819942a36dbfe35ce7b5aa363820f790c4b187a873001ca5'){Write-Error ('SHA-256 nesouhlasi: authorization_bridge.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\pdf_validator_engine.py').Hash.ToLowerInvariant(); if($h -ne '8ff7f89f655000efaa765f4e9e7a74cedc8a8d7510072ec643649bb71efb9776'){Write-Error ('SHA-256 nesouhlasi: pdf_validator_engine.py = '+$h); exit 1}"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\pdf_validator_engine.py').Hash.ToLowerInvariant(); if($h -ne '83b3dd397ab6e0ad31912853dcbfd2a9d8d91984d3ce73ba274ca9b2d3dcfc90'){Write-Error ('SHA-256 nesouhlasi: pdf_validator_engine.py = '+$h); exit 1}"
+if errorlevel 1 goto :integrity_error
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\eu_dss_validator.py').Hash.ToLowerInvariant(); if($h -ne '90bd7d5b74c11ed4be8c8c81dcb0ff4f81bcb35c125391e9d1a0759a63571f72'){Write-Error ('SHA-256 nesouhlasi: eu_dss_validator.py = '+$h); exit 1}"
+if errorlevel 1 goto :integrity_error
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\INSTALL_EU_DSS.ps1').Hash.ToLowerInvariant(); if($h -ne 'fb7b1c276cb6d511dc58036d0d43d6dbbe3cd20172939352d0df67476c1e7f7f'){Write-Error ('SHA-256 nesouhlasi: INSTALL_EU_DSS.ps1 = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\qualified_tsa_check.py').Hash.ToLowerInvariant(); if($h -ne 'e86522d3f68bbc8d5c0212e28fc443b93cd0284f4387543b04093fa7626d5b89'){Write-Error ('SHA-256 nesouhlasi: qualified_tsa_check.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
@@ -49,12 +57,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Al
 if errorlevel 1 goto :integrity_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\find_python.ps1').Hash.ToLowerInvariant(); if($h -ne 'ea6b7f6334753f7394966e09fda98fa7a12b4a87a34e0c6c95eb0edbae5b39b0'){Write-Error ('SHA-256 nesouhlasi: find_python.ps1 = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\restart_bridge.ps1').Hash.ToLowerInvariant(); if($h -ne '2348cb80e12a00f7c84ddf07f8c8053fa855cc27fd58c5e0c5cf56aaf83535f1'){Write-Error ('SHA-256 nesouhlasi: restart_bridge.ps1 = '+$h); exit 1}"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\restart_bridge.ps1').Hash.ToLowerInvariant(); if($h -ne '063c20ca5420de26c937efb124aa11beb1c8c18c7b041a1951a05f11fbec493b'){Write-Error ('SHA-256 nesouhlasi: restart_bridge.ps1 = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
 
 copy /y "%STAGE%\authorization_bridge.py" "%DIR%\authorization_bridge.py" >nul
 if errorlevel 1 goto :integrity_error
 copy /y "%STAGE%\pdf_validator_engine.py" "%DIR%\pdf_validator_engine.py" >nul
+if errorlevel 1 goto :integrity_error
+copy /y "%STAGE%\eu_dss_validator.py" "%DIR%\eu_dss_validator.py" >nul
+if errorlevel 1 goto :integrity_error
+copy /y "%STAGE%\INSTALL_EU_DSS.ps1" "%DIR%\INSTALL_EU_DSS.ps1" >nul
 if errorlevel 1 goto :integrity_error
 copy /y "%STAGE%\qualified_tsa_check.py" "%DIR%\qualified_tsa_check.py" >nul
 if errorlevel 1 goto :integrity_error
@@ -127,7 +139,7 @@ if errorlevel 1 goto :pip_error
 echo [5/6] Vytvarim spoustec s automatickym restartem...
 (
   echo @echo off
-  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RESTARTER%" -PythonExe "%VENV%\Scripts\python.exe" -BridgeScript "%DIR%\authorization_bridge.py" -LogFile "%DIR%\bridge.log" -ExpectedVersion "2.2.3"
+  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RESTARTER%" -PythonExe "%VENV%\Scripts\python.exe" -BridgeScript "%DIR%\authorization_bridge.py" -LogFile "%DIR%\bridge.log" -ExpectedVersion "2.3.0"
 ) > "%DIR%\start_bridge.cmd"
 
 echo [6/6] Registruji spousteni z Toolboxu...
@@ -143,7 +155,7 @@ if errorlevel 1 goto :bridge_start_error
 echo.
 echo HOTOVO.
 echo AuthorizationBridge byl aktualizovan a restartovan.
-echo V Toolboxu musi byt videt verze 2.2.3.
+echo V Toolboxu musi byt videt verze 2.3.0.
 echo Payload commit: %PAYLOAD_REF%
 echo.
 pause
