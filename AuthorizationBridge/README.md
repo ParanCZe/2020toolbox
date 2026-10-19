@@ -66,7 +66,7 @@ U některých ovladačů USB tokenů může RSA privátní handle hlásit nepře
 Tato oprava **nemění** časová razítka: PAdES B-T používá jeden RFC 3161 podpisový timestamp na výstupní PDF a zachovává pevnou rezervaci podpisu bez dalšího odhadového TSA požadavku. Před ostrým podepisováním doporučujeme 8 PDF proti lokální TEST TSA, ověřit počítadlo 8/8 a počet PIN výzev. Ostrou spotřebu u poskytovatele tato lokální kontrola sama o sobě nepotvrzuje.
 
 
-## Testovaná změna 2.3.1 – certifikační řetězec Windows
+## Vývojová změna 2.4.0 – certifikační řetězec Windows a PAdES B-LT
 
 Při podepisování pomocí Windows Certificate Store se nyní volitelně načtou
 veřejné certifikáty nadřazených CA z Windows X509Chain. Každé navázání
@@ -79,9 +79,21 @@ mezilehlé a kořenové autority se předají do pyHanko cert_registry.
   do logu se vypíše diagnostika a ca_certificate_count je 0.
 - Vložení CA certifikátů **nezakládá důvěryhodnost**: rozhodují pravidla
   a důvěryhodné seznamy validátoru.
-- Tato změna **nepřidává OCSP/CRL ani PAdES-LT**. To vyžaduje samostatnou
-  implementaci a ověření kompatibility s PDF/A-3b.
-- Unit testy: `python -m unittest test_cert_chain` v adresáři Bridge.
+- Původní PAdES B-B a B-T zůstávají dostupné. Nová výslovná volba
+  **PAdES B-LT** přes `ValidationContext(allow_fetching=True, revocation_mode="hard-fail")`
+  načítá validační odpovědi a ukládá je do **DSS téže podpisové revize**
+  (`TOGETHER_WITH_SIGNATURE`, bez VRI), aby se PDF neměnilo až po podpisu.
+- LT používá pouze kořen CA potvrzený úložištěm Windows bez výjimky
+  `AllowUnknownCertificateAuthority`. To, že je certifikát přiložen k PDF,
+  samo o sobě nestačí k jeho důvěryhodnosti.
+- **PAdES-LT není PAdES-LTA.** Nevydává se další archivní TSA razítko.
+  Revokační podklady musí být v daném okamžiku dostupné a validační pravidla
+  v cílovém prohlížeči mohou být odlišná.
+- Pokud OCSP/CRL nelze načíst nebo ověřit, režim LT selže; nelze automaticky
+  znovu žádat o ostré razítko bez souhlasu.
+- PAdES B-LT je dostupné v UI až s Bridgem 2.4.0+ a flagy
+  `pades_lt`, `windows_cert_chain_embedding`.
+- Unit testy: `python -m unittest discover -s AuthorizationBridge -p 'test_*.py' -v` v kořeni repozitáře. CI spouští také test skutečného B-B/B-T podpisu s lokální TEST TSA.
 
 **Release:** Produkční INSTALL_AND_START.bat používá připnutý commit a
 SHA-256. Po otestování změny je nutné udělat samostatný release krok:
