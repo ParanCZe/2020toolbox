@@ -38,6 +38,7 @@ from pyhanko.pdf_utils import images
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign import fields, signers, timestamps
 from pyhanko.sign.timestamps.dummy_client import DummyTimeStamper
+from pyhanko_certvalidator.registry import SimpleCertificateStore
 from asn1crypto import x509 as asn1_x509, algos, keys as asn1_keys, tsp
 from aiohttp import BasicAuth, ClientSession, ClientTimeout
 
@@ -48,7 +49,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.3.0"
+APP_VERSION = "2.3.1"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -442,6 +443,41 @@ Export-Certificate -Cert $cert -FilePath $outFile -Type CERT -Force | Out-Null
 """
 
 
+_WINDOWS_CERT_CHAIN_PS = r"""
+$ErrorActionPreference = 'Stop'
+$thumb = ($env:TWENTY20_CERT_THUMBPRINT -replace ' ','').ToUpperInvariant()
+if ($thumb -notmatch '^[0-9A-F]{40,128}$') { throw 'Neplatný thumbprint certifikátu.' }
+$cert = Get-ChildItem -Path 'Cert:\CurrentUser\My' -ErrorAction Stop |
+  Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+  Select-Object -First 1
+if ($null -eq $cert) {
+  $cert = Get-ChildItem -Path 'Cert:\LocalMachine\My' -ErrorAction SilentlyContinue |
+    Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+    Select-Object -First 1
+}
+if ($null -eq $cert) { throw 'Certifikát nebyl ve Windows nalezen.' }
+
+# Public certificate chain only; never opens the token's private key.
+$chain = New-Object System.Security.Cryptography.X509Certificates.X509Chain
+try {
+  $chain.ChainPolicy.RevocationMode = [System.Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
+  $chain.ChainPolicy.VerificationFlags = [System.Security.Cryptography.X509Certificates.X509VerificationFlags]::AllowUnknownCertificateAuthority
+  $chain.ChainPolicy.UrlRetrievalTimeout = [TimeSpan]::FromSeconds(7)
+  [void]$chain.Build($cert)
+  if ($chain.ChainElements.Count -lt 1) { throw 'Řetězec certifikátů nelze sestavit.' }
+  $first = ($chain.ChainElements[0].Certificate.Thumbprint -replace ' ','').ToUpperInvariant()
+  if ($first -ne $thumb) { throw 'Nesouhlasí výchozí certifikát řetězce.' }
+  $issuerCerts = @()
+  for ($i = 1; $i -lt $chain.ChainElements.Count; $i++) {
+    $issuerCerts += [Convert]::ToBase64String($chain.ChainElements[$i].Certificate.RawData)
+  }
+  ConvertTo-Json -InputObject @($issuerCerts) -Compress
+} finally {
+  $chain.Dispose()
+}
+"""
+
+
 _WINDOWS_RSA_SIGN_PS = r"""
 $ErrorActionPreference = 'Stop'
 $thumb = ($env:TWENTY20_CERT_THUMBPRINT -replace ' ','').ToUpperInvariant()
@@ -671,6 +707,34 @@ def _windows_cert_der(thumbprint: str) -> bytes:
                 pass
 
 
+def _windows_certificate_chain_der(thumbprint: str) -> List[bytes]:
+    """Read intermediate and root certificates from Windows, without private keys."""
+    thumbprint = re.sub(r"\s+", "", str(thumbprint or "")).upper()
+    if not re.fullmatch(r"[0-9A-F]{40,128}", thumbprint):
+        raise ValueError("Neplatný thumbprint certifikátu.")
+    value = _run_powershell(
+        _WINDOWS_CERT_CHAIN_PS, {"TWENTY20_CERT_THUMBPRINT": thumbprint}, timeout=30
+    )
+    encoded = json.loads(value)
+    if not isinstance(encoded, list) or len(encoded) > 12:
+        raise ValueError("Neplatný seznam certifikátů od Windows.")
+    return [base64.b64decode(item, validate=True) for item in encoded]
+
+
+def _certificate_registry_for_chain(
+    leaf_der: bytes, issuer_certificates_der: List[bytes]
+) -> SimpleCertificateStore:
+    """Trustless store: each public issuer must have signed the previous cert."""
+    registry = SimpleCertificateStore()
+    child = x509.load_der_x509_certificate(leaf_der)
+    for item in issuer_certificates_der:
+        parent = x509.load_der_x509_certificate(item)
+        child.verify_directly_issued_by(parent)
+        registry.register(asn1_x509.Certificate.load(item))
+        child = parent
+    return registry
+
+
 def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
     # Use a unique directory but do NOT pre-create the output file.
     # This makes "provider never wrote anything" distinguishable from a real
@@ -849,9 +913,18 @@ class WindowsStoreSigner(signers.ExternalSigner):
         self.thumbprint = re.sub(r"\s+", "", thumbprint).upper()
         self.signature_size = (public_key.key_size + 7) // 8
         self.sign_session = sign_session
+        try:
+            ca_certs = _windows_certificate_chain_der(self.thumbprint)
+            ca_store = _certificate_registry_for_chain(cert_der, ca_certs)
+        except Exception as exc:
+            # Failure to obtain a public issuer chain must not block QSCD signing.
+            # Report this diagnostic so Windows trust configuration can be fixed.
+            print("[AuthorizationBridge] CA chain unavailable:", str(exc), flush=True)
+            ca_certs, ca_store = [], SimpleCertificateStore()
+        self.ca_certificate_count = len(ca_certs)
         super().__init__(
             signing_cert=asn1_x509.Certificate.load(cert_der),
-            cert_registry=None,
+            cert_registry=ca_store,
             signature_value=self.signature_size,
             signature_mechanism=algos.SignedDigestAlgorithm({"algorithm": "sha256_rsa"}),
         )
@@ -1414,6 +1487,7 @@ def status():
             "local_eu_dss_validator": True,
             "persistent_qscd_batch_session": True,
             "verified_rsa_signatures": True,
+            "windows_cert_chain_embedding": True,
             "test_tsa_counter": True,
         },
     )
@@ -1433,7 +1507,9 @@ def windows_certificate_info():
         payload = request.get_json(silent=True) or {}
         thumbprint = str(payload.get("thumbprint") or "").strip()
         signer = WindowsStoreSigner(thumbprint)
-        return jsonify(ok=True, thumbprint=thumbprint, **_cert_payload(signer))
+        return jsonify(ok=True, thumbprint=thumbprint,
+                       ca_certificate_count=signer.ca_certificate_count,
+                       **_cert_payload(signer))
     except Exception as exc:
         return jsonify(ok=False, error=str(exc)), 400
 
@@ -1456,6 +1532,7 @@ def preflight_sign():
 
         signer = WindowsStoreSigner(cert_thumbprint)
         cert_info = _cert_payload(signer)
+        cert_info["ca_certificate_count"] = signer.ca_certificate_count
         crypto_cert = x509.load_der_x509_certificate(signer.signing_cert.dump())
 
         now = datetime.now(timezone.utc)
@@ -1628,6 +1705,7 @@ def sign_batch():
         signer = _make_test_signer() if test_mode else WindowsStoreSigner(cert_thumbprint)
         cert_info = _cert_payload(signer)
         if not test_mode:
+            cert_info["ca_certificate_count"] = signer.ca_certificate_count
             cert_info["thumbprint"] = re.sub(r"\s+", "", cert_thumbprint).upper()
             cert_info["source"] = "Windows Certificate Store"
 
