@@ -57,8 +57,8 @@ class ActualDssIntegrationTest(unittest.TestCase):
                     x509.ExtendedKeyUsage([ExtendedKeyUsageOID.TIME_STAMPING]), critical=True,
                 )
             return cert.sign(root_key, hashes.SHA256())
-        signer_cert = issue("Signer", signer_key)
-        tsa_cert = issue("Timestamping authority", tsa_key, tsa=True)
+        signer_cert = issue("Signer", signer_key.public_key())
+        tsa_cert = issue("Timestamping authority", tsa_key.public_key(), tsa=True)
 
         def public_der(cert):
             return cert.public_bytes(serialization.Encoding.DER)
