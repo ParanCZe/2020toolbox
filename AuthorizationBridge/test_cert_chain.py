@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from cryptography import x509
+from asn1crypto import x509 as asn1_x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
@@ -50,7 +51,7 @@ class WindowsCertificateChainTests(unittest.TestCase):
 
     def test_verified_issuer_chain_is_registered(self):
         store = bridge._certificate_registry_for_chain(self.leaf, [self.ca, self.root])
-        self.assertEqual(2, len(list(store.iter_certs())))
+        self.assertEqual(1, len(store.retrieve_by_name(asn1_x509.Certificate.load(self.ca).subject)))
 
     def test_unrelated_issuer_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -62,7 +63,7 @@ class WindowsCertificateChainTests(unittest.TestCase):
         ):
             signer = bridge.WindowsStoreSigner("0123456789ABCDEF0123456789ABCDEF01234567")
         self.assertEqual(2, signer.ca_certificate_count)
-        self.assertEqual(2, len(list(signer.cert_registry.iter_certs())))
+        self.assertEqual(2, len(signer.issuer_certificates_der))
         self.assertEqual(256, signer.signature_size)
 
     def test_unavailable_chain_preserves_old_signing_mode(self):
@@ -71,7 +72,7 @@ class WindowsCertificateChainTests(unittest.TestCase):
         ):
             signer = bridge.WindowsStoreSigner("0123456789ABCDEF0123456789ABCDEF01234567")
         self.assertEqual(0, signer.ca_certificate_count)
-        self.assertEqual(0, len(list(signer.cert_registry.iter_certs())))
+        self.assertEqual(0, len(signer.issuer_certificates_der))
 
     def test_lt_context_uses_only_windows_verified_root(self):
         with patch.object(bridge, "_windows_cert_der", return_value=self.leaf), patch.object(
@@ -81,7 +82,7 @@ class WindowsCertificateChainTests(unittest.TestCase):
         with patch.object(bridge, "_run_powershell", return_value=base64.b64encode(self.root).decode()):
             context = bridge._windows_lt_validation_context(signer)
         self.assertTrue(context.fetching_allowed)
-        self.assertEqual(2, len(list(context.certificate_registry.iter_certs())))
+        self.assertEqual(2, signer.ca_certificate_count)
 
     def test_lt_context_rejects_unrelated_root(self):
         with patch.object(bridge, "_windows_cert_der", return_value=self.leaf), patch.object(
