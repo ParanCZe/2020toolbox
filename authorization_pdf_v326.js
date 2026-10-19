@@ -1813,7 +1813,7 @@
             ? 'Hotovo — PDF/A-3b jsou podepsaná pravým certifikátem a lokální TEST TSA.'
             : (authAppendEarEnabled()
             ? 'Hotovo — PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.'
-            : 'Hotovo — PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.'))), ltFallback);
+            : 'Hotovo — PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.')), ltFallback);
       }
     } catch (e) {
       state.files.forEach(r=>{ if(r.status!=='signed') r.status='error'; });
