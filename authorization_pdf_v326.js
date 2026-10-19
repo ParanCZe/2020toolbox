@@ -1764,6 +1764,7 @@
         throw new Error(msg);
       }
 
+      const ltFallback=profile==='lt' && resp.headers.get('X-20-20-LT-Fallback')==='1';
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1774,6 +1775,9 @@
 
       state.files.forEach(r=>r.status='signed');
       renderFileList();
+      if (ltFallback) {
+        window.alert('POZOR: PAdES B-LT se nepodařilo dokončit. ZIP obsahuje původní podepsané PAdES B-T s již vydaným časovým razítkem, nikoliv B-LT. Otevři POZOR_PAdES_LT_NEPROVEDENO.txt a před odevzdáním ověř QES/QTSA v PDF Validátoru. Nové razítko se nevyžadovalo.');
+      }
 
       if (testCounterArmed) {
         const stats = await authRefreshTestTsaCounter(true);
