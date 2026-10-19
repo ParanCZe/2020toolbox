@@ -32,7 +32,7 @@ jobs:
       - name: Print bridge SHA-256 for pinned installer
         run: |
           cd AuthorizationBridge
-          sha256sum authorization_bridge.py pdf_validator_engine.py eu_dss_validator.py INSTALL_EU_DSS.ps1 qualified_tsa_check.py requirements.txt find_python.ps1 restart_bridge.ps1
+          sha256sum authorization_bridge.py pdf_validator_engine.py pdf_signature_inspector.py eu_dss_validator.py INSTALL_EU_DSS.ps1 qualified_tsa_check.py requirements.txt find_python.ps1 restart_bridge.ps1
       - name: Verify installed version
         run: |
           python -c "import sys; sys.path.insert(0, 'AuthorizationBridge'); import authorization_bridge as b; assert b.APP_VERSION == '2.3.1'"
