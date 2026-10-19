@@ -36,8 +36,12 @@ import pyhanko
 from pyhanko import stamp
 from pyhanko.pdf_utils import images
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
+from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko.sign import fields, signers, timestamps
 from pyhanko.sign.timestamps.dummy_client import DummyTimeStamper
+from pyhanko.sign.signers.pdf_signer import DSSContentSettings, SigDSSPlacementPreference
+from pyhanko_certvalidator import ValidationContext
+from pyhanko_certvalidator.registry import SimpleCertificateStore
 from asn1crypto import x509 as asn1_x509, algos, keys as asn1_keys, tsp
 from aiohttp import BasicAuth, ClientSession, ClientTimeout
 
@@ -48,7 +52,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.3.0"
+APP_VERSION = "2.4.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -228,7 +232,7 @@ def _native_sign_confirmation(
     if os.name != "nt":
         return False
     tsa_label = "bez TSA"
-    if profile == "bt":
+    if profile in {"bt", "lt"}:
         parsed = urlparse(tsa_url)
         tsa_label = parsed.netloc or tsa_url
     docs = documents or []
@@ -250,7 +254,7 @@ def _native_sign_confirmation(
         "20-20 TOOLBOX chce použít váš podpisový certifikát.\n\n"
         f"Certifikát: {cert_name}\n"
         f"Počet PDF: {document_count}\n"
-        f"Profil: {'PAdES B-T' if profile == 'bt' else 'PAdES B-B'}\n"
+        f"Profil: {'PAdES B-LT' if profile == 'lt' else ('PAdES B-T' if profile == 'bt' else 'PAdES B-B')}\n"
         f"TSA: {tsa_label}\n"
         f"Důvod: {reason or 'neuveden'}\n"
         f"Místo: {location or 'neuvedeno'}\n"
@@ -439,6 +443,73 @@ if ($null -eq $cert) { throw 'Vybraný certifikát nebyl nalezen ve Windows úlo
 if (-not $cert.HasPrivateKey) { throw 'Vybraný certifikát nemá dostupný privátní klíč.' }
 
 Export-Certificate -Cert $cert -FilePath $outFile -Type CERT -Force | Out-Null
+"""
+
+
+_WINDOWS_CERT_CHAIN_PS = r"""
+$ErrorActionPreference = 'Stop'
+$thumb = ($env:TWENTY20_CERT_THUMBPRINT -replace ' ','').ToUpperInvariant()
+if ($thumb -notmatch '^[0-9A-F]{40,128}$') { throw 'Neplatný thumbprint certifikátu.' }
+$cert = Get-ChildItem -Path 'Cert:\CurrentUser\My' -ErrorAction Stop |
+  Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+  Select-Object -First 1
+if ($null -eq $cert) {
+  $cert = Get-ChildItem -Path 'Cert:\LocalMachine\My' -ErrorAction SilentlyContinue |
+    Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+    Select-Object -First 1
+}
+if ($null -eq $cert) { throw 'Certifikát nebyl ve Windows nalezen.' }
+
+# Public certificate chain only; never opens the token's private key.
+$chain = New-Object System.Security.Cryptography.X509Certificates.X509Chain
+try {
+  $chain.ChainPolicy.RevocationMode = [System.Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
+  $chain.ChainPolicy.VerificationFlags = [System.Security.Cryptography.X509Certificates.X509VerificationFlags]::AllowUnknownCertificateAuthority
+  $chain.ChainPolicy.UrlRetrievalTimeout = [TimeSpan]::FromSeconds(7)
+  [void]$chain.Build($cert)
+  if ($chain.ChainElements.Count -lt 1) { throw 'Řetězec certifikátů nelze sestavit.' }
+  $first = ($chain.ChainElements[0].Certificate.Thumbprint -replace ' ','').ToUpperInvariant()
+  if ($first -ne $thumb) { throw 'Nesouhlasí výchozí certifikát řetězce.' }
+  $issuerCerts = @()
+  for ($i = 1; $i -lt $chain.ChainElements.Count; $i++) {
+    $issuerCerts += [Convert]::ToBase64String($chain.ChainElements[$i].Certificate.RawData)
+  }
+  ConvertTo-Json -InputObject @($issuerCerts) -Compress
+} finally {
+  $chain.Dispose()
+}
+"""
+
+
+_WINDOWS_CERT_LT_TRUST_PS = r"""
+$ErrorActionPreference = 'Stop'
+$thumb = ($env:TWENTY20_CERT_THUMBPRINT -replace ' ','').ToUpperInvariant()
+if ($thumb -notmatch '^[0-9A-F]{40,128}$') { throw 'Neplatný thumbprint certifikátu.' }
+$cert = Get-ChildItem -Path 'Cert:\CurrentUser\My' -ErrorAction Stop |
+  Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+  Select-Object -First 1
+if ($null -eq $cert) {
+  $cert = Get-ChildItem -Path 'Cert:\LocalMachine\My' -ErrorAction SilentlyContinue |
+    Where-Object { (($_.Thumbprint -replace ' ','').ToUpperInvariant()) -eq $thumb } |
+    Select-Object -First 1
+}
+if ($null -eq $cert) { throw 'Podpisový certifikát nebyl nalezen.' }
+$chain = New-Object System.Security.Cryptography.X509Certificates.X509Chain
+try {
+  # Trust is determined by Windows, not by merely including a root in the CMS.
+  $chain.ChainPolicy.RevocationMode = [System.Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
+  $chain.ChainPolicy.VerificationFlags = [System.Security.Cryptography.X509Certificates.X509VerificationFlags]::NoFlag
+  $chain.ChainPolicy.UrlRetrievalTimeout = [TimeSpan]::FromSeconds(7)
+  if (-not $chain.Build($cert)) {
+    $errors = ($chain.ChainStatus | ForEach-Object { $_.Status.ToString() }) -join ', '
+    throw ('Windows nedůvěřuje řetězci: ' + $errors)
+  }
+  if ($chain.ChainElements.Count -lt 2) { throw 'Důvěryhodný řetězec CA není dostupný.' }
+  $root = $chain.ChainElements[$chain.ChainElements.Count - 1].Certificate
+  [Convert]::ToBase64String($root.RawData)
+} finally {
+  $chain.Dispose()
+}
 """
 
 
@@ -671,6 +742,64 @@ def _windows_cert_der(thumbprint: str) -> bytes:
                 pass
 
 
+def _windows_certificate_chain_der(thumbprint: str) -> List[bytes]:
+    """Read intermediate and root certificates from Windows, without private keys."""
+    thumbprint = re.sub(r"\s+", "", str(thumbprint or "")).upper()
+    if not re.fullmatch(r"[0-9A-F]{40,128}", thumbprint):
+        raise ValueError("Neplatný thumbprint certifikátu.")
+    value = _run_powershell(
+        _WINDOWS_CERT_CHAIN_PS, {"TWENTY20_CERT_THUMBPRINT": thumbprint}, timeout=30
+    )
+    encoded = json.loads(value)
+    if not isinstance(encoded, list) or len(encoded) > 12:
+        raise ValueError("Neplatný seznam certifikátů od Windows.")
+    return [base64.b64decode(item, validate=True) for item in encoded]
+
+
+def _certificate_registry_for_chain(
+    leaf_der: bytes, issuer_certificates_der: List[bytes]
+) -> SimpleCertificateStore:
+    """Trustless store: each public issuer must have signed the previous cert."""
+    registry = SimpleCertificateStore()
+    child = x509.load_der_x509_certificate(leaf_der)
+    for item in issuer_certificates_der:
+        parent = x509.load_der_x509_certificate(item)
+        child.verify_directly_issued_by(parent)
+        registry.register(asn1_x509.Certificate.load(item))
+        child = parent
+    return registry
+
+
+def _windows_lt_validation_context(
+    signer: "WindowsStoreSigner", local_test_tsa: bool = False
+) -> ValidationContext:
+    """Trust only a Windows-validated root; fetch hard-fail OCSP/CRL evidence."""
+    if signer.ca_certificate_count < 1:
+        raise ValueError("PAdES B-LT vyžaduje úplný řetězec certifikačních autorit.")
+    root_der = base64.b64decode(
+        _run_powershell(
+            _WINDOWS_CERT_LT_TRUST_PS,
+            {"TWENTY20_CERT_THUMBPRINT": signer.thumbprint},
+            timeout=30,
+        ),
+        validate=True,
+    )
+    issuer_ders = list(signer.issuer_certificates_der)
+    if root_der not in issuer_ders:
+        raise ValueError("Windows kořen nesouhlasí s řetězcem připojeným k podpisu.")
+    trust_roots = [asn1_x509.Certificate.load(root_der)]
+    if local_test_tsa:
+        # Only for the explicitly selected local test TSA. This never elevates
+        # the test timestamp to QTSA or changes real PostSignum trust.
+        trust_roots.append(_get_test_tsa().tsa_cert)
+    return ValidationContext(
+        extra_trust_roots=trust_roots,
+        other_certs=[asn1_x509.Certificate.load(der) for der in issuer_ders],
+        allow_fetching=True,
+        revocation_mode="hard-fail",
+    )
+
+
 def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
     # Use a unique directory but do NOT pre-create the output file.
     # This makes "provider never wrote anything" distinguishable from a real
@@ -849,9 +978,19 @@ class WindowsStoreSigner(signers.ExternalSigner):
         self.thumbprint = re.sub(r"\s+", "", thumbprint).upper()
         self.signature_size = (public_key.key_size + 7) // 8
         self.sign_session = sign_session
+        try:
+            ca_certs = _windows_certificate_chain_der(self.thumbprint)
+            ca_store = _certificate_registry_for_chain(cert_der, ca_certs)
+        except Exception as exc:
+            # Failure to obtain a public issuer chain must not block QSCD signing.
+            # Report this diagnostic so Windows trust configuration can be fixed.
+            print("[AuthorizationBridge] CA chain unavailable:", str(exc), flush=True)
+            ca_certs, ca_store = [], SimpleCertificateStore()
+        self.ca_certificate_count = len(ca_certs)
+        self.issuer_certificates_der = tuple(ca_certs)
         super().__init__(
             signing_cert=asn1_x509.Certificate.load(cert_der),
-            cert_registry=None,
+            cert_registry=ca_store,
             signature_value=self.signature_size,
             signature_mechanism=algos.SignedDigestAlgorithm({"algorithm": "sha256_rsa"}),
         )
@@ -945,7 +1084,7 @@ def _build_timestamper(meta: Dict[str, Any]):
     tsa_password = str(meta.get("tsa_password") or "")
     tsa_test_mode = bool(meta.get("tsa_test_mode", False))
 
-    if profile != "bt":
+    if profile not in {"bt", "lt"}:
         return None
 
     if not re.match(r"^https?://", tsa_url, re.I):
@@ -969,7 +1108,7 @@ def _build_timestamper(meta: Dict[str, Any]):
 
 async def _async_verify_tsa_credentials(meta: Dict[str, Any]) -> None:
     profile = str(meta.get("profile") or "bt").lower()
-    if profile != "bt":
+    if profile not in {"bt", "lt"}:
         return
 
     tsa_url = str(meta.get("tsa_url") or "").strip()
@@ -1109,6 +1248,15 @@ def _make_test_signer() -> signers.SimpleSigner:
         .not_valid_before(now - timedelta(minutes=5))
         .not_valid_after(now + timedelta(days=1))
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True, content_commitment=True,
+                key_encipherment=False, data_encipherment=False,
+                key_agreement=False, key_cert_sign=False,
+                crl_sign=False, encipher_only=False, decipher_only=False,
+            ),
+            critical=True,
+        )
         .sign(key, hashes.SHA256())
     )
     pfx_bytes = pkcs12.serialize_key_and_certificates(
@@ -1202,6 +1350,26 @@ def _stamp_style(stamp_path: Optional[str]):
     )
 
 
+def _assert_lt_validation_evidence(pdf_bytes: bytes) -> None:
+    """Never label a PDF 'PAdES B-LT' if no actual revocation data was embedded."""
+    reader = PdfFileReader(io.BytesIO(pdf_bytes), strict=True)
+    signatures = reader.embedded_signatures
+    if len(signatures) != 1 or signatures[0].evaluate_signature_coverage().name != "ENTIRE_FILE":
+        raise ValueError("PAdES B-LT PDF nepokrývá celý dokument jediným podpisem.")
+    dss = reader.root.get("/DSS")
+    if hasattr(dss, "get_object"):
+        dss = dss.get_object()
+    if dss is None:
+        raise ValueError("PAdES B-LT neobsahuje PDF /DSS validační slovník.")
+    def count(name: str) -> int:
+        values = dss.get(name)
+        if hasattr(values, "get_object"):
+            values = values.get_object()
+        return len(values) if values is not None else 0
+    if not count("/OCSPs") and not count("/CRLs"):
+        raise ValueError("PAdES B-LT neobsahuje ověřené OCSP ani CRL údaje.")
+
+
 def _sign_one(
     pdf_bytes: bytes,
     signer: signers.Signer,
@@ -1209,6 +1377,7 @@ def _sign_one(
     common_meta: dict[str, Any],
     timestamper,
     stamp_path: Optional[str],
+    validation_context: Optional[ValidationContext] = None,
 ) -> bytes:
     field_name = "Signature_2020_" + os.urandom(8).hex()
     placement = document_meta.get("placement")
@@ -1239,6 +1408,15 @@ def _sign_one(
         contact_info=common_meta.get("contact") or None,
         certify=True,
         docmdp_permissions=fields.MDPPerm.ANNOTATE,
+        validation_context=validation_context,
+        embed_validation_info=validation_context is not None,
+        use_pades_lta=False,
+        # Write DSS in the signed revision: no post-signature PDF modification,
+        # no extra paid document timestamp, no false change warnings.
+        dss_settings=DSSContentSettings(
+            include_vri=False,
+            placement=SigDSSPlacementPreference.TOGETHER_WITH_SIGNATURE,
+        ),
     )
 
     input_stream = io.BytesIO(pdf_bytes)
@@ -1414,6 +1592,8 @@ def status():
             "local_eu_dss_validator": True,
             "persistent_qscd_batch_session": True,
             "verified_rsa_signatures": True,
+            "windows_cert_chain_embedding": True,
+            "pades_lt": True,
             "test_tsa_counter": True,
         },
     )
@@ -1433,7 +1613,9 @@ def windows_certificate_info():
         payload = request.get_json(silent=True) or {}
         thumbprint = str(payload.get("thumbprint") or "").strip()
         signer = WindowsStoreSigner(thumbprint)
-        return jsonify(ok=True, thumbprint=thumbprint, **_cert_payload(signer))
+        return jsonify(ok=True, thumbprint=thumbprint,
+                       ca_certificate_count=signer.ca_certificate_count,
+                       **_cert_payload(signer))
     except Exception as exc:
         return jsonify(ok=False, error=str(exc)), 400
 
@@ -1451,11 +1633,14 @@ def preflight_sign():
             return jsonify(ok=False, error="Vyber podpisový certifikát z Windows."), 400
 
         profile = str(meta.get("profile") or "bt").lower()
-        if profile not in {"bb", "bt"}:
-            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
+        if profile not in {"bb", "bt", "lt"}:
+            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T a B-LT."), 400
 
         signer = WindowsStoreSigner(cert_thumbprint)
+        if profile == "lt":
+            _windows_lt_validation_context(signer, bool(meta.get("tsa_test_mode", False)))
         cert_info = _cert_payload(signer)
+        cert_info["ca_certificate_count"] = signer.ca_certificate_count
         crypto_cert = x509.load_der_x509_certificate(signer.signing_cert.dump())
 
         now = datetime.now(timezone.utc)
@@ -1504,7 +1689,7 @@ def preflight_sign():
             preflight_token=token,
             expires_in=_APPROVAL_TTL_SECONDS,
             certificate=cert_info,
-            tsa_verified=(profile == "bt"),
+            tsa_verified=(profile in {"bt", "lt"}),
         )
     except Exception as exc:
         print("[AuthorizationBridge] preflight error:", traceback.format_exc(), flush=True)
@@ -1598,8 +1783,8 @@ def sign_batch():
             return jsonify(ok=False, error="Počet dokumentů neodpovídá metadatům."), 400
 
         profile = str(meta.get("profile") or "bt").lower()
-        if profile not in {"bb", "bt"}:
-            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
+        if profile not in {"bb", "bt", "lt"}:
+            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T a B-LT."), 400
 
         approval = None
         if not test_mode:
@@ -1626,8 +1811,13 @@ def sign_batch():
             return jsonify(ok=False, error=str(exc)), 400
 
         signer = _make_test_signer() if test_mode else WindowsStoreSigner(cert_thumbprint)
+        lt_context = (
+            _windows_lt_validation_context(signer, bool(meta.get("tsa_test_mode", False)))
+            if profile == "lt" and not test_mode else None
+        )
         cert_info = _cert_payload(signer)
         if not test_mode:
+            cert_info["ca_certificate_count"] = signer.ca_certificate_count
             cert_info["thumbprint"] = re.sub(r"\s+", "", cert_thumbprint).upper()
             cert_info["source"] = "Windows Certificate Store"
 
@@ -1697,9 +1887,13 @@ def sign_batch():
                         common_meta=meta,
                         timestamper=timestamper,
                         stamp_path=stamp_path,
+                        validation_context=lt_context,
                     )
                 except Exception as exc:
                     raise RuntimeError(f"PAdES SIGN [{original_name}]: {exc}") from exc
+
+                if profile == "lt":
+                    _assert_lt_validation_evidence(signed)
 
                 requested_output = str(doc_meta.get("output_name") or original_name)
                 requested_output = _ear_name(requested_output) if bool(meta.get("append_ear", True)) else _safe_name(requested_output)
@@ -1710,7 +1904,7 @@ def sign_batch():
                     "source": str(doc_meta.get("name") or original_name),
                     "output": out_name,
                     "standard": str(meta.get("output_standard") or "PDF/A-3b"),
-                    "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
+                    "profile": "PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B"),
                     "visible": bool(doc_meta.get("placement")),
                     "docmdp": "ANNOTATE",
                 })
@@ -1719,14 +1913,14 @@ def sign_batch():
                 "tool": "20-20 TOOLBOX · Autorizace PDF",
                 "bridge_version": APP_VERSION,
                 "created_utc": datetime.now(timezone.utc).isoformat(),
-                "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
+                "profile": "PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B"),
                 "test_mode": test_mode,
                 "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
                 "append_ear": bool(meta.get("append_ear", True)),
                 "docmdp": "ANNOTATE",
-                "tsa_url": tsa_url if profile == "bt" else None,
-                "tsa_authenticated": bool(tsa_user) if profile == "bt" else False,
-                "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile == "bt" else False,
+                "tsa_url": tsa_url if profile in {"bt", "lt"} else None,
+                "tsa_authenticated": bool(tsa_user) if profile in {"bt", "lt"} else False,
+                "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile in {"bt", "lt"} else False,
                 "certificate": cert_info,
                 "files": manifest_files,
             }
