@@ -82,7 +82,9 @@ class WindowsCertificateChainTests(unittest.TestCase):
             signer = bridge.WindowsStoreSigner("0123456789ABCDEF0123456789ABCDEF01234567")
         with patch.object(bridge, "_run_powershell", return_value=base64.b64encode(self.root).decode()):
             context = bridge._windows_lt_validation_context(signer)
+            local_context = bridge._windows_lt_validation_context(signer, local_test_tsa=True)
         self.assertTrue(context.fetching_allowed)
+        self.assertTrue(local_context.fetching_allowed)
         self.assertEqual(2, signer.ca_certificate_count)
 
     def test_lt_context_rejects_unrelated_root(self):
