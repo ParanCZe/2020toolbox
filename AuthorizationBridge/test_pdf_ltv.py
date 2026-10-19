@@ -57,6 +57,19 @@ class PostSignLtTests(unittest.TestCase):
         asn = cms.ContentInfo.load(token)
         self.assertEqual("signed_data", asn["content_type"].native)
 
+    def test_dss_with_only_signer_ocsp_must_not_be_labeled_lt(self):
+        with patch.object(pdf_ltv, "_target_certificates", return_value=(object(), object())), \
+             patch.object(pdf_ltv, "_matching_good_ocsp", side_effect=[True, False]), \
+             patch.object(pdf_ltv, "_matching_crl", return_value=False):
+            with self.assertRaisesRegex(ValueError, "certifikát časové autority"):
+                pdf_ltv._ensure_two_revocation_paths({}, object())
+
+    def test_both_signer_and_tsa_evidence_are_required(self):
+        with patch.object(pdf_ltv, "_target_certificates", return_value=(object(), object())), \
+             patch.object(pdf_ltv, "_matching_good_ocsp", side_effect=[True, True]), \
+             patch.object(pdf_ltv, "_matching_crl", return_value=False):
+            self.assertIsNone(pdf_ltv._ensure_two_revocation_paths({}, object()))
+
     def test_plain_pades_b_b_cannot_be_upgraded_to_b_lt(self):
         signed = bridge._sign_one(self.source, self.signer, {}, {}, None, None)
         with self.assertRaisesRegex(ValueError, "RFC 3161"):
