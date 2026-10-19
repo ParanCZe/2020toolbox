@@ -160,8 +160,12 @@ class WindowsCertificateChainTests(unittest.TestCase):
         ):
             self.assertEqual(self.ca, bridge._download_pinned_issuer(url, digest))
             self.assertEqual(self.ca, bridge._download_pinned_issuer(url, digest))
-            with self.assertRaisesRegex(ValueError, "otisk"):
+            with self.assertRaisesRegex(ValueError, "Nepovolený"):
                 bridge._download_pinned_issuer(url, "0" * 64)
+            bridge._download_pinned_issuer.cache_clear()
+            response.__enter__.return_value.read.return_value = self.unrelated
+            with self.assertRaisesRegex(ValueError, "Otisk"):
+                bridge._download_pinned_issuer(url, digest)
         bridge._download_pinned_issuer.cache_clear()
 
     def test_unavailable_chain_preserves_old_signing_mode(self):
