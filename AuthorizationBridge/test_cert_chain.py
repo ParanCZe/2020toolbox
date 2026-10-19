@@ -6,6 +6,7 @@ Run in the AuthorizationBridge venv:
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
+from unittest.mock import MagicMock
 
 from cryptography import x509
 from asn1crypto import x509 as asn1_x509, keys as asn1_keys, cms
@@ -14,7 +15,7 @@ from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko.sign.signers import SimpleSigner
 import io
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.x509.oid import NameOID
 
 import authorization_bridge as bridge
@@ -100,6 +101,68 @@ class WindowsCertificateChainTests(unittest.TestCase):
         self.assertIn(self.ca, certs)
         self.assertIn(self.root, certs)
 
+
+    def test_postsignum_fallback_embeds_real_chain_in_signed_pdf(self):
+        """Full fallback signer path: three CMS certs, valid PDF, one local TSA."""
+        with patch.object(bridge, "_windows_cert_der", return_value=self.leaf), patch.object(
+            bridge, "_windows_certificate_chain_der", return_value=[]
+        ), patch.object(
+            bridge, "_uses_postsignum_qca4", return_value=True
+        ), patch.object(
+            bridge, "_postsignum_qca4_chain", return_value=[self.ca, self.root]
+        ), patch.object(
+            bridge, "_windows_sign_data",
+            side_effect=lambda thumb, payload: self.signer_key.sign(
+                payload, padding.PKCS1v15(), hashes.SHA256()
+            ),
+        ):
+            signer = bridge.WindowsStoreSigner("0123456789ABCDEF0123456789ABCDEF01234567")
+            self.assertEqual(2, signer.ca_certificate_count)
+            writer = PdfWriter()
+            writer.add_blank_page(width=420, height=600)
+            input_pdf = io.BytesIO()
+            writer.write(input_pdf)
+            before = bridge._TEST_TSA_ISSUED
+            signed = bridge._sign_one(
+                input_pdf.getvalue(), signer, {}, {}, bridge._get_test_tsa(), None
+            )
+        self.assertEqual(1, bridge._TEST_TSA_ISSUED - before)
+        signature = PdfFileReader(io.BytesIO(signed)).embedded_signatures[0]
+        self.assertEqual("ENTIRE_FILE", signature.evaluate_signature_coverage().name)
+        data = cms.ContentInfo.load(signature.pkcs7_content)
+        certs = {item.chosen.dump() for item in data["content"]["certificates"]
+                 if item.name == "certificate"}
+        self.assertEqual({self.leaf, self.ca, self.root}, certs)
+
+    def test_postsignum_failure_aborts_batch_before_any_tsa(self):
+        before = bridge._TEST_TSA_ISSUED
+        with patch.object(bridge, "_windows_cert_der", return_value=self.leaf), patch.object(
+            bridge, "_windows_certificate_chain_der", return_value=[]
+        ), patch.object(
+            bridge, "_uses_postsignum_qca4", return_value=True
+        ), patch.object(
+            bridge, "_postsignum_qca4_chain",
+            side_effect=OSError("CA download unavailable")
+        ):
+            with self.assertRaisesRegex(RuntimeError, "zastaveno před použitím TSA"):
+                bridge.WindowsStoreSigner("0123456789ABCDEF0123456789ABCDEF01234567")
+        self.assertEqual(before, bridge._TEST_TSA_ISSUED)
+
+    def test_downloaded_public_certificates_are_sha256_pinned(self):
+        url = "https://www.postsignum.cz/files/ca/postsignum_qca4_sub.cer"
+        from hashlib import sha256
+        digest = sha256(self.ca).hexdigest()
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = self.ca
+        bridge._download_pinned_issuer.cache_clear()
+        with patch.object(bridge, "_POSTSIGNUM_QCA4_ISSUERS", ((url, digest),)), patch.object(
+            bridge.urllib.request, "urlopen", return_value=response
+        ):
+            self.assertEqual(self.ca, bridge._download_pinned_issuer(url, digest))
+            self.assertEqual(self.ca, bridge._download_pinned_issuer(url, digest))
+            with self.assertRaisesRegex(ValueError, "otisk"):
+                bridge._download_pinned_issuer(url, "0" * 64)
+        bridge._download_pinned_issuer.cache_clear()
 
     def test_unavailable_chain_preserves_old_signing_mode(self):
         with patch.object(bridge, "_windows_cert_der", return_value=self.leaf), patch.object(
