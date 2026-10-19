@@ -770,7 +770,9 @@ def _certificate_registry_for_chain(
     return registry
 
 
-def _windows_lt_validation_context(signer: "WindowsStoreSigner") -> ValidationContext:
+def _windows_lt_validation_context(
+    signer: "WindowsStoreSigner", local_test_tsa: bool = False
+) -> ValidationContext:
     """Trust only a Windows-validated root; fetch hard-fail OCSP/CRL evidence."""
     if signer.ca_certificate_count < 1:
         raise ValueError("PAdES B-LT vyžaduje úplný řetězec certifikačních autorit.")
@@ -785,8 +787,13 @@ def _windows_lt_validation_context(signer: "WindowsStoreSigner") -> ValidationCo
     issuer_ders = list(signer.issuer_certificates_der)
     if root_der not in issuer_ders:
         raise ValueError("Windows kořen nesouhlasí s řetězcem připojeným k podpisu.")
+    trust_roots = [asn1_x509.Certificate.load(root_der)]
+    if local_test_tsa:
+        # Only for the explicitly selected local test TSA. This never elevates
+        # the test timestamp to QTSA or changes real PostSignum trust.
+        trust_roots.append(_get_test_tsa().tsa_cert)
     return ValidationContext(
-        extra_trust_roots=[asn1_x509.Certificate.load(root_der)],
+        extra_trust_roots=trust_roots,
         other_certs=[asn1_x509.Certificate.load(der) for der in issuer_ders],
         allow_fetching=True,
         revocation_mode="hard-fail",
@@ -1622,7 +1629,7 @@ def preflight_sign():
 
         signer = WindowsStoreSigner(cert_thumbprint)
         if profile == "lt":
-            _windows_lt_validation_context(signer)
+            _windows_lt_validation_context(signer, bool(meta.get("tsa_test_mode", False)))
         cert_info = _cert_payload(signer)
         cert_info["ca_certificate_count"] = signer.ca_certificate_count
         crypto_cert = x509.load_der_x509_certificate(signer.signing_cert.dump())
@@ -1795,7 +1802,10 @@ def sign_batch():
             return jsonify(ok=False, error=str(exc)), 400
 
         signer = _make_test_signer() if test_mode else WindowsStoreSigner(cert_thumbprint)
-        lt_context = _windows_lt_validation_context(signer) if profile == "lt" and not test_mode else None
+        lt_context = (
+            _windows_lt_validation_context(signer, bool(meta.get("tsa_test_mode", False)))
+            if profile == "lt" and not test_mode else None
+        )
         cert_info = _cert_payload(signer)
         if not test_mode:
             cert_info["ca_certificate_count"] = signer.ca_certificate_count
