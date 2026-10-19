@@ -1343,7 +1343,7 @@ def _assert_lt_validation_evidence(pdf_bytes: bytes) -> None:
     dss = reader.root.get("/DSS")
     if hasattr(dss, "get_object"):
         dss = dss.get_object()
-    if not dss:
+    if dss is None:
         raise ValueError("PAdES B-LT neobsahuje PDF /DSS validační slovník.")
     def count(name: str) -> int:
         values = dss.get(name)
