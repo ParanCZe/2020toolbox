@@ -1359,6 +1359,13 @@ def validator_status():
     validator_root = Path(os.environ.get("LOCALAPPDATA") or str(Path.home())) / "20-20-TOOLBOX" / "PDFValidator"
     dss_dir = Path(os.environ.get("LOCALAPPDATA") or str(Path.home())) / "20-20-TOOLBOX" / "EU-DSS"
     dss_install = dss_dir / "6.5" / "Webapp-Startup.bat"
+    dss_running = False
+    if dss_install.is_file():
+        try:
+            from eu_dss_validator import _ping as check_local_dss
+            dss_running = bool(check_local_dss())
+        except Exception:
+            pass
     proc = _DSS_INSTALL_PROCESS
     installing = proc is not None and proc.poll() is None
     dss_install_error = ""
@@ -1375,7 +1382,7 @@ def validator_status():
         verapdf_ready=verapdf_ready,
         eidas_ready=(validator_root / "venv" / "Scripts" / "python.exe").is_file(),
         tsa_ready=False,  # legacy pyHanko QTSA no longer used
-        dss_ready=dss_install.is_file(),
+        dss_ready=dss_running,
         dss_installed=dss_install.is_file(),
         dss_installing=installing,
         dss_install_error=dss_install_error,
