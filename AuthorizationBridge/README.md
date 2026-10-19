@@ -83,7 +83,13 @@ mezilehlé a kořenové autority se předají do pyHanko cert_registry.
   implementaci a ověření kompatibility s PDF/A-3b.
 - Unit testy: `python -m unittest test_cert_chain` v adresáři Bridge.
 
-**Release:** Produkční INSTALL_AND_START.bat používá připnutý commit a
-SHA-256. Po otestování změny je nutné udělat samostatný release krok:
-aktualizovat pin, SHA-256, očekávanou verzi a kontrolovat validitu nového
-podepsaného PDF ve DSS i v programu, který původně hlásil neplatnost.
+**Vydání 2.3.1:** INSTALL_AND_START.bat má připnutý ověřený
+commit a SHA-256, včetně kontroly očekávané verze. Automatizované testy
+ověřují skutečný podpis PDF s jedním lokálním TEST časovým razítkem a
+vložení celého řetězce CA do CMS. Test instalátoru hlídá kontrolní
+součty všech osmi stahovaných souborů.
+
+**Zbývá ověření v prostředí uživatele:** vytvořit PDF s Windows/USB QSCD
+certifikátem, ověřit jej v DSS a v programu, který dříve hlásil
+„neplatný“, a vyzkoušet dávku proti lokální TEST TSA před placeným razítkem.
+Přítomnost řetězce CA sama o sobě nezaručuje právní ani validační status.
