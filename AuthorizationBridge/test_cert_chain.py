@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from cryptography import x509
+from asn1crypto import x509 as asn1_x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
@@ -47,7 +48,7 @@ class WindowsCertificateChainTests(unittest.TestCase):
 
     def test_verified_issuer_chain_is_registered(self):
         store = bridge._certificate_registry_for_chain(self.leaf, [self.ca, self.root])
-        self.assertEqual(2, len(list(store.iter_certs())))
+        self.assertEqual(1, len(store.retrieve_by_name(asn1_x509.Certificate.load(self.ca).subject)))
 
     def test_unrelated_issuer_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -59,7 +60,7 @@ class WindowsCertificateChainTests(unittest.TestCase):
         ):
             signer = bridge.WindowsStoreSigner("0123456789ABCDEF0123456789ABCDEF01234567")
         self.assertEqual(2, signer.ca_certificate_count)
-        self.assertEqual(2, len(list(signer.cert_registry.iter_certs())))
+        self.assertEqual(1, len(signer.cert_registry.retrieve_by_name(asn1_x509.Certificate.load(self.ca).subject)))
         self.assertEqual(256, signer.signature_size)
 
     def test_unavailable_chain_preserves_old_signing_mode(self):
@@ -68,7 +69,7 @@ class WindowsCertificateChainTests(unittest.TestCase):
         ):
             signer = bridge.WindowsStoreSigner("0123456789ABCDEF0123456789ABCDEF01234567")
         self.assertEqual(0, signer.ca_certificate_count)
-        self.assertEqual(0, len(list(signer.cert_registry.iter_certs())))
+        self.assertEqual(0, len(signer.cert_registry.retrieve_by_name(asn1_x509.Certificate.load(self.ca).subject)))
 
 
 if __name__ == "__main__":
