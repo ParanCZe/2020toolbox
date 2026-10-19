@@ -4,6 +4,9 @@ Run in the AuthorizationBridge venv:
     python -m unittest test_cert_chain
 """
 import unittest
+import base64
+import io
+from pypdf import PdfWriter
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -69,6 +72,59 @@ class WindowsCertificateChainTests(unittest.TestCase):
             signer = bridge.WindowsStoreSigner("0123456789ABCDEF0123456789ABCDEF01234567")
         self.assertEqual(0, signer.ca_certificate_count)
         self.assertEqual(0, len(list(signer.cert_registry.iter_certs())))
+
+    def test_lt_context_uses_only_windows_verified_root(self):
+        with patch.object(bridge, "_windows_cert_der", return_value=self.leaf), patch.object(
+            bridge, "_windows_certificate_chain_der", return_value=[self.ca, self.root]
+        ):
+            signer = bridge.WindowsStoreSigner("0123456789ABCDEF0123456789ABCDEF01234567")
+        with patch.object(bridge, "_run_powershell", return_value=base64.b64encode(self.root).decode()):
+            context = bridge._windows_lt_validation_context(signer)
+        self.assertTrue(context.fetching_allowed)
+        self.assertEqual(2, len(list(context.certificate_registry.iter_certs())))
+
+    def test_lt_context_rejects_unrelated_root(self):
+        with patch.object(bridge, "_windows_cert_der", return_value=self.leaf), patch.object(
+            bridge, "_windows_certificate_chain_der", return_value=[self.ca, self.root]
+        ):
+            signer = bridge.WindowsStoreSigner("0123456789ABCDEF0123456789ABCDEF01234567")
+        with patch.object(bridge, "_run_powershell", return_value=base64.b64encode(self.unrelated).decode()):
+            with self.assertRaises(ValueError):
+                bridge._windows_lt_validation_context(signer)
+
+    def test_pades_lt_dss_is_part_of_signed_revision(self):
+        writer = PdfWriter()
+        writer.add_blank_page(width=420, height=600)
+        pdf = io.BytesIO()
+        writer.write(pdf)
+        recorded = {}
+
+        class RecordingPdfSigner:
+            def __init__(self, sig_meta, **kwargs):
+                recorded["metadata"] = sig_meta
+                recorded["tsa"] = kwargs["timestamper"]
+
+            def sign_pdf(self, writer, output, bytes_reserved):
+                recorded["reservation"] = bytes_reserved
+
+        context = object()  # PdfSigner is mocked; only inspect metadata.
+        with patch.object(bridge.signers, "PdfSigner", RecordingPdfSigner):
+            bridge._sign_one(
+                pdf.getvalue(), signer=None, document_meta={}, common_meta={},
+                timestamper="one-tsa-client", stamp_path=None,
+                validation_context=context,
+            )
+        metadata = recorded["metadata"]
+        self.assertTrue(metadata.embed_validation_info)
+        self.assertIs(metadata.validation_context, context)
+        self.assertFalse(metadata.use_pades_lta)
+        self.assertFalse(metadata.dss_settings.include_vri)
+        self.assertEqual(
+            bridge.SigDSSPlacementPreference.TOGETHER_WITH_SIGNATURE,
+            metadata.dss_settings.placement,
+        )
+        self.assertEqual("one-tsa-client", recorded["tsa"])
+        self.assertEqual(65532, recorded["reservation"])
 
 
 if __name__ == "__main__":
