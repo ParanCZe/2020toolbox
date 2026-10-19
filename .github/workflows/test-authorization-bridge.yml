@@ -1,0 +1,38 @@
+name: Test AuthorizationBridge PAdES compatibility
+on:
+  pull_request:
+    paths:
+      - 'AuthorizationBridge/**'
+      - 'authorization_pdf_v326.js'
+      - '.github/workflows/test-authorization-bridge.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned signing dependencies and PDF test writer
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r AuthorizationBridge/requirements.txt 'pypdf>=5.0,<7.0'
+      - name: Compile bridge modules
+        run: python -m compileall -q AuthorizationBridge
+      - name: Run chain / DSS tests
+        run: python -m unittest discover -s AuthorizationBridge -p 'test_*.py' -v
+      - name: Verify signing UI syntax
+        run: node --check authorization_pdf_v326.js
+      - name: Print bridge SHA-256 for pinned installer
+        run: |
+          cd AuthorizationBridge
+          sha256sum authorization_bridge.py pdf_validator_engine.py eu_dss_validator.py INSTALL_EU_DSS.ps1 qualified_tsa_check.py requirements.txt find_python.ps1 restart_bridge.ps1
+      - name: Verify installed version
+        run: |
+          python -c "import sys; sys.path.insert(0, 'AuthorizationBridge'); import authorization_bridge as b; assert b.APP_VERSION == '2.3.1'"
