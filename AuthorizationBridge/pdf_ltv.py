@@ -9,10 +9,11 @@ EU DSS independently decides trust and qualified QES/QTSA status.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 from typing import Iterable
 
-from asn1crypto import x509 as asn1_x509
+from asn1crypto import cms as asn1_cms, crl as asn1_crl, ocsp as asn1_ocsp, x509 as asn1_x509
 from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko.sign.validation.dss import async_add_validation_info
 from pyhanko_certvalidator import ValidationContext
@@ -40,6 +41,99 @@ def _signature_timestamp_bytes(embedded_sig) -> bytes:
     raise ValueError("Podpis neobsahuje časové razítko RFC 3161 (PAdES B-T).")
 
 
+def _signing_certificate(container: asn1_cms.ContentInfo) -> asn1_x509.Certificate:
+    """Locate the actual CMS signer's certificate, never merely the first one."""
+    signed = container["content"]
+    infos = signed["signer_infos"]
+    if len(infos) != 1 or infos[0]["sid"].name != "issuer_and_serial_number":
+        raise ValueError("Nelze jednoznačně identifikovat podpisový certifikát CMS.")
+    identifier = infos[0]["sid"].chosen
+    for item in signed["certificates"]:
+        if item.name != "certificate":
+            continue
+        cert = item.chosen
+        if (cert.serial_number == identifier["serial_number"].native
+                and cert.issuer == identifier["issuer"]):
+            return cert
+    raise ValueError("Certifikát podepisujícího není vložený v CMS.")
+
+
+def _target_certificates(signature) -> tuple[asn1_x509.Certificate, asn1_x509.Certificate]:
+    document_signer = _signing_certificate(
+        asn1_cms.ContentInfo.load(signature.pkcs7_content)
+    )
+    timestamp_signer = _signing_certificate(
+        asn1_cms.ContentInfo.load(_signature_timestamp_bytes(signature))
+    )
+    return document_signer, timestamp_signer
+
+
+def _stream_bytes(ref) -> bytes:
+    stream = _deref(ref)
+    return stream.get_data()
+
+
+def _matching_good_ocsp(dss, certificate: asn1_x509.Certificate) -> bool:
+    for entry in _deref(dss.get("/OCSPs") or []):
+        try:
+            response = asn1_ocsp.OCSPResponse.load(_stream_bytes(entry))
+            if response["response_status"].native != "successful":
+                continue
+            basic = response["response_bytes"]["response"].parsed
+            for record in basic["tbs_response_data"]["responses"]:
+                cert_id = record["cert_id"]
+                if cert_id["serial_number"].native != certificate.serial_number:
+                    continue
+                algorithm = cert_id["hash_algorithm"]["algorithm"].native
+                if algorithm not in {"sha1", "sha256", "sha384", "sha512"}:
+                    continue
+                expected = hashlib.new(algorithm, certificate.issuer.dump()).digest()
+                if cert_id["issuer_name_hash"].native != expected:
+                    continue
+                if record["cert_status"].name == "good":
+                    return True
+        except (ValueError, TypeError, KeyError, AttributeError):
+            continue
+    return False
+
+
+def _matching_crl(dss, certificate: asn1_x509.Certificate) -> bool:
+    for entry in _deref(dss.get("/CRLs") or []):
+        try:
+            report = asn1_crl.CertificateList.load(_stream_bytes(entry))
+            body = report["tbs_cert_list"]
+            if body["issuer"] != certificate.issuer:
+                continue
+            revoked = body["revoked_certificates"]
+            if revoked.native is not None and any(
+                item["user_certificate"].native == certificate.serial_number
+                for item in revoked
+            ):
+                continue
+            return True
+        except (ValueError, TypeError, KeyError, AttributeError):
+            continue
+    return False
+
+
+def _ensure_two_revocation_paths(dss, signature) -> None:
+    """Structural fail-closed guard; qualification remains EU DSS's task.
+
+    A valid-looking OCSP for only the signing key is NOT evidence for the TSA.
+    Each cert's revocation status must have matching evidence in the DSS.
+    pyHanko's hard-fail validation context must still validate that evidence.
+    """
+    for label, cert in zip(
+        ("podpisový certifikát", "certifikát časové autority"),
+        _target_certificates(signature),
+    ):
+        if not (_matching_good_ocsp(dss, cert) or _matching_crl(dss, cert)):
+            raise ValueError(
+                "PDF /DSS nemá odpovídající OCSP/CRL pro " + label +
+                ". Údaje nelze vydávat za dokončené PAdES B-LT."
+            )
+
+
 def inspect_lt_evidence(pdf_bytes: bytes) -> dict:
     reader = PdfFileReader(io.BytesIO(pdf_bytes), strict=True)
     signatures = reader.embedded_signatures
@@ -58,6 +152,7 @@ def inspect_lt_evidence(pdf_bytes: bytes) -> dict:
     )}
     if not count["ocsp"] and not count["crl"]:
         raise ValueError("V /DSS chybějí OCSP/CRL odpovědi.")
+    _ensure_two_revocation_paths(dss, sig)
     return {**count, "coverage": coverage, "signature_timestamp": sig_timestamp}
 
 
