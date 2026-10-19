@@ -128,6 +128,22 @@ def _ensure_two_revocation_paths(dss, signature) -> None:
         _target_certificates(signature),
     ):
         if not (_matching_good_ocsp(dss, cert) or _matching_crl(dss, cert)):
+            import os
+            if os.environ.get("GITHUB_ACTIONS"):
+                print("LT_DEBUG label", label, "serial", cert.serial_number,
+                      "issuer", cert.issuer.dump().hex(), "OCSP-count",
+                      _array_count(dss, "/OCSPs"), flush=True)
+                for entry in _deref(dss.get("/OCSPs") or []):
+                    try:
+                        ans = asn1_ocsp.OCSPResponse.load(_stream_bytes(entry))
+                        print("LT_DEBUG status", ans["response_status"].native,
+                              "basic", [(x["cert_id"]["serial_number"].native,
+                              x["cert_id"]["issuer_name_hash"].native.hex(),
+                              x["cert_id"]["hash_algorithm"]["algorithm"].native,
+                              x["cert_status"].name)
+                              for x in ans["response_bytes"]["response"].parsed["tbs_response_data"]["responses"]], flush=True)
+                    except Exception as ex:
+                        print("LT_DEBUG failed parse", type(ex).__name__, str(ex)[:200],flush=True)
             raise ValueError(
                 "PDF /DSS nemá odpovídající OCSP/CRL pro " + label +
                 ". Údaje nelze vydávat za dokončené PAdES B-LT."
