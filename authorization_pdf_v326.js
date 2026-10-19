@@ -1786,7 +1786,8 @@
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),4000);
 
-      state.files.forEach(r=>r.status='signed');
+      // The requested operation was B-LT; a B-T fallback must not appear green.
+      state.files.forEach(r=>r.status=ltFallback?'error':'signed');
       renderFileList();
       if (ltFallback) {
         window.alert('CHYBA: PAdES B-LT NEBYLO DOKONČENO. Výkres v ZIPu je pouze PAdES B-T a NENÍ připraven jako B-LT pro úřední odevzdání. Otevři POZOR_PAdES_LT_NEPROVEDENO.txt. Další razítko se nevyžadovalo.');
@@ -1802,13 +1803,17 @@
           issued !== expected
         );
       } else {
-        toast(testMode
+        toast(ltFallback
+          ? 'CHYBA: B-LT není dokončené; ZIP obsahuje jen podepsané B-T a varovný protokol.'
+          : profile === 'lt'
+          ? 'PAdES B-LT s /DSS je vytvořeno. Před úředním odevzdáním nezávisle ověř QES, QTSA a PAdES-LT.'
+          : testMode
           ? 'Hotovo — PDF/A-3b jsou podepsaná plně lokálním TEST certifikátem.'
           : (localTestTsa
             ? 'Hotovo — PDF/A-3b jsou podepsaná pravým certifikátem a lokální TEST TSA.'
             : (authAppendEarEnabled()
             ? 'Hotovo — PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.'
-            : 'Hotovo — PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.')));
+            : 'Hotovo — PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.'))), ltFallback);
       }
     } catch (e) {
       state.files.forEach(r=>{ if(r.status!=='signed') r.status='error'; });
