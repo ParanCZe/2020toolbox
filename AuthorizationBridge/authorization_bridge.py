@@ -781,12 +781,12 @@ def _windows_lt_validation_context(signer: "WindowsStoreSigner") -> ValidationCo
         ),
         validate=True,
     )
-    issuer_ders = [cert.dump() for cert in signer.cert_registry.iter_certs()]
+    issuer_ders = list(signer.issuer_certificates_der)
     if root_der not in issuer_ders:
         raise ValueError("Windows kořen nesouhlasí s řetězcem připojeným k podpisu.")
     return ValidationContext(
         extra_trust_roots=[asn1_x509.Certificate.load(root_der)],
-        other_certs=list(signer.cert_registry.iter_certs()),
+        other_certs=[asn1_x509.Certificate.load(der) for der in issuer_ders],
         allow_fetching=True,
         revocation_mode="hard-fail",
     )
@@ -979,6 +979,7 @@ class WindowsStoreSigner(signers.ExternalSigner):
             print("[AuthorizationBridge] CA chain unavailable:", str(exc), flush=True)
             ca_certs, ca_store = [], SimpleCertificateStore()
         self.ca_certificate_count = len(ca_certs)
+        self.issuer_certificates_der = tuple(ca_certs)
         super().__init__(
             signing_cert=asn1_x509.Certificate.load(cert_der),
             cert_registry=ca_store,
