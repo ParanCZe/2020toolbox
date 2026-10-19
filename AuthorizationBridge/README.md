@@ -111,3 +111,23 @@ Kontrola žádná razítka nevydává, nečte privátní klíče a neprovádí p
 Rozhraní nabízí rozbalovací přehled ke každému PDF a TXT report. Nový instalátor přidává `pdf_signature_inspector.py` s ověřením SHA-256. Verze bridge musí být **2.3.2 nebo novější**.
 
 Doporučený závěrečný test: ověřit PDF vytvořené na konkrétním počítači se skutečným QSCD certifikátem a porovnat výsledek se zprávou EU DSS i s programem, který hlásil „neplatný podpis“. Tento test nebylo možné provést bez přístupu k danému certifikátu a programu.
+
+
+## EU DSS první spuštění – diagnostika 2.3.3
+
+Pokud PDF/A-3b vyhovuje, ale kryptografie, QES a QTSA jsou „NEOVĚŘENO“,
+zkontroluj detail reportu. Hláška „EU DSS se nespustilo“ znamená,
+že nezávislý server DSS **nebyl dostupný**. Není to potvrzení neplatnosti
+podpisu ani časového razítka.
+
+V rozhraní se nyní odlišuje „DSS nainstalováno“ od „DSS server běží“.
+Startovací výstup Java/Tomcat se ukládá do lokálního souboru
+`%LOCALAPPDATA%\\20-20-TOOLBOX\\EU-DSS\\6.5\\startup.log`.
+Při návratovém kódu chyby skončí kontrola dříve; časový limit spuštění
+je 240 sekund. Při chybě lze otevřít `startup.log` a také adresář
+`apache-tomcat-*\\logs` pod instalací EU DSS. Nevyžaduje to
+nový podpis ani žádost o placené časové razítko.
+
+Nadále je potřeba reálný test spuštění na Windows uživatele, zejména
+kvůli místní instalaci Javy, firemnímu antiviru a případnému obsazení
+portu 18080. Neverifikovaný výsledek se nesmí vydávat za platný.

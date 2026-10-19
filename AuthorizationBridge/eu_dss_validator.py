@@ -37,7 +37,7 @@ def _ping():
             f"http://127.0.0.1:{LOCAL_PORT}/services/rest/validation?_wadl",
             headers={"Accept": "application/xml"},
         )
-        with PROXYLESS.open(req, timeout=4) as r:
+        with PROXYLESS.open(req, timeout=2) as r:
             return r.status == 200 and b"validateSignature" in r.read(500_000)
     except (OSError, ValueError):
         return False
@@ -57,16 +57,25 @@ def ensure_started():
                 "Port 18080 používá jiný program nebo DSS ještě nenačetlo API. "
                 "Nepředávám PDF neznámému serveru."
             )
-    proc = subprocess.Popen(
-        ["cmd.exe", "/d", "/c", str(ROOT / "Webapp-Startup.bat")],
-        cwd=str(ROOT), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
-    for i in range(90):
+    startup_log = ROOT / "startup.log"
+    with startup_log.open("ab") as log:
+        log.write(("\n--- EU DSS startup " + time.strftime("%Y-%m-%d %H:%M:%S") + " ---\n").encode("utf-8"))
+        log.flush()
+        proc = subprocess.Popen(
+            ["cmd.exe", "/d", "/c", str(ROOT / "Webapp-Startup.bat")],
+            cwd=str(ROOT), stdin=subprocess.DEVNULL, stdout=log,
+            stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    deadline = time.monotonic() + 240
+    while time.monotonic() < deadline:
         if _ping():
             return
+        code = proc.poll()
+        if code is not None and code != 0:
+            raise RuntimeError(f"EU DSS skončilo s chybou {code}. Zkontroluj startup.log v instalaci DSS.")
         time.sleep(2)
-    raise RuntimeError("EU DSS se nespustilo do 180 sekund. Prohlédni log v instalaci DSS.")
+    raise RuntimeError("EU DSS se nespustilo do 240 sekund. Zkontroluj startup.log v instalaci DSS.")
 
 
 def _items(value):
