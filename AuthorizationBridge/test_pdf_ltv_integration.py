@@ -11,6 +11,8 @@ from cryptography.x509 import ocsp
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID, AuthorityInformationAccessOID
 from pypdf import PdfWriter
 from pyhanko.sign import signers
+from pyhanko.sign.validation import validate_pdf_signature
+from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko_certvalidator import ValidationContext
 
 import authorization_bridge as bridge
@@ -115,6 +117,17 @@ class ActualDssIntegrationTest(unittest.TestCase):
         details = pdf_ltv.inspect_lt_evidence(upgraded)
         self.assertGreaterEqual(details["ocsp"], 2)
         self.assertEqual("ENTIRE_REVISION", details["coverage"])
+        # An appended DSS revision must not invalidate the existing CMS signature
+        # or violate the PDF certification modification policy.
+        reader = PdfFileReader(io.BytesIO(upgraded), strict=True)
+        status = validate_pdf_signature(
+            reader.embedded_signatures[0],
+            signer_validation_context=context,
+            ts_validation_context=context,
+        )
+        self.assertTrue(status.intact, status.pretty_print_details())
+        self.assertTrue(status.valid, status.pretty_print_details())
+        self.assertFalse(status.docmdp_ok is False, status.pretty_print_details())
 
 
 if __name__ == "__main__":
