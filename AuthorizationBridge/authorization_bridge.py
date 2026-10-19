@@ -150,6 +150,7 @@ def cors(response):
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-20-20-Session"
         response.headers["Access-Control-Allow-Private-Network"] = "true"
+        response.headers["Access-Control-Expose-Headers"] = "X-20-20-LT-Fallback"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
@@ -1856,6 +1857,7 @@ def sign_batch():
         out_zip = io.BytesIO()
         used_names: set[str] = set()
         manifest_files = []
+        lt_fallback_warnings = []
 
         with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_STORED) as zf:
             for idx, (original_name, raw_pdf) in enumerate(buffered_pdfs):
@@ -1870,13 +1872,21 @@ def sign_batch():
                         timestamper=timestamper,
                         stamp_path=stamp_path,
                     )
+                    lt_failure = None
                     if profile == "lt":
                         from pdf_ltv import append_validated_dss
-                        # An LT failure NEVER silently becomes B-T.
-                        # A signing TSA request already happened; do not retry.
-                        signed = append_validated_dss(
-                            signed, signer.issuer_certificates_der,
-                        )
+                        # If revocation fetching fails AFTER TSA issuance,
+                        # preserve the signed B-T PDF instead of discarding
+                        # the user's already-paid timestamp. Never relabel it LT.
+                        try:
+                            signed = append_validated_dss(
+                                signed, signer.issuer_certificates_der,
+                            )
+                        except Exception as exc:
+                            lt_failure = str(exc)[:450]
+                            lt_fallback_warnings.append(
+                                str(original_name) + ": " + lt_failure
+                            )
                 except Exception as exc:
                     raise RuntimeError(f"PAdES SIGN [{original_name}]: {exc}") from exc
 
@@ -1889,7 +1899,8 @@ def sign_batch():
                     "source": str(doc_meta.get("name") or original_name),
                     "output": out_name,
                     "standard": str(meta.get("output_standard") or "PDF/A-3b"),
-                    "profile": "PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B"),
+                    "profile": "PAdES B-T (LT fallback)" if lt_failure else ("PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B")),
+                    "lt_warning": lt_failure,
                     "visible": bool(doc_meta.get("placement")),
                     "docmdp": "ANNOTATE",
                 })
@@ -1909,16 +1920,30 @@ def sign_batch():
                 "certificate": cert_info,
                 "files": manifest_files,
             }
+            if lt_fallback_warnings:
+                warning = (
+                    "POZOR: PAdES B-LT nebylo dokonceno, proto jsou PDF "
+                    "ulozena s puvodnim kryptografickym PAdES B-T podpisem "
+                    "a jeho jiz vydanym casovym razitkem. "
+                    "Nedochazelo k dalsimu TSA pozadavku. "
+                    "Tyto soubory nejsou PAdES B-LT. "
+                    "Pred odevzdanim over podpis a QTSA v EU DSS.\n\n"
+                    + "\n".join(lt_fallback_warnings)
+                )
+                zf.writestr("POZOR_PAdES_LT_NEPROVEDENO.txt", warning)
+            manifest["lt_fallback_warnings"] = lt_fallback_warnings
             zf.writestr("20-20_autorizace_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
 
         out_zip.seek(0)
-        return send_file(
+        response = send_file(
             out_zip,
             mimetype="application/zip",
             as_attachment=True,
             download_name="autorizovane_pdf_" + datetime.now().strftime("%Y-%m-%d_%H%M") + ".zip",
             max_age=0,
         )
+        response.headers["X-20-20-LT-Fallback"] = "1" if lt_fallback_warnings else "0"
+        return response
 
     except Exception as exc:
         print("[AuthorizationBridge] signing error:", traceback.format_exc(), flush=True)
