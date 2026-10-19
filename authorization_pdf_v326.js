@@ -25,7 +25,7 @@
     zoom: 1,
     stampSourceName: '',
     placementPreviewUrl: null,
-    previousProfile: 'bt',
+    previousProfile: 'lt',
     testTsaBackup: null,
     testTsaIssued: 0,
     settingsRestored: false,
@@ -132,7 +132,8 @@
       addArchitect: !!document.getElementById('auth-add-architect')?.checked,
       architectName: document.getElementById('auth-architect-name')?.value || '',
       addDateTime: !!document.getElementById('auth-add-datetime')?.checked,
-      profile: document.getElementById('auth-profile')?.value || 'bt',
+      profile: document.getElementById('auth-profile')?.value || 'lt',
+      profileDefaultsVersion: 1,
       tsa: document.getElementById('auth-tsa')?.value || '',
       tsaUser: document.getElementById('auth-tsa-user')?.value || '',
       // Test-only state is deliberately not persisted into production settings.
@@ -288,7 +289,19 @@
       setChecked('auth-add-architect', saved.addArchitect);
       setValue('auth-architect-name', saved.architectName || '');
       setChecked('auth-add-datetime', saved.addDateTime);
-      setValue('auth-profile', saved.profile || 'bt');
+      // Migrate pre-LT saved B-T defaults just once, without overriding
+      // a B-T choice intentionally saved after this LT-default release.
+      const migrateToLt = saved.profileDefaultsVersion !== 1;
+      if (migrateToLt) {
+        saved.profile = 'lt';
+        saved.profileDefaultsVersion = 1;
+        if (/^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(saved.tsa || '')) {
+          saved.tsa = 'https://www3.postsignum.cz/TSS/TSS_user/';
+          if (saved.tsaUser === 'TEST') saved.tsaUser = '';
+        }
+        try { localStorage.setItem(AUTH_SETTINGS_KEY, JSON.stringify(saved)); } catch {}
+      }
+      setValue('auth-profile', saved.profile || 'lt');
       setValue('auth-tsa', saved.tsa || 'https://www3.postsignum.cz/TSS/TSS_user/');
       setValue('auth-tsa-user', saved.tsaUser || '');
       setChecked('auth-local-test-tsa', false);
@@ -547,11 +560,11 @@
               <h3>ÚROVEŇ PODPISU</h3>
               <div class="auth-field"><label>Profil</label>
                 <select id="auth-profile" onchange="authProfileChanged()">
-                  <option value="bt" selected>PAdES B-T · podpis + časové razítko</option>
-                  <option id="auth-lt-option" value="lt" disabled hidden>PAdES B-LT (EXPERIMENT) · podpis + TSA + OCSP/CRL v PDF</option>
+                  <option id="auth-lt-option" value="lt" selected>PAdES B-LT · podpis + kvalifikované TSA + dlouhodobé podklady</option>
+                  <option value="bt">PAdES B-T · podpis + časové razítko (bez DSS)</option>
                   <option value="bb">PAdES B-B · podpis bez TSA</option>
                 </select>
-                <div class="auth-note">B-LT je experimentální volba. Nejprve zkoušej pouze jedno PDF. Po podpisu se doplní validační data /DSS. Vydané časové razítko nelze při selhání OCSP/CRL vrátit.</div>
+                <div class="auth-note">Výchozí B-LT: ke kvalifikovanému podpisu a ostrému TSA automaticky vloží validační podklady /DSS. Vyžaduje Bridge 2.4.0+. Pokud podklady nelze získat, výsledek bude výslovně označen jako nedokončený B-LT (nikoli úspěšný).</div>
               </div>
               <div id="auth-tsa-wrap">
                 <div class="auth-field"><label>RFC 3161 TSA server</label><input id="auth-tsa" type="url" value="https://www3.postsignum.cz/TSS/TSS_user/" placeholder="https://www3.postsignum.cz/TSS/TSS_user/"></div>
@@ -1144,19 +1157,11 @@
     }
   };
 
-  // A public beta switch must be invisible unless the user explicitly enables
-  // TEST tools AND a separate beta Bridge advertises PAdES-LT support.
+  // LT is a normal, explicit profile. NEVER silently downgrade it when
+  // the bridge is unavailable or outdated.
   function authUpdateLtAvailability() {
     const opt=document.getElementById('auth-lt-option');
-    const sel=document.getElementById('auth-profile');
-    const enabled=!!(authTestToolsEnabled() && !authIsTestMode() &&
-      state.bridge?.features?.pades_lt_dss &&
-      authVersionAtLeast(state.bridge?.version, '2.4.0'));
-    if (opt) { opt.disabled=!enabled; opt.hidden=!enabled; }
-    if (!enabled && sel?.value==='lt') {
-      sel.value='bt';
-      authProfileChanged();
-    }
+    if (opt) { opt.disabled=false; opt.hidden=false; }
   }
 
   window.authTestModeChanged = function() {
@@ -1174,10 +1179,7 @@
     if (control) control.classList.toggle('active', on);
 
     if (on) {
-      if (localTsa && !localTsa.checked && !fullTest?.checked) {
-        localTsa.checked = true;
-        authLocalTestTsaChanged();
-      }
+      // Showing test tools must never enable a local TSA automatically.
       authRefreshTestTsaCounter(true);
     } else {
       if (fullTest) fullTest.checked = false;
@@ -1215,8 +1217,7 @@
         profile.disabled = true;
       } else {
         profile.disabled = false;
-        if (authTestToolsEnabled() && localTsa?.checked) profile.value = 'bt';
-        else if (profile.value === 'bb' && state.previousProfile) profile.value = state.previousProfile;
+        if (profile.value === 'bb' && state.previousProfile) profile.value = state.previousProfile;
       }
     }
 
@@ -1232,14 +1233,6 @@
     }
 
     authProfileChanged();
-    const signBtn = document.getElementById('auth-sign-btn');
-    if (signBtn) {
-      signBtn.textContent = authTestToolsEnabled()
-        ? (fake
-          ? 'TEST · lokální certifikát + export ZIP'
-          : 'TEST · pravý certifikát + lokální TSA + export ZIP')
-        : 'PDF/A-3b + podepsat + stáhnout ZIP';
-    }
     authRenderTestTsaStats();
   };
 
@@ -1247,6 +1240,16 @@
     const bt = !authIsTestMode() && ['bt','lt'].includes(document.getElementById('auth-profile')?.value);
     const wrap = document.getElementById('auth-tsa-wrap');
     if (wrap) wrap.style.display = bt ? 'grid' : 'none';
+    const signBtn = document.getElementById('auth-sign-btn');
+    if (signBtn && !signBtn.disabled) {
+      signBtn.textContent = authIsTestMode()
+        ? 'TEST · lokální certifikát + export ZIP'
+        : (authTestToolsEnabled() && document.getElementById('auth-local-test-tsa')?.checked
+          ? 'TEST · pravý certifikát + lokální TSA + export ZIP'
+          : (document.getElementById('auth-profile')?.value === 'lt'
+            ? 'PDF/A-3b + PAdES B-LT + stáhnout ZIP'
+            : 'PDF/A-3b + podepsat + stáhnout ZIP'));
+    }
     authRenderTestTsaStats();
   };
 
@@ -1260,6 +1263,13 @@
     const user = document.getElementById('auth-tsa-user');
     const pass = document.getElementById('auth-tsa-pass');
 
+    if (on && profile?.value === 'lt') {
+      // Never silently turn a requested B-LT signature into B-T.
+      if (localInput) localInput.checked = false;
+      toast('PAdES B-LT vyžaduje ostré kvalifikované časové razítko. Pro TEST TSA nejprve výslovně zvol PAdES B-T.', true);
+      authProfileChanged();
+      return;
+    }
     if (on) {
       if (!state.testTsaBackup) {
         state.testTsaBackup = {
@@ -1517,6 +1527,9 @@
     const tsaUser = testMode ? '' : document.getElementById('auth-tsa-user')?.value.trim() || '';
     const tsaPass = testMode ? '' : document.getElementById('auth-tsa-pass')?.value || '';
     const localTestTsa = !testMode && !!document.getElementById('auth-local-test-tsa')?.checked;
+    if (profile === 'lt' && (testMode || localTestTsa || /^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(tsa))) {
+      toast('PAdES B-LT vyžaduje skutečný certifikát a ostré TSA; vypni lokální testovací režimy.', true); return;
+    }
     if (!testMode && ['bt','lt'].includes(profile) && !tsa) { toast('Pro PAdES B-T / B-LT zadej RFC 3161 TSA server.', true); return; }
     if (!testMode && ['bt','lt'].includes(profile) && (!!tsaUser !== !!tsaPass)) {
       toast('Pro přihlášení k TSA vyplň login i heslo, nebo nech obě pole prázdná.', true);
@@ -1541,12 +1554,12 @@
       return;
     }
     if (profile === 'lt' && (!authVersionAtLeast(bridge.version, '2.4.0') || !bridge.features?.pades_lt_dss)) {
-      toast('PAdES B-LT vyžaduje AuthorizationBridge 2.4.0+.', true); return;
+      toast('Výchozí PAdES B-LT vyžaduje AuthorizationBridge 2.4.0+. Nainstaluj aktuální Bridge; profil se automaticky nezmění na B-T.', true); return;
     }
     if (profile === 'lt' && state.files.length !== 1) {
-      toast('B-LT zatím povoluje pouze jedno zkušební PDF. Po ověření lze zapnout dávku.', true); return;
+      toast('PAdES B-LT zatím povoluje jen jeden výkres. Hromadné B-LT zapneme po ověření ostrého výstupu.', true); return;
     }
-    if (profile === 'lt' && !window.confirm('EXPERIMENT PAdES B-LT: podpis spotřebuje jedno ostré TSA razítko, pokud nemáš lokální TEST TSA. Selhání OCSP/CRL může výstup zablokovat i po vydání razítka. Pokračovat s jedním PDF?')) return;
+    if (profile === 'lt' && !window.confirm('PAdES B-LT: výkres spotřebuje jedno ostré časové razítko. Pokud získání OCSP/CRL selže, ZIP bude výslovně označen jako nedokončený B-LT (podepsaný B-T). Pokračovat?')) return;
     if (localTestTsa && !bridge.features?.local_test_tsa) {
       toast('Pro lokální TEST časové razítko aktualizuj AuthorizationBridge na 1.9.0+.', true);
       return;
@@ -1773,10 +1786,11 @@
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),4000);
 
-      state.files.forEach(r=>r.status='signed');
+      // The requested operation was B-LT; a B-T fallback must not appear green.
+      state.files.forEach(r=>r.status=ltFallback?'error':'signed');
       renderFileList();
       if (ltFallback) {
-        window.alert('POZOR: PAdES B-LT se nepodařilo dokončit. ZIP obsahuje původní podepsané PAdES B-T s již vydaným časovým razítkem, nikoliv B-LT. Otevři POZOR_PAdES_LT_NEPROVEDENO.txt a před odevzdáním ověř QES/QTSA v PDF Validátoru. Nové razítko se nevyžadovalo.');
+        window.alert('CHYBA: PAdES B-LT NEBYLO DOKONČENO. Výkres v ZIPu je pouze PAdES B-T a NENÍ připraven jako B-LT pro úřední odevzdání. Otevři POZOR_PAdES_LT_NEPROVEDENO.txt. Další razítko se nevyžadovalo.');
       }
 
       if (testCounterArmed) {
@@ -1789,13 +1803,17 @@
           issued !== expected
         );
       } else {
-        toast(testMode
+        toast(ltFallback
+          ? 'CHYBA: B-LT není dokončené; ZIP obsahuje jen podepsané B-T a varovný protokol.'
+          : profile === 'lt'
+          ? 'PAdES B-LT s /DSS je vytvořeno. Před úředním odevzdáním nezávisle ověř QES, QTSA a PAdES-LT.'
+          : testMode
           ? 'Hotovo — PDF/A-3b jsou podepsaná plně lokálním TEST certifikátem.'
           : (localTestTsa
             ? 'Hotovo — PDF/A-3b jsou podepsaná pravým certifikátem a lokální TEST TSA.'
             : (authAppendEarEnabled()
             ? 'Hotovo — PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.'
-            : 'Hotovo — PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.')));
+            : 'Hotovo — PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.')), ltFallback);
       }
     } catch (e) {
       state.files.forEach(r=>{ if(r.status!=='signed') r.status='error'; });
