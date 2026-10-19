@@ -142,6 +142,13 @@ def compare_evidence(result: dict) -> dict:
         contradictions.append(
             "EU DSS hlásí kvalifikovaný podpis, ale kryptografie je neplatná."
         )
+    if result.get("crypto") == "valid" and isinstance(result.get("signatures"), int):
+        if len(signatures) != result["signatures"]:
+            contradictions.append(
+                "EU DSS a lokální parser uvádějí odlišný počet podpisů."
+            )
+    if not signatures:
+        notes.append("Soubor neobsahuje běžné elektronické podpisové pole.")
     if signatures and any(s.get("cms_readable") is False for s in signatures):
         notes.append("U některých podpisů nelze přečíst kompletní CMS údaje.")
     if signatures and any(s.get("covers_whole_file") is False for s in signatures):
@@ -169,6 +176,10 @@ def compare_evidence(result: dict) -> dict:
         )
     if result.get("signature") == "unverified":
         notes.append("Kvalifikovaný status podpisu nebyl potvrzen EU DSS.")
+    if result.get("pdfa") == "unverified":
+        notes.append("Soulad s PDF/A-3b není nezávisle potvrzen veraPDF.")
+    if result.get("crypto") == "unverified" and signatures:
+        notes.append("Kryptografická integrita nebyla ověřena EU DSS.")
     if result.get("timestamp") == "unverified" and any(
         s.get("timestamp_tokens_in_cms") for s in signatures
     ):
