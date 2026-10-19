@@ -132,7 +132,8 @@
       addArchitect: !!document.getElementById('auth-add-architect')?.checked,
       architectName: document.getElementById('auth-architect-name')?.value || '',
       addDateTime: !!document.getElementById('auth-add-datetime')?.checked,
-      profile: document.getElementById('auth-profile')?.value || 'bt',
+      profile: document.getElementById('auth-profile')?.value || 'lt',
+      profileDefaultsVersion: 1,
       tsa: document.getElementById('auth-tsa')?.value || '',
       tsaUser: document.getElementById('auth-tsa-user')?.value || '',
       // Test-only state is deliberately not persisted into production settings.
@@ -288,6 +289,18 @@
       setChecked('auth-add-architect', saved.addArchitect);
       setValue('auth-architect-name', saved.architectName || '');
       setChecked('auth-add-datetime', saved.addDateTime);
+      // Migrate pre-LT saved B-T defaults just once, without overriding
+      // a B-T choice intentionally saved after this LT-default release.
+      const migrateToLt = saved.profileDefaultsVersion !== 1;
+      if (migrateToLt) {
+        saved.profile = 'lt';
+        saved.profileDefaultsVersion = 1;
+        if (/^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(saved.tsa || '')) {
+          saved.tsa = 'https://www3.postsignum.cz/TSS/TSS_user/';
+          if (saved.tsaUser === 'TEST') saved.tsaUser = '';
+        }
+        try { localStorage.setItem(AUTH_SETTINGS_KEY, JSON.stringify(saved)); } catch {}
+      }
       setValue('auth-profile', saved.profile || 'lt');
       setValue('auth-tsa', saved.tsa || 'https://www3.postsignum.cz/TSS/TSS_user/');
       setValue('auth-tsa-user', saved.tsaUser || '');
