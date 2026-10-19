@@ -191,10 +191,12 @@
       const s=await fetch(API+'/validator-status',{headers:{'X-20-20-Session':t},cache:'no-store'}),d=await s.json();
       if(!s.ok||!d.ok)throw Error(d.error||'Nelze načíst stav');
       ready=!!d.verapdf_ready;
+      const evidenceReady=!!j.features?.pdf_signature_evidence;
       $('pv-health').textContent='AuthorizationBridge '+(d.bridge_version||'')+
         ' · veraPDF: '+(d.verapdf_ready?'připraveno':'chybí')+
         ' · EU DSS 6.5 (QES/QTSA): '+(d.dss_ready?'nainstalováno':d.dss_installing?'probíhá instalace':'není nainstalováno')+
-        (ready?' · Kontrola PDF/A je připravená.':' · Nainstaluj veraPDF.');
+        (ready?' · Kontrola PDF/A je připravená.':' · Nainstaluj veraPDF.')+
+        (!evidenceReady?' · Pro rozšířené detaily podpisů aktualizuj Bridge na 2.3.2+.':' · Detail certifikátů a OCSP/CRL připraven.');
       $('pv-install-dss').hidden=!!d.dss_installed;
       $('pv-install-dss').disabled=!!d.dss_installing;
       $('pv-install-note').textContent=d.dss_install_error||(
