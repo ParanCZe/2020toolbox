@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from eu_dss_validator import check as check_eu_dss, DSS_VERSION
+from pdf_signature_inspector import inspect_file, compare_evidence
 
 ROOT = Path(os.environ.get("LOCALAPPDATA") or str(Path.home()))
 INSTALL_DIR = ROOT / "20-20-TOOLBOX" / "PDFValidator"
@@ -68,9 +69,17 @@ def check(pdf):
         pdfa="unverified", crypto="unverified",
         signature="unverified", timestamp="unverified",
         signatures=0, timestamp_count=0, messages=[], report="",
+        structure={"status": "unverified", "signatures": [], "pdf_dss": {}},
+        consistency={"status": "unverified", "messages": []},
         engines={"pdfa":"veraPDF 1.30.3", "eidas":"EU DSS " + DSS_VERSION},
     )
     reports = []
+    # Purely structural evidence; qualified/trust verdicts stay with EU DSS.
+    # Never let structural parsing failures hide veraPDF or EU DSS results.
+    try:
+        result["structure"] = inspect_file(pdf)
+    except Exception as exc:
+        result["messages"].append("Technický parser PDF není dostupný: " + str(exc)[:220])
     cmd = next((p for p in VERAPDF if p.is_file()), None)
     if cmd is None:
         result["messages"].append("veraPDF není nainstalováno.")
@@ -104,6 +113,7 @@ def check(pdf):
             "EU DSS se nepodařilo dokončit: " + str(exc)[:700] +
             ". PDF/A zůstává nezávisle ověřené."
         )
+    result["consistency"] = compare_evidence(result)
     result["report"] = "\n\n".join(reports)[-130_000:]
     return result
 
