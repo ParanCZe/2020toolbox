@@ -23,6 +23,8 @@ jobs:
         run: python -m py_compile AuthorizationBridge/authorization_bridge.py AuthorizationBridge/pdf_validator_engine.py AuthorizationBridge/eu_dss_validator.py AuthorizationBridge/pdf_signature_inspector.py
       - name: Test PDF/CMS evidence with genuine signed documents
         run: python -m unittest discover -s AuthorizationBridge -p 'test_pdf_signature_inspector.py' -v
+      - name: Regression test for malformed Tomcat Connector XML
+        run: python -m unittest discover -s AuthorizationBridge -p 'test_dss_server_config.py' -v
       - name: EU DSS structured report and QTSA tests
         run: python AuthorizationBridge/eu_dss_validator.py --self-test
       - name: veraPDF parse and encoding tests

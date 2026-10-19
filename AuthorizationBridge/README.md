@@ -131,3 +131,24 @@ nový podpis ani žádost o placené časové razítko.
 Nadále je potřeba reálný test spuštění na Windows uživatele, zejména
 kvůli místní instalaci Javy, firemnímu antiviru a případnému obsazení
 portu 18080. Neverifikovaný výsledek se nesmí vydávat za platný.
+
+## Oprava rozbité konfigurace EU DSS 6.5 (Bridge 2.3.4)
+
+Původní instalační skript mohl při změně Tomcat HTTP portu z 8080 na
+18080 vložit atribut `address="127.0.0.1"` za uzavírací lomítko XML
+`<Connector ... />`. To poškodilo soubor `server.xml` a Tomcat při
+spuštění hlásil SAXParseException, čímž validace čekala na nedostupné API.
+
+- Nová instalace nastavuje atributy pomocí parseru XML (nikoliv vložením
+  textu před znak `>`) a ověřuje uložení a vazbu na localhost.
+- **Již nainstalované EU DSS není potřeba znovu stahovat.** Při další
+  validaci nový Bridge opraví jen přesně rozpoznanou starou chybu,
+  ověří výsledné XML a zachová zálohu `server.xml.before-2020-repair.bak`.
+- Neznámé změny a jiné typy chyb XML neopravujeme automaticky.
+  Vyžadují diagnostiku podle `apache-tomcat-*/logs/catalina*.log`.
+- Oprava nevytváří nové podpisy, nevydává časová razítka, nemění PDF/A
+  a nemění pravidla EU DSS pro QES a QTSA.
+
+Po aktualizaci AuthorizationBridge na **2.3.4** spusť kontrolu znovu a
+sleduj skutečný stav EU DSS. Přesný výsledek kryptografické a kvalifikované
+validace se dozvíš až po úspěšném spuštění EU DSS.

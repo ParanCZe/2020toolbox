@@ -43,11 +43,76 @@ def _ping():
         return False
 
 
+
+def repair_legacy_connector_xml(root=ROOT):
+    """Repair ONLY the known bad 2020 Toolbox /Connector attribute insertion.
+
+    Old installer placed the address attribute AFTER the self-closing slash:
+       <Connector port="18080" ... / address="127.0.0.1">
+    Backup the original and validate the whole XML before atomic replacement.
+    Do not modify arbitrary broken configs or trust external network services.
+    """
+    import xml.etree.ElementTree as ET
+    paths = list(root.glob("apache-tomcat-*/conf/server.xml"))
+    if len(paths) != 1:
+        return False
+    path = paths[0]
+    original = path.read_bytes()
+    try:
+        ET.fromstring(original)
+        return False  # Already valid; never rewrite it.
+    except ET.ParseError:
+        pass
+    marker = re.compile(
+        rb'(<Connector\b[^>]*?\bport\s*=\s*"18080"[^>]*?)\s+/\s+address\s*=\s*"127\.0\.0\.1"\s*>',
+        re.I | re.S,
+    )
+    corrected, count = marker.subn(
+        lambda match: match.group(1) + b' address="127.0.0.1" />',
+        original,
+    )
+    if count != 1:
+        return False
+    parsed = ET.fromstring(corrected)  # No other XML corruption allowed.
+    selected = [node for node in parsed.iter("Connector") if node.get("port") == "18080"]
+    if len(selected) != 1 or selected[0].get("address") != "127.0.0.1":
+        raise ValueError("Opravený Tomcat Connector není bezpečně omezen na localhost.")
+
+    # Never overwrite an existing diagnostic backup.
+    backup = path.with_name("server.xml.before-2020-repair.bak")
+    with backup.open("xb") as out:
+        out.write(original)
+    # Write a temporary file in the same directory, then atomically replace.
+    import tempfile
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", prefix=".server-xml-fix-", suffix=".tmp",
+            dir=path.parent, delete=False,
+        ) as out:
+            temporary = Path(out.name)
+            out.write(corrected)
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    return True
+
+
 def ensure_started():
     if not is_installed():
         raise RuntimeError("EU DSS není nainstalované. V Toolboxu klikni na Instalovat EU DSS.")
     if _ping():
         return
+    # Repair only a byte-for-byte recognisable malformed connector produced
+    # by our older installer. Never alter other broken Tomcat configurations.
+    try:
+        repaired = repair_legacy_connector_xml()
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("Oprava konfigurace EU DSS selhala: " + str(exc)) from exc
+    if repaired:
+        with (ROOT / "startup.log").open("ab") as log:
+            log.write(b"2020 Toolbox: repaired malformed Connector in server.xml; backup preserved.\n")
     # Never talk to an unrelated service bound to the chosen port.
     import socket
     with socket.socket() as sock:

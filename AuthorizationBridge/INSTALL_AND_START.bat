@@ -5,7 +5,7 @@ title 20-20 TOOLBOX - AuthorizationBridge
 
 set "DIR=%LOCALAPPDATA%\20-20-TOOLBOX\AuthorizationBridge"
 set "VENV=%DIR%\venv"
-set "PAYLOAD_REF=1158cbc30757d9706c3dda3a40dcf0f74f4fb5ac"
+set "PAYLOAD_REF=f69869b7508e83c64d1211f97610a471f6aa21f8"
 set "RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/%PAYLOAD_REF%/AuthorizationBridge"
 set "STAGE=%TEMP%\20-20-auth-stage-%RANDOM%-%RANDOM%"
 set "PYFINDER=%DIR%\find_python.ps1"
@@ -20,7 +20,7 @@ echo 20-20 TOOLBOX - instalace AuthorizationBridge
 echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
-echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.3.3...
+echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.3.4...
 if exist "%STAGE%" rmdir /s /q "%STAGE%" >nul 2>nul
 mkdir "%STAGE%" >nul 2>nul
 if errorlevel 1 goto :download_error
@@ -46,13 +46,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -U
 if errorlevel 1 goto :download_error
 
 echo Overuji SHA-256 vsech souboru...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\authorization_bridge.py').Hash.ToLowerInvariant(); if($h -ne 'caaf58ae2ca7698982d15990a92cf75b45299e931453f6d86f5f44ea44307c64'){Write-Error ('SHA-256 nesouhlasi: authorization_bridge.py = '+$h); exit 1}"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\authorization_bridge.py').Hash.ToLowerInvariant(); if($h -ne '48f21f16d716866f09c78dfaa7f60705d8c313698ce110c4c3f819ce12eb01ce'){Write-Error ('SHA-256 nesouhlasi: authorization_bridge.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\pdf_validator_engine.py').Hash.ToLowerInvariant(); if($h -ne 'bf6cc227db1b9aa03532c1ee181dd5812d24e926a63a1241a38eca93ab4b8b99'){Write-Error ('SHA-256 nesouhlasi: pdf_validator_engine.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\eu_dss_validator.py').Hash.ToLowerInvariant(); if($h -ne '9c217596324a3148f161ab885b12c2d3821a88ef1ad0866772ed17aabbeb3ebb'){Write-Error ('SHA-256 nesouhlasi: eu_dss_validator.py = '+$h); exit 1}"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\eu_dss_validator.py').Hash.ToLowerInvariant(); if($h -ne '8b151b094469b67a493c49c746dcf0dffae5ed8845187dab7a15c7b2d2354ca6'){Write-Error ('SHA-256 nesouhlasi: eu_dss_validator.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\INSTALL_EU_DSS.ps1').Hash.ToLowerInvariant(); if($h -ne 'fb7b1c276cb6d511dc58036d0d43d6dbbe3cd20172939352d0df67476c1e7f7f'){Write-Error ('SHA-256 nesouhlasi: INSTALL_EU_DSS.ps1 = '+$h); exit 1}"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\INSTALL_EU_DSS.ps1').Hash.ToLowerInvariant(); if($h -ne '4759698c32bf9b5224ff947b355bc68bce1eef7ff111dbdb5ff5ee7ab0aa324a'){Write-Error ('SHA-256 nesouhlasi: INSTALL_EU_DSS.ps1 = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\qualified_tsa_check.py').Hash.ToLowerInvariant(); if($h -ne 'e86522d3f68bbc8d5c0212e28fc443b93cd0284f4387543b04093fa7626d5b89'){Write-Error ('SHA-256 nesouhlasi: qualified_tsa_check.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
@@ -147,7 +147,7 @@ if errorlevel 1 goto :pip_error
 echo [5/6] Vytvarim spoustec s automatickym restartem...
 (
   echo @echo off
-  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RESTARTER%" -PythonExe "%VENV%\Scripts\python.exe" -BridgeScript "%DIR%\authorization_bridge.py" -LogFile "%DIR%\bridge.log" -ExpectedVersion "2.3.3"
+  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RESTARTER%" -PythonExe "%VENV%\Scripts\python.exe" -BridgeScript "%DIR%\authorization_bridge.py" -LogFile "%DIR%\bridge.log" -ExpectedVersion "2.3.4"
 ) > "%DIR%\start_bridge.cmd"
 
 echo [6/6] Registruji spousteni z Toolboxu...
@@ -163,7 +163,7 @@ if errorlevel 1 goto :bridge_start_error
 echo.
 echo HOTOVO.
 echo AuthorizationBridge byl aktualizovan a restartovan.
-echo V Toolboxu musi byt videt verze 2.3.3.
+echo V Toolboxu musi byt videt verze 2.3.4.
 echo Payload commit: %PAYLOAD_REF%
 echo.
 pause
