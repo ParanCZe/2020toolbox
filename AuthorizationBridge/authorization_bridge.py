@@ -36,6 +36,7 @@ import pyhanko
 from pyhanko import stamp
 from pyhanko.pdf_utils import images
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
+from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko.sign import fields, signers, timestamps
 from pyhanko.sign.timestamps.dummy_client import DummyTimeStamper
 from pyhanko.sign.signers.pdf_signer import DSSContentSettings, SigDSSPlacementPreference
@@ -1333,6 +1334,26 @@ def _stamp_style(stamp_path: Optional[str]):
     )
 
 
+def _assert_lt_validation_evidence(pdf_bytes: bytes) -> None:
+    """Never label a PDF 'PAdES B-LT' if no actual revocation data was embedded."""
+    reader = PdfFileReader(io.BytesIO(pdf_bytes), strict=True)
+    signatures = reader.embedded_signatures
+    if len(signatures) != 1 or signatures[0].evaluate_signature_coverage().name != "ENTIRE_FILE":
+        raise ValueError("PAdES B-LT PDF nepokrývá celý dokument jediným podpisem.")
+    dss = reader.root.get("/DSS")
+    if hasattr(dss, "get_object"):
+        dss = dss.get_object()
+    if not dss:
+        raise ValueError("PAdES B-LT neobsahuje PDF /DSS validační slovník.")
+    def count(name: str) -> int:
+        values = dss.get(name)
+        if hasattr(values, "get_object"):
+            values = values.get_object()
+        return len(values) if values is not None else 0
+    if not count("/OCSPs") and not count("/CRLs"):
+        raise ValueError("PAdES B-LT neobsahuje ověřené OCSP ani CRL údaje.")
+
+
 def _sign_one(
     pdf_bytes: bytes,
     signer: signers.Signer,
@@ -1851,6 +1872,9 @@ def sign_batch():
                     )
                 except Exception as exc:
                     raise RuntimeError(f"PAdES SIGN [{original_name}]: {exc}") from exc
+
+                if profile == "lt":
+                    _assert_lt_validation_evidence(signed)
 
                 requested_output = str(doc_meta.get("output_name") or original_name)
                 requested_output = _ear_name(requested_output) if bool(meta.get("append_ear", True)) else _safe_name(requested_output)
