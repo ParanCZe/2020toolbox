@@ -67,7 +67,8 @@ def ensure_started():
             stderr=subprocess.STDOUT,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
-    for i in range(120):
+    deadline = time.monotonic() + 240
+    while time.monotonic() < deadline:
         if _ping():
             return
         code = proc.poll()
