@@ -1909,7 +1909,7 @@ def sign_batch():
                 "tool": "20-20 TOOLBOX · Autorizace PDF",
                 "bridge_version": APP_VERSION,
                 "created_utc": datetime.now(timezone.utc).isoformat(),
-                "profile": "PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B"),
+                "profile": "PAdES B-T (LT fallback)" if lt_fallback_warnings else ("PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B")),
                 "test_mode": test_mode,
                 "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
                 "append_ear": bool(meta.get("append_ear", True)),
