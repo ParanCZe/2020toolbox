@@ -64,3 +64,26 @@ Toolbox obsahuje volbu **přidat _EAR za název exportovaného PDF**. Výchozí 
 U některých ovladačů USB tokenů může RSA privátní handle hlásit nepřesnou délku `KeySize`, přestože veřejný certifikát má např. RSA 4096 bitů. Dávkový podpis proto ověřuje sílu klíče podle veřejné části vybraného certifikátu (minimálně 2048 bitů) a po každém použití privátního klíče kryptograficky ověřuje vrácený podpis proti témuž certifikátu. PIN se nikde neukládá; úspěšné jednorázové ověření pro celou dávku závisí na tokenu a jeho ovladači.
 
 Tato oprava **nemění** časová razítka: PAdES B-T používá jeden RFC 3161 podpisový timestamp na výstupní PDF a zachovává pevnou rezervaci podpisu bez dalšího odhadového TSA požadavku. Před ostrým podepisováním doporučujeme 8 PDF proti lokální TEST TSA, ověřit počítadlo 8/8 a počet PIN výzev. Ostrou spotřebu u poskytovatele tato lokální kontrola sama o sobě nepotvrzuje.
+
+
+## Testovaná změna 2.3.1 – certifikační řetězec Windows
+
+Při podepisování pomocí Windows Certificate Store se nyní volitelně načtou
+veřejné certifikáty nadřazených CA z Windows X509Chain. Každé navázání
+certifikátu se před vložením do CMS kryptograficky ověří. Veřejné certifikáty
+mezilehlé a kořenové autority se předají do pyHanko cert_registry.
+
+- Privátní klíč, PIN, implementace RSA podpisu a RFC 3161 TSA se **nemění**.
+- Neprovádí se další žádost o placené časové razítko.
+- Pokud Windows řetězec nedokáže sestavit, podpis se vytvoří původním postupem;
+  do logu se vypíše diagnostika a ca_certificate_count je 0.
+- Vložení CA certifikátů **nezakládá důvěryhodnost**: rozhodují pravidla
+  a důvěryhodné seznamy validátoru.
+- Tato změna **nepřidává OCSP/CRL ani PAdES-LT**. To vyžaduje samostatnou
+  implementaci a ověření kompatibility s PDF/A-3b.
+- Unit testy: `python -m unittest test_cert_chain` v adresáři Bridge.
+
+**Release:** Produkční INSTALL_AND_START.bat používá připnutý commit a
+SHA-256. Po otestování změny je nutné udělat samostatný release krok:
+aktualizovat pin, SHA-256, očekávanou verzi a kontrolovat validitu nového
+podepsaného PDF ve DSS i v programu, který původně hlásil neplatnost.
