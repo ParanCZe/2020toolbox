@@ -740,10 +740,10 @@ def _certificate_registry_for_chain(
 # The two hashes come from public issuer certificates in a PDF-XChange
 # reference signature independently verified against the user's leaf cert.
 # They pin *downloaded bytes*, NOT trusted certificate authorities.
-_POSTSIGNUM_QCA4_AIA = (
-    ("http://crt.postsignum.cz/crt/psqualifiedca4.crt",
+_POSTSIGNUM_QCA4_ISSUERS = (
+    ("https://www.postsignum.cz/files/ca/postsignum_qca4_sub.cer",
      "4779ba66c768fe7e5a5bb74a225fa8b69cd6942af481355630e5ad78b34dff2b"),
-    ("http://crt.postsignum.cz/crt/psrootqca4.crt",
+    ("https://www.postsignum.cz/files/ca/postsignum_qca4_root.cer",
      "ac7f7862e685c7a7d9826a58ea32d183d4893fcc8f8fd6d900c9769a987e77f0"),
 )
 
@@ -756,8 +756,8 @@ def _uses_postsignum_qca4(leaf_der: bytes) -> bool:
 
 @lru_cache(maxsize=2)
 def _download_pinned_issuer(url: str, expected_sha256: str) -> bytes:
-    """Bounded public certificate download, accepted only at pinned SHA-256."""
-    allowed = dict(_POSTSIGNUM_QCA4_AIA)
+    """Fetch an official HTTPS DER cert and verify its exact published hash."""
+    allowed = dict(_POSTSIGNUM_QCA4_ISSUERS)
     if url not in allowed or expected_sha256 != allowed[url]:
         raise ValueError("Nepovolený nebo změněný vydávající certifikát CA.")
     request = urllib.request.Request(url, headers={"User-Agent": "20-20-AuthorizationBridge/2"})
@@ -779,9 +779,9 @@ def _postsignum_qca4_chain(leaf_der: bytes) -> List[bytes]:
     from cryptography.x509.oid import AuthorityInformationAccessOID
     issuers = {str(x.access_location.value) for x in aia
                if x.access_method == AuthorityInformationAccessOID.CA_ISSUERS}
-    if _POSTSIGNUM_QCA4_AIA[0][0] not in issuers:
+    if "http://crt.postsignum.cz/crt/psqualifiedca4.crt" not in issuers:
         raise ValueError("Certifikát PostSignum odkazuje na neznámého vydavatele.")
-    certs = [_download_pinned_issuer(url, digest) for url, digest in _POSTSIGNUM_QCA4_AIA]
+    certs = [_download_pinned_issuer(url, digest) for url, digest in _POSTSIGNUM_QCA4_ISSUERS]
     # The leaf must be signed by the intermediate, and the intermediate by
     # the root. These issuer certificates are never added to a trust store.
     _certificate_registry_for_chain(leaf_der, certs)
