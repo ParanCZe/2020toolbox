@@ -9,6 +9,7 @@ import io
 from pypdf import PdfWriter
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from cryptography import x509
 from asn1crypto import x509 as asn1_x509
@@ -126,6 +127,25 @@ class WindowsCertificateChainTests(unittest.TestCase):
         )
         self.assertEqual("one-tsa-client", recorded["tsa"])
         self.assertEqual(65532, recorded["reservation"])
+
+    def test_lt_output_must_embed_revocation_evidence(self):
+        fake_reader = SimpleNamespace(
+            embedded_signatures=[SimpleNamespace(
+                evaluate_signature_coverage=lambda: SimpleNamespace(name="ENTIRE_FILE")
+            )],
+            root={"/DSS": {"/OCSPs": [object()]}},
+        )
+        with patch.object(bridge, "PdfFileReader", return_value=fake_reader):
+            bridge._assert_lt_validation_evidence(b"ignored")
+
+        fake_reader.root = {"/DSS": {}}
+        with patch.object(bridge, "PdfFileReader", return_value=fake_reader):
+            with self.assertRaisesRegex(ValueError, "OCSP ani CRL"):
+                bridge._assert_lt_validation_evidence(b"ignored")
+        fake_reader.root = {}
+        with patch.object(bridge, "PdfFileReader", return_value=fake_reader):
+            with self.assertRaisesRegex(ValueError, "/DSS"):
+                bridge._assert_lt_validation_evidence(b"ignored")
 
 
 if __name__ == "__main__":
