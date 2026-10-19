@@ -26,6 +26,8 @@ import base64
 import tempfile
 import traceback
 import zipfile
+import urllib.request
+from functools import lru_cache
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 from pathlib import Path
@@ -49,7 +51,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.3.4"
+APP_VERSION = "2.3.5"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -735,6 +737,58 @@ def _certificate_registry_for_chain(
     return registry
 
 
+# The two hashes come from public issuer certificates in a PDF-XChange
+# reference signature independently verified against the user's leaf cert.
+# They pin *downloaded bytes*, NOT trusted certificate authorities.
+_POSTSIGNUM_QCA4_AIA = (
+    ("http://crt.postsignum.cz/crt/psqualifiedca4.crt",
+     "4779ba66c768fe7e5a5bb74a225fa8b69cd6942af481355630e5ad78b34dff2b"),
+    ("http://crt.postsignum.cz/crt/psrootqca4.crt",
+     "ac7f7862e685c7a7d9826a58ea32d183d4893fcc8f8fd6d900c9769a987e77f0"),
+)
+
+
+def _uses_postsignum_qca4(leaf_der: bytes) -> bool:
+    leaf = x509.load_der_x509_certificate(leaf_der)
+    attrs = leaf.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)
+    return bool(attrs) and attrs[0].value == "PostSignum Qualified CA 4"
+
+
+@lru_cache(maxsize=2)
+def _download_pinned_issuer(url: str, expected_sha256: str) -> bytes:
+    """Bounded public certificate download, accepted only at pinned SHA-256."""
+    allowed = dict(_POSTSIGNUM_QCA4_AIA)
+    if url not in allowed or expected_sha256 != allowed[url]:
+        raise ValueError("Nepovolený nebo změněný vydávající certifikát CA.")
+    request = urllib.request.Request(url, headers={"User-Agent": "20-20-AuthorizationBridge/2"})
+    with urllib.request.urlopen(request, timeout=8) as response:
+        der = response.read(100_001)
+    if len(der) > 100_000 or len(der) < 128:
+        raise ValueError("Chybná velikost staženého veřejného certifikátu CA.")
+    if hashlib.sha256(der).hexdigest() != expected_sha256:
+        raise ValueError("Otisk staženého certifikátu PostSignum nesouhlasí s referencí.")
+    x509.load_der_x509_certificate(der)
+    return der
+
+
+def _postsignum_qca4_chain(leaf_der: bytes) -> List[bytes]:
+    if not _uses_postsignum_qca4(leaf_der):
+        return []
+    leaf = x509.load_der_x509_certificate(leaf_der)
+    aia = leaf.extensions.get_extension_for_class(x509.AuthorityInformationAccess).value
+    from cryptography.x509.oid import AuthorityInformationAccessOID
+    issuers = {str(x.access_location.value) for x in aia
+               if x.access_method == AuthorityInformationAccessOID.CA_ISSUERS}
+    if _POSTSIGNUM_QCA4_AIA[0][0] not in issuers:
+        raise ValueError("Certifikát PostSignum odkazuje na neznámého vydavatele.")
+    certs = [_download_pinned_issuer(url, digest) for url, digest in _POSTSIGNUM_QCA4_AIA]
+    # The leaf must be signed by the intermediate, and the intermediate by
+    # the root. These issuer certificates are never added to a trust store.
+    _certificate_registry_for_chain(leaf_der, certs)
+    return certs
+
+
+
 def _windows_sign_data(thumbprint: str, data: bytes) -> bytes:
     # Use a unique directory but do NOT pre-create the output file.
     # This makes "provider never wrote anything" distinguishable from a real
@@ -913,14 +967,31 @@ class WindowsStoreSigner(signers.ExternalSigner):
         self.thumbprint = re.sub(r"\s+", "", thumbprint).upper()
         self.signature_size = (public_key.key_size + 7) // 8
         self.sign_session = sign_session
+        windows_chain_error = ""
         try:
             ca_certs = _windows_certificate_chain_der(self.thumbprint)
             ca_store = _certificate_registry_for_chain(cert_der, ca_certs)
         except Exception as exc:
-            # Failure to obtain a public issuer chain must not block QSCD signing.
-            # Report this diagnostic so Windows trust configuration can be fixed.
-            print("[AuthorizationBridge] CA chain unavailable:", str(exc), flush=True)
+            windows_chain_error = str(exc)
             ca_certs, ca_store = [], SimpleCertificateStore()
+
+        if _uses_postsignum_qca4(cert_der) and len(ca_certs) < 2:
+            # Require the full real-CA chain BEFORE approving even one PDF.
+            # Never spend a paid PostSignum TSA timestamp on a known
+            # incomplete PostSignum signer CMS certificate chain.
+            try:
+                ca_certs = _postsignum_qca4_chain(cert_der)
+                ca_store = _certificate_registry_for_chain(cert_der, ca_certs)
+            except Exception as exc:
+                raise RuntimeError(
+                    "Chybí ověřený řetězec PostSignum Qualified CA 4. "
+                    "Podepisování dávky zastaveno před použitím TSA. "
+                    "Windows: " + (windows_chain_error or "jen část řetězce") +
+                    "; PostSignum CA: " + str(exc)
+                ) from exc
+        elif windows_chain_error:
+            print("[AuthorizationBridge] CA chain unavailable:", windows_chain_error, flush=True)
+
         self.ca_certificate_count = len(ca_certs)
         super().__init__(
             signing_cert=asn1_x509.Certificate.load(cert_der),
