@@ -3,6 +3,7 @@ import io
 import unittest
 
 from pypdf import PdfWriter
+from pypdf.generic import NameObject, DictionaryObject, ArrayObject, NullObject
 from asn1crypto import x509 as asn1_x509, keys as asn1_keys
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -47,6 +48,23 @@ class PdfSignatureInspectorTests(unittest.TestCase):
         self.assertEqual("inspected", result["status"])
         self.assertEqual([], result["signatures"])
         self.assertFalse(result["pdf_dss"]["present"])
+
+    def test_pdf_dss_ocsp_crl_counts_are_presence_only(self):
+        writer = PdfWriter()
+        writer.add_blank_page(width=420, height=600)
+        writer._root_object[NameObject("/DSS")] = DictionaryObject({
+            NameObject("/Certs"): ArrayObject([NullObject(), NullObject()]),
+            NameObject("/OCSPs"): ArrayObject([NullObject()]),
+            NameObject("/CRLs"): ArrayObject([NullObject(), NullObject(), NullObject()]),
+        })
+        output = io.BytesIO()
+        writer.write(output)
+        result = inspector.inspect_bytes(output.getvalue())
+        self.assertEqual("inspected", result["status"], result["messages"])
+        self.assertEqual(
+            {"present": True, "certificates": 2, "ocsp": 1, "crl": 3},
+            result["pdf_dss"],
+        )
 
     def test_signed_pdf_has_cms_cert_and_full_coverage(self):
         pdf = bridge._sign_one(self.pdf, self.signer, {}, {}, None, None)
@@ -110,6 +128,15 @@ class PdfSignatureInspectorTests(unittest.TestCase):
             "structure": result, "signature": "valid", "crypto": "valid",
         })
         self.assertEqual("unverified", outcome["status"])
+
+    def test_unverified_unsigned_pdf_does_not_get_consistent_verdict(self):
+        result = inspector.compare_evidence({
+            "structure": {"status": "inspected", "signatures": [],
+                          "pdf_dss": {"present": False}},
+            "signature": "unverified", "crypto": "unverified",
+            "pdfa": "valid",
+        })
+        self.assertEqual("warning", result["status"])
 
     def test_structural_disagreement_is_not_green(self):
         result = inspector.compare_evidence({
