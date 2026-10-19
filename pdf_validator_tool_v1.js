@@ -261,7 +261,7 @@
         $('pv-error').textContent+=reason+'\n';
       }render();
     }
-    busy=false;render();$('pv-progress').textContent='Dokončeno: '+files.length+' souborů.';
+    busy=false;await health();render();$('pv-progress').textContent='Dokončeno: '+files.length+' souborů.';
   };
   window.toolboxRegisterPDFValidator?.(()=>window.openTool?.('pdfvalidator'));
   health();
