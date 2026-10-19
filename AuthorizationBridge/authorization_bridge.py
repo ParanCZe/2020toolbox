@@ -51,7 +51,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.3.5"
+APP_VERSION = "2.4.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -993,6 +993,7 @@ class WindowsStoreSigner(signers.ExternalSigner):
             print("[AuthorizationBridge] CA chain unavailable:", windows_chain_error, flush=True)
 
         self.ca_certificate_count = len(ca_certs)
+        self.issuer_certificates_der = tuple(ca_certs)
         super().__init__(
             signing_cert=asn1_x509.Certificate.load(cert_der),
             cert_registry=ca_store,
@@ -1089,7 +1090,7 @@ def _build_timestamper(meta: Dict[str, Any]):
     tsa_password = str(meta.get("tsa_password") or "")
     tsa_test_mode = bool(meta.get("tsa_test_mode", False))
 
-    if profile != "bt":
+    if profile not in {"bt", "lt"}:
         return None
 
     if not re.match(r"^https?://", tsa_url, re.I):
@@ -1113,7 +1114,7 @@ def _build_timestamper(meta: Dict[str, Any]):
 
 async def _async_verify_tsa_credentials(meta: Dict[str, Any]) -> None:
     profile = str(meta.get("profile") or "bt").lower()
-    if profile != "bt":
+    if profile not in {"bt", "lt"}:
         return
 
     tsa_url = str(meta.get("tsa_url") or "").strip()
@@ -1615,10 +1616,12 @@ def preflight_sign():
             return jsonify(ok=False, error="Vyber podpisový certifikát z Windows."), 400
 
         profile = str(meta.get("profile") or "bt").lower()
-        if profile not in {"bb", "bt"}:
-            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
+        if profile not in {"bb", "bt", "lt"}:
+            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T a B-LT."), 400
 
         signer = WindowsStoreSigner(cert_thumbprint)
+        if profile == "lt" and signer.ca_certificate_count < 2:
+            return jsonify(ok=False, error="PAdES B-LT vyžaduje úplný řetězec CA ještě před žádostí o TSA."), 400
         cert_info = _cert_payload(signer)
         cert_info["ca_certificate_count"] = signer.ca_certificate_count
         crypto_cert = x509.load_der_x509_certificate(signer.signing_cert.dump())
@@ -1669,7 +1672,7 @@ def preflight_sign():
             preflight_token=token,
             expires_in=_APPROVAL_TTL_SECONDS,
             certificate=cert_info,
-            tsa_verified=(profile == "bt"),
+            tsa_verified=(profile in {"bt", "lt"}),
         )
     except Exception as exc:
         print("[AuthorizationBridge] preflight error:", traceback.format_exc(), flush=True)
@@ -1763,8 +1766,8 @@ def sign_batch():
             return jsonify(ok=False, error="Počet dokumentů neodpovídá metadatům."), 400
 
         profile = str(meta.get("profile") or "bt").lower()
-        if profile not in {"bb", "bt"}:
-            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
+        if profile not in {"bb", "bt", "lt"}:
+            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T a B-LT."), 400
 
         approval = None
         if not test_mode:
@@ -1791,6 +1794,8 @@ def sign_batch():
             return jsonify(ok=False, error=str(exc)), 400
 
         signer = _make_test_signer() if test_mode else WindowsStoreSigner(cert_thumbprint)
+        if profile == "lt" and (test_mode or getattr(signer, "ca_certificate_count", 0) < 2):
+            return jsonify(ok=False, error="PAdES B-LT vyžaduje skutečný Windows certifikát a celý řetězec CA."), 400
         cert_info = _cert_payload(signer)
         if not test_mode:
             cert_info["ca_certificate_count"] = signer.ca_certificate_count
