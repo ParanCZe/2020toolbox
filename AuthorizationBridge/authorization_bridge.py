@@ -1248,6 +1248,15 @@ def _make_test_signer() -> signers.SimpleSigner:
         .not_valid_before(now - timedelta(minutes=5))
         .not_valid_after(now + timedelta(days=1))
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True, content_commitment=True,
+                key_encipherment=False, data_encipherment=False,
+                key_agreement=False, key_cert_sign=False,
+                crl_sign=False, encipher_only=False, decipher_only=False,
+            ),
+            critical=True,
+        )
         .sign(key, hashes.SHA256())
     )
     pfx_bytes = pkcs12.serialize_key_and_certificates(
