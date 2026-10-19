@@ -49,7 +49,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.3.1"
+APP_VERSION = "2.3.2"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -1485,6 +1485,7 @@ def status():
             "pdfa3b_signature_string_limit": True,
             "integrated_pdf_validator": True,
             "local_eu_dss_validator": True,
+            "pdf_signature_evidence": True,
             "persistent_qscd_batch_session": True,
             "verified_rsa_signatures": True,
             "windows_cert_chain_embedding": True,

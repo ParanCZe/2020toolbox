@@ -26,6 +26,7 @@ class InstallerPinTests(unittest.TestCase):
         expected = {
             "authorization_bridge.py",
             "pdf_validator_engine.py",
+            "pdf_signature_inspector.py",
             "eu_dss_validator.py",
             "INSTALL_EU_DSS.ps1",
             "qualified_tsa_check.py",
