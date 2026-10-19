@@ -61,22 +61,25 @@ try {
     $serverXml = Join-Path $tomcat.FullName 'conf\server.xml'
     if (-not (Test-Path $serverXml)) { Fail 'Tomcat server.xml is missing.' }
 
-    # Avoid exposing the local validation API to the LAN, and avoid 8080
-    # collision with other developer/web servers.
-    $xml = [System.IO.File]::ReadAllText($serverXml)
-    $connector = [regex]'(?s)<Connector\b[^>]*\bport="8080"[^>]*>'
-    if (-not $connector.IsMatch($xml)) { Fail 'No expected Tomcat HTTP connector on port 8080.' }
-    $xml = $connector.Replace($xml, {
-        param($m)
-        $v = [regex]::Replace($m.Value,'\bport="8080"','port="18080"')
-        if ($v -match '\baddress\s*=') {
-            $v = [regex]::Replace($v, '\baddress\s*=\s*"[^"]*"', 'address="127.0.0.1"')
-        } else {
-            $v = $v.Insert($v.Length-1, ' address="127.0.0.1"')
-        }
-        return $v
-    }, 1)
-    [System.IO.File]::WriteAllText($serverXml, $xml, (New-Object System.Text.UTF8Encoding($false)))
+    # Parse XML as XML. Never inject a new address attribute after '/>'
+    # (the old installer generated an invalid <Connector ... / address=...>).
+    # Keep the validation API bound to loopback and avoid collisions with 8080.
+    $config = New-Object System.Xml.XmlDocument
+    $config.PreserveWhitespace = $true
+    $config.XmlResolver = $null
+    $config.Load($serverXml)
+    $matches = $config.SelectNodes('/Server/Service/Connector[@port="8080"]')
+    if ($matches.Count -ne 1) { Fail 'Expected exactly one Tomcat HTTP Connector on port 8080.' }
+    $matches.Item(0).SetAttribute('port', '18080')
+    $matches.Item(0).SetAttribute('address', '127.0.0.1')
+    $config.Save($serverXml)
+
+    $verified = New-Object System.Xml.XmlDocument
+    $verified.XmlResolver = $null
+    $verified.Load($serverXml)
+    $bound = $verified.SelectNodes('/Server/Service/Connector[@port="18080" and @address="127.0.0.1"]')
+    if ($bound.Count -ne 1) { Fail 'Tomcat Connector did not retain localhost binding.' }
+    Log 'Validated Tomcat server.xml and localhost-only Connector on port 18080.'
 
     # Move completed, verified, locally-restricted installation into place.
     if (Test-Path $target) { Remove-Item $target -Recurse -Force }
