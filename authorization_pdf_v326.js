@@ -548,8 +548,10 @@
               <div class="auth-field"><label>Profil</label>
                 <select id="auth-profile" onchange="authProfileChanged()">
                   <option value="bt" selected>PAdES B-T · podpis + časové razítko</option>
+                  <option value="lt">PAdES B-LT (EXPERIMENT) · podpis + TSA + OCSP/CRL v PDF</option>
                   <option value="bb">PAdES B-B · podpis bez TSA</option>
                 </select>
+                <div class="auth-note">B-LT je experimentální volba. Nejprve zkoušej pouze jedno PDF. Po podpisu se doplní validační data /DSS. Vydané časové razítko nelze při selhání OCSP/CRL vrátit.</div>
               </div>
               <div id="auth-tsa-wrap">
                 <div class="auth-field"><label>RFC 3161 TSA server</label><input id="auth-tsa" type="url" value="https://www3.postsignum.cz/TSS/TSS_user/" placeholder="https://www3.postsignum.cz/TSS/TSS_user/"></div>
@@ -1087,7 +1089,7 @@
     const local = authTestToolsEnabled() &&
       !authIsTestMode() &&
       !!document.getElementById('auth-local-test-tsa')?.checked &&
-      document.getElementById('auth-profile')?.value === 'bt';
+      ['bt','lt'].includes(document.getElementById('auth-profile')?.value);
     return local ? state.files.length : 0;
   }
 
@@ -1224,7 +1226,7 @@
   };
 
   window.authProfileChanged = function() {
-    const bt = !authIsTestMode() && document.getElementById('auth-profile')?.value === 'bt';
+    const bt = !authIsTestMode() && ['bt','lt'].includes(document.getElementById('auth-profile')?.value);
     const wrap = document.getElementById('auth-tsa-wrap');
     if (wrap) wrap.style.display = bt ? 'grid' : 'none';
     authRenderTestTsaStats();
@@ -1497,8 +1499,8 @@
     const tsaUser = testMode ? '' : document.getElementById('auth-tsa-user')?.value.trim() || '';
     const tsaPass = testMode ? '' : document.getElementById('auth-tsa-pass')?.value || '';
     const localTestTsa = !testMode && !!document.getElementById('auth-local-test-tsa')?.checked;
-    if (!testMode && profile==='bt' && !tsa) { toast('Pro PAdES B-T zadej RFC 3161 TSA server.', true); return; }
-    if (!testMode && profile==='bt' && (!!tsaUser !== !!tsaPass)) {
+    if (!testMode && ['bt','lt'].includes(profile) && !tsa) { toast('Pro PAdES B-T / B-LT zadej RFC 3161 TSA server.', true); return; }
+    if (!testMode && ['bt','lt'].includes(profile) && (!!tsaUser !== !!tsaPass)) {
       toast('Pro přihlášení k TSA vyplň login i heslo, nebo nech obě pole prázdná.', true);
       return;
     }
@@ -1516,10 +1518,17 @@
       toast('Pro export bez _EAR aktualizuj AuthorizationBridge přes Instalátor a potom dej Zkontrolovat.', true);
       return;
     }
-    if (!testMode && profile === 'bt' && tsaUser && !bridge.features?.tsa_basic_auth) {
+    if (!testMode && ['bt','lt'].includes(profile) && tsaUser && !bridge.features?.tsa_basic_auth) {
       toast('Pro přihlášení k TSA aktualizuj AuthorizationBridge přes Instalátor a potom dej Zkontrolovat.', true);
       return;
     }
+    if (profile === 'lt' && (!authVersionAtLeast(bridge.version, '2.4.0') || !bridge.features?.pades_lt_dss)) {
+      toast('PAdES B-LT vyžaduje AuthorizationBridge 2.4.0+.', true); return;
+    }
+    if (profile === 'lt' && state.files.length !== 1) {
+      toast('B-LT zatím povoluje pouze jedno zkušební PDF. Po ověření lze zapnout dávku.', true); return;
+    }
+    if (profile === 'lt' && !window.confirm('EXPERIMENT PAdES B-LT: podpis spotřebuje jedno ostré TSA razítko, pokud nemáš lokální TEST TSA. Selhání OCSP/CRL může výstup zablokovat i po vydání razítka. Pokračovat s jedním PDF?')) return;
     if (localTestTsa && !bridge.features?.local_test_tsa) {
       toast('Pro lokální TEST časové razítko aktualizuj AuthorizationBridge na 1.9.0+.', true);
       return;
@@ -1556,7 +1565,7 @@
       // a u PAdES B-T skutečně otestuj přihlášení k TSA.
       // U ostrého Windows podpisu zároveň proběhne lokální potvrzení mimo web.
       if (!testMode) {
-        btn.textContent = profile === 'bt'
+        btn.textContent = ['bt','lt'].includes(profile)
           ? 'Ověřuji certifikát a TSA…'
           : 'Ověřuji podpisový certifikát…';
 
@@ -1579,7 +1588,7 @@
           throw new Error(preflight.error || 'Kontrola certifikátu / TSA před exportem selhala.');
         }
         preflightToken = preflight.preflight_token;
-        toast(profile === 'bt'
+        toast(['bt','lt'].includes(profile)
           ? 'Certifikát i TSA jsou ověřené. Spouštím PDF/A konverzi.'
           : 'Podpisový certifikát je ověřený. Spouštím PDF/A konverzi.');
       }
@@ -1730,7 +1739,7 @@
       if (appearanceFile) fd.append('stamp', appearanceFile, appearanceFile.name);
       convertedFiles.forEach((file, i) => fd.append('pdfs', file, docs[i].output_name));
 
-      const resp = await bridgeFetch(testMode ? '/sign-batch-test' : '/sign-batch', {method:'POST', body:fd}, 240000);
+      const resp = await bridgeFetch(testMode ? '/sign-batch-test' : '/sign-batch', {method:'POST', body:fd}, profile === 'lt' ? 600000 : 240000);
       if (!resp.ok) {
         let msg='Podepisování selhalo.';
         try { const j=await resp.json(); msg=j.error || j.detail || msg; } catch {}
