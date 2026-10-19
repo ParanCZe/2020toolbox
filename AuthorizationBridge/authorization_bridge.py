@@ -231,7 +231,7 @@ def _native_sign_confirmation(
     if os.name != "nt":
         return False
     tsa_label = "bez TSA"
-    if profile == "bt":
+    if profile in {"bt", "lt"}:
         parsed = urlparse(tsa_url)
         tsa_label = parsed.netloc or tsa_url
     docs = documents or []
@@ -253,7 +253,7 @@ def _native_sign_confirmation(
         "20-20 TOOLBOX chce použít váš podpisový certifikát.\n\n"
         f"Certifikát: {cert_name}\n"
         f"Počet PDF: {document_count}\n"
-        f"Profil: {'PAdES B-T' if profile == 'bt' else 'PAdES B-B'}\n"
+        f"Profil: {'PAdES B-LT' if profile == 'lt' else ('PAdES B-T' if profile == 'bt' else 'PAdES B-B')}\n"
         f"TSA: {tsa_label}\n"
         f"Důvod: {reason or 'neuveden'}\n"
         f"Místo: {location or 'neuvedeno'}\n"
@@ -1075,7 +1075,7 @@ def _build_timestamper(meta: Dict[str, Any]):
     tsa_password = str(meta.get("tsa_password") or "")
     tsa_test_mode = bool(meta.get("tsa_test_mode", False))
 
-    if profile != "bt":
+    if profile not in {"bt", "lt"}:
         return None
 
     if not re.match(r"^https?://", tsa_url, re.I):
@@ -1099,7 +1099,7 @@ def _build_timestamper(meta: Dict[str, Any]):
 
 async def _async_verify_tsa_credentials(meta: Dict[str, Any]) -> None:
     profile = str(meta.get("profile") or "bt").lower()
-    if profile != "bt":
+    if profile not in {"bt", "lt"}:
         return
 
     tsa_url = str(meta.get("tsa_url") or "").strip()
