@@ -7,6 +7,7 @@ import unittest
 
 from pypdf import PdfWriter
 from pyhanko.pdf_utils.reader import PdfFileReader
+from asn1crypto import cms
 
 import authorization_bridge as bridge
 
@@ -33,7 +34,7 @@ class SignatureRoundtripTests(unittest.TestCase):
             "ENTIRE_FILE", signatures[0].evaluate_signature_coverage().name
         )
         self.assertEqual(
-            "signed_data", signatures[0].pkcs7_content["content_type"].native
+            "signed_data", cms.ContentInfo.load(signatures[0].pkcs7_content)["content_type"].native
         )
 
     def test_baseline_without_timestamp(self):
@@ -51,11 +52,11 @@ class SignatureRoundtripTests(unittest.TestCase):
         self._assert_single_full_signature(signed)
         self.assertEqual(1, bridge._TEST_TSA_ISSUED - before)
         reader = PdfFileReader(io.BytesIO(signed))
-        cms = reader.embedded_signatures[0].pkcs7_content
+        signature_cms = cms.ContentInfo.load(reader.embedded_signatures[0].pkcs7_content)
         self.assertIn(
             "signature_time_stamp_token",
             [entry["type"].native for entry in
-             cms["content"]["signer_infos"][0]["unsigned_attrs"]],
+             signature_cms["content"]["signer_infos"][0]["unsigned_attrs"]],
         )
 
 
