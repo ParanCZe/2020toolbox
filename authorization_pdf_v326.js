@@ -548,7 +548,7 @@
               <div class="auth-field"><label>Profil</label>
                 <select id="auth-profile" onchange="authProfileChanged()">
                   <option value="bt" selected>PAdES B-T · podpis + časové razítko</option>
-                  <option value="lt">PAdES B-LT (EXPERIMENT) · podpis + TSA + OCSP/CRL v PDF</option>
+                  <option id="auth-lt-option" value="lt" disabled hidden>PAdES B-LT (EXPERIMENT) · podpis + TSA + OCSP/CRL v PDF</option>
                   <option value="bb">PAdES B-B · podpis bez TSA</option>
                 </select>
                 <div class="auth-note">B-LT je experimentální volba. Nejprve zkoušej pouze jedno PDF. Po podpisu se doplní validační data /DSS. Vydané časové razítko nelze při selhání OCSP/CRL vrátit.</div>
@@ -650,6 +650,7 @@
       const staleForTest = authIsTestMode() && (!authVersionAtLeast(j.version, '1.4.0') || !j.features?.test_signing);
       if (secureBridge && !state.bridgeToken) await authFetchBridgeSession(3000);
       state.bridge = j;
+      authUpdateLtAvailability();
       if (el) {
         const bad = !secureBridge || staleForTest;
         el.className = bad ? 'auth-health bad' : 'auth-health ok';
@@ -662,6 +663,7 @@
       return j;
     } catch (e) {
       state.bridge = null;
+      authUpdateLtAvailability();
       if (el) {
         el.className = 'auth-health bad';
         el.querySelector('.auth-health-copy').innerHTML = '<b>AuthorizationBridge neběží</b><span>Nainstaluj ho jednou a potom ho Toolbox umí spouštět lokálně.</span>';
@@ -1142,6 +1144,21 @@
     }
   };
 
+  // A public beta switch must be invisible unless the user explicitly enables
+  // TEST tools AND a separate beta Bridge advertises PAdES-LT support.
+  function authUpdateLtAvailability() {
+    const opt=document.getElementById('auth-lt-option');
+    const sel=document.getElementById('auth-profile');
+    const enabled=!!(authTestToolsEnabled() && !authIsTestMode() &&
+      state.bridge?.features?.pades_lt_dss &&
+      authVersionAtLeast(state.bridge?.version, '2.4.0'));
+    if (opt) { opt.disabled=!enabled; opt.hidden=!enabled; }
+    if (!enabled && sel?.value==='lt') {
+      sel.value='bt';
+      authProfileChanged();
+    }
+  }
+
   window.authTestModeChanged = function() {
     const on = authTestToolsEnabled();
     const stateLabel = document.getElementById('auth-test-state');
@@ -1172,6 +1189,7 @@
     }
 
     authFullTestSigningChanged();
+    authUpdateLtAvailability();
     authRenderTestTsaStats();
     updatePlacementStampPreview();
     checkAuthorizationBridge(true).then(b => {
