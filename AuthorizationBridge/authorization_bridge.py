@@ -49,7 +49,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.3.2"
+APP_VERSION = "2.3.3"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -1369,6 +1369,14 @@ def validator_status():
     proc = _DSS_INSTALL_PROCESS
     installing = proc is not None and proc.poll() is None
     dss_install_error = ""
+    dss_start_log = ""
+    if dss_install.is_file() and not dss_running:
+        log_path = dss_dir / "6.5" / "startup.log"
+        if log_path.is_file():
+            with log_path.open("rb") as stream:
+                stream.seek(0, 2)
+                stream.seek(max(0, stream.tell() - 1000))
+                dss_start_log = stream.read(1000).decode("utf-8", errors="replace").strip()[-700:]
     if proc is not None and proc.poll() not in (None, 0):
         log_path = dss_dir / "install.log"
         if log_path.is_file():
@@ -1386,6 +1394,7 @@ def validator_status():
         dss_installed=dss_install.is_file(),
         dss_installing=installing,
         dss_install_error=dss_install_error,
+        dss_start_log=dss_start_log,
         read_only=True,
     )
 
