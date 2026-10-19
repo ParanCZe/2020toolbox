@@ -93,3 +93,21 @@ součty všech osmi stahovaných souborů.
 certifikátem, ověřit jej v DSS a v programu, který dříve hlásil
 „neplatný“, a vyzkoušet dávku proti lokální TEST TSA před placeným razítkem.
 Přítomnost řetězce CA sama o sobě nezaručuje právní ani validační status.
+
+
+## PDF Validator – detailní výsledky 2.3.2
+
+Samostatná, výhradně čtecí kontrola `pdf_signature_inspector.py` zobrazuje:
+- podpisová pole, formát CMS /SubFilter a pokrytí celého PDF,
+- počet certifikátů vložených v CMS a počet podpisových časových razítek,
+- přítomnost revokačních atributů uvnitř CMS (Adobe/ETSI),
+- počet OCSP, CRL a certifikátů uložených v PDF slovníku /DSS,
+- rozpory s nezávislými výsledky veraPDF a EU DSS, s vysvětlujícími varováními.
+
+**Přítomnost není platnost.** Parser nerozhoduje o kvalifikaci certifikátu, odvolání, důvěryhodnosti certifikačních autorit ani pravosti razítka. Tyto závěry přebírá výhradně z EU DSS. Stav **NEOVĚŘENO** není totéž jako **NEPLATNÉ**. PDF bez lokálních OCSP/CRL může být v EU DSS platné díky online ověření. Samotná přítomnost /DSS zase nedokazuje PAdES-LT.
+
+Kontrola žádná razítka nevydává, nečte privátní klíče a neprovádí podpisy. Všechny vyhodnocované PDF zůstávají v lokálním AuthorizationBridge. Testy vytvářejí vlastní testovací certifikáty a jeden bezplatný lokální testovací timestamp.
+
+Rozhraní nabízí rozbalovací přehled ke každému PDF a TXT report. Nový instalátor přidává `pdf_signature_inspector.py` s ověřením SHA-256. Verze bridge musí být **2.3.2 nebo novější**.
+
+Doporučený závěrečný test: ověřit PDF vytvořené na konkrétním počítači se skutečným QSCD certifikátem a porovnat výsledek se zprávou EU DSS i s programem, který hlásil „neplatný podpis“. Tento test nebylo možné provést bez přístupu k danému certifikátu a programu.
