@@ -8,6 +8,7 @@ import unittest
 from pypdf import PdfWriter
 from pyhanko.pdf_utils.reader import PdfFileReader
 from asn1crypto import cms
+from pyhanko_certvalidator import ValidationContext
 
 import authorization_bridge as bridge
 
@@ -58,6 +59,21 @@ class SignatureRoundtripTests(unittest.TestCase):
             [entry["type"].native for entry in
              signature_cms["content"]["signer_infos"][0]["unsigned_attrs"]],
         )
+
+    def test_lt_validation_does_not_consume_extra_test_timestamps(self):
+        stamp = bridge._get_test_tsa()
+        context = ValidationContext(
+            trust_roots=[self.signer.signing_cert, stamp.tsa_cert],
+            allow_fetching=False,
+            revocation_mode="soft-fail",
+        )
+        before = bridge._TEST_TSA_ISSUED
+        signed = bridge._sign_one(
+            self.source, self.signer, {}, {"reason": "test"}, stamp, None,
+            validation_context=context,
+        )
+        self._assert_single_full_signature(signed)
+        self.assertEqual(1, bridge._TEST_TSA_ISSUED - before)
 
 
 if __name__ == "__main__":
