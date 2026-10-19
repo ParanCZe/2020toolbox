@@ -231,7 +231,7 @@ def _native_sign_confirmation(
     if os.name != "nt":
         return False
     tsa_label = "bez TSA"
-    if profile == "bt":
+    if profile in {"bt", "lt"}:
         parsed = urlparse(tsa_url)
         tsa_label = parsed.netloc or tsa_url
     docs = documents or []
@@ -253,7 +253,7 @@ def _native_sign_confirmation(
         "20-20 TOOLBOX chce použít váš podpisový certifikát.\n\n"
         f"Certifikát: {cert_name}\n"
         f"Počet PDF: {document_count}\n"
-        f"Profil: {'PAdES B-T' if profile == 'bt' else 'PAdES B-B'}\n"
+        f"Profil: {'PAdES B-LT' if profile == 'lt' else ('PAdES B-T' if profile == 'bt' else 'PAdES B-B')}\n"
         f"TSA: {tsa_label}\n"
         f"Důvod: {reason or 'neuveden'}\n"
         f"Místo: {location or 'neuvedeno'}\n"
@@ -1577,6 +1577,7 @@ def status():
             "persistent_qscd_batch_session": True,
             "verified_rsa_signatures": True,
             "windows_cert_chain_embedding": True,
+            "pades_lt_dss": True,
             "test_tsa_counter": True,
         },
     )
@@ -1869,6 +1870,13 @@ def sign_batch():
                         timestamper=timestamper,
                         stamp_path=stamp_path,
                     )
+                    if profile == "lt":
+                        from pdf_ltv import append_validated_dss
+                        # An LT failure NEVER silently becomes B-T.
+                        # A signing TSA request already happened; do not retry.
+                        signed = append_validated_dss(
+                            signed, signer.issuer_certificates_der,
+                        )
                 except Exception as exc:
                     raise RuntimeError(f"PAdES SIGN [{original_name}]: {exc}") from exc
 
@@ -1881,7 +1889,7 @@ def sign_batch():
                     "source": str(doc_meta.get("name") or original_name),
                     "output": out_name,
                     "standard": str(meta.get("output_standard") or "PDF/A-3b"),
-                    "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
+                    "profile": "PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B"),
                     "visible": bool(doc_meta.get("placement")),
                     "docmdp": "ANNOTATE",
                 })
@@ -1890,14 +1898,14 @@ def sign_batch():
                 "tool": "20-20 TOOLBOX · Autorizace PDF",
                 "bridge_version": APP_VERSION,
                 "created_utc": datetime.now(timezone.utc).isoformat(),
-                "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
+                "profile": "PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B"),
                 "test_mode": test_mode,
                 "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
                 "append_ear": bool(meta.get("append_ear", True)),
                 "docmdp": "ANNOTATE",
-                "tsa_url": tsa_url if profile == "bt" else None,
-                "tsa_authenticated": bool(tsa_user) if profile == "bt" else False,
-                "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile == "bt" else False,
+                "tsa_url": tsa_url if profile in {"bt", "lt"} else None,
+                "tsa_authenticated": bool(tsa_user) if profile in {"bt", "lt"} else False,
+                "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile in {"bt", "lt"} else False,
                 "certificate": cert_info,
                 "files": manifest_files,
             }
