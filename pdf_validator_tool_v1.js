@@ -194,14 +194,16 @@
       const evidenceReady=!!j.features?.pdf_signature_evidence;
       $('pv-health').textContent='AuthorizationBridge '+(d.bridge_version||'')+
         ' · veraPDF: '+(d.verapdf_ready?'připraveno':'chybí')+
-        ' · EU DSS 6.5 (QES/QTSA): '+(d.dss_ready?'nainstalováno':d.dss_installing?'probíhá instalace':'není nainstalováno')+
+        ' · EU DSS 6.5 (QES/QTSA): '+(d.dss_ready?'server běží':d.dss_installing?'probíhá instalace':d.dss_installed?'nainstalováno – server zatím neběží':'není nainstalováno')+
         (ready?' · Kontrola PDF/A je připravená.':' · Nainstaluj veraPDF.')+
         (!evidenceReady?' · Pro rozšířené detaily podpisů aktualizuj Bridge na 2.3.2+.':' · Detail certifikátů a OCSP/CRL připraven.');
       $('pv-install-dss').hidden=!!d.dss_installed;
       $('pv-install-dss').disabled=!!d.dss_installing;
       $('pv-install-note').textContent=d.dss_install_error||(
         d.dss_installing?'Stahuji a rozbaluji oficiální instalační balíček…':
-        d.dss_ready?'EU DSS se při první kontrole automaticky spustí.':''
+        d.dss_ready?'DSS validační API odpovídá a je připravené.':
+        d.dss_installed?(d.dss_start_log?'Poslední záznam startu DSS: '+d.dss_start_log.slice(-350):
+          'DSS je nainstalováno, ale Java server zatím neběží. Spustí se při validaci.'):''
       );
       if(d.dss_installing && !dssPoll)dssPoll=setInterval(health,8000);
       if(!d.dss_installing && dssPoll){clearInterval(dssPoll);dssPoll=null;}
