@@ -57,11 +57,16 @@ def ensure_started():
                 "Port 18080 používá jiný program nebo DSS ještě nenačetlo API. "
                 "Nepředávám PDF neznámému serveru."
             )
-    proc = subprocess.Popen(
-        ["cmd.exe", "/d", "/c", str(ROOT / "Webapp-Startup.bat")],
-        cwd=str(ROOT), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
+    startup_log = ROOT / "startup.log"
+    with startup_log.open("ab") as log:
+        log.write(("\n--- EU DSS startup " + time.strftime("%Y-%m-%d %H:%M:%S") + " ---\n").encode("utf-8"))
+        log.flush()
+        proc = subprocess.Popen(
+            ["cmd.exe", "/d", "/c", str(ROOT / "Webapp-Startup.bat")],
+            cwd=str(ROOT), stdin=subprocess.DEVNULL, stdout=log,
+            stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
     for i in range(90):
         if _ping():
             return
