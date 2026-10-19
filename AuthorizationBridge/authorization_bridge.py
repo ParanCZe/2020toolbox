@@ -1621,6 +1621,14 @@ def preflight_sign():
         if profile not in {"bb", "bt", "lt"}:
             return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T a B-LT."), 400
 
+        if profile == "lt" and (
+            bool(meta.get("tsa_test_mode"))
+            or str(meta.get("tsa_url") or "").strip().lower().startswith(
+                ("http://127.0.0.1", "http://localhost")
+            )
+        ):
+            return jsonify(ok=False, error="PAdES B-LT vyžaduje ostré kvalifikované TSA, nikoli lokální TEST TSA."), 400
+
         signer = WindowsStoreSigner(cert_thumbprint)
         if profile == "lt" and signer.ca_certificate_count < 2:
             return jsonify(ok=False, error="PAdES B-LT vyžaduje úplný řetězec CA ještě před žádostí o TSA."), 400
@@ -1770,6 +1778,13 @@ def sign_batch():
         profile = str(meta.get("profile") or "bt").lower()
         if profile not in {"bb", "bt", "lt"}:
             return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T a B-LT."), 400
+        if profile == "lt" and (
+            test_mode or bool(meta.get("tsa_test_mode"))
+            or str(meta.get("tsa_url") or "").strip().lower().startswith(
+                ("http://127.0.0.1", "http://localhost")
+            )
+        ):
+            return jsonify(ok=False, error="PAdES B-LT vyžaduje skutečný certifikát a ostré kvalifikované TSA."), 400
 
         approval = None
         if not test_mode:
