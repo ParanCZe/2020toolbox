@@ -51,7 +51,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.3.5"
+APP_VERSION = "2.4.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -150,6 +150,7 @@ def cors(response):
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-20-20-Session"
         response.headers["Access-Control-Allow-Private-Network"] = "true"
+        response.headers["Access-Control-Expose-Headers"] = "X-20-20-LT-Fallback"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
@@ -231,7 +232,7 @@ def _native_sign_confirmation(
     if os.name != "nt":
         return False
     tsa_label = "bez TSA"
-    if profile == "bt":
+    if profile in {"bt", "lt"}:
         parsed = urlparse(tsa_url)
         tsa_label = parsed.netloc or tsa_url
     docs = documents or []
@@ -253,7 +254,7 @@ def _native_sign_confirmation(
         "20-20 TOOLBOX chce použít váš podpisový certifikát.\n\n"
         f"Certifikát: {cert_name}\n"
         f"Počet PDF: {document_count}\n"
-        f"Profil: {'PAdES B-T' if profile == 'bt' else 'PAdES B-B'}\n"
+        f"Profil: {'PAdES B-LT' if profile == 'lt' else ('PAdES B-T' if profile == 'bt' else 'PAdES B-B')}\n"
         f"TSA: {tsa_label}\n"
         f"Důvod: {reason or 'neuveden'}\n"
         f"Místo: {location or 'neuvedeno'}\n"
@@ -993,6 +994,7 @@ class WindowsStoreSigner(signers.ExternalSigner):
             print("[AuthorizationBridge] CA chain unavailable:", windows_chain_error, flush=True)
 
         self.ca_certificate_count = len(ca_certs)
+        self.issuer_certificates_der = tuple(ca_certs)
         super().__init__(
             signing_cert=asn1_x509.Certificate.load(cert_der),
             cert_registry=ca_store,
@@ -1089,7 +1091,7 @@ def _build_timestamper(meta: Dict[str, Any]):
     tsa_password = str(meta.get("tsa_password") or "")
     tsa_test_mode = bool(meta.get("tsa_test_mode", False))
 
-    if profile != "bt":
+    if profile not in {"bt", "lt"}:
         return None
 
     if not re.match(r"^https?://", tsa_url, re.I):
@@ -1113,7 +1115,7 @@ def _build_timestamper(meta: Dict[str, Any]):
 
 async def _async_verify_tsa_credentials(meta: Dict[str, Any]) -> None:
     profile = str(meta.get("profile") or "bt").lower()
-    if profile != "bt":
+    if profile not in {"bt", "lt"}:
         return
 
     tsa_url = str(meta.get("tsa_url") or "").strip()
@@ -1576,6 +1578,7 @@ def status():
             "persistent_qscd_batch_session": True,
             "verified_rsa_signatures": True,
             "windows_cert_chain_embedding": True,
+            "pades_lt_dss": True,
             "test_tsa_counter": True,
         },
     )
@@ -1615,10 +1618,12 @@ def preflight_sign():
             return jsonify(ok=False, error="Vyber podpisový certifikát z Windows."), 400
 
         profile = str(meta.get("profile") or "bt").lower()
-        if profile not in {"bb", "bt"}:
-            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
+        if profile not in {"bb", "bt", "lt"}:
+            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T a B-LT."), 400
 
         signer = WindowsStoreSigner(cert_thumbprint)
+        if profile == "lt" and signer.ca_certificate_count < 2:
+            return jsonify(ok=False, error="PAdES B-LT vyžaduje úplný řetězec CA ještě před žádostí o TSA."), 400
         cert_info = _cert_payload(signer)
         cert_info["ca_certificate_count"] = signer.ca_certificate_count
         crypto_cert = x509.load_der_x509_certificate(signer.signing_cert.dump())
@@ -1669,7 +1674,7 @@ def preflight_sign():
             preflight_token=token,
             expires_in=_APPROVAL_TTL_SECONDS,
             certificate=cert_info,
-            tsa_verified=(profile == "bt"),
+            tsa_verified=(profile in {"bt", "lt"}),
         )
     except Exception as exc:
         print("[AuthorizationBridge] preflight error:", traceback.format_exc(), flush=True)
@@ -1763,8 +1768,8 @@ def sign_batch():
             return jsonify(ok=False, error="Počet dokumentů neodpovídá metadatům."), 400
 
         profile = str(meta.get("profile") or "bt").lower()
-        if profile not in {"bb", "bt"}:
-            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B a B-T."), 400
+        if profile not in {"bb", "bt", "lt"}:
+            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T a B-LT."), 400
 
         approval = None
         if not test_mode:
@@ -1791,6 +1796,8 @@ def sign_batch():
             return jsonify(ok=False, error=str(exc)), 400
 
         signer = _make_test_signer() if test_mode else WindowsStoreSigner(cert_thumbprint)
+        if profile == "lt" and (test_mode or getattr(signer, "ca_certificate_count", 0) < 2):
+            return jsonify(ok=False, error="PAdES B-LT vyžaduje skutečný Windows certifikát a celý řetězec CA."), 400
         cert_info = _cert_payload(signer)
         if not test_mode:
             cert_info["ca_certificate_count"] = signer.ca_certificate_count
@@ -1850,6 +1857,7 @@ def sign_batch():
         out_zip = io.BytesIO()
         used_names: set[str] = set()
         manifest_files = []
+        lt_fallback_warnings = []
 
         with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_STORED) as zf:
             for idx, (original_name, raw_pdf) in enumerate(buffered_pdfs):
@@ -1864,6 +1872,21 @@ def sign_batch():
                         timestamper=timestamper,
                         stamp_path=stamp_path,
                     )
+                    lt_failure = None
+                    if profile == "lt":
+                        from pdf_ltv import append_validated_dss
+                        # If revocation fetching fails AFTER TSA issuance,
+                        # preserve the signed B-T PDF instead of discarding
+                        # the user's already-paid timestamp. Never relabel it LT.
+                        try:
+                            signed = append_validated_dss(
+                                signed, signer.issuer_certificates_der,
+                            )
+                        except Exception as exc:
+                            lt_failure = str(exc)[:450]
+                            lt_fallback_warnings.append(
+                                str(original_name) + ": " + lt_failure
+                            )
                 except Exception as exc:
                     raise RuntimeError(f"PAdES SIGN [{original_name}]: {exc}") from exc
 
@@ -1876,7 +1899,8 @@ def sign_batch():
                     "source": str(doc_meta.get("name") or original_name),
                     "output": out_name,
                     "standard": str(meta.get("output_standard") or "PDF/A-3b"),
-                    "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
+                    "profile": "PAdES B-T (LT fallback)" if lt_failure else ("PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B")),
+                    "lt_warning": lt_failure,
                     "visible": bool(doc_meta.get("placement")),
                     "docmdp": "ANNOTATE",
                 })
@@ -1885,27 +1909,41 @@ def sign_batch():
                 "tool": "20-20 TOOLBOX · Autorizace PDF",
                 "bridge_version": APP_VERSION,
                 "created_utc": datetime.now(timezone.utc).isoformat(),
-                "profile": "PAdES B-T" if profile == "bt" else "PAdES B-B",
+                "profile": "PAdES B-T (LT fallback)" if lt_fallback_warnings else ("PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B")),
                 "test_mode": test_mode,
                 "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
                 "append_ear": bool(meta.get("append_ear", True)),
                 "docmdp": "ANNOTATE",
-                "tsa_url": tsa_url if profile == "bt" else None,
-                "tsa_authenticated": bool(tsa_user) if profile == "bt" else False,
-                "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile == "bt" else False,
+                "tsa_url": tsa_url if profile in {"bt", "lt"} else None,
+                "tsa_authenticated": bool(tsa_user) if profile in {"bt", "lt"} else False,
+                "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile in {"bt", "lt"} else False,
                 "certificate": cert_info,
                 "files": manifest_files,
             }
+            if lt_fallback_warnings:
+                warning = (
+                    "POZOR: PAdES B-LT nebylo dokonceno, proto jsou PDF "
+                    "ulozena s puvodnim kryptografickym PAdES B-T podpisem "
+                    "a jeho jiz vydanym casovym razitkem. "
+                    "Nedochazelo k dalsimu TSA pozadavku. "
+                    "Tyto soubory nejsou PAdES B-LT. "
+                    "Pred odevzdanim over podpis a QTSA v EU DSS.\n\n"
+                    + "\n".join(lt_fallback_warnings)
+                )
+                zf.writestr("POZOR_PAdES_LT_NEPROVEDENO.txt", warning)
+            manifest["lt_fallback_warnings"] = lt_fallback_warnings
             zf.writestr("20-20_autorizace_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
 
         out_zip.seek(0)
-        return send_file(
+        response = send_file(
             out_zip,
             mimetype="application/zip",
             as_attachment=True,
             download_name="autorizovane_pdf_" + datetime.now().strftime("%Y-%m-%d_%H%M") + ".zip",
             max_age=0,
         )
+        response.headers["X-20-20-LT-Fallback"] = "1" if lt_fallback_warnings else "0"
+        return response
 
     except Exception as exc:
         print("[AuthorizationBridge] signing error:", traceback.format_exc(), flush=True)
