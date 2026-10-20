@@ -21,7 +21,7 @@ from pyhanko.sign.validation.ades import ades_lta_validation
 from pyhanko.sign.validation.policy_decl import PdfSignatureValidationSpec, SignatureValidationSpec
 from pyhanko_certvalidator.context import CertValidationPolicySpec
 from pyhanko_certvalidator.registry import SimpleTrustManager
-from pyhanko_certvalidator.policy_decl import REQUIRE_REVINFO
+from pyhanko_certvalidator.policy_decl import REQUIRE_REVINFO, CertRevTrustPolicy
 import asyncio
 from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko_certvalidator import ValidationContext
@@ -467,7 +467,7 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
         lab_trust = SimpleTrustManager.build(trust_roots=[root_asn])
         lab_spec = PdfSignatureValidationSpec(SignatureValidationSpec(
             cert_validation_policy=CertValidationPolicySpec(
-                trust_manager=lab_trust, revinfo_policy=REQUIRE_REVINFO,
+                trust_manager=lab_trust, revinfo_policy=CertRevTrustPolicy(REQUIRE_REVINFO),
             ),
         ))
         ades_result = asyncio.run(ades_lta_validation(lt_sig, lab_spec))
