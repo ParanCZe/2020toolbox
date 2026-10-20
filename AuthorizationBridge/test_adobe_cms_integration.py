@@ -1,5 +1,8 @@
 """Offline end-to-end Adobe CMS OCSP test; no QSCD or paid TSA required."""
 import io
+import json
+import hashlib
+import zipfile
 import unittest
 from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
@@ -187,6 +190,142 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
         self.assertEqual(
             issued_before_failure, bridge._TEST_TSA_ISSUED,
             "Chybějící OCSP nesmí spotřebovat žádné časové razítko.",
+        )
+
+        # Complete Flask HTTP pipeline (the actual Bridge endpoints):
+        # preflight -> local approval -> POST /sign-batch -> ZIP -> inspect PDF.
+        # Windows Store and the UI confirmation are replaced by local mocks;
+        # the real signer, OCSP proofs and RFC 3161 test TSA are exercised.
+        signer.ca_certificate_count = 2
+        signer.signature_size = 256
+        input_pdf = document.getvalue()
+        filename = "SIMULACE_TEST_VYKRES.pdf"
+        metadata = {
+            "profile": "adobe",
+            "test_mode": False,
+            "tsa_url": "http://127.0.0.1:8094/test-tsa",
+            "tsa_user": "TEST",
+            "tsa_password": "TEST-ONLY",
+            "tsa_test_mode": True,
+            "certificate_thumbprint": "A" * 40,
+            "reason": "POUZE LABORATORNI SIMULACE",
+            "location": "LAB",
+            "append_ear": True,
+            "documents": [{
+                "name": filename,
+                "output_name": filename,
+            }],
+        }
+        preflight = dict(metadata)
+        preflight["document_count"] = 1
+        browser_headers = {
+            "Origin": "https://parancze.github.io",
+            "X-20-20-Session": bridge._SESSION_TOKEN,
+        }
+        class DummyWindowsSession:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def open(self):
+                return self
+
+            def close(self):
+                pass
+
+        issued_before_api = bridge._TEST_TSA_ISSUED
+        bridge._PREFLIGHTS.clear()
+        bridge._SIGN_APPROVALS.clear()
+        with (
+            patch.object(bridge, "WindowsStoreSigner", return_value=signer),
+            patch.object(bridge, "WindowsRsaBatchSession", DummyWindowsSession),
+            patch.object(bridge, "_verify_tsa_login", return_value=None),
+            patch.object(bridge, "_native_sign_confirmation", return_value=True),
+            patch.object(bridge, "ValidationContext", return_value=context),
+            patch.object(bridge, "_build_timestamper", return_value=timestamp),
+        ):
+            client = bridge.app.test_client()
+            check = client.post(
+                "/preflight-sign", json=preflight, headers=browser_headers,
+            )
+            self.assertEqual(200, check.status_code, check.get_json())
+            token = check.get_json()["preflight_token"]
+            file_info = {
+                "name": filename, "size": len(input_pdf),
+                "sha256": hashlib.sha256(input_pdf).hexdigest(),
+            }
+            approved = client.post(
+                "/approve-sign",
+                json={
+                    "preflight_token": token,
+                    "documents": [file_info],
+                    "signing_intent": bridge._canonical_signing_intent(metadata, b""),
+                },
+                headers=browser_headers,
+            )
+            self.assertEqual(200, approved.status_code, approved.get_json())
+            signed_response = client.post(
+                "/sign-batch",
+                data={
+                    "metadata": json.dumps({
+                        **metadata,
+                        "approval_token": approved.get_json()["approval_token"],
+                        "output_standard": "SIMULACE PDF (neni PDF/A)",
+                    }),
+                    "pdfs": (io.BytesIO(input_pdf), filename),
+                },
+                content_type="multipart/form-data",
+                headers=browser_headers,
+            )
+            self.assertEqual(200, signed_response.status_code,
+                             signed_response.get_json(silent=True))
+        self.assertEqual(1, bridge._TEST_TSA_ISSUED - issued_before_api)
+        self.assertEqual("0", signed_response.headers.get("X-20-20-LT-Fallback"))
+        with zipfile.ZipFile(io.BytesIO(signed_response.data)) as out:
+            output_names = out.namelist()
+            self.assertIn("SIMULACE_TEST_VYKRES_EAR.pdf", output_names)
+            self.assertIn("20-20_autorizace_manifest.json", output_names)
+            signed_document = out.read("SIMULACE_TEST_VYKRES_EAR.pdf")
+            manifest = json.loads(out.read("20-20_autorizace_manifest.json"))
+            self.assertEqual("Adobe CMS + TSA + OCSP/CRL", manifest["profile"])
+            self.assertTrue(manifest["tsa_test_mode"])
+            self.assertFalse(manifest["test_mode"])
+        actual_signature = PdfFileReader(io.BytesIO(signed_document)).embedded_signatures[0]
+        signed_attrs = cms.ContentInfo.load(actual_signature.pkcs7_content)["content"]["signer_infos"][0]["signed_attrs"]
+        revocations = [attr for attr in signed_attrs
+                       if attr["type"].dotted == "1.2.840.113583.1.1.8"]
+        self.assertEqual(1, len(revocations))
+        self.assertGreaterEqual(
+            len(RevocationInfoArchival.load(revocations[0]["values"][0].dump())["ocsp"]), 2,
+        )
+        self.assertEqual("ENTIRE_FILE", actual_signature.evaluate_signature_coverage().name)
+        verification = validate_pdf_signature(
+            actual_signature, signer_validation_context=context,
+            ts_validation_context=context,
+        )
+        self.assertTrue(verification.valid and verification.intact,
+                        verification.pretty_print_details())
+        from pathlib import Path
+        artifact_directory = Path("simulation_output")
+        artifact_directory.mkdir(exist_ok=True)
+        # Lab-only PDF: never describe it as qualified or PDF/A.
+        (artifact_directory / "SIMULACE_TEST_VYKRES_EAR.pdf").write_bytes(signed_document)
+        report = {
+            "purpose": "KOMPLETNI OFFLINE SIMULACE - NEPLATNE PRO URAD",
+            "is_qualified_signature": False,
+            "qualified_timestamp": False,
+            "pdfa_validated": False,
+            "real_postsignum_tested": False,
+            "bridge_http_steps": ["preflight-sign", "approve-sign", "sign-batch"],
+            "cms_subfilter": str(actual_signature.sig_object["/SubFilter"]),
+            "ocsp_in_cms": len(RevocationInfoArchival.load(revocations[0]["values"][0].dump())["ocsp"]),
+            "dss_required": False,
+            "test_tsa_tokens_issued": bridge._TEST_TSA_ISSUED - issued_before_api,
+            "signature_cryptographically_valid": bool(verification.valid),
+            "signature_integrity_intact": bool(verification.intact),
+            "manifest": manifest,
+        }
+        (artifact_directory / "simulace_vysledky.json").write_text(
+            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8",
         )
 
 
