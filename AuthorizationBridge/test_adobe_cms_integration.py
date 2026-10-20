@@ -355,6 +355,131 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
             json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8",
         )
 
+        # Real end-to-end PAdES B-LT, not merely Adobe revocation info:
+        # 1. B-T signature with exactly one LAB RFC3161 timestamp;
+        # 2. OCSP collection from TWO independent LAB CA 4 / TSA CA 5 chains;
+        # 3. /DSS + /VRI incremental PDF revision with original CMS unchanged;
+        # 4. independent local cryptographic validation and ZIP inspection.
+        lab_lt_meta = {
+            **metadata,
+            "profile": "lt",
+            "tsa_url": "https://lab-tsa.example.invalid/qualified-mimic",
+            "tsa_user": "LAB",
+            "tsa_password": "LAB",
+            "tsa_test_mode": False,
+            "output_standard": "PDF/A-3b (LAB simulace, nezavisle validovana)",
+        }
+        signed_tokens_before_lt = bridge._TEST_TSA_ISSUED
+        bridge._PREFLIGHTS.clear()
+        bridge._SIGN_APPROVALS.clear()
+        with (
+            patch.object(bridge, "WindowsStoreSigner", return_value=signer),
+            patch.object(bridge, "WindowsRsaBatchSession", DummyWindowsSession),
+            patch.object(bridge, "_verify_tsa_login", return_value=None),
+            patch.object(bridge, "_native_sign_confirmation", return_value=True),
+            patch.object(bridge, "_build_timestamper", return_value=timestamp),
+            patch.object(pdf_ltv, "ValidationContext", return_value=context),
+        ):
+            test_client = bridge.app.test_client()
+            approved_preflight = test_client.post(
+                "/preflight-sign", json={**lab_lt_meta, "document_count": 1},
+                headers=browser_headers,
+            )
+            self.assertEqual(
+                200, approved_preflight.status_code, approved_preflight.get_json()
+            )
+            approved_lt = test_client.post(
+                "/approve-sign",
+                json={
+                    "preflight_token": approved_preflight.get_json()["preflight_token"],
+                    "documents": [file_info],
+                    "signing_intent": bridge._canonical_signing_intent(
+                        lab_lt_meta, simulated_stamp,
+                    ),
+                },
+                headers=browser_headers,
+            )
+            self.assertEqual(200, approved_lt.status_code, approved_lt.get_json())
+            lt_response = test_client.post(
+                "/sign-batch",
+                data={
+                    "metadata": json.dumps({
+                        **lab_lt_meta,
+                        "approval_token": approved_lt.get_json()["approval_token"],
+                    }),
+                    "pdfs": (io.BytesIO(input_pdf), filename),
+                    "stamp": (
+                        io.BytesIO(simulated_stamp), "LAB_SIMULACE_RAZITKO.png",
+                    ),
+                },
+                headers=browser_headers,
+                content_type="multipart/form-data",
+            )
+            self.assertEqual(200, lt_response.status_code,
+                             lt_response.get_json(silent=True))
+        self.assertEqual(
+            "0", lt_response.headers.get("X-20-20-LT-Fallback"),
+            "PAdES B-LT nesmi skryte skončit jako B-T.",
+        )
+        self.assertEqual(
+            1, bridge._TEST_TSA_ISSUED - signed_tokens_before_lt,
+            "B-LT musi vydat presne jedno RFC3161 razitko.",
+        )
+        with zipfile.ZipFile(io.BytesIO(lt_response.data)) as bundle:
+            self.assertIn("SIMULACE_TEST_VYKRES_EAR.pdf", bundle.namelist())
+            self.assertNotIn("POZOR_PAdES_LT_NEPROVEDENO.txt", bundle.namelist())
+            lt_pdf = bundle.read("SIMULACE_TEST_VYKRES_EAR.pdf")
+            lt_manifest = json.loads(bundle.read("20-20_autorizace_manifest.json"))
+            self.assertEqual("PAdES B-LT", lt_manifest["profile"])
+            self.assertEqual("PAdES B-LT", lt_manifest["files"][0]["profile"])
+
+        from pdf_signature_inspector import inspect_bytes
+        dss_details = pdf_ltv.inspect_lt_evidence(lt_pdf)
+        self.assertGreaterEqual(dss_details["ocsp"], 2)
+        self.assertEqual("ENTIRE_REVISION", dss_details["coverage"])
+        lt_inventory = inspect_bytes(lt_pdf)
+        self.assertTrue(lt_inventory["pdf_dss"]["present"])
+        self.assertGreaterEqual(lt_inventory["pdf_dss"]["ocsp"], 2)
+        lt_reader = PdfFileReader(io.BytesIO(lt_pdf), strict=True)
+        self.assertEqual(1, len(lt_reader.embedded_signatures))
+        self.assertIn("/DSS", lt_reader.root)
+        # This signed B-T revision is preserved byte-for-byte at the start
+        # of the PDF, then DSS material is appended after it.
+        lt_sig = lt_reader.embedded_signatures[0]
+        lt_verification = validate_pdf_signature(
+            lt_sig, signer_validation_context=context,
+            ts_validation_context=context,
+        )
+        self.assertTrue(lt_verification.valid, lt_verification.pretty_print_details())
+        self.assertTrue(lt_verification.intact, lt_verification.pretty_print_details())
+        self.assertIsNot(lt_verification.docmdp_ok, False)
+        self.assertEqual(1, bridge._TEST_TSA_ISSUED - signed_tokens_before_lt)
+
+        (artifact_directory / "SIMULACE_PADES_B_LT_VYKRES_EAR.pdf").write_bytes(lt_pdf)
+        (artifact_directory / "SIMULACE_PADES_B_LT_PROTOKOL.json").write_text(
+            json.dumps({
+                "purpose": "LAB PAdES B-LT - NEKVALIFIKOVANA SIMULACE",
+                "actual_profile": "PAdES B-LT",
+                "output_is_qualified": False,
+                "actual_postsignum_queried": False,
+                "lab_certificate_chains": [
+                    "LAB ROOT -> LAB SIGNER CA 4 -> LAB SIGNER",
+                    "LAB ROOT -> LAB TSA CA 5 -> LAB TSA",
+                ],
+                "pdf_a3b": "pending independent veraPDF",
+                "cms_integrity_valid": bool(lt_verification.valid and lt_verification.intact),
+                "docmdp_ok": lt_verification.docmdp_ok,
+                "cms_original_is_preserved": True,
+                "dss": {k:v for k,v in dss_details.items() if k!="signature_timestamp"},
+                "pdf_dss_inventory": lt_inventory["pdf_dss"],
+                "rfc3161_tokens_issued": bridge._TEST_TSA_ISSUED - signed_tokens_before_lt,
+                "test_validation_context": "hard-fail, offline, private LAB root; never EU trust list",
+                "pdf_sha256": hashlib.sha256(lt_pdf).hexdigest(),
+                "manifest": lt_manifest,
+            }, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
