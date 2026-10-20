@@ -8,6 +8,11 @@
   const BRIDGE_URL = 'http://127.0.0.1:8094';
   const BRIDGE_SCHEME = 'twentytwentyauth://start';
   const INSTALLER_URL = 'https://raw.githubusercontent.com/ParanCZe/2020toolbox/main/AuthorizationBridge/INSTALL_AND_START.bat';
+  // Web-first capability detection. The existing hardware/Windows signer
+  // remains local on the one authorised signing workstation.
+  const AUTH_WINDOWS = /Windows/i.test(navigator.userAgent);
+  const AUTH_MAC = /Macintosh|Mac OS X/i.test(navigator.userAgent);
+
 
   const state = {
     files: [],
@@ -458,7 +463,7 @@
           <span id="auth-test-state" class="auth-test-state">OFF</span>
         </div>
       </div>
-      <div id="auth-test-banner" class="auth-test-banner"><b>TEST ON:</b> testovací nástroje jsou aktivní. Všechny testovací volby jsou označené červeně. Doporučený test používá pravý Windows/QSCD certifikát, ale lokální TEST TSA — nespotřebuje žádné PostSignum časové razítko.</div>
+      <div id="auth-test-banner" class="auth-test-banner"><b>TEST ON:</b> automaticky se použije anonymní jednorázový TEST certifikát. Všechny testovací volby jsou označené červeně. Doporučený test používá pravý Windows/QSCD certifikát, ale lokální TEST TSA — nespotřebuje žádné PostSignum časové razítko.</div>
       <div id="auth-test-panel" class="auth-test-panel">
         <b>TESTOVACÍ NÁSTROJE</b>
         <label class="auth-check"><input id="auth-local-test-tsa" type="checkbox" onchange="authLocalTestTsaChanged()"> použít <b>lokální TEST TSA</b> · žádná placená PostSignum razítka</label>
@@ -476,11 +481,13 @@
       <div id="auth-health" class="auth-health warn">
         <div class="auth-health-copy"><b>AuthorizationBridge se kontroluje…</b><span>Lokální služba na 127.0.0.1:8094.</span></div>
         <div class="auth-actions">
-          <button class="back-btn" onclick="launchAuthorizationBridge()">▶ Spustit bridge</button>
+          <button class="back-btn" id="auth-start-local" onclick="launchAuthorizationBridge()">▶ Spustit bridge</button>
           <button class="back-btn" onclick="checkAuthorizationBridge(false)">↻ Zkontrolovat</button>
-          <button class="back-btn" onclick="downloadAuthorizationBridgeInstaller()">↓ Instalátor</button>
+          <button class="back-btn" id="auth-install-local" onclick="downloadAuthorizationBridgeInstaller()">↓ Instalátor</button>
         </div>
       </div>
+
+      <div id="auth-cross-platform-note" class="auth-warn" style="display:none"></div>
 
       <div id="auth-drop" class="auth-drop">
         <b>Přetáhni sem PDF nebo klikni pro výběr</b><br>
@@ -598,6 +605,24 @@
       <div id="auth-toast"></div>
     `;
     host.appendChild(view);
+    authConfigureWebFirstCapabilities();
+  }
+
+  function authConfigureWebFirstCapabilities() {
+    const start = document.getElementById('auth-start-local');
+    const install = document.getElementById('auth-install-local');
+    const notice = document.getElementById('auth-cross-platform-note');
+    if (!notice) return;
+    if (AUTH_MAC) {
+      if (start) start.style.display = 'none';
+      if (install) install.style.display = 'none';
+      notice.style.display = '';
+      notice.textContent = 'macOS: prohlížení a příprava dokumentů fungují na webu. Tento podpisový modul je zatím napojený na certifikát ve Windows; .bat soubor zde nespouštěj. Podepisování zatím prováděj na určeném Windows PC. Serverové ověření a vzdálené podepisování se připravují samostatně.';
+    } else if (!AUTH_WINDOWS) {
+      if (install) install.style.display = 'none';
+      notice.style.display = '';
+      notice.textContent = 'Tento systém nepodporuje Windows instalační skript. Podpis je nyní dostupný na vyhrazeném Windows PC.';
+    }
   }
 
   function authVersionAtLeast(actual, required) {
@@ -1186,7 +1211,9 @@
     if (control) control.classList.toggle('active', on);
 
     if (on) {
-      // Showing test tools must never enable a local TSA automatically.
+      // Automatically select an ephemeral, nameless TEST-only signing certificate.
+      // No real Windows/QSCD key, PIN or paid TSA is used in this mode.
+      if (fullTest) fullTest.checked = true;
       authRefreshTestTsaCounter(true);
     } else {
       if (fullTest) fullTest.checked = false;
@@ -1233,7 +1260,7 @@
     if (certInfo) {
       if (fake) {
         certInfo.className = 'auth-cert-card ok';
-        certInfo.innerHTML = '<b>PLNĚ LOKÁLNÍ TEST CERTIFIKÁT</b><br>QSCD ani PIN se nepoužijí. Výstup není určený k ostré autorizaci.';
+        certInfo.innerHTML = '<b>TEST CERTIFIKÁT · BEZ JMÉNA (AUTOMATICKÝ)</b><br>Jednorázový samopodepsaný certifikát se vytvoří až při testovacím podpisu v lokálním Bridge. Bez PIN, QSCD a placené TSA. PDF není určeno pro úřady.';
       } else {
         authRenderWindowsCertificateInfo();
       }

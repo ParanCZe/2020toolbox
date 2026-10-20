@@ -1,0 +1,20 @@
+services:
+  toolbox-test-api:
+    build:
+      context: ../..
+      dockerfile: deploy/private-web/Dockerfile
+    restart: unless-stopped
+    environment:
+      TOOLBOX_WEB_ORIGIN: ${TOOLBOX_WEB_ORIGIN:?Set the exact HTTPS origin}
+      TOOLBOX_WEB_TEST_TOKEN: ${TOOLBOX_WEB_TEST_TOKEN:?Set a long random server-side secret}
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    ports:
+      - "127.0.0.1:18094:8080"
+    mem_limit: 768m
+    pids_limit: 128
