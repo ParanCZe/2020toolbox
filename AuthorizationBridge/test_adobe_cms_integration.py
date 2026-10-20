@@ -17,6 +17,7 @@ from pypdf import PdfWriter
 from simulation_pdfa_fixture import create_simulated_drawing_pdfa, create_simulated_ear_stamp
 from pyhanko.sign import signers
 from pyhanko.sign.validation import validate_pdf_signature
+from pyhanko.sign.validation.dss import DocumentSecurityStore
 from pyhanko.sign.validation.ades import ades_lta_validation
 from pyhanko.sign.validation.policy_decl import PdfSignatureValidationSpec, SignatureValidationSpec
 from pyhanko_certvalidator.context import CertValidationPolicySpec
@@ -475,6 +476,25 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
         self.assertIsNot(lt_verification.docmdp_ok, False)
         self.assertEqual(1, bridge._TEST_TSA_ISSUED - signed_tokens_before_lt)
 
+        # Re-validate against *only* the OCSP/CRL and CA certs actually
+        # embedded in this PDF's /DSS. The earlier context contained
+        # synthetic OCSP provided out-of-band and cannot prove LT on its own.
+        fresh_dss = DocumentSecurityStore.read_dss(lt_reader)
+        dss_only_context = fresh_dss.as_validation_context({
+            "trust_roots": [root_asn],
+            "allow_fetching": False,
+            "revocation_mode": "hard-fail",
+        })
+        dss_only_result = validate_pdf_signature(
+            lt_sig,
+            signer_validation_context=dss_only_context,
+            ts_validation_context=dss_only_context,
+        )
+        print("DSS-only independent certificate check:",
+              dss_only_result.pretty_print_details())
+        self.assertTrue(dss_only_result.intact, "DSS-only signature hash invalid")
+        self.assertTrue(dss_only_result.valid, "DSS-only signature cryptography invalid")
+
         # The modern ETSI/AdES engine is a stricter independent check.
         # The result is recorded, including non-PASS indications, without
         # silently calling the presence of /DSS a successful validation.
@@ -510,6 +530,9 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
                 ),
                 "docmdp_ok": lt_verification.docmdp_ok,
                 "cms_original_is_preserved": True,
+                "dss_only_signature_crypto_valid": bool(dss_only_result.valid),
+                "dss_only_signature_integrity_ok": bool(dss_only_result.intact),
+                "dss_only_trust_status": bool(dss_only_result.trusted),
                 "dss": {k:v for k,v in dss_details.items() if k!="signature_timestamp"},
                 "pdf_dss_inventory": lt_inventory["pdf_dss"],
                 "rfc3161_tokens_issued": bridge._TEST_TSA_ISSUED - signed_tokens_before_lt,
