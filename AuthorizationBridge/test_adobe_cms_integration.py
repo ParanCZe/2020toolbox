@@ -16,7 +16,10 @@ from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID, AuthorityInforma
 from pypdf import PdfWriter
 from simulation_pdfa_fixture import create_simulated_drawing_pdfa, create_simulated_ear_stamp
 from pyhanko.sign import signers
-from pyhanko.sign.validation import validate_pdf_signature
+from pyhanko.sign.validation import (
+    validate_pdf_signature, validate_pdf_ltv_signature,
+    RevocationInfoValidationType,
+)
 from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko_certvalidator import ValidationContext
 
@@ -455,6 +458,24 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
         self.assertIsNot(lt_verification.docmdp_ok, False)
         self.assertEqual(1, bridge._TEST_TSA_ISSUED - signed_tokens_before_lt)
 
+        # Separate PAdES-LT-specific validation. This actually consumes the
+        # embedded /DSS, rather than merely trusting a pre-populated local
+        # validation context passed to the generic B-T signature validator.
+        pades_lt_check = validate_pdf_ltv_signature(
+            lt_sig,
+            RevocationInfoValidationType.PADES_LT,
+            validation_context_kwargs={
+                "trust_roots": [root_asn],
+                "allow_fetching": False,
+                "revocation_mode": "hard-fail",
+            },
+            bootstrap_validation_context=context,
+        )
+        self.assertTrue(
+            pades_lt_check.valid and pades_lt_check.intact,
+            pades_lt_check.pretty_print_details(),
+        )
+
         (artifact_directory / "SIMULACE_PADES_B_LT_VYKRES_EAR.pdf").write_bytes(lt_pdf)
         (artifact_directory / "SIMULACE_PADES_B_LT_PROTOKOL.json").write_text(
             json.dumps({
@@ -468,6 +489,9 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
                 ],
                 "pdf_a3b": "pending independent veraPDF",
                 "cms_integrity_valid": bool(lt_verification.valid and lt_verification.intact),
+                "pades_lt_profile_validation_using_embedded_dss": bool(
+                    pades_lt_check.valid and pades_lt_check.intact
+                ),
                 "docmdp_ok": lt_verification.docmdp_ok,
                 "cms_original_is_preserved": True,
                 "dss": {k:v for k,v in dss_details.items() if k!="signature_timestamp"},
