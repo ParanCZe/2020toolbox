@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509 import ocsp
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID, AuthorityInformationAccessOID
 from pypdf import PdfWriter
+from simulation_pdfa_fixture import create_simulated_drawing_pdfa
 from pyhanko.sign import signers
 from pyhanko.sign.validation import validate_pdf_signature
 from pyhanko.pdf_utils.reader import PdfFileReader
@@ -44,6 +45,7 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
         intermediate_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         signer_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         tsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        tsa_ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         root_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Local integration CA")])
         root = (x509.CertificateBuilder().subject_name(root_name).issuer_name(root_name)
                 .public_key(root_key.public_key()).serial_number(x509.random_serial_number())
@@ -68,9 +70,26 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
                             key_agreement=False, key_cert_sign=True, crl_sign=True,
                             encipher_only=False, decipher_only=False,
                         ), critical=True).sign(root_key, hashes.SHA256()))
+        # Distinct LAB CA4 and LAB CA5 like the real PostSignum signer/TSA chains.
+        tsa_ca_name = x509.Name([x509.NameAttribute(
+            NameOID.COMMON_NAME, "LAB Qualified TSA CA 5 - SIMULATION ONLY"
+        )])
+        tsa_ca = (
+            x509.CertificateBuilder().subject_name(tsa_ca_name).issuer_name(root_name)
+            .public_key(tsa_ca_key.public_key()).serial_number(x509.random_serial_number())
+            .not_valid_before(now - timedelta(days=1))
+            .not_valid_after(now + timedelta(days=30))
+            .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+            .add_extension(x509.KeyUsage(
+                digital_signature=True, content_commitment=False,
+                key_encipherment=False, data_encipherment=False, key_agreement=False,
+                key_cert_sign=True, crl_sign=True, encipher_only=False,
+                decipher_only=False,
+            ), critical=True).sign(root_key, hashes.SHA256())
+        )
         def issue(cn, pubkey, tsa=False):
-            issuing_name = root_name if tsa else intermediate_name
-            issuing_key = root_key if tsa else intermediate_key
+            issuing_name = tsa_ca_name if tsa else intermediate_name
+            issuing_key = tsa_ca_key if tsa else intermediate_key
             cert = (x509.CertificateBuilder().subject_name(
                 x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
             ).issuer_name(issuing_name).public_key(pubkey).serial_number(x509.random_serial_number())
@@ -94,7 +113,7 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
                 )
             return cert.sign(issuing_key, hashes.SHA256())
         signer_cert = issue("Signer", signer_key.public_key())
-        tsa_cert = issue("Timestamping authority", tsa_key.public_key(), tsa=True)
+        tsa_cert = issue("LAB PostSignum-LIKE TSA TSU - NOT REAL", tsa_key.public_key(), tsa=True)
 
         def public_der(cert):
             return cert.public_bytes(serialization.Encoding.DER)
@@ -128,20 +147,21 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
         timestamp = bridge.CountingDummyTimeStamper(
             tsa_cert=ax509.Certificate.load(public_der(tsa_cert)),
             tsa_key=akeys.PrivateKeyInfo.load(private_der(tsa_key)),
-            certs_to_embed=[root_asn],
+            certs_to_embed=[ax509.Certificate.load(public_der(tsa_ca)), root_asn],
             include_nonce=True,
         )
         context = ValidationContext(
-            trust_roots=[root_asn], other_certs=[root_asn],
+            trust_roots=[root_asn], other_certs=[
+                root_asn, ax509.Certificate.load(public_der(intermediate)),
+                ax509.Certificate.load(public_der(tsa_ca)),
+            ],
             ocsps=[aocsp.OCSPResponse.load(ocsp_der(signer_cert, intermediate, intermediate_key)),
                    aocsp.OCSPResponse.load(ocsp_der(intermediate, root, root_key)),
-                   aocsp.OCSPResponse.load(ocsp_der(tsa_cert, root, root_key))],
+                   aocsp.OCSPResponse.load(ocsp_der(tsa_cert, tsa_ca, tsa_ca_key)),
+                   aocsp.OCSPResponse.load(ocsp_der(tsa_ca, root, root_key))],
             allow_fetching=False, revocation_mode="hard-fail",
         )
-        src = PdfWriter()
-        src.add_blank_page(width=420, height=590)
-        document = io.BytesIO()
-        src.write(document)
+        document = io.BytesIO(create_simulated_drawing_pdfa())
 
         before = bridge._TEST_TSA_ISSUED
         with patch.object(bridge, "ValidationContext", return_value=context):
@@ -313,7 +333,7 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
             "purpose": "KOMPLETNI OFFLINE SIMULACE - NEPLATNE PRO URAD",
             "is_qualified_signature": False,
             "qualified_timestamp": False,
-            "pdfa_validated": False,
+            "pdfa_validated": False,  # updated by independent veraPDF runner
             "real_postsignum_tested": False,
             "bridge_http_steps": ["preflight-sign", "approve-sign", "sign-batch"],
             "cms_subfilter": str(actual_signature.sig_object["/SubFilter"]),
