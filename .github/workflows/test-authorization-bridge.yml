@@ -39,7 +39,7 @@ jobs:
           curl --retry 3 -fLsS "$url" -o /tmp/veraPDF-installer.zip
           mkdir -p /tmp/vera-installer
           unzip -q /tmp/veraPDF-installer.zip -d /tmp/vera-installer
-          installer_dir=$(find /tmp/vera-installer -name verapdf-install -type f -printf '%h\\n' | head -1)
+          installer_dir=$(dirname "$(find /tmp/vera-installer -name verapdf-install -type f -print -quit)")
           test -n "$installer_dir"
           cat > /tmp/vera-auto.xml << 'XML'
           <AutomatedInstallation langpack="eng">
