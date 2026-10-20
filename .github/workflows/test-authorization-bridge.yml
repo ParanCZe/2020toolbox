@@ -31,6 +31,13 @@ jobs:
           sha256sum authorization_bridge.py pdf_ltv.py pdf_validator_engine.py pdf_signature_inspector.py eu_dss_validator.py INSTALL_EU_DSS.ps1 qualified_tsa_check.py requirements.txt find_python.ps1 restart_bridge.ps1
       - name: Run chain / DSS tests
         run: python -m unittest discover -s AuthorizationBridge -p 'test_*.py' -v
+      - name: Upload complete offline CMS simulation as review-only artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulace-adobe-cms-offline-pouze-test
+          path: simulation_output/
+          if-no-files-found: error
+          retention-days: 14
       - name: Verify signing UI syntax
         run: node --check authorization_pdf_v326.js
       - name: Verify installed version
