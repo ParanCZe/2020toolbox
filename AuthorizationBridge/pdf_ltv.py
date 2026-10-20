@@ -12,6 +12,7 @@ import asyncio
 import hashlib
 import io
 from typing import Iterable
+from datetime import datetime, timezone, timedelta
 
 from asn1crypto import cms as asn1_cms, crl as asn1_crl, ocsp as asn1_ocsp, x509 as asn1_x509
 from pyhanko.pdf_utils.reader import PdfFileReader
@@ -78,6 +79,21 @@ def _stream_bytes(ref) -> bytes:
     return stream.data
 
 
+def _utc(value):
+    if value is None:
+        return None
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
+def _evidence_window_ok(this_update, next_update, *, at_time=None) -> bool:
+    """Freshness only; does NOT validate responder signatures or trust."""
+    now = _utc(at_time) if at_time is not None else datetime.now(timezone.utc)
+    start, end = _utc(this_update), _utc(next_update)
+    skew = timedelta(minutes=5)
+    return bool(start is not None and end is not None
+                and start <= now + skew and end >= now - skew and end > start)
+
+
 def _matching_good_ocsp(dss, certificate: asn1_x509.Certificate) -> bool:
     for entry in _deref(dss.get("/OCSPs") or []):
         try:
@@ -95,8 +111,11 @@ def _matching_good_ocsp(dss, certificate: asn1_x509.Certificate) -> bool:
                 expected = hashlib.new(algorithm, certificate.issuer.dump()).digest()
                 if cert_id["issuer_name_hash"].native != expected:
                     continue
-                if record["cert_status"].name == "good":
-                    return True
+                if record["cert_status"].name != "good":
+                    continue
+                if not _evidence_window_ok(record["this_update"].native, record["next_update"].native):
+                    continue
+                return True
         except (ValueError, TypeError, KeyError, AttributeError):
             continue
     return False
@@ -108,6 +127,8 @@ def _matching_crl(dss, certificate: asn1_x509.Certificate) -> bool:
             report = asn1_crl.CertificateList.load(_stream_bytes(entry))
             body = report["tbs_cert_list"]
             if body["issuer"] != certificate.issuer:
+                continue
+            if not _evidence_window_ok(body["this_update"].native, body["next_update"].native):
                 continue
             revoked = body["revoked_certificates"]
             if revoked.native is not None and any(
@@ -175,8 +196,8 @@ def append_validated_dss(
         if not issuer_der:
             raise ValueError("Pro PAdES B-LT chybí řetězec vydávající CA.")
         validation_context = ValidationContext(
-            extra_trust_roots=[asn1_x509.Certificate.load(issuer_der[-1])],
-            other_certs=[asn1_x509.Certificate.load(cert) for cert in issuer_der[:-1]],
+            # Caller-supplied issuers are evidence, never trusted anchors.
+            other_certs=[asn1_x509.Certificate.load(cert) for cert in issuer_der],
             allow_fetching=True,
             revocation_mode="hard-fail",
         )
