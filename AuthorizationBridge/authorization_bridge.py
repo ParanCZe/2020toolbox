@@ -41,6 +41,7 @@ from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign import fields, signers, timestamps
 from pyhanko.sign.timestamps.dummy_client import DummyTimeStamper
 from pyhanko_certvalidator.registry import SimpleCertificateStore
+from pyhanko_certvalidator import ValidationContext
 from asn1crypto import x509 as asn1_x509, algos, keys as asn1_keys, tsp
 from aiohttp import BasicAuth, ClientSession, ClientTimeout
 
@@ -51,7 +52,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.4.0"
+APP_VERSION = "2.5.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -1013,6 +1014,28 @@ class WindowsStoreSigner(signers.ExternalSigner):
 
 
 
+class _NoTsaPreviewTimeStamper(timestamps.TimeStamper):
+    """Avoid a second, potentially PAID TSA call solely to preview TSA paths.
+
+    Adobe CMS mode archives signer-chain OCSP only, matching the independent
+    PDFkovac reference. This does not skip the actual qualified RFC3161
+    timestamp request; independent EU DSS must verify the finished timestamp.
+    """
+
+    def __init__(self, delegate):
+        super().__init__(include_nonce=True)
+        self._delegate = delegate
+
+    async def validation_paths(self, validation_context):
+        # pyHanko otherwise requests an actual dummy token merely to collect
+        # TSA paths, potentially consuming a *paid* PostSignum timestamp.
+        if False:
+            yield None
+
+    async def async_request_tsa_response(self, req):
+        return await self._delegate.async_request_tsa_response(req)
+
+
 class CountingDummyTimeStamper(DummyTimeStamper):
     """Local TEST TSA with an exact counter of generated timestamp tokens."""
 
@@ -1091,7 +1114,7 @@ def _build_timestamper(meta: Dict[str, Any]):
     tsa_password = str(meta.get("tsa_password") or "")
     tsa_test_mode = bool(meta.get("tsa_test_mode", False))
 
-    if profile not in {"bt", "lt"}:
+    if profile not in {"bt", "lt", "adobe"}:
         return None
 
     if not re.match(r"^https?://", tsa_url, re.I):
@@ -1115,7 +1138,7 @@ def _build_timestamper(meta: Dict[str, Any]):
 
 async def _async_verify_tsa_credentials(meta: Dict[str, Any]) -> None:
     profile = str(meta.get("profile") or "bt").lower()
-    if profile not in {"bt", "lt"}:
+    if profile not in {"bt", "lt", "adobe"}:
         return
 
     tsa_url = str(meta.get("tsa_url") or "").strip()
@@ -1376,10 +1399,29 @@ def _sign_one(
         # box=None => invisible signature field.
         new_field = fields.SigFieldSpec(sig_field_name=field_name)
 
+    adobe_revocation = str(common_meta.get("profile") or "").lower() == "adobe"
+    validation_context = None
+    if adobe_revocation:
+        # PDF-XChange / PDFkovac approach: signed Adobe RevocationInfoArchival
+        # (OCSP/CRL in CMS), *not* the ETSI PAdES B-LT DSS profile.
+        # pyHanko validates / fetches material before producing the signature.
+        issuers = tuple(getattr(signer, "issuer_certificates_der", ()))
+        if len(issuers) < 2:
+            raise ValueError("CMS Adobe: úplný řetězec CA je nutný před podpisem.")
+        validation_context = ValidationContext(
+            extra_trust_roots=[asn1_x509.Certificate.load(issuers[-1])],
+            other_certs=[asn1_x509.Certificate.load(cert) for cert in issuers[:-1]],
+            allow_fetching=True,
+            revocation_mode="hard-fail",
+        )
+
     sig_meta = signers.PdfSignatureMetadata(
         field_name=field_name,
         md_algorithm="sha256",
-        subfilter=fields.SigSeedSubFilter.PADES,
+        subfilter=(fields.SigSeedSubFilter.ADOBE_PKCS7_DETACHED
+                   if adobe_revocation else fields.SigSeedSubFilter.PADES),
+        embed_validation_info=adobe_revocation,
+        validation_context=validation_context,
         reason=common_meta.get("reason") or None,
         location=common_meta.get("location") or None,
         contact_info=common_meta.get("contact") or None,
@@ -1393,7 +1435,9 @@ def _sign_one(
     pdf_signer = signers.PdfSigner(
         sig_meta,
         signer=signer,
-        timestamper=timestamper,
+        timestamper=(_NoTsaPreviewTimeStamper(timestamper)
+                     if adobe_revocation and timestamper is not None
+                     else timestamper),
         stamp_style=appearance,
         new_field_spec=new_field,
     )
@@ -1579,6 +1623,7 @@ def status():
             "verified_rsa_signatures": True,
             "windows_cert_chain_embedding": True,
             "pades_lt_dss": True,
+            "adobe_cms_revinfo": True,
             "test_tsa_counter": True,
         },
     )
@@ -1618,8 +1663,8 @@ def preflight_sign():
             return jsonify(ok=False, error="Vyber podpisový certifikát z Windows."), 400
 
         profile = str(meta.get("profile") or "bt").lower()
-        if profile not in {"bb", "bt", "lt"}:
-            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T a B-LT."), 400
+        if profile not in {"bb", "bt", "lt", "adobe"}:
+            return jsonify(ok=False, error="Podporované profily jsou B-B, B-T, B-LT a CMS Adobe."), 400
 
         if profile == "lt" and (
             bool(meta.get("tsa_test_mode"))
@@ -1630,8 +1675,14 @@ def preflight_sign():
             return jsonify(ok=False, error="PAdES B-LT vyžaduje ostré kvalifikované TSA, nikoli lokální TEST TSA."), 400
 
         signer = WindowsStoreSigner(cert_thumbprint)
-        if profile == "lt" and signer.ca_certificate_count < 2:
-            return jsonify(ok=False, error="PAdES B-LT vyžaduje úplný řetězec CA ještě před žádostí o TSA."), 400
+        if profile in {"lt", "adobe"} and signer.ca_certificate_count < 2:
+            return jsonify(ok=False, error=(
+                "CMS Adobe potřebuje skutečný certifikát s řetězcem CA a dostupným OCSP; "
+                "certifikát TEST TEST bez ověřitelné CA nestačí. "
+                "Pro bezplatný test vyber skutečný PostSignum certifikát a zapni lokální TEST TSA."
+                if profile == "adobe" else
+                "PAdES B-LT vyžaduje úplný řetězec CA ještě před žádostí o TSA."
+            )), 400
         cert_info = _cert_payload(signer)
         cert_info["ca_certificate_count"] = signer.ca_certificate_count
         crypto_cert = x509.load_der_x509_certificate(signer.signing_cert.dump())
@@ -1682,7 +1733,7 @@ def preflight_sign():
             preflight_token=token,
             expires_in=_APPROVAL_TTL_SECONDS,
             certificate=cert_info,
-            tsa_verified=(profile in {"bt", "lt"}),
+            tsa_verified=(profile in {"bt", "lt", "adobe"}),
         )
     except Exception as exc:
         print("[AuthorizationBridge] preflight error:", traceback.format_exc(), flush=True)
@@ -1776,8 +1827,8 @@ def sign_batch():
             return jsonify(ok=False, error="Počet dokumentů neodpovídá metadatům."), 400
 
         profile = str(meta.get("profile") or "bt").lower()
-        if profile not in {"bb", "bt", "lt"}:
-            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T a B-LT."), 400
+        if profile not in {"bb", "bt", "lt", "adobe"}:
+            return jsonify(ok=False, error="Podporované profily jsou B-B, B-T, B-LT a CMS Adobe."), 400
         if profile == "lt" and (
             test_mode or bool(meta.get("tsa_test_mode"))
             or str(meta.get("tsa_url") or "").strip().lower().startswith(
@@ -1785,6 +1836,11 @@ def sign_batch():
             )
         ):
             return jsonify(ok=False, error="PAdES B-LT vyžaduje skutečný certifikát a ostré kvalifikované TSA."), 400
+        if profile == "adobe" and test_mode:
+            return jsonify(ok=False, error=(
+                "CMS Adobe s OCSP zatím nelze podepsat plně lokálním TEST certifikátem. "
+                "Zvol skutečný certifikát PostSignum a volitelně lokální TEST TSA."
+            )), 400
 
         approval = None
         if not test_mode:
@@ -1811,8 +1867,13 @@ def sign_batch():
             return jsonify(ok=False, error=str(exc)), 400
 
         signer = _make_test_signer() if test_mode else WindowsStoreSigner(cert_thumbprint)
-        if profile == "lt" and (test_mode or getattr(signer, "ca_certificate_count", 0) < 2):
-            return jsonify(ok=False, error="PAdES B-LT vyžaduje skutečný Windows certifikát a celý řetězec CA."), 400
+        if profile in {"lt", "adobe"} and (test_mode or getattr(signer, "ca_certificate_count", 0) < 2):
+            return jsonify(ok=False, error=(
+                "CMS Adobe: skutečný Windows certifikát s kompletním řetězcem CA je vyžadován "
+                "i při použití bezplatného lokálního TEST TSA."
+                if profile == "adobe" else
+                "PAdES B-LT vyžaduje skutečný Windows certifikát a celý řetězec CA."
+            )), 400
         cert_info = _cert_payload(signer)
         if not test_mode:
             cert_info["ca_certificate_count"] = signer.ca_certificate_count
@@ -1914,7 +1975,7 @@ def sign_batch():
                     "source": str(doc_meta.get("name") or original_name),
                     "output": out_name,
                     "standard": str(meta.get("output_standard") or "PDF/A-3b"),
-                    "profile": "PAdES B-T (LT fallback)" if lt_failure else ("PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B")),
+                    "profile": "PAdES B-T (LT fallback)" if lt_failure else ("PAdES B-LT" if profile == "lt" else ("Adobe CMS + TSA + OCSP/CRL" if profile == "adobe" else ("PAdES B-T" if profile == "bt" else "PAdES B-B"))),
                     "lt_warning": lt_failure,
                     "visible": bool(doc_meta.get("placement")),
                     "docmdp": "ANNOTATE",
@@ -1924,14 +1985,14 @@ def sign_batch():
                 "tool": "20-20 TOOLBOX · Autorizace PDF",
                 "bridge_version": APP_VERSION,
                 "created_utc": datetime.now(timezone.utc).isoformat(),
-                "profile": "PAdES B-T (LT fallback)" if lt_fallback_warnings else ("PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B")),
+                "profile": "PAdES B-T (LT fallback)" if lt_fallback_warnings else ("PAdES B-LT" if profile == "lt" else ("Adobe CMS + TSA + OCSP/CRL" if profile == "adobe" else ("PAdES B-T" if profile == "bt" else "PAdES B-B"))),
                 "test_mode": test_mode,
                 "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
                 "append_ear": bool(meta.get("append_ear", True)),
                 "docmdp": "ANNOTATE",
-                "tsa_url": tsa_url if profile in {"bt", "lt"} else None,
-                "tsa_authenticated": bool(tsa_user) if profile in {"bt", "lt"} else False,
-                "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile in {"bt", "lt"} else False,
+                "tsa_url": tsa_url if profile in {"bt", "lt", "adobe"} else None,
+                "tsa_authenticated": bool(tsa_user) if profile in {"bt", "lt", "adobe"} else False,
+                "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile in {"bt", "lt", "adobe"} else False,
                 "certificate": cert_info,
                 "files": manifest_files,
             }
