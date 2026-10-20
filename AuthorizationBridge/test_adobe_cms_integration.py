@@ -172,6 +172,8 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
         no_revocation_context = ValidationContext(
             trust_roots=[root_asn],
             other_certs=[ax509.Certificate.load(public_der(intermediate))],
+            ocsps=[],
+            crls=[],
             allow_fetching=False,
             revocation_mode="hard-fail",
         )
