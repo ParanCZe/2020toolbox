@@ -59,7 +59,7 @@ def create_simulated_drawing_pdfa():
     writer._root_object[NameObject("/OutputIntents")] = ArrayObject(
         [writer._add_object(intent)]
     )
-    xmp = """<?xpacket begin="\\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>
+    xmp = """<?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
 <rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" pdfaid:part="3" pdfaid:conformance="B" />
 <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title><rdf:Alt><rdf:li xml:lang="x-default">20-20 LAB: SIMULOVANY ARCHITEKTONICKY VYKRES</rdf:li></rdf:Alt></dc:title></rdf:Description>
