@@ -561,6 +561,7 @@
               <div class="auth-field"><label>Profil</label>
                 <select id="auth-profile" onchange="authProfileChanged()">
                   <option id="auth-lt-option" value="lt" selected>PAdES B-LT · podpis + kvalifikované TSA + dlouhodobé podklady</option>
+                  <option id="auth-adobe-option" value="adobe">CMS Adobe + OCSP v podpisu · podobně jako PDFkovač (EXPERIMENT)</option>
                   <option value="bt">PAdES B-T · podpis + časové razítko (bez DSS)</option>
                   <option value="bb">PAdES B-B · podpis bez TSA</option>
                 </select>
@@ -1104,7 +1105,7 @@
     const local = authTestToolsEnabled() &&
       !authIsTestMode() &&
       !!document.getElementById('auth-local-test-tsa')?.checked &&
-      ['bt','lt'].includes(document.getElementById('auth-profile')?.value);
+      ['bt','lt','adobe'].includes(document.getElementById('auth-profile')?.value);
     return local ? state.files.length : 0;
   }
 
@@ -1237,7 +1238,7 @@
   };
 
   window.authProfileChanged = function() {
-    const bt = !authIsTestMode() && ['bt','lt'].includes(document.getElementById('auth-profile')?.value);
+    const bt = !authIsTestMode() && ['bt','lt','adobe'].includes(document.getElementById('auth-profile')?.value);
     const wrap = document.getElementById('auth-tsa-wrap');
     if (wrap) wrap.style.display = bt ? 'grid' : 'none';
     const signBtn = document.getElementById('auth-sign-btn');
@@ -1263,7 +1264,7 @@
     const user = document.getElementById('auth-tsa-user');
     const pass = document.getElementById('auth-tsa-pass');
 
-    if (on && profile?.value === 'lt') {
+    if (on && ['lt','adobe'].includes(profile?.value)) {
       // Never silently turn a requested B-LT signature into B-T.
       if (localInput) localInput.checked = false;
       toast('PAdES B-LT vyžaduje ostré kvalifikované časové razítko. Pro TEST TSA nejprve výslovně zvol PAdES B-T.', true);
@@ -1527,11 +1528,11 @@
     const tsaUser = testMode ? '' : document.getElementById('auth-tsa-user')?.value.trim() || '';
     const tsaPass = testMode ? '' : document.getElementById('auth-tsa-pass')?.value || '';
     const localTestTsa = !testMode && !!document.getElementById('auth-local-test-tsa')?.checked;
-    if (profile === 'lt' && (testMode || localTestTsa || /^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(tsa))) {
+    if (['lt','adobe'].includes(profile) && (testMode || localTestTsa || /^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(tsa))) {
       toast('PAdES B-LT vyžaduje skutečný certifikát a ostré TSA; vypni lokální testovací režimy.', true); return;
     }
-    if (!testMode && ['bt','lt'].includes(profile) && !tsa) { toast('Pro PAdES B-T / B-LT zadej RFC 3161 TSA server.', true); return; }
-    if (!testMode && ['bt','lt'].includes(profile) && (!!tsaUser !== !!tsaPass)) {
+    if (!testMode && ['bt','lt','adobe'].includes(profile) && !tsa) { toast('Pro PAdES B-T / B-LT zadej RFC 3161 TSA server.', true); return; }
+    if (!testMode && ['bt','lt','adobe'].includes(profile) && (!!tsaUser !== !!tsaPass)) {
       toast('Pro přihlášení k TSA vyplň login i heslo, nebo nech obě pole prázdná.', true);
       return;
     }
@@ -1549,17 +1550,21 @@
       toast('Pro export bez _EAR aktualizuj AuthorizationBridge přes Instalátor a potom dej Zkontrolovat.', true);
       return;
     }
-    if (!testMode && ['bt','lt'].includes(profile) && tsaUser && !bridge.features?.tsa_basic_auth) {
+    if (!testMode && ['bt','lt','adobe'].includes(profile) && tsaUser && !bridge.features?.tsa_basic_auth) {
       toast('Pro přihlášení k TSA aktualizuj AuthorizationBridge přes Instalátor a potom dej Zkontrolovat.', true);
       return;
     }
     if (profile === 'lt' && (!authVersionAtLeast(bridge.version, '2.4.0') || !bridge.features?.pades_lt_dss)) {
       toast('Výchozí PAdES B-LT vyžaduje AuthorizationBridge 2.4.0+. Nainstaluj aktuální Bridge; profil se automaticky nezmění na B-T.', true); return;
     }
-    if (profile === 'lt' && state.files.length !== 1) {
+    if (['lt','adobe'].includes(profile) && state.files.length !== 1) {
       toast('PAdES B-LT zatím povoluje jen jeden výkres. Hromadné B-LT zapneme po ověření ostrého výstupu.', true); return;
     }
     if (profile === 'lt' && !window.confirm('PAdES B-LT: výkres spotřebuje jedno ostré časové razítko. Pokud získání OCSP/CRL selže, ZIP bude výslovně označen jako nedokončený B-LT (podepsaný B-T). Pokračovat?')) return;
+    if (profile === 'adobe' && (!authVersionAtLeast(bridge.version, '2.5.0') || !bridge.features?.adobe_cms_revinfo)) {
+      toast('CMS Adobe s OCSP v podpisu vyžaduje Bridge 2.5.0+; profil se automaticky nemění na B-T.', true); return;
+    }
+    if (profile === 'adobe' && !window.confirm('EXPERIMENT CMS Adobe: jeden výkres s ostrým PostSignum razítkem. Profil není PAdES B-LT. Po podpisu je nutné nezávisle ověřit QES, QTSA a OCSP. Pokračovat?')) return;
     if (localTestTsa && !bridge.features?.local_test_tsa) {
       toast('Pro lokální TEST časové razítko aktualizuj AuthorizationBridge na 1.9.0+.', true);
       return;
@@ -1596,7 +1601,7 @@
       // a u PAdES B-T skutečně otestuj přihlášení k TSA.
       // U ostrého Windows podpisu zároveň proběhne lokální potvrzení mimo web.
       if (!testMode) {
-        btn.textContent = ['bt','lt'].includes(profile)
+        btn.textContent = ['bt','lt','adobe'].includes(profile)
           ? 'Ověřuji certifikát a TSA…'
           : 'Ověřuji podpisový certifikát…';
 
@@ -1619,7 +1624,7 @@
           throw new Error(preflight.error || 'Kontrola certifikátu / TSA před exportem selhala.');
         }
         preflightToken = preflight.preflight_token;
-        toast(['bt','lt'].includes(profile)
+        toast(['bt','lt','adobe'].includes(profile)
           ? 'Certifikát i TSA jsou ověřené. Spouštím PDF/A konverzi.'
           : 'Podpisový certifikát je ověřený. Spouštím PDF/A konverzi.');
       }
@@ -1770,7 +1775,7 @@
       if (appearanceFile) fd.append('stamp', appearanceFile, appearanceFile.name);
       convertedFiles.forEach((file, i) => fd.append('pdfs', file, docs[i].output_name));
 
-      const resp = await bridgeFetch(testMode ? '/sign-batch-test' : '/sign-batch', {method:'POST', body:fd}, profile === 'lt' ? 600000 : 240000);
+      const resp = await bridgeFetch(testMode ? '/sign-batch-test' : '/sign-batch', {method:'POST', body:fd}, ['lt','adobe'].includes(profile) ? 600000 : 240000);
       if (!resp.ok) {
         let msg='Podepisování selhalo.';
         try { const j=await resp.json(); msg=j.error || j.detail || msg; } catch {}
@@ -1807,6 +1812,8 @@
           ? 'CHYBA: B-LT není dokončené; ZIP obsahuje jen podepsané B-T a varovný protokol.'
           : profile === 'lt'
           ? 'PAdES B-LT s /DSS je vytvořeno. Před úředním odevzdáním nezávisle ověř QES, QTSA a PAdES-LT.'
+          : profile === 'adobe'
+          ? 'CMS Adobe je vytvořen. Před úředním odevzdáním nezávisle ověř QES, QTSA a přítomné OCSP.'
           : testMode
           ? 'Hotovo — PDF/A-3b jsou podepsaná plně lokálním TEST certifikátem.'
           : (localTestTsa
