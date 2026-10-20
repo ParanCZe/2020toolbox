@@ -1014,6 +1014,28 @@ class WindowsStoreSigner(signers.ExternalSigner):
 
 
 
+class _NoTsaPreviewTimeStamper(timestamps.TimeStamper):
+    """Avoid a second, potentially PAID TSA call solely to preview TSA paths.
+
+    Adobe CMS mode archives signer-chain OCSP only, matching the independent
+    PDFkovac reference. This does not skip the actual qualified RFC3161
+    timestamp request; independent EU DSS must verify the finished timestamp.
+    """
+
+    def __init__(self, delegate):
+        super().__init__(include_nonce=True)
+        self._delegate = delegate
+
+    async def validation_paths(self, validation_context):
+        # pyHanko otherwise requests an actual dummy token merely to collect
+        # TSA paths, potentially consuming a *paid* PostSignum timestamp.
+        if False:
+            yield None
+
+    async def async_request_tsa_response(self, req):
+        return await self._delegate.async_request_tsa_response(req)
+
+
 class CountingDummyTimeStamper(DummyTimeStamper):
     """Local TEST TSA with an exact counter of generated timestamp tokens."""
 
@@ -1413,7 +1435,9 @@ def _sign_one(
     pdf_signer = signers.PdfSigner(
         sig_meta,
         signer=signer,
-        timestamper=timestamper,
+        timestamper=(_NoTsaPreviewTimeStamper(timestamper)
+                     if adobe_revocation and timestamper is not None
+                     else timestamper),
         stamp_style=appearance,
         new_field_spec=new_field,
     )
