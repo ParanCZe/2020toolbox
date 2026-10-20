@@ -46,7 +46,7 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
         signer_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         tsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         tsa_ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        root_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Local integration CA")])
+        root_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "LAB Root CA - SIMULATION ONLY")])
         root = (x509.CertificateBuilder().subject_name(root_name).issuer_name(root_name)
                 .public_key(root_key.public_key()).serial_number(x509.random_serial_number())
                 .not_valid_before(now - timedelta(days=1))
@@ -57,7 +57,7 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
                     data_encipherment=False, key_agreement=False, key_cert_sign=True,
                     crl_sign=True, encipher_only=False, decipher_only=False,
                 ), critical=True).sign(root_key, hashes.SHA256()))
-        intermediate_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Local integration intermediate CA")])
+        intermediate_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "LAB Qualified Signer CA 4 - SIMULATION ONLY")])
         intermediate = (x509.CertificateBuilder().subject_name(intermediate_name)
                         .issuer_name(root_name).public_key(intermediate_key.public_key())
                         .serial_number(x509.random_serial_number())
@@ -291,7 +291,7 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
                     "metadata": json.dumps({
                         **metadata,
                         "approval_token": approved.get_json()["approval_token"],
-                        "output_standard": "SIMULACE PDF (neni PDF/A)",
+                        "output_standard": "PDF/A-3b (LAB simulace, nezavisle validovana)",
                     }),
                     "pdfs": (io.BytesIO(input_pdf), filename),
                     "stamp": (io.BytesIO(simulated_stamp), "LAB_SIMULACE_RAZITKO.png"),
