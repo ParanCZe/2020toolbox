@@ -22,7 +22,7 @@ jobs:
       - name: Install pinned signing dependencies and PDF test writer
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r AuthorizationBridge/requirements.txt 'pypdf>=5.0,<7.0'
+          python -m pip install -r AuthorizationBridge/requirements.txt 'pypdf>=5.0,<7.0' 'reportlab>=4.0,<5'
       - name: Compile bridge modules
         run: python -m compileall -q AuthorizationBridge
       - name: Print bridge SHA-256 for pinned installer
@@ -31,8 +31,82 @@ jobs:
           sha256sum authorization_bridge.py pdf_ltv.py pdf_validator_engine.py pdf_signature_inspector.py eu_dss_validator.py INSTALL_EU_DSS.ps1 qualified_tsa_check.py requirements.txt find_python.ps1 restart_bridge.ps1
       - name: Run chain / DSS tests
         run: python -m unittest discover -s AuthorizationBridge -p 'test_*.py' -v
+      - name: Independent veraPDF PDF/A-3b validation of simulated signed output
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://software.verapdf.org/releases/1.28/verapdf-greenfield-1.28.2-installer.zip"
+          curl --retry 3 -fLsS "$url" -o /tmp/veraPDF-installer.zip
+          mkdir -p /tmp/vera-installer
+          unzip -q /tmp/veraPDF-installer.zip -d /tmp/vera-installer
+          installer_dir=$(dirname "$(find /tmp/vera-installer -name verapdf-install -type f -print -quit)")
+          test -n "$installer_dir"
+          cat > /tmp/vera-auto.xml << 'XML'
+          <AutomatedInstallation langpack="eng">
+          <com.izforge.izpack.panels.htmlhello.HTMLHelloPanel id="welcome"/>
+          <com.izforge.izpack.panels.target.TargetPanel id="install_dir">
+            <installpath>/tmp/vera-installed</installpath>
+          </com.izforge.izpack.panels.target.TargetPanel>
+          <com.izforge.izpack.panels.packs.PacksPanel id="sdk_pack_select">
+            <pack index="0" name="veraPDF GUI" selected="true"/>
+            <pack index="1" name="veraPDF CLI" selected="true"/>
+            <pack index="2" name="veraPDF Documentation" selected="false"/>
+            <pack index="3" name="veraPDF Sample Plugins" selected="false"/>
+          </com.izforge.izpack.panels.packs.PacksPanel>
+          <com.izforge.izpack.panels.install.InstallPanel id="install"/>
+          <com.izforge.izpack.panels.finish.FinishPanel id="finish"/>
+          </AutomatedInstallation>
+          XML
+          (cd "$installer_dir" && bash ./verapdf-install /tmp/vera-auto.xml)
+          /tmp/vera-installed/verapdf -f 3b --format xml simulation_output/SIMULACE_TEST_VYKRES_EAR.pdf > simulation_output/verapdf-pdfa3b.xml
+          /tmp/vera-installed/verapdf -f 3b --format xml simulation_output/SIMULACE_PADES_B_LT_VYKRES_EAR.pdf > simulation_output/verapdf-pades-b-lt.xml
+          python - << 'PY'
+          import json
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          p=Path('simulation_output/verapdf-pdfa3b.xml')
+          content=p.read_text(encoding='utf-8')
+          root=ET.fromstring(content)
+          reports=[el for el in root.iter() if el.tag.rsplit('}',1)[-1]=='validationReport']
+          if len(reports)!=1:
+              print(content[:2500])
+              raise RuntimeError(f'Expected one veraPDF validation report, found {len(reports)}')
+          valid=reports[0].attrib.get('isCompliant','false').lower()=='true'
+          data=json.loads(Path('simulation_output/simulace_vysledky.json').read_text())
+          data['pdfa_validated']=valid
+          data['pdfa_validator']='veraPDF Greenfield 1.28.2'
+          data['pdfa_standard']='PDF/A-3b'
+          Path('simulation_output/simulace_vysledky.json').write_text(json.dumps(data,ensure_ascii=False,indent=2))
+          print('veraPDF Adobe CMS PDF/A-3b', 'PASS' if valid else 'FAIL')
+          lt_xml=Path('simulation_output/verapdf-pades-b-lt.xml').read_text(encoding='utf-8')
+          lt_root=ET.fromstring(lt_xml)
+          lt_reports=[el for el in lt_root.iter() if el.tag.rsplit('}',1)[-1]=='validationReport']
+          if len(lt_reports)!=1:
+              print(lt_xml[:4000])
+              raise RuntimeError('Expected exactly one LT veraPDF report')
+          lt_valid=lt_reports[0].attrib.get('isCompliant','false').lower()=='true'
+          lt_path=Path('simulation_output/SIMULACE_PADES_B_LT_PROTOKOL.json')
+          lt_data=json.loads(lt_path.read_text())
+          lt_data['pdf_a3b']={'compliant':lt_valid,'validator':'veraPDF Greenfield 1.28.2'}
+          lt_path.write_text(json.dumps(lt_data,ensure_ascii=False,indent=2))
+          print('veraPDF PAdES B-LT PDF/A-3b', 'PASS' if lt_valid else 'FAIL')
+          if not lt_valid:
+              print(lt_xml[:12000])
+              raise RuntimeError('LT simulation PDF/A-3b is noncompliant')
+          if not valid:
+              print(content[:9000])
+              raise RuntimeError('Adobe signed simulation PDF/A-3b is noncompliant')
+          PY
+      - name: Upload complete offline CMS + PAdES B-LT simulation as review-only artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulace-pades-b-lt-plus-adobe-offline-test
+          path: simulation_output/
+          if-no-files-found: error
+          retention-days: 14
       - name: Verify signing UI syntax
         run: node --check authorization_pdf_v326.js
       - name: Verify installed version
         run: |
-          python -c "import sys; sys.path.insert(0, 'AuthorizationBridge'); import authorization_bridge as b; assert b.APP_VERSION == '2.4.0'"
+          python -c "import sys; sys.path.insert(0, 'AuthorizationBridge'); import authorization_bridge as b; assert b.APP_VERSION == '2.5.0'"
