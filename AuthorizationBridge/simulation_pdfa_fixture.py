@@ -3,13 +3,35 @@ Not a claim of compliance: real veraPDF validation runs AFTER CMS signing.
 """
 import io
 from pathlib import Path
-from PIL import ImageCms
+from PIL import ImageCms, Image, ImageDraw, ImageFont
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 from pypdf import PdfReader, PdfWriter
 from pypdf.generic import (NameObject, NumberObject, ArrayObject, DictionaryObject,
                            TextStringObject, DecodedStreamObject)
+
+
+def create_simulated_ear_stamp() -> bytes:
+    """Realistic looking, EXPLICITLY INVALID laboratory authorization graphic."""
+    img = Image.new("RGB", (1150, 300), "white")
+    draw = ImageDraw.Draw(img)
+    regular = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    large = ImageFont.truetype(regular, 32)
+    small = ImageFont.truetype(regular, 23)
+    badge = ImageFont.truetype(regular, 25)
+    red = (198, 42, 56)
+    draw.ellipse((24, 22, 270, 270), outline=red, width=10)
+    draw.ellipse((49, 47, 245, 245), outline=red, width=4)
+    draw.text((79, 91), "LAB", font=ImageFont.truetype(regular, 44), fill=red)
+    draw.text((72, 159), "SIMULACE", font=badge, fill=red)
+    draw.text((315, 50), "VZOR - NEPLATNE AUTORIZACNI RAZITKO", font=large, fill=(35, 39, 44))
+    draw.text((315, 121), "20-20 LAB  |  Testovaci autorizovana osoba", font=small, fill=(35, 39, 44))
+    draw.text((315, 172), "Podpis: LAB CA 4  /  casove razitko: LAB TSA CA 5", font=small, fill=(35, 39, 44))
+    draw.text((315, 225), "POUZE SIMULACE - NENI URCENO PRO URAD", font=small, fill=red)
+    stream = io.BytesIO()
+    img.save(stream, format="PNG")
+    return stream.getvalue()
 
 
 def create_simulated_drawing_pdfa():
@@ -37,7 +59,44 @@ def create_simulated_drawing_pdfa():
     page.setLineWidth(1)
     page.rect(160, 190, 210, 185)
     page.rect(390, 190, 245, 185)
-    page.drawString(105, 76, "PUDORYS, orientacni geometrie. LAB CA 4 + LAB CA 5 + RFC3161 TEST.")
+    # Architectural content intentionally resembles a real technical drawing:
+    # double walls, doors, furniture, room dimensions and a title block.
+    page.setLineWidth(1.8)
+    page.line(120, 265, 680, 265)
+    page.line(120, 268, 680, 268)
+    page.line(370, 150, 370, 420)
+    page.line(373, 150, 373, 420)
+    page.setLineWidth(0.9)
+    for x, y, w, h in [(200,310,68,50),(437,311,85,55),(530,198,95,36),
+                       (180,180,120,35),(412,193,60,50)]:
+        page.rect(x,y,w,h)
+    for x, y, r in [(220,320,12),(455,330,16),(545,216,11),(601,216,11)]:
+        page.circle(x,y,r)
+    page.setDash(3,4)
+    page.line(105, 282, 699, 282)
+    page.line(380, 139, 380, 438)
+    page.setDash()
+    page.setFont("SimEmbedded", 11)
+    for label,x,y in [("01  VSTUP",140,395),("02  OBYVACI POKOJ",420,395),
+                       ("03  KUCHYNE",420,277),("04  POKOJ",150,250),
+                       ("05  CHODBA",316,287)]:
+        page.drawString(x,y,label)
+    # Dimension chains.
+    page.setLineWidth(0.5)
+    page.line(120,450,680,450)
+    for x in (120,370,680):
+        page.line(x,441,x,459)
+    page.drawCentredString(244,454,"4200")
+    page.drawCentredString(529,454,"5200")
+    # Technical title block intentionally leaves room for real signature widget.
+    page.setLineWidth(1.0)
+    page.rect(52,30,770,82)
+    page.line(536,30,536,112)
+    page.line(52,69,536,69)
+    page.setFont("SimEmbedded", 10)
+    page.drawString(65,87,"20-20 LAB  |  ARCHITEKTONICKO STAVEBNI RESENI")
+    page.drawString(65,49,"SO01 - PUDORYS 1.NP  |  MERITKO 1:100  |  FORMAT A3")
+    page.drawString(547,113,"ELEKTRONICKE AUTORIZACNI RAZITKO (LAB)")
     page.save()
     data.seek(0)
     source = PdfReader(data)
