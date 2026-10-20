@@ -59,6 +59,7 @@ jobs:
           XML
           (cd "$installer_dir" && bash ./verapdf-install /tmp/vera-auto.xml)
           /tmp/vera-installed/verapdf -f 3b --format xml simulation_output/SIMULACE_TEST_VYKRES_EAR.pdf > simulation_output/verapdf-pdfa3b.xml
+          /tmp/vera-installed/verapdf -f 3b --format xml simulation_output/SIMULACE_PADES_B_LT_VYKRES_EAR.pdf > simulation_output/verapdf-pades-b-lt.xml
           python - << 'PY'
           import json
           from pathlib import Path
@@ -76,15 +77,31 @@ jobs:
           data['pdfa_validator']='veraPDF Greenfield 1.28.2'
           data['pdfa_standard']='PDF/A-3b'
           Path('simulation_output/simulace_vysledky.json').write_text(json.dumps(data,ensure_ascii=False,indent=2))
-          print('veraPDF PDF/A-3b', 'PASS' if valid else 'FAIL')
+          print('veraPDF Adobe CMS PDF/A-3b', 'PASS' if valid else 'FAIL')
+          lt_xml=Path('simulation_output/verapdf-pades-b-lt.xml').read_text(encoding='utf-8')
+          lt_root=ET.fromstring(lt_xml)
+          lt_reports=[el for el in lt_root.iter() if el.tag.rsplit('}',1)[-1]=='validationReport']
+          if len(lt_reports)!=1:
+              print(lt_xml[:4000])
+              raise RuntimeError('Expected exactly one LT veraPDF report')
+          lt_valid=lt_reports[0].attrib.get('isCompliant','false').lower()=='true'
+          lt_path=Path('simulation_output/SIMULACE_PADES_B_LT_PROTOKOL.json')
+          lt_data=json.loads(lt_path.read_text())
+          lt_data['pdf_a3b']={'compliant':lt_valid,'validator':'veraPDF Greenfield 1.28.2'}
+          lt_path.write_text(json.dumps(lt_data,ensure_ascii=False,indent=2))
+          print('veraPDF PAdES B-LT PDF/A-3b', 'PASS' if lt_valid else 'FAIL')
+          if not lt_valid:
+              print(lt_xml[:12000])
+              raise RuntimeError('LT simulation PDF/A-3b is noncompliant')
           if not valid:
               print(content[:9000])
-              raise RuntimeError('Signed simulation PDF/A-3b failed independent veraPDF')
+              raise RuntimeError('Adobe signed simulation PDF/A-3b is noncompliant')
           PY
-      - name: Upload complete offline CMS simulation as review-only artifact
+      - name: Upload complete offline CMS + PAdES B-LT simulation as review-only artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: simulace-adobe-cms-offline-pouze-test
+          name: simulace-pades-b-lt-plus-adobe-offline-test
           path: simulation_output/
           if-no-files-found: error
           retention-days: 14
