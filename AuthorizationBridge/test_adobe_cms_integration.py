@@ -167,6 +167,26 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
         self.assertTrue(status.intact, status.pretty_print_details())
         self.assertTrue(status.valid, status.pretty_print_details())
 
+        # No revocation evidence: fail closed BEFORE issuing any TSA token.
+        # This is especially important with paid PostSignum timestamps.
+        no_revocation_context = ValidationContext(
+            trust_roots=[root_asn],
+            other_certs=[ax509.Certificate.load(public_der(intermediate))],
+            allow_fetching=False,
+            revocation_mode="hard-fail",
+        )
+        issued_before_failure = bridge._TEST_TSA_ISSUED
+        with patch.object(bridge, "ValidationContext", return_value=no_revocation_context):
+            with self.assertRaises(Exception):
+                bridge._sign_one(
+                    document.getvalue(), signer, {}, {"profile": "adobe"},
+                    timestamp, None,
+                )
+        self.assertEqual(
+            issued_before_failure, bridge._TEST_TSA_ISSUED,
+            "Chybějící OCSP nesmí spotřebovat žádné časové razítko.",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
