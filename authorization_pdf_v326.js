@@ -1272,7 +1272,7 @@
     const user = document.getElementById('auth-tsa-user');
     const pass = document.getElementById('auth-tsa-pass');
 
-    if (on && ['lt','adobe'].includes(profile?.value)) {
+    if (on && profile?.value === 'lt') {
       // Never silently turn a requested B-LT signature into B-T.
       if (localInput) localInput.checked = false;
       toast('PAdES B-LT vyžaduje ostré kvalifikované časové razítko. Pro TEST TSA nejprve výslovně zvol PAdES B-T.', true);
@@ -1288,7 +1288,8 @@
           pass: pass?.value || ''
         };
       }
-      if (profile) profile.value = 'bt';
+      // Preserve Adobe when selecting free test TSA.
+      if (profile && profile.value !== 'adobe') profile.value = 'bt';
       if (tsa) tsa.value = 'http://127.0.0.1:8094/test-tsa';
       if (user) user.value = 'TEST';
       if (pass) pass.value = 'TEST-ONLY';
@@ -1536,8 +1537,11 @@
     const tsaUser = testMode ? '' : document.getElementById('auth-tsa-user')?.value.trim() || '';
     const tsaPass = testMode ? '' : document.getElementById('auth-tsa-pass')?.value || '';
     const localTestTsa = !testMode && !!document.getElementById('auth-local-test-tsa')?.checked;
-    if (['lt','adobe'].includes(profile) && (testMode || localTestTsa || /^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(tsa))) {
-      toast('B-LT / CMS Adobe vyžaduje skutečný certifikát a ostré TSA; vypni lokální testovací režimy.', true); return;
+    if (profile === 'lt' && (testMode || localTestTsa || /^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(tsa))) {
+      toast('PAdES B-LT vyžaduje skutečný certifikát a ostré TSA; vypni lokální testovací režimy.', true); return;
+    }
+    if (profile === 'adobe' && (testMode || (!localTestTsa && /^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(tsa)))) {
+      toast('CMS Adobe potřebuje skutečný Windows certifikát s ověřitelným CA řetězcem. Pro bezplatný test zapni lokální TEST TSA, nikoli plně lokální TEST certifikát.', true); return;
     }
     if (!testMode && ['bt','lt','adobe'].includes(profile) && !tsa) { toast('Pro PAdES B-T / B-LT zadej RFC 3161 TSA server.', true); return; }
     if (!testMode && ['bt','lt','adobe'].includes(profile) && (!!tsaUser !== !!tsaPass)) {
@@ -1572,7 +1576,9 @@
     if (profile === 'adobe' && (!authVersionAtLeast(bridge.version, '2.5.0') || !bridge.features?.adobe_cms_revinfo)) {
       toast('CMS Adobe s OCSP v podpisu vyžaduje Bridge 2.5.0+; profil se automaticky nemění na B-T.', true); return;
     }
-    if (profile === 'adobe' && !window.confirm('EXPERIMENT CMS Adobe: jeden výkres s ostrým PostSignum razítkem. Profil není PAdES B-LT. Po podpisu je nutné nezávisle ověřit QES, QTSA a OCSP. Pokračovat?')) return;
+    if (profile === 'adobe' && !window.confirm(localTestTsa
+      ? 'TEST CMS Adobe: jeden výkres se skutečným podpisovým certifikátem a bezplatným lokálním časovým razítkem. Výstup NENÍ kvalifikovaně orazítkovaný ani vhodný pro úřad. Ověříme CMS a OCSP. Pokračovat?'
+      : 'EXPERIMENT CMS Adobe: jeden výkres s ostrým PostSignum razítkem. Profil není PAdES B-LT. Nezávisle ověř QES, QTSA a OCSP. Pokračovat?')) return;
     if (localTestTsa && !bridge.features?.local_test_tsa) {
       toast('Pro lokální TEST časové razítko aktualizuj AuthorizationBridge na 1.9.0+.', true);
       return;
@@ -1821,7 +1827,9 @@
           : profile === 'lt'
           ? 'PAdES B-LT s /DSS je vytvořeno. Před úředním odevzdáním nezávisle ověř QES, QTSA a PAdES-LT.'
           : profile === 'adobe'
-          ? 'CMS Adobe je vytvořen. Před úředním odevzdáním nezávisle ověř QES, QTSA a přítomné OCSP.'
+          ? (localTestTsa
+            ? 'TEST CMS Adobe: přibalené OCSP ověř v PDF Validatoru. TEST TSA není kvalifikované; dokument neposílej úřadu.'
+            : 'CMS Adobe je vytvořen. Před úředním odevzdáním nezávisle ověř QES, QTSA a přítomné OCSP.')
           : testMode
           ? 'Hotovo — PDF/A-3b jsou podepsaná plně lokálním TEST certifikátem.'
           : (localTestTsa
