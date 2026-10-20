@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509 import ocsp
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID, AuthorityInformationAccessOID
 from pypdf import PdfWriter
-from simulation_pdfa_fixture import create_simulated_drawing_pdfa
+from simulation_pdfa_fixture import create_simulated_drawing_pdfa, create_simulated_ear_stamp
 from pyhanko.sign import signers
 from pyhanko.sign.validation import validate_pdf_signature
 from pyhanko.pdf_utils.reader import PdfFileReader
@@ -219,6 +219,7 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
         signer.ca_certificate_count = 2
         signer.signature_size = 256
         input_pdf = document.getvalue()
+        simulated_stamp = create_simulated_ear_stamp()
         filename = "SIMULACE_TEST_VYKRES.pdf"
         metadata = {
             "profile": "adobe",
@@ -234,6 +235,7 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
             "documents": [{
                 "name": filename,
                 "output_name": filename,
+                "placement": {"page": 0, "box": [545, 30, 816, 107]},
             }],
         }
         preflight = dict(metadata)
@@ -278,7 +280,7 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
                 json={
                     "preflight_token": token,
                     "documents": [file_info],
-                    "signing_intent": bridge._canonical_signing_intent(metadata, b""),
+                    "signing_intent": bridge._canonical_signing_intent(metadata, simulated_stamp),
                 },
                 headers=browser_headers,
             )
@@ -292,6 +294,7 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
                         "output_standard": "SIMULACE PDF (neni PDF/A)",
                     }),
                     "pdfs": (io.BytesIO(input_pdf), filename),
+                    "stamp": (io.BytesIO(simulated_stamp), "LAB_SIMULACE_RAZITKO.png"),
                 },
                 content_type="multipart/form-data",
                 headers=browser_headers,
@@ -342,6 +345,10 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
             "test_tsa_tokens_issued": bridge._TEST_TSA_ISSUED - issued_before_api,
             "signature_cryptographically_valid": bool(verification.valid),
             "signature_integrity_intact": bool(verification.intact),
+            "visible_ear_stamp": True,
+            "visible_ear_stamp_marked_invalid": True,
+            "input_architectural_drawing": "synthetic A3 floorplan with walls, rooms, furniture and title block",
+            "stamp_placement_pdf_points": [545, 30, 816, 107],
             "manifest": manifest,
         }
         (artifact_directory / "simulace_vysledky.json").write_text(
