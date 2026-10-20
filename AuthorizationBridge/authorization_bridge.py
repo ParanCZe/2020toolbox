@@ -1666,7 +1666,7 @@ def preflight_sign():
         if profile not in {"bb", "bt", "lt", "adobe"}:
             return jsonify(ok=False, error="Podporované profily jsou B-B, B-T, B-LT a CMS Adobe."), 400
 
-        if profile in {"lt", "adobe"} and (
+        if profile == "lt" and (
             bool(meta.get("tsa_test_mode"))
             or str(meta.get("tsa_url") or "").strip().lower().startswith(
                 ("http://127.0.0.1", "http://localhost")
@@ -1676,7 +1676,13 @@ def preflight_sign():
 
         signer = WindowsStoreSigner(cert_thumbprint)
         if profile in {"lt", "adobe"} and signer.ca_certificate_count < 2:
-            return jsonify(ok=False, error="PAdES B-LT vyžaduje úplný řetězec CA ještě před žádostí o TSA."), 400
+            return jsonify(ok=False, error=(
+                "CMS Adobe potřebuje skutečný certifikát s řetězcem CA a dostupným OCSP; "
+                "certifikát TEST TEST bez ověřitelné CA nestačí. "
+                "Pro bezplatný test vyber skutečný PostSignum certifikát a zapni lokální TEST TSA."
+                if profile == "adobe" else
+                "PAdES B-LT vyžaduje úplný řetězec CA ještě před žádostí o TSA."
+            )), 400
         cert_info = _cert_payload(signer)
         cert_info["ca_certificate_count"] = signer.ca_certificate_count
         crypto_cert = x509.load_der_x509_certificate(signer.signing_cert.dump())
@@ -1823,13 +1829,18 @@ def sign_batch():
         profile = str(meta.get("profile") or "bt").lower()
         if profile not in {"bb", "bt", "lt", "adobe"}:
             return jsonify(ok=False, error="Podporované profily jsou B-B, B-T, B-LT a CMS Adobe."), 400
-        if profile in {"lt", "adobe"} and (
+        if profile == "lt" and (
             test_mode or bool(meta.get("tsa_test_mode"))
             or str(meta.get("tsa_url") or "").strip().lower().startswith(
                 ("http://127.0.0.1", "http://localhost")
             )
         ):
             return jsonify(ok=False, error="PAdES B-LT vyžaduje skutečný certifikát a ostré kvalifikované TSA."), 400
+        if profile == "adobe" and test_mode:
+            return jsonify(ok=False, error=(
+                "CMS Adobe s OCSP zatím nelze podepsat plně lokálním TEST certifikátem. "
+                "Zvol skutečný certifikát PostSignum a volitelně lokální TEST TSA."
+            )), 400
 
         approval = None
         if not test_mode:
@@ -1857,7 +1868,12 @@ def sign_batch():
 
         signer = _make_test_signer() if test_mode else WindowsStoreSigner(cert_thumbprint)
         if profile in {"lt", "adobe"} and (test_mode or getattr(signer, "ca_certificate_count", 0) < 2):
-            return jsonify(ok=False, error="PAdES B-LT vyžaduje skutečný Windows certifikát a celý řetězec CA."), 400
+            return jsonify(ok=False, error=(
+                "CMS Adobe: skutečný Windows certifikát s kompletním řetězcem CA je vyžadován "
+                "i při použití bezplatného lokálního TEST TSA."
+                if profile == "adobe" else
+                "PAdES B-LT vyžaduje skutečný Windows certifikát a celý řetězec CA."
+            )), 400
         cert_info = _cert_payload(signer)
         if not test_mode:
             cert_info["ca_certificate_count"] = signer.ca_certificate_count
