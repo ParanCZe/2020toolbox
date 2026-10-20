@@ -5,7 +5,7 @@ title 20-20 TOOLBOX - AuthorizationBridge
 
 set "DIR=%LOCALAPPDATA%\20-20-TOOLBOX\AuthorizationBridge"
 set "VENV=%DIR%\venv"
-set "PAYLOAD_REF=30029dd08046f798c4f6a548ea1c5bbabd788fdc"
+set "PAYLOAD_REF=dff44e88ffcd0af250c5d8124bbfecbf2d3c5c37"
 set "RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/%PAYLOAD_REF%/AuthorizationBridge"
 set "STAGE=%TEMP%\20-20-auth-stage-%RANDOM%-%RANDOM%"
 set "PYFINDER=%DIR%\find_python.ps1"
@@ -49,7 +49,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -U
 if errorlevel 1 goto :download_error
 
 echo Overuji SHA-256 vsech souboru...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\pdf_ltv.py').Hash.ToLowerInvariant(); if($h -ne '60d42469a34492570b39b9a3b38590f0747bb5e546f84b1b38999e2d7aa919d5'){Write-Error ('SHA-256 nesouhlasi: pdf_ltv.py = '+$h); exit 1}"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\pdf_ltv.py').Hash.ToLowerInvariant(); if($h -ne '075ea6bc01cf3f165758efebded0db4882d8a17134a2dcda2b444635d89bbd88'){Write-Error ('SHA-256 nesouhlasi: pdf_ltv.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\authorization_bridge.py').Hash.ToLowerInvariant(); if($h -ne '6442db8d18bbd686f7e1f176b30c73f28704d3a580fe2c4cb3a79789295df6a8'){Write-Error ('SHA-256 nesouhlasi: authorization_bridge.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
