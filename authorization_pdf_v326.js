@@ -463,7 +463,7 @@
           <span id="auth-test-state" class="auth-test-state">OFF</span>
         </div>
       </div>
-      <div id="auth-test-banner" class="auth-test-banner"><b>TEST ON:</b> testovací nástroje jsou aktivní. Všechny testovací volby jsou označené červeně. Doporučený test používá pravý Windows/QSCD certifikát, ale lokální TEST TSA — nespotřebuje žádné PostSignum časové razítko.</div>
+      <div id="auth-test-banner" class="auth-test-banner"><b>TEST ON:</b> automaticky se použije anonymní jednorázový TEST certifikát. Všechny testovací volby jsou označené červeně. Doporučený test používá pravý Windows/QSCD certifikát, ale lokální TEST TSA — nespotřebuje žádné PostSignum časové razítko.</div>
       <div id="auth-test-panel" class="auth-test-panel">
         <b>TESTOVACÍ NÁSTROJE</b>
         <label class="auth-check"><input id="auth-local-test-tsa" type="checkbox" onchange="authLocalTestTsaChanged()"> použít <b>lokální TEST TSA</b> · žádná placená PostSignum razítka</label>
@@ -1211,7 +1211,9 @@
     if (control) control.classList.toggle('active', on);
 
     if (on) {
-      // Showing test tools must never enable a local TSA automatically.
+      // Automatically select an ephemeral, nameless TEST-only signing certificate.
+      // No real Windows/QSCD key, PIN or paid TSA is used in this mode.
+      if (fullTest) fullTest.checked = true;
       authRefreshTestTsaCounter(true);
     } else {
       if (fullTest) fullTest.checked = false;
@@ -1258,7 +1260,7 @@
     if (certInfo) {
       if (fake) {
         certInfo.className = 'auth-cert-card ok';
-        certInfo.innerHTML = '<b>PLNĚ LOKÁLNÍ TEST CERTIFIKÁT</b><br>QSCD ani PIN se nepoužijí. Výstup není určený k ostré autorizaci.';
+        certInfo.innerHTML = '<b>TEST CERTIFIKÁT · BEZ JMÉNA (AUTOMATICKÝ)</b><br>Jednorázový samopodepsaný certifikát se vytvoří až při testovacím podpisu v lokálním Bridge. Bez PIN, QSCD a placené TSA. PDF není určeno pro úřady.';
       } else {
         authRenderWindowsCertificateInfo();
       }
