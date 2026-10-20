@@ -75,7 +75,14 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
                             key_encipherment=False, data_encipherment=False,
                             key_agreement=False, key_cert_sign=True, crl_sign=True,
                             encipher_only=False, decipher_only=False,
-                        ), critical=True).sign(root_key, hashes.SHA256()))
+                        ), critical=True)
+                        .add_extension(x509.AuthorityInformationAccess([
+                            x509.AccessDescription(
+                                AuthorityInformationAccessOID.OCSP,
+                                x509.UniformResourceIdentifier("http://ocsp.example.invalid/ca4"),
+                            )
+                        ]), critical=False)
+                        .sign(root_key, hashes.SHA256()))
         # Distinct LAB CA4 and LAB CA5 like the real PostSignum signer/TSA chains.
         tsa_ca_name = x509.Name([x509.NameAttribute(
             NameOID.COMMON_NAME, "LAB Qualified TSA CA 5 - SIMULATION ONLY"
@@ -91,7 +98,14 @@ class AdobeCmsIntegrationTest(unittest.TestCase):
                 key_encipherment=False, data_encipherment=False, key_agreement=False,
                 key_cert_sign=True, crl_sign=True, encipher_only=False,
                 decipher_only=False,
-            ), critical=True).sign(root_key, hashes.SHA256())
+            ), critical=True)
+            .add_extension(x509.AuthorityInformationAccess([
+                x509.AccessDescription(
+                    AuthorityInformationAccessOID.OCSP,
+                    x509.UniformResourceIdentifier("http://ocsp.example.invalid/ca5"),
+                )
+            ]), critical=False)
+            .sign(root_key, hashes.SHA256())
         )
         def issue(cn, pubkey, tsa=False):
             issuing_name = tsa_ca_name if tsa else intermediate_name
