@@ -1103,7 +1103,6 @@
 
   function authExpectedTestTsaCount() {
     const local = authTestToolsEnabled() &&
-      !authIsTestMode() &&
       !!document.getElementById('auth-local-test-tsa')?.checked &&
       ['bt','lt','adobe'].includes(document.getElementById('auth-profile')?.value);
     return local ? state.files.length : 0;
@@ -1217,18 +1216,10 @@
     const certControls = certBox ? certBox.querySelectorAll('input,button,select') : [];
     certControls.forEach(el => { el.disabled = fake; });
 
-    if (profile) {
-      if (fake) {
-        if (profile.value !== 'bb') state.previousProfile = profile.value || 'bt';
-        profile.value = 'bb';
-        profile.disabled = true;
-      } else {
-        profile.disabled = false;
-        if (profile.value === 'bb' && state.previousProfile) profile.value = state.previousProfile;
-      }
-    }
-
-    if (localTsa) localTsa.disabled = fake;
+    // The local signer and local TSA are compatible in TEST mode.
+    // Keep the explicitly selected profile (B-B, B-T, or B-LT).
+    if (profile) profile.disabled = false;
+    if (localTsa) localTsa.disabled = false;
 
     if (certInfo) {
       if (fake) {
@@ -1244,13 +1235,13 @@
   };
 
   window.authProfileChanged = function() {
-    const bt = !authIsTestMode() && ['bt','lt','adobe'].includes(document.getElementById('auth-profile')?.value);
+    const bt = ['bt','lt','adobe'].includes(document.getElementById('auth-profile')?.value);
     const wrap = document.getElementById('auth-tsa-wrap');
     if (wrap) wrap.style.display = bt ? 'grid' : 'none';
     const signBtn = document.getElementById('auth-sign-btn');
     if (signBtn && !signBtn.disabled) {
       signBtn.textContent = authIsTestMode()
-        ? 'TEST · lokální certifikát + export ZIP'
+        ? (document.getElementById('auth-local-test-tsa')?.checked ? 'TEST · certifikát + TSA + ZIP' : 'TEST · certifikát + ZIP')
         : (authTestToolsEnabled() && document.getElementById('auth-local-test-tsa')?.checked
           ? 'TEST · pravý certifikát + lokální TSA + export ZIP'
           : (document.getElementById('auth-profile')?.value === 'lt'
@@ -1272,13 +1263,6 @@
     const user = document.getElementById('auth-tsa-user');
     const pass = document.getElementById('auth-tsa-pass');
 
-    if (on && profile?.value === 'lt') {
-      // Never silently turn a requested B-LT signature into B-T.
-      if (localInput) localInput.checked = false;
-      toast('PAdES B-LT vyžaduje ostré kvalifikované časové razítko. Pro TEST TSA nejprve výslovně zvol PAdES B-T.', true);
-      authProfileChanged();
-      return;
-    }
     if (on) {
       if (!state.testTsaBackup) {
         state.testTsaBackup = {
@@ -1289,7 +1273,7 @@
         };
       }
       // Preserve Adobe when selecting free test TSA.
-      if (profile && profile.value !== 'adobe') profile.value = 'bt';
+      if (profile && profile.value === 'bb') profile.value = 'bt';
       if (tsa) tsa.value = 'http://127.0.0.1:8094/test-tsa';
       if (user) user.value = 'TEST';
       if (pass) pass.value = 'TEST-ONLY';
@@ -1532,19 +1516,22 @@
       return;
     }
 
-    const profile = testMode ? 'bb' : document.getElementById('auth-profile').value;
-    const tsa = testMode ? '' : document.getElementById('auth-tsa').value.trim();
-    const tsaUser = testMode ? '' : document.getElementById('auth-tsa-user')?.value.trim() || '';
-    const tsaPass = testMode ? '' : document.getElementById('auth-tsa-pass')?.value || '';
-    const localTestTsa = !testMode && !!document.getElementById('auth-local-test-tsa')?.checked;
-    if (profile === 'lt' && (testMode || localTestTsa || /^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(tsa))) {
-      toast('PAdES B-LT vyžaduje skutečný certifikát a ostré TSA; vypni lokální testovací režimy.', true); return;
+    const profile = document.getElementById('auth-profile').value;
+    const tsa = document.getElementById('auth-tsa').value.trim();
+    const tsaUser = document.getElementById('auth-tsa-user')?.value.trim() || '';
+    const tsaPass = document.getElementById('auth-tsa-pass')?.value || '';
+    const localTestTsa = authTestToolsEnabled() && !!document.getElementById('auth-local-test-tsa')?.checked;
+    if (testMode && ['bt','lt'].includes(profile) && !localTestTsa) {
+      toast('Pro B-T/B-LT s TEST certifikátem zapni lokální TEST TSA. Ostrou TSA testovací podpis neosloví.', true); return;
+    }
+    if (profile === 'lt' && !localTestTsa && /^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(tsa)) {
+      toast('Pro lokální TSA zapni TEST a volbu použít lokální TEST TSA.', true); return;
     }
     if (profile === 'adobe' && (testMode || (!localTestTsa && /^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(tsa)))) {
       toast('CMS Adobe potřebuje skutečný Windows certifikát s ověřitelným CA řetězcem. Pro bezplatný test zapni lokální TEST TSA, nikoli plně lokální TEST certifikát.', true); return;
     }
-    if (!testMode && ['bt','lt','adobe'].includes(profile) && !tsa) { toast('Pro PAdES B-T / B-LT zadej RFC 3161 TSA server.', true); return; }
-    if (!testMode && ['bt','lt','adobe'].includes(profile) && (!!tsaUser !== !!tsaPass)) {
+    if (['bt','lt','adobe'].includes(profile) && !tsa) { toast('Pro PAdES B-T / B-LT zadej RFC 3161 TSA server.', true); return; }
+    if (['bt','lt','adobe'].includes(profile) && (!!tsaUser !== !!tsaPass)) {
       toast('Pro přihlášení k TSA vyplň login i heslo, nebo nech obě pole prázdná.', true);
       return;
     }
@@ -1572,7 +1559,9 @@
     if (['lt','adobe'].includes(profile) && state.files.length !== 1) {
       toast('B-LT i experimentální CMS Adobe zatím povolují jen jeden výkres na ověření.', true); return;
     }
-    if (profile === 'lt' && !window.confirm('PAdES B-LT: výkres spotřebuje jedno ostré časové razítko. Pokud získání OCSP/CRL selže, ZIP bude výslovně označen jako nedokončený B-LT (podepsaný B-T). Pokračovat?')) return;
+    if (profile === 'lt' && !window.confirm(localTestTsa
+      ? 'TEST B-LT: lokální nekvalifikované razítko bez poplatku. Pokud certifikáty nemají ověřitelné OCSP/CRL, soubor zůstane označen jako B-T (B-LT nedokončeno). Není určen pro úřad. Pokračovat?'
+      : 'PAdES B-LT: výkres spotřebuje jedno ostré časové razítko. Pokud získání OCSP/CRL selže, ZIP bude výslovně označen jako nedokončený B-LT (podepsaný B-T). Pokračovat?')) return;
     if (profile === 'adobe' && (!authVersionAtLeast(bridge.version, '2.5.0') || !bridge.features?.adobe_cms_revinfo)) {
       toast('CMS Adobe s OCSP v podpisu vyžaduje Bridge 2.5.0+; profil se automaticky nemění na B-T.', true); return;
     }
@@ -1605,7 +1594,7 @@
       let preflightToken = '';
       let approvalToken = '';
 
-      if (authTestToolsEnabled() && localTestTsa && !testMode) {
+      if (authTestToolsEnabled() && localTestTsa) {
         btn.textContent = 'Resetuji TEST TSA počítadlo…';
         testCounterArmed = await authResetTestTsaCounter(false);
         if (!testCounterArmed) throw new Error('TEST TSA počítadlo se před exportem nepodařilo resetovat.');
@@ -1776,7 +1765,7 @@
         tsa_test_mode: localTestTsa,
         certificate_thumbprint: testMode ? '' : state.selectedCertThumbprint,
         approval_token: testMode ? '' : approvalToken,
-        reason: (testMode ? 'TEST – ' : '') + document.getElementById('auth-reason').value.trim(),
+        reason: ((testMode || localTestTsa) ? 'TEST – ' : '') + document.getElementById('auth-reason').value.trim(),
         location: document.getElementById('auth-location').value.trim(),
         contact: document.getElementById('auth-contact').value.trim(),
         output_standard:'PDF/A-3b',
@@ -1825,13 +1814,13 @@
         toast(ltFallback
           ? 'CHYBA: B-LT není dokončené; ZIP obsahuje jen podepsané B-T a varovný protokol.'
           : profile === 'lt'
-          ? 'PAdES B-LT s /DSS je vytvořeno. Před úředním odevzdáním nezávisle ověř QES, QTSA a PAdES-LT.'
+          ? (localTestTsa ? 'TEST B-LT: /DSS vytvořeno. Nekvalifikované TSA; dokument není vhodný pro úřad.' : 'PAdES B-LT s /DSS je vytvořeno. Před úředním odevzdáním nezávisle ověř QES, QTSA a PAdES-LT.')
           : profile === 'adobe'
           ? (localTestTsa
             ? 'TEST CMS Adobe: přibalené OCSP ověř v PDF Validatoru. TEST TSA není kvalifikované; dokument neposílej úřadu.'
             : 'CMS Adobe je vytvořen. Před úředním odevzdáním nezávisle ověř QES, QTSA a přítomné OCSP.')
           : testMode
-          ? 'Hotovo — PDF/A-3b jsou podepsaná plně lokálním TEST certifikátem.'
+          ? (localTestTsa ? 'TEST OK — lokální podpis a RFC 3161 testovací razítko.' : 'Hotovo — PDF/A-3b jsou podepsaná plně lokálním TEST certifikátem.')
           : (localTestTsa
             ? 'Hotovo — PDF/A-3b jsou podepsaná pravým certifikátem a lokální TEST TSA.'
             : (authAppendEarEnabled()
