@@ -35,6 +35,8 @@ jobs:
         run: python -m unittest discover -s AuthorizationBridge -p 'test_*.py' -v
       - name: Verify signing UI syntax
         run: node --check authorization_pdf_v326.js
+      - name: Check approved and submitted TEST TSA signing intent
+        run: node AuthorizationBridge/test_ui_signing_intent.cjs
       - name: Verify installed version
         run: |
           python -c "import sys; sys.path.insert(0, 'AuthorizationBridge'); import authorization_bridge as b; assert b.APP_VERSION == '2.5.0'"

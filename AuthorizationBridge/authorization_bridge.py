@@ -1086,6 +1086,15 @@ def _get_test_tsa() -> DummyTimeStamper:
     return _TEST_TSA
 
 
+def _is_local_test_lt(meta: Dict[str, Any]) -> bool:
+    """Explicit local TSA selection; never bypass production LT checks otherwise."""
+    return (
+        str(meta.get("profile") or "").lower() == "lt"
+        and meta.get("tsa_test_mode") is True
+        and str(meta.get("tsa_url") or "").strip() == "http://127.0.0.1:8094/test-tsa"
+    )
+
+
 def _build_timestamper(meta: Dict[str, Any]):
     profile = str(meta.get("profile") or "bt").lower()
     tsa_url = str(meta.get("tsa_url") or "").strip()
@@ -1725,6 +1734,7 @@ def status():
             "windows_cert_chain_embedding": True,
             "pades_lt_dss": True,
             "adobe_cms_revinfo": True,
+            "test_lt_tsa": True,
             "test_tsa_counter": True,
         },
     )
@@ -1767,16 +1777,16 @@ def preflight_sign():
         if profile not in {"bb", "bt", "lt", "adobe"}:
             return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T, B-LT a CMS Adobe."), 400
 
-        if profile == "lt" and (
+        if profile == "lt" and not _is_local_test_lt(meta) and (
             bool(meta.get("tsa_test_mode"))
             or str(meta.get("tsa_url") or "").strip().lower().startswith(
                 ("http://127.0.0.1", "http://localhost")
             )
         ):
-            return jsonify(ok=False, error="PAdES B-LT vyžaduje ostré kvalifikované TSA, nikoli lokální TEST TSA."), 400
+            return jsonify(ok=False, error="Ostré B-LT vyžaduje produkční TSA; pro laboratorní B-LT zvol lokální TEST TSA."), 400
 
         signer = WindowsStoreSigner(cert_thumbprint)
-        if profile in {"lt", "adobe"} and signer.ca_certificate_count < 2:
+        if (profile == "adobe" or (profile == "lt" and not _is_local_test_lt(meta))) and signer.ca_certificate_count < 2:
             return jsonify(ok=False, error="B-LT / CMS Adobe vyžaduje úplný řetězec CA ještě před žádostí o TSA."), 400
         cert_info = _cert_payload(signer)
         cert_info["ca_certificate_count"] = signer.ca_certificate_count
@@ -1925,13 +1935,13 @@ def sign_batch():
         profile = str(meta.get("profile") or "bt").lower()
         if profile not in {"bb", "bt", "lt", "adobe"}:
             return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T, B-LT a CMS Adobe."), 400
-        if profile == "lt" and (
+        if profile == "lt" and not _is_local_test_lt(meta) and (
             test_mode or bool(meta.get("tsa_test_mode"))
             or str(meta.get("tsa_url") or "").strip().lower().startswith(
                 ("http://127.0.0.1", "http://localhost")
             )
         ):
-            return jsonify(ok=False, error="PAdES B-LT vyžaduje skutečný certifikát a ostré kvalifikované TSA."), 400
+            return jsonify(ok=False, error="Ostré B-LT vyžaduje skutečný certifikát a kvalifikovanou TSA; pro TEST B-LT použij lokální TEST TSA."), 400
 
         if profile == "adobe" and len(pdfs) != 1:
             return jsonify(ok=False, error="CMS Adobe zatím podporuje jeden výkres na export."), 400
@@ -1961,7 +1971,7 @@ def sign_batch():
             return jsonify(ok=False, error=str(exc)), 400
 
         signer = _make_test_signer() if test_mode else WindowsStoreSigner(cert_thumbprint)
-        if profile in {"lt", "adobe"} and (test_mode or getattr(signer, "ca_certificate_count", 0) < 2):
+        if (profile == "adobe" or (profile == "lt" and not _is_local_test_lt(meta))) and (test_mode or getattr(signer, "ca_certificate_count", 0) < 2):
             return jsonify(ok=False, error="B-LT / CMS Adobe vyžaduje skutečný Windows certifikát a celý řetězec CA."), 400
         cert_info = _cert_payload(signer)
         if not test_mode:
@@ -2020,6 +2030,7 @@ def sign_batch():
             approval["used"] = True
 
         out_zip = io.BytesIO()
+        laboratory = bool(test_mode or meta.get("tsa_test_mode"))
         used_names: set[str] = set()
         manifest_files = []
         lt_fallback_warnings = []
@@ -2047,7 +2058,7 @@ def sign_batch():
                         # the user's already-paid timestamp. Never relabel it LT.
                         try:
                             signed = append_validated_dss(
-                                signed, signer.issuer_certificates_der,
+                                signed, getattr(signer, "issuer_certificates_der", []),
                             )
                         except Exception as exc:
                             lt_failure = str(exc)[:450]
@@ -2077,7 +2088,7 @@ def sign_batch():
                     "source": str(doc_meta.get("name") or original_name),
                     "output": out_name,
                     "standard": str(meta.get("output_standard") or "PDF/A-3b"),
-                    "profile": "PAdES B-T (LT fallback)" if lt_failure else ("CMS Adobe + OCSP/CRL" if profile == "adobe" else "PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B")),
+                    "profile": ("PAdES B-T (LT fallback)" if lt_failure else ("CMS Adobe + OCSP/CRL" if profile == "adobe" else "PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B"))) + (" [TEST - not qualified]" if laboratory else ""),
                     "lt_warning": lt_failure,
                     "visible": bool(doc_meta.get("placement")),
                     "docmdp": "FILL_FORMS" if profile == "adobe" else "ANNOTATE",
@@ -2087,8 +2098,10 @@ def sign_batch():
                 "tool": "20-20 TOOLBOX · Autorizace PDF",
                 "bridge_version": APP_VERSION,
                 "created_utc": datetime.now(timezone.utc).isoformat(),
-                "profile": "PAdES B-T (LT fallback)" if lt_fallback_warnings else ("CMS Adobe + OCSP/CRL" if profile == "adobe" else "PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B")),
-                "test_mode": test_mode,
+                "profile": ("PAdES B-T (LT fallback)" if lt_fallback_warnings else ("CMS Adobe + OCSP/CRL" if profile == "adobe" else "PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B"))) + (" [TEST - not qualified]" if laboratory else ""),
+                "test_mode": laboratory,
+                "test_signer": test_mode,
+                "not_qualified_test_output": laboratory,
                 "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
                 "pdfa_validation": _combined_validation(validations, "pdfa"),
                 "qes_validation": _combined_validation(validations, "signature"),
@@ -2112,6 +2125,14 @@ def sign_batch():
                     + "\n".join(lt_fallback_warnings)
                 )
                 zf.writestr("POZOR_PAdES_LT_NEPROVEDENO.txt", warning)
+            if laboratory:
+                zf.writestr(
+                    "TEST_NEPLATNE_PRO_URAD.txt",
+                    "TEST / LABORATORY ONLY. This document is NOT a qualified "
+                    "electronic signature or qualified timestamp. A TEST PAdES B-LT "
+                    "label describes only the laboratory structure; trusted "
+                    "EU DSS validation must be performed separately.\n",
+                )
             manifest["lt_fallback_warnings"] = lt_fallback_warnings
             zf.writestr("20-20_autorizace_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
 
