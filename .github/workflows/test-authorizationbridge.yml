@@ -1,0 +1,38 @@
+name: AuthorizationBridge TEST regression
+
+on:
+  pull_request:
+    paths:
+      - "AuthorizationBridge/**"
+      - "authorization_pdf_v326.js"
+      - ".github/workflows/test-authorizationbridge.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r AuthorizationBridge/requirements.txt pypdf
+      - name: Python syntax
+        run: python -m compileall -q AuthorizationBridge
+      - name: Frontend JavaScript syntax
+        run: node --check authorization_pdf_v326.js
+      - name: RFC3161 and PAdES regression tests
+        working-directory: AuthorizationBridge
+        run: |
+          python -m unittest -v test_signature_roundtrip test_pdf_ltv test_local_test_signing
+      - name: Show SHA-256 for release pin
+        run: sha256sum AuthorizationBridge/authorization_bridge.py
