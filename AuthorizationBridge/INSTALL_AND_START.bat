@@ -5,7 +5,7 @@ title 20-20 TOOLBOX - AuthorizationBridge
 
 set "DIR=%LOCALAPPDATA%\20-20-TOOLBOX\AuthorizationBridge"
 set "VENV=%DIR%\venv"
-set "PAYLOAD_REF=b5760cf973f61bcec4f1ae165226a62ac2403015"
+set "PAYLOAD_REF=a2c78490f9ecd875e269f3bbd18d43786d13a353"
 set "RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/%PAYLOAD_REF%/AuthorizationBridge"
 set "STAGE=%TEMP%\20-20-auth-stage-%RANDOM%-%RANDOM%"
 set "PYFINDER=%DIR%\find_python.ps1"
@@ -16,12 +16,12 @@ set "PY_EXE="
 if not exist "%DIR%" mkdir "%DIR%"
 
 echo.
-echo 20-20 TOOLBOX - AUTORIZACE PDF 2.5.0 s PAdES B-LT a CMS Adobe
+echo 20-20 TOOLBOX - AUTORIZACE PDF 2.5.1 s PAdES B-LT a CMS Adobe
 echo Instalace aktualizuje mistni Bridge. Vsechny podpisy pouzivaji soukromy klic pouze ve Windows.
 echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
-echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.5.0 pro B-LT a CMS Adobe...
+echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.5.1 pro B-LT a CMS Adobe...
 if exist "%STAGE%" rmdir /s /q "%STAGE%" >nul 2>nul
 mkdir "%STAGE%" >nul 2>nul
 if errorlevel 1 goto :download_error
@@ -62,7 +62,7 @@ if errorlevel 1 goto :download_error
 echo Overuji SHA-256 vsech souboru...
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\pdf_ltv.py').Hash.ToLowerInvariant(); if($h -ne '60d42469a34492570b39b9a3b38590f0747bb5e546f84b1b38999e2d7aa919d5'){Write-Error ('SHA-256 nesouhlasi: pdf_ltv.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\authorization_bridge.py').Hash.ToLowerInvariant(); if($h -ne 'a08f70e0817a30e7bc1e492a956adff40010a0c10ccd7325ec8df348baa475ae'){Write-Error ('SHA-256 nesouhlasi: authorization_bridge.py = '+$h); exit 1}"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\authorization_bridge.py').Hash.ToLowerInvariant(); if($h -ne '4347ce454689a37a4bbc892dfd67959e8030e2a37e22eaee8b561f118776f5e3'){Write-Error ('SHA-256 nesouhlasi: authorization_bridge.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\pdf_validator_engine.py').Hash.ToLowerInvariant(); if($h -ne 'bf6cc227db1b9aa03532c1ee181dd5812d24e926a63a1241a38eca93ab4b8b99'){Write-Error ('SHA-256 nesouhlasi: pdf_validator_engine.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
@@ -167,7 +167,7 @@ if errorlevel 1 goto :pip_error
 echo [5/6] Vytvarim spoustec s automatickym restartem...
 (
   echo @echo off
-  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RESTARTER%" -PythonExe "%VENV%\Scripts\python.exe" -BridgeScript "%DIR%\authorization_bridge.py" -LogFile "%DIR%\bridge.log" -ExpectedVersion "2.5.0"
+  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RESTARTER%" -PythonExe "%VENV%\Scripts\python.exe" -BridgeScript "%DIR%\authorization_bridge.py" -LogFile "%DIR%\bridge.log" -ExpectedVersion "2.5.1"
 ) > "%DIR%\start_bridge.cmd"
 
 echo [6/6] Registruji spousteni z Toolboxu...
@@ -183,7 +183,7 @@ if errorlevel 1 goto :bridge_start_error
 echo.
 echo HOTOVO.
 echo AuthorizationBridge byl aktualizovan a restartovan.
-echo V Toolboxu musi byt videt verze 2.5.0.
+echo V Toolboxu musi byt videt verze 2.5.1.
 echo Payload commit: %PAYLOAD_REF%
 echo.
 pause
