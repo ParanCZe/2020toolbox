@@ -2,6 +2,26 @@
 
 Lokální podpisový backend pro **20-20 TOOLBOX → Autorizace PDF**.
 
+## Verze 2.5.1 — opravy bezpečnosti exportu
+
+- TEST podpisový certifikát smí i přes API používat pouze explicitně zvolenou
+  lokální TEST TSA; tato kontrola proběhne před vytvořením externího TSA klienta.
+- Všechny vstupní PDF a stránky podpisů se kontrolují před prvním podpisem
+  a před otevřením Windows podpisové relace.
+- Při pozdějším selhání dávky se vrátí již dokončené PDF v ZIPu spolu s
+  `POZOR_DAVKA_NEDOKONCENA.txt`. Manifest rozlišuje `failed_files` a
+  `unprocessed_files`; web označí nedokončené položky jako chybu. Zpracování
+  se zastaví bez automatického opakování podpisů či dalších TSA požadavků.
+  U selhané položky nelze obecně vyloučit již vydané razítko, proto neopakujte
+  celou dávku bez kontroly výsledku.
+- Adobe CMS přikládá pouze dostatečnou sadu revokační evidence ověřenou
+  v nových offline validačních kontextech se stejnou politikou, časem a důvěrou.
+  Poškozené a nepotřebné kandidátní OCSP/CRL se odstraní. Výsledek musí být
+  znovu ověřitelný pouze s veřejnými certifikáty dostupnými ve výstupu.
+- Oba frontendové regresní testy spustíte příkazy
+  `node AuthorizationBridge/test_ui_signing_intent.cjs` a
+  `node AuthorizationBridge/test_ui_partial_batch.cjs` z kořene repozitáře.
+
 ## Verze 2.5.0 — kompatibilní CMS export
 
 Profil **PDF-XChange kompatibilní · CMS + OCSP/CRL (BETA)** vytváří

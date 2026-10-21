@@ -53,7 +53,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.5.0"
+APP_VERSION = "2.5.1"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -152,7 +152,7 @@ def cors(response):
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-20-20-Session"
         response.headers["Access-Control-Allow-Private-Network"] = "true"
-        response.headers["Access-Control-Expose-Headers"] = "X-20-20-LT-Fallback, X-20-20-Validation"
+        response.headers["Access-Control-Expose-Headers"] = "X-20-20-LT-Fallback, X-20-20-Validation, X-20-20-Batch-Result, X-20-20-Completed-Count"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
@@ -1474,8 +1474,56 @@ def _adobe_revocation_info(signer, validation_context=None):
             validation_context=validation_context,
         )
         await validator.async_validate_usage({"non_repudiation"})
+        # The context caches candidates, including rejected responses. Find a
+        # sufficient offline evidence set using FRESH validation contexts, so
+        # cached path successes cannot conceal missing/invalid evidence.
+        from pyhanko_certvalidator.errors import ValidationError, PathError
+        candidates = []
+        seen = set()
+        for kind, entries in (("ocsp", validation_context.ocsps), ("crl", validation_context.crls)):
+            for entry in entries:
+                identity = (kind, entry.dump())
+                if identity not in seen:
+                    seen.add(identity)
+                    candidates.append((kind, entry))
+        # Preserve responder certificates independently of the response that
+        # delivered them. Otherwise a forged response could survive merely
+        # because it carries a necessary, valid public responder certificate.
+        certificates = tuple(validation_context.certificate_registry)
+
+        async def validate_offline(evidence, available_certificates=certificates):
+            context = ValidationContext(
+                trust_manager=validation_context.path_builder.trust_manager,
+                other_certs=available_certificates, allow_fetching=False,
+                moment=validation_context.moment,
+                best_signature_time=validation_context.best_signature_time,
+                time_tolerance=validation_context.time_tolerance,
+                revinfo_policy=validation_context.revinfo_policy,
+                algorithm_usage_policy=validation_context.algorithm_policy,
+                signature_validator=validation_context.sig_validator,
+                ocsps=[entry for kind, entry in evidence if kind == "ocsp"],
+                crls=[entry for kind, entry in evidence if kind == "crl"],
+            )
+            await CertificateValidator(
+                signer.signing_cert, validation_context=context,
+            ).async_validate_usage({"non_repudiation"})
+
+        # Fail closed if the fetched set cannot independently validate offline.
+        await validate_offline(candidates)
+        for candidate in tuple(candidates):
+            reduced = [entry for entry in candidates if entry is not candidate]
+            try:
+                await validate_offline(reduced)
+            except (ValidationError, PathError):
+                continue
+            candidates = reduced
+        # Ensure the selected set remains verifiable with the public certs
+        # actually available in the output, not ones carried only by a rejected
+        # response. Selected OCSP responses supply their own embedded certs.
+        await validate_offline(candidates, tuple(signer.cert_registry))
         info = signers.Signer.format_revinfo(
-            ocsp_responses=validation_context.ocsps, crls=validation_context.crls,
+            ocsp_responses=[entry for kind, entry in candidates if kind == "ocsp"],
+            crls=[entry for kind, entry in candidates if kind == "crl"],
         )
         if info is None:
             raise ValueError("CMS Adobe: nebyly získány ověřitelné OCSP/CRL podklady.")
@@ -1734,6 +1782,7 @@ def status():
             "windows_cert_chain_embedding": True,
             "pades_lt_dss": True,
             "adobe_cms_revinfo": True,
+            "partial_batch_export": True,
             "test_lt_tsa": True,
             "test_tsa_counter": True,
         },
@@ -1962,6 +2011,11 @@ def sign_batch():
 
         tsa_url = str(meta.get("tsa_url") or "").strip()
         tsa_user = str(meta.get("tsa_user") or "").strip()
+        if test_mode and profile in {"bt", "lt", "adobe"} and not (
+            meta.get("tsa_test_mode") is True
+            and tsa_url == "http://127.0.0.1:8094/test-tsa"
+        ):
+            return jsonify(ok=False, error="TEST certifikát smí použít pouze explicitní lokální TEST TSA."), 400
 
         try:
             timestamper = _build_timestamper(meta)
@@ -1979,13 +2033,6 @@ def sign_batch():
             cert_info["thumbprint"] = re.sub(r"\s+", "", cert_thumbprint).upper()
             cert_info["source"] = "Windows Certificate Store"
 
-            # One provider handle for the whole request. This is the best chance
-            # for QSCD middleware to ask for the PIN only once per batch.
-            rsa_batch_session = WindowsRsaBatchSession(
-                cert_thumbprint,
-                signer.signature_size,
-            ).open()
-            signer.sign_session = rsa_batch_session
 
         stamp_file = request.files.get("stamp")
         stamp_bytes = b""
@@ -2024,10 +2071,30 @@ def sign_batch():
                 ):
                     raise PermissionError(f"{original_name}: obsah PDF se po lokálním potvrzení změnil.")
 
+            from pyhanko.pdf_utils.reader import PdfFileReader
+            parsed = PdfFileReader(io.BytesIO(raw_pdf), strict=True)
+            page_count = int(parsed.root["/Pages"]["/Count"])
+            if page_count < 1:
+                raise ValueError(f"{original_name}: PDF nemá stránky.")
+            doc_meta = docs_meta[idx] if isinstance(docs_meta[idx], dict) else {}
+            placement = doc_meta.get("placement")
+            if placement:
+                page_index = int(placement.get("page", 0))
+                if page_index < 0 or page_index >= page_count:
+                    raise ValueError(f"{original_name}: stránka podpisu neexistuje.")
+                _validate_box(placement.get("box"))
             buffered_pdfs.append((original_name, raw_pdf))
 
         if approval is not None:
             approval["used"] = True
+
+        if not test_mode:
+            # Acquire the provider only after all input and approval checks.
+            # Keep one handle for the whole batch to minimise PIN prompts.
+            rsa_batch_session = WindowsRsaBatchSession(
+                cert_thumbprint, signer.signature_size,
+            ).open()
+            signer.sign_session = rsa_batch_session
 
         out_zip = io.BytesIO()
         laboratory = bool(test_mode or meta.get("tsa_test_mode"))
@@ -2036,6 +2103,8 @@ def sign_batch():
         lt_fallback_warnings = []
         validations = []
         remaining_validation_seconds = 10.0
+        failed_files = []
+        unprocessed_files = []
 
         with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_STORED) as zf:
             for idx, (original_name, raw_pdf) in enumerate(buffered_pdfs):
@@ -2066,7 +2135,16 @@ def sign_batch():
                                 str(original_name) + ": " + lt_failure
                             )
                 except Exception as exc:
-                    raise RuntimeError(f"PAdES SIGN [{original_name}]: {exc}") from exc
+                    if not manifest_files:
+                        raise RuntimeError(f"PAdES SIGN [{original_name}]: {exc}") from exc
+                    failed_files.append({"source": original_name, "index": idx, "error": str(exc)[:800]})
+                    unprocessed_files = [
+                        {"source": name, "index": i}
+                        for i, (name, _) in enumerate(buffered_pdfs) if i > idx
+                    ]
+                    # Stop after a service/key failure. Preserve completed
+                    # signed bytes; do not retry them or spend more TSA tokens.
+                    break
 
                 requested_output = str(doc_meta.get("output_name") or original_name)
                 requested_output = _ear_name(requested_output) if bool(meta.get("append_ear", True)) else _safe_name(requested_output)
@@ -2113,7 +2191,18 @@ def sign_batch():
                 "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile in {"bt", "lt", "adobe"} else False,
                 "certificate": cert_info,
                 "files": manifest_files,
+                "batch_status": "partial" if failed_files else "complete",
+                "failed_files": failed_files,
+                "unprocessed_files": unprocessed_files,
             }
+            if failed_files:
+                zf.writestr(
+                    "POZOR_DAVKA_NEDOKONCENA.txt",
+                    "DÁVKA NENÍ DOKONČENÁ. ZIP obsahuje pouze již dokončené podpisy.\n"
+                    "Podepsané soubory znovu nepodepisuj. Neopakuj celou dávku.\n"
+                    "U selhaného souboru mohla TSA již vydat razítko; neproběhl automatický retry.\n"
+                    + json.dumps({"failed": failed_files, "unprocessed": unprocessed_files}, ensure_ascii=False, indent=2),
+                )
             if lt_fallback_warnings:
                 warning = (
                     "POZOR: PAdES B-LT nebylo dokonceno, proto jsou PDF "
@@ -2144,6 +2233,8 @@ def sign_batch():
             download_name="autorizovane_pdf_" + datetime.now().strftime("%Y-%m-%d_%H%M") + ".zip",
             max_age=0,
         )
+        response.headers["X-20-20-Batch-Result"] = "partial" if failed_files else "complete"
+        response.headers["X-20-20-Completed-Count"] = str(len(manifest_files))
         response.headers["X-20-20-Validation"] = _combined_validation(validations)
         response.headers["X-20-20-LT-Fallback"] = "1" if lt_fallback_warnings else "0"
         return response

@@ -37,6 +37,8 @@ jobs:
         run: node --check authorization_pdf_v326.js
       - name: Check approved and submitted TEST TSA signing intent
         run: node AuthorizationBridge/test_ui_signing_intent.cjs
+      - name: Check partial batch export UI
+        run: node AuthorizationBridge/test_ui_partial_batch.cjs
       - name: Verify installed version
         run: |
-          python -c "import sys; sys.path.insert(0, 'AuthorizationBridge'); import authorization_bridge as b; assert b.APP_VERSION == '2.5.0'"
+          python -c "import sys; sys.path.insert(0, 'AuthorizationBridge'); import authorization_bridge as b; assert b.APP_VERSION == '2.5.1'"

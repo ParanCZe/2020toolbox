@@ -2,7 +2,7 @@
 import io
 from datetime import datetime, timedelta, timezone
 
-from asn1crypto import x509 as ax509, keys as akeys, ocsp as aocsp
+from asn1crypto import x509 as ax509, keys as akeys, ocsp as aocsp, crl as acrl
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -15,7 +15,7 @@ from pyhanko_certvalidator import ValidationContext
 import authorization_bridge as bridge
 
 
-def signing_fixture(revoked_signer=False):
+def signing_fixture(revoked_signer=False, with_crl=False):
     now = datetime.now(timezone.utc)
     root_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     signer_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -49,6 +49,11 @@ def signing_fixture(revoked_signer=False):
                   x509.UniformResourceIdentifier("http://ocsp.example.invalid/"),
               )
           ]), critical=False))
+        if with_crl:
+            cert = cert.add_extension(x509.CRLDistributionPoints([
+                x509.DistributionPoint(full_name=[x509.UniformResourceIdentifier("http://crl.example.invalid/root.crl")],
+                                       relative_name=None, reasons=None, crl_issuer=None)
+            ]), critical=False)
         if tsa:
             cert = cert.add_extension(
                 x509.ExtendedKeyUsage([ExtendedKeyUsageOID.TIME_STAMPING]), critical=True,
@@ -90,8 +95,14 @@ def signing_fixture(revoked_signer=False):
         certs_to_embed=[root_asn],
         include_nonce=True,
     )
+    crls = []
+    if with_crl:
+        public_crl = (x509.CertificateRevocationListBuilder().issuer_name(root_name)
+                      .last_update(now - timedelta(hours=1))
+                      .next_update(now + timedelta(days=7)).sign(root_key, hashes.SHA256()))
+        crls.append(acrl.CertificateList.load(public_crl.public_bytes(serialization.Encoding.DER)))
     context = ValidationContext(
-        trust_roots=[root_asn], other_certs=[root_asn],
+        trust_roots=[root_asn], other_certs=[root_asn], crls=crls,
         ocsps=[aocsp.OCSPResponse.load(ocsp_der(signer_cert)),
                aocsp.OCSPResponse.load(ocsp_der(tsa_cert))],
         allow_fetching=False, revocation_mode="hard-fail",

@@ -1164,7 +1164,7 @@
     if (opt) { opt.disabled=false; opt.hidden=false; }
     const adobe=document.getElementById('auth-adobe-option');
     const enabled=!!(state.bridge?.features?.adobe_cms_revinfo &&
-      authVersionAtLeast(state.bridge?.version,'2.5.0'));
+      authVersionAtLeast(state.bridge?.version,'2.5.1'));
     if (adobe) { adobe.disabled=!enabled; adobe.hidden=!enabled; }
     // Never silently fall back to a different profile if the local Bridge
     // restarts: the sign action validates the advertised feature again.
@@ -1507,6 +1507,13 @@
     }
   }
 
+  function authExportFileStatuses(total, partial, completedCount, invalid) {
+    const completed = Number.isInteger(completedCount) && completedCount >= 0 && completedCount <= total
+      ? completedCount : 0;
+    return Array.from({length: total}, (_, index) =>
+      invalid || (partial && index >= completed) ? 'error' : 'signed');
+  }
+
   window.signAuthorizationBatch = async function() {
     if (!state.files.length) { toast('Nejdřív nahraj PDF.', true); return; }
     const testMode = authIsTestMode();
@@ -1549,6 +1556,9 @@
       toast('Pro export bez _EAR aktualizuj AuthorizationBridge přes Instalátor a potom dej Zkontrolovat.', true);
       return;
     }
+    if (state.files.length > 1 && !bridge.features?.partial_batch_export) {
+      toast('Pro bezpečný dávkový export aktualizuj Bridge na 2.5.1+. Při chybě zachová už podepsané soubory.', true); return;
+    }
     if (!testMode && ['bt','lt','adobe'].includes(profile) && tsaUser && !bridge.features?.tsa_basic_auth) {
       toast('Pro přihlášení k TSA aktualizuj AuthorizationBridge přes Instalátor a potom dej Zkontrolovat.', true);
       return;
@@ -1565,8 +1575,8 @@
     if (profile === 'lt' && !window.confirm(localTestTsa
       ? 'TEST B-LT: lokální nekvalifikované razítko bez poplatku. Pokud certifikáty nemají ověřitelné OCSP/CRL, soubor zůstane označen jako B-T (B-LT nedokončeno). Není určen pro úřad. Pokračovat?'
       : 'PAdES B-LT: výkres spotřebuje jedno ostré časové razítko. Pokud získání OCSP/CRL selže, ZIP bude výslovně označen jako nedokončený B-LT (podepsaný B-T). Pokračovat?')) return;
-    if (profile === 'adobe' && (!authVersionAtLeast(bridge.version, '2.5.0') || !bridge.features?.adobe_cms_revinfo)) {
-      toast('CMS Adobe s OCSP v podpisu vyžaduje Bridge 2.5.0+; profil se automaticky nemění na B-T.', true); return;
+    if (profile === 'adobe' && (!authVersionAtLeast(bridge.version, '2.5.1') || !bridge.features?.adobe_cms_revinfo)) {
+      toast('CMS Adobe s ověřenými OCSP v podpisu vyžaduje Bridge 2.5.1+; profil se automaticky nemění na B-T.', true); return;
     }
     if (profile === 'adobe' && !window.confirm(localTestTsa
       ? 'TEST CMS Adobe: jeden výkres se skutečným podpisovým certifikátem a bezplatným lokálním časovým razítkem. Výstup NENÍ kvalifikovaně orazítkovaný ani vhodný pro úřad. Ověříme CMS a OCSP. Pokračovat?'
@@ -1794,6 +1804,8 @@
 
       const ltFallback=profile==='lt' && resp.headers.get('X-20-20-LT-Fallback')==='1';
       const validationStatus = resp.headers.get('X-20-20-Validation') || 'unverified';
+      const partialBatch = resp.headers.get('X-20-20-Batch-Result') === 'partial';
+      const completedCount = Number(resp.headers.get('X-20-20-Completed-Count'));
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1803,8 +1815,12 @@
       setTimeout(()=>URL.revokeObjectURL(url),4000);
 
       // The requested operation was B-LT; a B-T fallback must not appear green.
-      state.files.forEach(r=>r.status=(ltFallback || validationStatus==='invalid')?'error':'signed');
+      const fileStatuses = authExportFileStatuses(state.files.length, partialBatch, completedCount, ltFallback || validationStatus==='invalid');
+      state.files.forEach((r, index)=>r.status=fileStatuses[index]);
       renderFileList();
+      if (partialBatch) {
+        window.alert('DÁVKA NENÍ DOKONČENÁ. ZIP obsahuje již dokončené podpisy a POZOR_DAVKA_NEDOKONCENA.txt. Podepsané soubory ani celou dávku znovu nespouštěj. U selhaného souboru ověř, zda TSA již nevydala razítko.');
+      }
       if (ltFallback) {
         window.alert('CHYBA: PAdES B-LT NEBYLO DOKONČENO. Výkres v ZIPu je pouze PAdES B-T a NENÍ připraven jako B-LT pro úřední odevzdání. Otevři POZOR_PAdES_LT_NEPROVEDENO.txt. Další razítko se nevyžadovalo.');
       }
@@ -1818,13 +1834,17 @@
         const stats = await authRefreshTestTsaCounter(true);
         const expected = authExpectedTestTsaCount();
         const issued = Number(stats?.issued ?? state.testTsaIssued) || 0;
-        toast(issued === expected
+        toast(partialBatch
+          ? 'DÁVKA NENÍ DOKONČENÁ — zachované podpisy jsou v ZIPu. TEST TSA vydala '+issued+' razítek; podrobnosti jsou v reportu.'
+          : issued === expected
           ? 'TEST OK — '+expected+' PDF = '+issued+' TEST TSA timestampů. Žádný extra request.'
           : 'TEST VAROVÁNÍ — očekáváno '+expected+' timestampů, TEST TSA vydala '+issued+'. Rozdíl '+(issued-expected)+'.',
-          issued !== expected
+          partialBatch || issued !== expected
         );
       } else {
-        toast(validationStatus === 'invalid'
+        toast(partialBatch
+          ? 'DÁVKA NENÍ DOKONČENÁ — dokončené soubory jsou v ZIPu. Neopakuj celou dávku; otevři report.'
+          : validationStatus === 'invalid'
           ? 'CHYBA nezávislé validace — podepsané PDF je zachováno v ZIPu s reportem; před použitím chybu vyřeš.'
           : ltFallback
           ? 'CHYBA: B-LT není dokončené; ZIP obsahuje jen podepsané B-T a varovný protokol.'
@@ -1840,7 +1860,7 @@
             ? 'Export — požadované PDF/A-3b jsou podepsaná pravým certifikátem a lokální TEST TSA.'
             : (authAppendEarEnabled()
             ? 'Export — požadované PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.'
-            : 'Export — požadované PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.')), ltFallback || validationStatus === 'invalid');
+            : 'Export — požadované PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.')), partialBatch || ltFallback || validationStatus === 'invalid');
       }
     } catch (e) {
       state.files.forEach(r=>{ if(r.status!=='signed') r.status='error'; });
