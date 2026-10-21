@@ -1,11 +1,11 @@
-@echo off
+﻿@echo off
 setlocal EnableExtensions
 chcp 65001 >nul
 title 20-20 TOOLBOX - AuthorizationBridge
 
 set "DIR=%LOCALAPPDATA%\20-20-TOOLBOX\AuthorizationBridge"
 set "VENV=%DIR%\venv"
-set "PAYLOAD_REF=a2c78490f9ecd875e269f3bbd18d43786d13a353"
+set "PAYLOAD_REF=656d9dc02a93711a2e7d45e7d4d2481a1b25eaf0"
 set "RAW=https://raw.githubusercontent.com/ParanCZe/2020toolbox/%PAYLOAD_REF%/AuthorizationBridge"
 set "STAGE=%TEMP%\20-20-auth-stage-%RANDOM%-%RANDOM%"
 set "PYFINDER=%DIR%\find_python.ps1"
@@ -16,12 +16,12 @@ set "PY_EXE="
 if not exist "%DIR%" mkdir "%DIR%"
 
 echo.
-echo 20-20 TOOLBOX - AUTORIZACE PDF 2.5.1 s PAdES B-LT a CMS Adobe
+echo 20-20 TOOLBOX - AUTORIZACE PDF 2.6.0 s PAdES B-LT a CMS Adobe
 echo Instalace aktualizuje mistni Bridge. Vsechny podpisy pouzivaji soukromy klic pouze ve Windows.
 echo Data certifikatu zustavaji pouze v tomto pocitaci.
 echo.
 
-echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.5.1 pro B-LT a CMS Adobe...
+echo [1/6] Stahuji pevne pripnuty a SHA-256 overovany AuthorizationBridge 2.6.0 pro B-LT a CMS Adobe...
 if exist "%STAGE%" rmdir /s /q "%STAGE%" >nul 2>nul
 mkdir "%STAGE%" >nul 2>nul
 if errorlevel 1 goto :download_error
@@ -29,13 +29,15 @@ if errorlevel 1 goto :download_error
 rem A complete unpacked release can be installed without fetching payloads.
 rem Both local and downloaded files pass the SAME SHA-256 checks below.
 if not exist "%~dp0authorization_bridge.py" goto :download_payload
-for %%F in (authorization_bridge.py pdf_ltv.py pdf_validator_engine.py pdf_signature_inspector.py eu_dss_validator.py INSTALL_EU_DSS.ps1 qualified_tsa_check.py requirements.txt find_python.ps1 restart_bridge.ps1) do (
+for %%F in (authorization_bridge.py local_test_pki.py pdf_ltv.py pdf_validator_engine.py pdf_signature_inspector.py eu_dss_validator.py INSTALL_EU_DSS.ps1 qualified_tsa_check.py requirements.txt find_python.ps1 restart_bridge.ps1) do (
   copy /b /y "%~dp0%%F" "%STAGE%\%%F" >nul
   if errorlevel 1 goto :download_error
 )
 goto :verify_payload
 
 :download_payload
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/local_test_pki.py' -OutFile '%STAGE%\local_test_pki.py'"
+if errorlevel 1 goto :download_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/authorization_bridge.py' -OutFile '%STAGE%\authorization_bridge.py'"
 if errorlevel 1 goto :download_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing '%RAW%/pdf_ltv.py' -OutFile '%STAGE%\pdf_ltv.py'"
@@ -59,10 +61,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -U
 if errorlevel 1 goto :download_error
 
 :verify_payload
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\local_test_pki.py').Hash.ToLowerInvariant(); if($h -ne '8f9c6e3666638b8c16db8614a1106d6d80678d8e520ab7f5fa3ee22e8128bbc9'){Write-Error ('SHA-256 nesouhlasi: local_test_pki.py = '+$h); exit 1}"
+if errorlevel 1 goto :integrity_error
 echo Overuji SHA-256 vsech souboru...
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\pdf_ltv.py').Hash.ToLowerInvariant(); if($h -ne '60d42469a34492570b39b9a3b38590f0747bb5e546f84b1b38999e2d7aa919d5'){Write-Error ('SHA-256 nesouhlasi: pdf_ltv.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\authorization_bridge.py').Hash.ToLowerInvariant(); if($h -ne '4347ce454689a37a4bbc892dfd67959e8030e2a37e22eaee8b561f118776f5e3'){Write-Error ('SHA-256 nesouhlasi: authorization_bridge.py = '+$h); exit 1}"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\authorization_bridge.py').Hash.ToLowerInvariant(); if($h -ne '0ee4cde67f639216b6fa09ea3eca7e864baae1803e3c819420ba9a6cf1f4d2d2'){Write-Error ('SHA-256 nesouhlasi: authorization_bridge.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\pdf_validator_engine.py').Hash.ToLowerInvariant(); if($h -ne 'bf6cc227db1b9aa03532c1ee181dd5812d24e926a63a1241a38eca93ab4b8b99'){Write-Error ('SHA-256 nesouhlasi: pdf_validator_engine.py = '+$h); exit 1}"
 if errorlevel 1 goto :integrity_error
@@ -80,6 +84,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Al
 if errorlevel 1 goto :integrity_error
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$h=(Get-FileHash -Algorithm SHA256 -LiteralPath '%STAGE%\pdf_signature_inspector.py').Hash.ToLowerInvariant(); if($h -ne '54772513262b1c71bba7a6660e9cc7ebdcf7401d3368442b86e7fa1b7fd26c42'){Write-Error ('SHA-256 nesouhlasi: pdf_signature_inspector.py = '+$h); exit 1}"
+if errorlevel 1 goto :integrity_error
+
+copy /y "%STAGE%\local_test_pki.py" "%DIR%\local_test_pki.py" >nul
 if errorlevel 1 goto :integrity_error
 
 rem Preserve the previous bridge module once for recovery before updating.
@@ -167,7 +174,7 @@ if errorlevel 1 goto :pip_error
 echo [5/6] Vytvarim spoustec s automatickym restartem...
 (
   echo @echo off
-  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RESTARTER%" -PythonExe "%VENV%\Scripts\python.exe" -BridgeScript "%DIR%\authorization_bridge.py" -LogFile "%DIR%\bridge.log" -ExpectedVersion "2.5.1"
+  echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RESTARTER%" -PythonExe "%VENV%\Scripts\python.exe" -BridgeScript "%DIR%\authorization_bridge.py" -LogFile "%DIR%\bridge.log" -ExpectedVersion "2.6.0"
 ) > "%DIR%\start_bridge.cmd"
 
 echo [6/6] Registruji spousteni z Toolboxu...
@@ -183,7 +190,7 @@ if errorlevel 1 goto :bridge_start_error
 echo.
 echo HOTOVO.
 echo AuthorizationBridge byl aktualizovan a restartovan.
-echo V Toolboxu musi byt videt verze 2.5.1.
+echo V Toolboxu musi byt videt verze 2.6.0.
 echo Payload commit: %PAYLOAD_REF%
 echo.
 pause
