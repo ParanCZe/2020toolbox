@@ -75,7 +75,7 @@ class LocalTestModesTests(unittest.TestCase):
     def test_local_test_signer_with_one_tsa_timestamp(self):
         start = bridge._TEST_TSA_ISSUED
         response = self._request("bt")
-        self.assertEqual(200, response.status_code, response.get_data(as_text=True)[:600])
+        self.assertEqual(200, response.status_code, response.get_data(as_text=False)[:600].decode('utf-8', 'replace'))
         self.assertEqual(1, bridge._TEST_TSA_ISSUED - start)
         with zipfile.ZipFile(io.BytesIO(response.data)) as package:
             manifest = json.loads(package.read("20-20_autorizace_manifest.json"))
@@ -88,7 +88,7 @@ class LocalTestModesTests(unittest.TestCase):
     def test_test_lt_never_lies_when_revocation_material_is_missing(self):
         start = bridge._TEST_TSA_ISSUED
         response = self._request("lt")
-        self.assertEqual(200, response.status_code, response.get_data(as_text=True)[:600])
+        self.assertEqual(200, response.status_code, response.get_data(as_text=False)[:600].decode('utf-8', 'replace'))
         self.assertEqual(1, bridge._TEST_TSA_ISSUED - start)
         with zipfile.ZipFile(io.BytesIO(response.data)) as package:
             manifest = json.loads(package.read("20-20_autorizace_manifest.json"))
