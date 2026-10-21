@@ -1554,7 +1554,10 @@
       return;
     }
     if (profile === 'lt' && (!authVersionAtLeast(bridge.version, '2.4.0') || !bridge.features?.pades_lt_dss)) {
-      toast('Výchozí PAdES B-LT vyžaduje AuthorizationBridge 2.4.0+. Nainstaluj aktuální Bridge; profil se automaticky nezmění na B-T.', true); return;
+      toast('PAdES B-LT vyžaduje AuthorizationBridge 2.4.0+; profil se automaticky nezmění na B-T.', true); return;
+    }
+    if (profile === 'lt' && localTestTsa && (!authVersionAtLeast(bridge.version, '2.4.1') || !bridge.features?.test_lt_tsa)) {
+      toast('TEST B-LT s lokální TSA potřebuje AuthorizationBridge 2.4.1+. Aktualizuj lokální Bridge.', true); return;
     }
     if (['lt','adobe'].includes(profile) && state.files.length !== 1) {
       toast('B-LT i experimentální CMS Adobe zatím povolují jen jeden výkres na ověření.', true); return;
