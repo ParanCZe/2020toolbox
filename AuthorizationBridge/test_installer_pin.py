@@ -2,6 +2,7 @@
 import hashlib
 import re
 import unittest
+import subprocess
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
@@ -40,6 +41,19 @@ class InstallerPinTests(unittest.TestCase):
             with self.subTest(file=name):
                 calculated = hashlib.sha256((BASE / name).read_bytes()).hexdigest()
                 self.assertEqual(recorded_hash, calculated)
+
+    def test_pinned_commit_contains_exact_payload(self):
+        script = INSTALLER.read_text(encoding="utf-8-sig")
+        ref = re.search(r'set "PAYLOAD_REF=([0-9a-f]{40})"', script).group(1)
+        for line in script.splitlines():
+            if "Get-FileHash" not in line:
+                continue
+            name = re.search(r"%STAGE%\\([\w.\-]+)", line).group(1)
+            expected = re.search(r"-ne '([0-9a-f]{64})'", line).group(1)
+            with self.subTest(file=name):
+                payload = subprocess.check_output(
+                    ["git", "show", ref + ":AuthorizationBridge/" + name], cwd=BASE)
+                self.assertEqual(expected, hashlib.sha256(payload).hexdigest())
 
     def test_installer_version_and_commit_pin(self):
         script = INSTALLER.read_text(encoding="utf-8-sig")
