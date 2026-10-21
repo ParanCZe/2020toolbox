@@ -52,7 +52,7 @@ class LocalTestProfiles(unittest.TestCase):
             },
             content_type="multipart/form-data",
         )
-        self.assertEqual(200, response.status_code, response.get_data(as_text=True)[:1500])
+        self.assertEqual(200, response.status_code, response.get_data(as_text=False)[:1500].decode('utf-8', 'replace'))
         with zipfile.ZipFile(io.BytesIO(response.data)) as archive:
             names = archive.namelist()
             manifest = json.loads(archive.read("20-20_autorizace_manifest.json"))
