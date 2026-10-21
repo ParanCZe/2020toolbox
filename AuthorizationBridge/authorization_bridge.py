@@ -1588,6 +1588,7 @@ def status():
             "verified_rsa_signatures": True,
             "windows_cert_chain_embedding": True,
             "pades_lt_dss": True,
+            "test_lt_tsa": True,
             "test_tsa_counter": True,
         },
     )
