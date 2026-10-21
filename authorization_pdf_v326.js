@@ -1704,6 +1704,16 @@
       const signTime = new Intl.DateTimeFormat('cs-CZ',{dateStyle:'short',timeStyle:'short'}).format(new Date());
       const appearanceFile = await buildCompositeStamp(signTime);
 
+      // Snapshot once: the locally approved intent MUST match the later
+      // /sign-batch payload byte-for-byte. In TEST TSA mode the explicit
+      // "TEST – " prefix is part of the signed reason, not a late mutation.
+      const signingDetails = Object.freeze({
+        reason: ((testMode || localTestTsa) ? 'TEST – ' : '') + document.getElementById('auth-reason').value.trim(),
+        location: document.getElementById('auth-location').value.trim(),
+        contact: document.getElementById('auth-contact').value.trim(),
+        append_ear: authAppendEarEnabled()
+      });
+
       // Ostrý podpis vyžaduje druhé, lokální Windows potvrzení nad přesnými
       // SHA-256 otisky finálních PDF/A souborů a nad podpisovým záměrem
       // (metadata, pozice, výstupní názvy a grafika razítka).
@@ -1729,10 +1739,7 @@
         }
 
         const signingIntent = {
-          reason: document.getElementById('auth-reason').value.trim(),
-          location: document.getElementById('auth-location').value.trim(),
-          contact: document.getElementById('auth-contact').value.trim(),
-          append_ear: authAppendEarEnabled(),
+          ...signingDetails,
           documents: docs.map(d => ({
             name: String(d.name || ''),
             output_name: String(d.output_name || ''),
@@ -1768,11 +1775,8 @@
         tsa_test_mode: localTestTsa,
         certificate_thumbprint: testMode ? '' : state.selectedCertThumbprint,
         approval_token: testMode ? '' : approvalToken,
-        reason: ((testMode || localTestTsa) ? 'TEST – ' : '') + document.getElementById('auth-reason').value.trim(),
-        location: document.getElementById('auth-location').value.trim(),
-        contact: document.getElementById('auth-contact').value.trim(),
+        ...signingDetails,
         output_standard:'PDF/A-3b',
-        append_ear: authAppendEarEnabled(),
         documents: docs
       };
 
@@ -1793,7 +1797,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href=url;
-      a.download='autorizovane_PDF-A-3b'+(authAppendEarEnabled()?'_EAR':'')+'_'+new Date().toISOString().slice(0,10)+'.zip';
+      a.download='autorizovane_PDF-A-3b'+(signingDetails.append_ear?'_EAR':'')+'_'+new Date().toISOString().slice(0,10)+'.zip';
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),4000);
 
