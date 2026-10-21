@@ -561,7 +561,7 @@
               <div class="auth-field"><label>Profil</label>
                 <select id="auth-profile" onchange="authProfileChanged()">
                   <option id="auth-lt-option" value="lt" selected>PAdES B-LT · podpis + kvalifikované TSA + dlouhodobé podklady</option>
-                  <option id="auth-adobe-option" value="adobe" disabled hidden>CMS Adobe + OCSP/CRL v podpisu · jako PDFkovač (BETA)</option>
+                  <option id="auth-adobe-option" value="adobe" disabled hidden>PDF-XChange kompatibilní · CMS + OCSP/CRL (BETA)</option>
                   <option value="bt">PAdES B-T · podpis + časové razítko (bez DSS)</option>
                   <option value="bb">PAdES B-B · podpis bez TSA</option>
                 </select>
@@ -1639,7 +1639,7 @@
         }
         preflightToken = preflight.preflight_token;
         toast(['bt','lt','adobe'].includes(profile)
-          ? 'Certifikát i TSA jsou ověřené. Spouštím PDF/A konverzi.'
+          ? 'Základní kontrola certifikátu a spojení s TSA prošla. Spouštím PDF/A konverzi.'
           : 'Podpisový certifikát je ověřený. Spouštím PDF/A konverzi.');
       }
       // DŮLEŽITÉ: PDF/A konverze musí proběhnout PŘED kryptografickým podpisem.
@@ -1797,6 +1797,7 @@
       }
 
       const ltFallback=profile==='lt' && resp.headers.get('X-20-20-LT-Fallback')==='1';
+      const validationStatus = resp.headers.get('X-20-20-Validation') || 'unverified';
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1806,12 +1807,17 @@
       setTimeout(()=>URL.revokeObjectURL(url),4000);
 
       // The requested operation was B-LT; a B-T fallback must not appear green.
-      state.files.forEach(r=>r.status=ltFallback?'error':'signed');
+      state.files.forEach(r=>r.status=(ltFallback || validationStatus==='invalid')?'error':'signed');
       renderFileList();
       if (ltFallback) {
         window.alert('CHYBA: PAdES B-LT NEBYLO DOKONČENO. Výkres v ZIPu je pouze PAdES B-T a NENÍ připraven jako B-LT pro úřední odevzdání. Otevři POZOR_PAdES_LT_NEPROVEDENO.txt. Další razítko se nevyžadovalo.');
       }
 
+      if (validationStatus !== 'valid') {
+        window.alert(validationStatus === 'invalid'
+          ? 'Nezávislá validace výsledného PDF zjistila chybu. ZIP byl zachován; před použitím otevři přiložený validation.json. Podpis automaticky neopakuj.'
+          : 'PDF bylo podepsáno. PDF/A-3b, QES a QTSA zatím nejsou všechny nezávisle potvrzené. Podrobnosti jsou v přiloženém validation.json; případně spusť PDF Validator.');
+      }
       if (testCounterArmed) {
         const stats = await authRefreshTestTsaCounter(true);
         const expected = authExpectedTestTsaCount();
@@ -1822,7 +1828,9 @@
           issued !== expected
         );
       } else {
-        toast(ltFallback
+        toast(validationStatus === 'invalid'
+          ? 'CHYBA nezávislé validace — podepsané PDF je zachováno v ZIPu s reportem; před použitím chybu vyřeš.'
+          : ltFallback
           ? 'CHYBA: B-LT není dokončené; ZIP obsahuje jen podepsané B-T a varovný protokol.'
           : profile === 'lt'
           ? 'PAdES B-LT s /DSS je vytvořeno. Před úředním odevzdáním nezávisle ověř QES, QTSA a PAdES-LT.'
@@ -1831,12 +1839,12 @@
             ? 'TEST CMS Adobe: přibalené OCSP ověř v PDF Validatoru. TEST TSA není kvalifikované; dokument neposílej úřadu.'
             : 'CMS Adobe je vytvořen. Před úředním odevzdáním nezávisle ověř QES, QTSA a přítomné OCSP.')
           : testMode
-          ? 'Hotovo — PDF/A-3b jsou podepsaná plně lokálním TEST certifikátem.'
+          ? 'Export — požadované PDF/A-3b jsou podepsaná plně lokálním TEST certifikátem.'
           : (localTestTsa
-            ? 'Hotovo — PDF/A-3b jsou podepsaná pravým certifikátem a lokální TEST TSA.'
+            ? 'Export — požadované PDF/A-3b jsou podepsaná pravým certifikátem a lokální TEST TSA.'
             : (authAppendEarEnabled()
-            ? 'Hotovo — PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.'
-            : 'Hotovo — PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.')), ltFallback);
+            ? 'Export — požadované PDF/A-3b dokumenty s příponou _EAR byly podepsané a stažené v ZIPu.'
+            : 'Export — požadované PDF/A-3b dokumenty byly podepsané a stažené v ZIPu bez přípony _EAR v názvu.')), ltFallback || validationStatus === 'invalid');
       }
     } catch (e) {
       state.files.forEach(r=>{ if(r.status!=='signed') r.status='error'; });

@@ -2,6 +2,48 @@
 
 Lokální podpisový backend pro **20-20 TOOLBOX → Autorizace PDF**.
 
+## Verze 2.5.0 — kompatibilní CMS export
+
+Profil **PDF-XChange kompatibilní · CMS + OCSP/CRL (BETA)** vytváří
+`adbe.pkcs7.detached`, přikládá ověřené revokační údaje podepisujícího
+do podepsaného CMS a používá certifikační oprávnění DocMDP P=2.
+Současný profil **PAdES B-LT** zůstává samostatný a výchozí.
+
+- Vyžaduje Windows podpisový certifikát, sestavitelný CA řetězec a dostupné
+  ověřitelné OCSP/CRL. Při jejich selhání se CMS Adobe nepodepíše.
+- Na jedno PDF se vyžádá jedno podpisové RFC 3161 razítko; automatický
+  odhad velikosti ani pomocný TSA požadavek se nepoužívá.
+- Pro bezplatný test lze použít skutečný Windows certifikát s lokální TEST
+  TSA. Takový výstup nemá kvalifikované razítko. Plně lokální TEST certifikát
+  není v Adobe profilu povolen.
+- Adobe režim přikládá podklady podpisového řetězce jako referenční
+  PDF-XChange, nikoli úplné dlouhodobé podklady TSA. Neoznačuje se B-LT.
+- Textový vzhled vkládá font Arial z Windows; v Linux testech DejaVu nebo
+  Liberation Sans. Vyžaduje `pyHanko[opentype]`. Fontové soubory se
+  nedistribuují. PNG/JPG vzhled zůstává podporován.
+- Převod PDF/A probíhá před podpisem. Po podpisu ani po doplnění DSS se
+  PDF Ghostscriptem nepřevádí. Již existující podpisy nezachovávejte tímto
+  konverzním postupem; pro podepsané vstupy použijte samostatný workflow.
+- Pokud je nainstalované veraPDF, ověří se konečný soubor v profilu 3b.
+  Automatická kontrola má společný časový rozpočet 10 sekund na export
+  (ukončení procesu může přidat několik sekund); její nedostupnost nebo
+  timeout nezničí již podepsaný výstup. ZIP obsahuje `.validation.json`
+  a manifest oddělující požadovaný standard od výsledku validace.
+- QES/QTSA se při exportu automaticky netvrdí. Úplnou nezávislou kontrolu
+  spusťte v **PDF Validatoru**; závisí na skutečném certifikátu, QSCD,
+  poskytovateli a důvěryhodných seznamech.
+
+Kompletní rozbalený instalační balíček lze spustit přes `INSTALL_AND_START.bat`:
+instalátor použije přiložené soubory a ověří stejné SHA-256 jako při stahování.
+Samostatně stažený BAT vyžaduje, aby připnutý payload commit již byl publikován
+na GitHubu. Lokální změna ani lokální commit se samy nepublikují.
+
+Regresní sada: `python -m unittest discover -s AuthorizationBridge -p 'test_*.py' -v`
+z kořene repozitáře po instalaci `requirements.txt` a `pypdf>=5,<7`.
+Testy používají vlastní dočasnou PKI a lokální razítka; není potřeba PIN ani
+placená TSA. Windows QSCD, PDF-XChange/Acrobat a úplná shoda PDF/A se musí
+ověřit také v cílovém Windows prostředí.
+
 ## Co dělá
 
 - načte uživatelem vybraný PKCS#12 certifikát (`.pfx` / `.p12`) s privátním klíčem,

@@ -24,6 +24,8 @@ import threading
 import subprocess
 import base64
 import tempfile
+import time
+import signal
 import traceback
 import zipfile
 import urllib.request
@@ -51,7 +53,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.4.0"
+APP_VERSION = "2.5.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -150,7 +152,7 @@ def cors(response):
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-20-20-Session"
         response.headers["Access-Control-Allow-Private-Network"] = "true"
-        response.headers["Access-Control-Expose-Headers"] = "X-20-20-LT-Fallback"
+        response.headers["Access-Control-Expose-Headers"] = "X-20-20-LT-Fallback, X-20-20-Validation"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
@@ -232,7 +234,7 @@ def _native_sign_confirmation(
     if os.name != "nt":
         return False
     tsa_label = "bez TSA"
-    if profile in {"bt", "lt"}:
+    if profile in {"bt", "lt", "adobe"}:
         parsed = urlparse(tsa_url)
         tsa_label = parsed.netloc or tsa_url
     docs = documents or []
@@ -254,7 +256,7 @@ def _native_sign_confirmation(
         "20-20 TOOLBOX chce použít váš podpisový certifikát.\n\n"
         f"Certifikát: {cert_name}\n"
         f"Počet PDF: {document_count}\n"
-        f"Profil: {'PAdES B-LT' if profile == 'lt' else ('PAdES B-T' if profile == 'bt' else 'PAdES B-B')}\n"
+        f"Profil: {'CMS Adobe + OCSP/CRL' if profile == 'adobe' else 'PAdES B-LT' if profile == 'lt' else ('PAdES B-T' if profile == 'bt' else 'PAdES B-B')}\n"
         f"TSA: {tsa_label}\n"
         f"Důvod: {reason or 'neuveden'}\n"
         f"Místo: {location or 'neuvedeno'}\n"
@@ -1091,7 +1093,7 @@ def _build_timestamper(meta: Dict[str, Any]):
     tsa_password = str(meta.get("tsa_password") or "")
     tsa_test_mode = bool(meta.get("tsa_test_mode", False))
 
-    if profile not in {"bt", "lt"}:
+    if profile not in {"bt", "lt", "adobe"}:
         return None
 
     if not re.match(r"^https?://", tsa_url, re.I):
@@ -1115,7 +1117,7 @@ def _build_timestamper(meta: Dict[str, Any]):
 
 async def _async_verify_tsa_credentials(meta: Dict[str, Any]) -> None:
     profile = str(meta.get("profile") or "bt").lower()
-    if profile not in {"bt", "lt"}:
+    if profile not in {"bt", "lt", "adobe"}:
         return
 
     tsa_url = str(meta.get("tsa_url") or "").strip()
@@ -1340,12 +1342,137 @@ def _stamp_style(stamp_path: Optional[str]):
             background_opacity=1.0,
             border_width=0,
         )
-    # Text fallback uses only ASCII to stay compatible with the default font.
+    # Embed a system font instead of the unembedded Standard 14 Courier.
+    # Do not redistribute proprietary font files with the bridge.
+    from pyhanko.pdf_utils.font.opentype import GlyphAccumulatorFactory
+    from pyhanko.pdf_utils.text import TextBoxStyle
+    candidates = [
+        Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "arial.ttf",
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"),
+    ]
+    font_path = next((p for p in candidates if p.is_file()), None)
+    if font_path is None:
+        raise ValueError("Chybí font pro vložený textový podpis. Použij PNG/JPG vzhled nebo nainstaluj Arial/DejaVu Sans.")
     return stamp.TextStampStyle(
+        text_box_style=TextBoxStyle(font=GlyphAccumulatorFactory(str(font_path))),
         stamp_text="Podepsal: %(signer)s\nCas: %(ts)s",
         border_width=1,
         background_opacity=0.0,
     )
+
+
+def _combined_validation(results, key=None):
+    values = [r.get(k, "unverified") for r in results
+              for k in ((key,) if key else ("pdfa", "signature", "timestamp"))]
+    return ("invalid" if "invalid" in values else
+            "valid" if values and all(v == "valid" for v in values) else "unverified")
+
+
+def _export_validation(pdf_bytes: bytes, timeout: float = 10.0) -> Dict[str, Any]:
+    """Read-only check of final signed bytes; unavailable engines stay unknown."""
+    import pdf_validator_engine as engine
+    unknown = dict(pdfa="unverified", signature="unverified", timestamp="unverified",
+                   messages=["QES/QTSA ověř samostatně v PDF Validatoru; export nečeká na start EU DSS."])
+    command = next((p for p in engine.VERAPDF if p.is_file()), None)
+    if command is None or timeout <= 0:
+        unknown["messages"].append("PDF/A-3b nebylo nezávisle ověřeno: veraPDF není dostupné nebo vypršel časový rozpočet.")
+        return unknown
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(pdf_bytes)
+            path = Path(tmp.name)
+        env = dict(os.environ)
+        if engine.JAVA.is_file():
+            env["JAVA_HOME"] = str(engine.JAVA.parent.parent)
+            env["PATH"] = str(engine.JAVA.parent) + os.pathsep + env.get("PATH", "")
+        # File-backed output avoids communicate() waiting on handles inherited
+        # by Java when Windows launches veraPDF through cmd.exe / a .bat file.
+        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+            options = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+                       if os.name == "nt" else {"start_new_session": True})
+            process = subprocess.Popen(
+                [str(command), "--format", "xml", "--flavour", "3b", str(path)],
+                stdout=stdout, stderr=stderr, stdin=subprocess.DEVNULL, env=env, **options,
+            )
+            try:
+                code = process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                try:
+                    if os.name == "nt":
+                        subprocess.run(
+                            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, timeout=2, check=False,
+                        )
+                    else:
+                        os.killpg(process.pid, signal.SIGKILL)
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait(timeout=1)
+                raise
+            stdout.seek(0)
+            stderr.seek(0)
+            run = subprocess.CompletedProcess(
+                args=process.args, returncode=code,
+                stdout=stdout.read(8 * 1024 * 1024).decode("utf-8", errors="replace"),
+                stderr=stderr.read(2000).decode("utf-8", errors="replace"),
+            )
+        status, messages = engine.parse_verapdf(run.stdout)
+        if run.returncode != 0 and status == "valid":
+            status = "unverified"
+            messages.append("veraPDF skončilo chybou; kladný report nebyl přijat.")
+        unknown["pdfa"] = status
+        unknown["messages"].extend(messages)
+        unknown["report"] = run.stdout[-40000:] + "\n" + run.stderr[-2000:]
+        return unknown
+    except Exception as exc:
+        unknown["messages"] = ["Nezávislá validace nebyla dokončena: " + str(exc)[:400]]
+        return unknown
+    finally:
+        if path is not None:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                unknown["messages"].append("Dočasný validační soubor se nepodařilo odstranit.")
+
+
+def _adobe_revocation_info(signer, validation_context=None):
+    """Validate signer evidence before using the key or requesting a TSA token.
+
+    Windows' issuer root is a path-validation hint, not eIDAS qualification.
+    The independent validator remains responsible for QES and QTSA verdicts.
+    """
+    from pyhanko_certvalidator import CertificateValidator, ValidationContext
+    if validation_context is None:
+        chain = tuple(getattr(signer, "issuer_certificates_der", ()))
+        if not chain:
+            raise ValueError("CMS Adobe: chybí úplný podpisový řetězec CA.")
+        _certificate_registry_for_chain(signer.signing_cert.dump(), list(chain))
+        root = x509.load_der_x509_certificate(chain[-1])
+        root.verify_directly_issued_by(root)
+        validation_context = ValidationContext(
+            trust_roots=[asn1_x509.Certificate.load(chain[-1])],
+            other_certs=[asn1_x509.Certificate.load(c) for c in chain[:-1]],
+            allow_fetching=True, revocation_mode="hard-fail",
+        )
+
+    async def collect():
+        validator = CertificateValidator(
+            signer.signing_cert, intermediate_certs=signer.cert_registry,
+            validation_context=validation_context,
+        )
+        await validator.async_validate_usage({"non_repudiation"})
+        info = signers.Signer.format_revinfo(
+            ocsp_responses=validation_context.ocsps, crls=validation_context.crls,
+        )
+        if info is None:
+            raise ValueError("CMS Adobe: nebyly získány ověřitelné OCSP/CRL podklady.")
+        return info
+
+    return asyncio.run(collect())
 
 
 def _sign_one(
@@ -1355,6 +1482,7 @@ def _sign_one(
     common_meta: dict[str, Any],
     timestamper,
     stamp_path: Optional[str],
+    *, validation_context=None,
 ) -> bytes:
     field_name = "Signature_2020_" + os.urandom(8).hex()
     placement = document_meta.get("placement")
@@ -1376,15 +1504,19 @@ def _sign_one(
         # box=None => invisible signature field.
         new_field = fields.SigFieldSpec(sig_field_name=field_name)
 
+    adobe = str(common_meta.get("profile") or "bt").lower() == "adobe"
+    if adobe and timestamper is None:
+        raise ValueError("CMS Adobe vyžaduje podpisové časové razítko.")
+    revinfo = _adobe_revocation_info(signer, validation_context) if adobe else None
     sig_meta = signers.PdfSignatureMetadata(
         field_name=field_name,
         md_algorithm="sha256",
-        subfilter=fields.SigSeedSubFilter.PADES,
+        subfilter=(fields.SigSeedSubFilter.ADOBE_PKCS7_DETACHED if adobe else fields.SigSeedSubFilter.PADES),
         reason=common_meta.get("reason") or None,
         location=common_meta.get("location") or None,
         contact_info=common_meta.get("contact") or None,
         certify=True,
-        docmdp_permissions=fields.MDPPerm.ANNOTATE,
+        docmdp_permissions=fields.MDPPerm.FILL_FORMS if adobe else fields.MDPPerm.ANNOTATE,
     )
 
     input_stream = io.BytesIO(pdf_bytes)
@@ -1408,6 +1540,17 @@ def _sign_one(
     hex_reservation = 65532
     if hex_reservation // 2 > 32767:
         raise RuntimeError("Podpisová rezervace přesahuje limit PDF/A-3b.")
+    previous_provider = signer.signed_attr_prov_spec
+    if adobe:
+        from pyhanko.sign.signers.pdf_cms import GenericPdfSignedAttributeProviderSpec, PdfCMSSignedAttributes
+        # Supply already-validated signer revocation info directly. Passing a
+        # validation_context to PdfSigner would request a dummy TSA token.
+        signer.signed_attr_prov_spec = GenericPdfSignedAttributeProviderSpec(
+            attr_settings=PdfCMSSignedAttributes(adobe_revinfo_attr=revinfo),
+            signing_cert=signer.signing_cert,
+            signature_mechanism=signer.get_signature_mechanism_for_digest,
+            timestamper=timestamper,
+        )
     try:
         pdf_signer.sign_pdf(
             writer,
@@ -1421,6 +1564,8 @@ def _sign_one(
                 "Podepisování neopakuj automaticky — TSA už mohla vydat razítko."
             ) from exc
         raise
+    finally:
+        signer.signed_attr_prov_spec = previous_provider
     return output_stream.getvalue()
 
 
@@ -1579,6 +1724,7 @@ def status():
             "verified_rsa_signatures": True,
             "windows_cert_chain_embedding": True,
             "pades_lt_dss": True,
+            "adobe_cms_revinfo": True,
             "test_tsa_counter": True,
         },
     )
@@ -1618,8 +1764,8 @@ def preflight_sign():
             return jsonify(ok=False, error="Vyber podpisový certifikát z Windows."), 400
 
         profile = str(meta.get("profile") or "bt").lower()
-        if profile not in {"bb", "bt", "lt"}:
-            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T a B-LT."), 400
+        if profile not in {"bb", "bt", "lt", "adobe"}:
+            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T, B-LT a CMS Adobe."), 400
 
         if profile == "lt" and (
             bool(meta.get("tsa_test_mode"))
@@ -1630,8 +1776,8 @@ def preflight_sign():
             return jsonify(ok=False, error="PAdES B-LT vyžaduje ostré kvalifikované TSA, nikoli lokální TEST TSA."), 400
 
         signer = WindowsStoreSigner(cert_thumbprint)
-        if profile == "lt" and signer.ca_certificate_count < 2:
-            return jsonify(ok=False, error="PAdES B-LT vyžaduje úplný řetězec CA ještě před žádostí o TSA."), 400
+        if profile in {"lt", "adobe"} and signer.ca_certificate_count < 2:
+            return jsonify(ok=False, error="B-LT / CMS Adobe vyžaduje úplný řetězec CA ještě před žádostí o TSA."), 400
         cert_info = _cert_payload(signer)
         cert_info["ca_certificate_count"] = signer.ca_certificate_count
         crypto_cert = x509.load_der_x509_certificate(signer.signing_cert.dump())
@@ -1682,7 +1828,8 @@ def preflight_sign():
             preflight_token=token,
             expires_in=_APPROVAL_TTL_SECONDS,
             certificate=cert_info,
-            tsa_verified=(profile in {"bt", "lt"}),
+            tsa_verified=False,
+            tsa_connection_checked=(profile in {"bt", "lt", "adobe"}),
         )
     except Exception as exc:
         print("[AuthorizationBridge] preflight error:", traceback.format_exc(), flush=True)
@@ -1776,8 +1923,8 @@ def sign_batch():
             return jsonify(ok=False, error="Počet dokumentů neodpovídá metadatům."), 400
 
         profile = str(meta.get("profile") or "bt").lower()
-        if profile not in {"bb", "bt", "lt"}:
-            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T a B-LT."), 400
+        if profile not in {"bb", "bt", "lt", "adobe"}:
+            return jsonify(ok=False, error="Podporované profily jsou PAdES B-B, B-T, B-LT a CMS Adobe."), 400
         if profile == "lt" and (
             test_mode or bool(meta.get("tsa_test_mode"))
             or str(meta.get("tsa_url") or "").strip().lower().startswith(
@@ -1785,6 +1932,9 @@ def sign_batch():
             )
         ):
             return jsonify(ok=False, error="PAdES B-LT vyžaduje skutečný certifikát a ostré kvalifikované TSA."), 400
+
+        if profile == "adobe" and len(pdfs) != 1:
+            return jsonify(ok=False, error="CMS Adobe zatím podporuje jeden výkres na export."), 400
 
         approval = None
         if not test_mode:
@@ -1811,8 +1961,8 @@ def sign_batch():
             return jsonify(ok=False, error=str(exc)), 400
 
         signer = _make_test_signer() if test_mode else WindowsStoreSigner(cert_thumbprint)
-        if profile == "lt" and (test_mode or getattr(signer, "ca_certificate_count", 0) < 2):
-            return jsonify(ok=False, error="PAdES B-LT vyžaduje skutečný Windows certifikát a celý řetězec CA."), 400
+        if profile in {"lt", "adobe"} and (test_mode or getattr(signer, "ca_certificate_count", 0) < 2):
+            return jsonify(ok=False, error="B-LT / CMS Adobe vyžaduje skutečný Windows certifikát a celý řetězec CA."), 400
         cert_info = _cert_payload(signer)
         if not test_mode:
             cert_info["ca_certificate_count"] = signer.ca_certificate_count
@@ -1873,6 +2023,8 @@ def sign_batch():
         used_names: set[str] = set()
         manifest_files = []
         lt_fallback_warnings = []
+        validations = []
+        remaining_validation_seconds = 10.0
 
         with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_STORED) as zf:
             for idx, (original_name, raw_pdf) in enumerate(buffered_pdfs):
@@ -1909,29 +2061,43 @@ def sign_batch():
                 requested_output = _ear_name(requested_output) if bool(meta.get("append_ear", True)) else _safe_name(requested_output)
                 out_name = _unique_name(requested_output, used_names)
 
+                check_started = time.monotonic()
+                validation = _export_validation(signed, timeout=remaining_validation_seconds)
+                remaining_validation_seconds = max(0.0, remaining_validation_seconds - (time.monotonic() - check_started))
+                # TEST signing/TSA can never be promoted to qualified output.
+                if test_mode:
+                    validation["signature"] = "unverified"
+                if test_mode or bool(meta.get("tsa_test_mode")):
+                    validation["timestamp"] = "unverified"
+                validations.append(validation)
                 zf.writestr(out_name, signed)
+                zf.writestr(out_name + ".validation.json", json.dumps(validation, ensure_ascii=False, indent=2))
                 manifest_files.append({
+                    "validation": {k: validation.get(k, "unverified") for k in ("pdfa", "signature", "timestamp")},
                     "source": str(doc_meta.get("name") or original_name),
                     "output": out_name,
                     "standard": str(meta.get("output_standard") or "PDF/A-3b"),
-                    "profile": "PAdES B-T (LT fallback)" if lt_failure else ("PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B")),
+                    "profile": "PAdES B-T (LT fallback)" if lt_failure else ("CMS Adobe + OCSP/CRL" if profile == "adobe" else "PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B")),
                     "lt_warning": lt_failure,
                     "visible": bool(doc_meta.get("placement")),
-                    "docmdp": "ANNOTATE",
+                    "docmdp": "FILL_FORMS" if profile == "adobe" else "ANNOTATE",
                 })
 
             manifest = {
                 "tool": "20-20 TOOLBOX · Autorizace PDF",
                 "bridge_version": APP_VERSION,
                 "created_utc": datetime.now(timezone.utc).isoformat(),
-                "profile": "PAdES B-T (LT fallback)" if lt_fallback_warnings else ("PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B")),
+                "profile": "PAdES B-T (LT fallback)" if lt_fallback_warnings else ("CMS Adobe + OCSP/CRL" if profile == "adobe" else "PAdES B-LT" if profile == "lt" else ("PAdES B-T" if profile == "bt" else "PAdES B-B")),
                 "test_mode": test_mode,
                 "output_standard": str(meta.get("output_standard") or "PDF/A-3b"),
+                "pdfa_validation": _combined_validation(validations, "pdfa"),
+                "qes_validation": _combined_validation(validations, "signature"),
+                "qtsa_validation": _combined_validation(validations, "timestamp"),
                 "append_ear": bool(meta.get("append_ear", True)),
-                "docmdp": "ANNOTATE",
-                "tsa_url": tsa_url if profile in {"bt", "lt"} else None,
-                "tsa_authenticated": bool(tsa_user) if profile in {"bt", "lt"} else False,
-                "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile in {"bt", "lt"} else False,
+                "docmdp": "FILL_FORMS" if profile == "adobe" else "ANNOTATE",
+                "tsa_url": tsa_url if profile in {"bt", "lt", "adobe"} else None,
+                "tsa_authenticated": bool(tsa_user) if profile in {"bt", "lt", "adobe"} else False,
+                "tsa_test_mode": bool(meta.get("tsa_test_mode", False)) if profile in {"bt", "lt", "adobe"} else False,
                 "certificate": cert_info,
                 "files": manifest_files,
             }
@@ -1957,6 +2123,7 @@ def sign_batch():
             download_name="autorizovane_pdf_" + datetime.now().strftime("%Y-%m-%d_%H%M") + ".zip",
             max_age=0,
         )
+        response.headers["X-20-20-Validation"] = _combined_validation(validations)
         response.headers["X-20-20-LT-Fallback"] = "1" if lt_fallback_warnings else "0"
         return response
 
