@@ -2,6 +2,26 @@
 
 Lokální podpisový backend pro **20-20 TOOLBOX → Autorizace PDF**.
 
+## Verze 2.6.0 — kompletní lokální TEST B-LT
+
+Pro bezplatný technický test zapněte **TEST**, **plně lokální TEST certifikát**
+a **lokální TEST TSA**, poté zvolte profil **PAdES B-LT**.
+Není potřeba Windows certifikát, USB token, PIN ani placená TSA.
+
+Bridge vytvoří dočasnou testovací kořenovou a mezilehlou CA, podpisový
+certifikát, TSA certifikát a podepsané OCSP/CRL. Po doplnění DSS znovu
+ověří podpis i razítko offline pouze s testovací důvěrou. Pokud tato kontrola
+selže, vrátí B-T s výslovným upozorněním, nikoli potvrzení B-LT.
+
+ZIP obsahuje veřejný `TEST_ROOT_CA.pem` pro samostatné ověření testu.
+Tento kořen neinstalujte do systémového úložiště důvěry. Soukromé klíče
+zůstávají pouze v paměti; po restartu nebo obnově testovací PKI vzniknou jiné.
+PKI se obnovuje po 12 hodinách. Nejde o kvalifikovaný podpis ani kvalifikované
+časové razítko a veřejné validátory testovací kořen standardně neuznávají.
+Windows certifikát s lokální TEST TSA nadále vyžaduje vlastní ověřitelné
+revokační podklady; kompletní offline test proto používá plně lokální režim.
+Shoda PDF/A se posuzuje samostatně validátorem finálního PDF.
+
 ## Verze 2.5.1 — opravy bezpečnosti exportu
 
 - TEST podpisový certifikát smí i přes API používat pouze explicitně zvolenou

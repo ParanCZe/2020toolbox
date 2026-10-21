@@ -85,7 +85,7 @@ class LocalTestModesTests(unittest.TestCase):
             signature = PdfFileReader(io.BytesIO(package.read("demo_EAR.pdf"))).embedded_signatures[0]
             self.assertEqual("ENTIRE_FILE", signature.evaluate_signature_coverage().name)
 
-    def test_test_lt_never_lies_when_revocation_material_is_missing(self):
+    def test_complete_local_lt_remains_explicitly_unqualified(self):
         start = bridge._TEST_TSA_ISSUED
         response = self._request("lt")
         self.assertEqual(200, response.status_code, response.get_data(as_text=False)[:600].decode('utf-8', 'replace'))
@@ -93,10 +93,10 @@ class LocalTestModesTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(response.data)) as package:
             manifest = json.loads(package.read("20-20_autorizace_manifest.json"))
             self.assertTrue(manifest["not_qualified_test_output"])
-            self.assertTrue(manifest["lt_fallback_warnings"])
-            self.assertIn("LT fallback", manifest["profile"])
-            self.assertIn("POZOR_PAdES_LT_NEPROVEDENO.txt", package.namelist())
-            self.assertEqual("1", response.headers["X-20-20-LT-Fallback"])
+            self.assertFalse(manifest["lt_fallback_warnings"])
+            self.assertIn("PAdES B-LT", manifest["profile"])
+            self.assertNotIn("POZOR_PAdES_LT_NEPROVEDENO.txt", package.namelist())
+            self.assertEqual("0", response.headers["X-20-20-LT-Fallback"])
 
     def test_production_lt_cannot_use_localhost_without_explicit_test(self):
         self.assertFalse(

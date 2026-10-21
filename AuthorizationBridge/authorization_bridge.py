@@ -53,7 +53,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 
-APP_VERSION = "2.5.1"
+APP_VERSION = "2.6.0"
 HOST = "127.0.0.1"
 PORT = 8094
 MAX_BYTES = 600 * 1024 * 1024
@@ -78,7 +78,8 @@ _SESSION_TOKEN = secrets.token_urlsafe(32)
 _ALLOW_LOCALHOST_ORIGINS = os.environ.get("TWENTY20_AUTH_ALLOW_LOCALHOST", "").strip() == "1"
 _TEST_TSA_USER = "TEST"
 _TEST_TSA_PASSWORD = "TEST-ONLY"
-_TEST_TSA = None
+_TEST_PKI = None
+_TEST_PKI_LOCK = threading.Lock()
 _TEST_TSA_ISSUED = 0
 _TEST_TSA_COUNTER_LOCK = threading.Lock()
 _PREFLIGHTS: Dict[str, Dict[str, Any]] = {}
@@ -1026,64 +1027,17 @@ class CountingDummyTimeStamper(DummyTimeStamper):
         return response
 
 
+def _get_test_pki():
+    global _TEST_PKI
+    from local_test_pki import create_test_pki
+    with _TEST_PKI_LOCK:
+        if _TEST_PKI is None or datetime.now(timezone.utc) >= _TEST_PKI.refresh_after:
+            _TEST_PKI = create_test_pki(CountingDummyTimeStamper)
+        return _TEST_PKI
+
+
 def _get_test_tsa() -> DummyTimeStamper:
-    global _TEST_TSA
-    if _TEST_TSA is not None:
-        return _TEST_TSA
-
-    key = rsa.generate_private_key(public_exponent=65537, key_size=3072)
-    subject = issuer = x509.Name(
-        [
-            x509.NameAttribute(NameOID.COUNTRY_NAME, "CZ"),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "20-20 TEST TSA"),
-            x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, "TEST TEST TEST - NOT QUALIFIED"),
-            x509.NameAttribute(NameOID.COMMON_NAME, "TEST TEST TEST - 20-20 LOCAL TSA"),
-        ]
-    )
-    now = datetime.now(timezone.utc)
-    cert = (
-        x509.CertificateBuilder()
-        .subject_name(subject)
-        .issuer_name(issuer)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(now - timedelta(days=1))
-        .not_valid_after(now + timedelta(days=3650))
-        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
-        .add_extension(
-            x509.KeyUsage(
-                digital_signature=True,
-                content_commitment=False,
-                key_encipherment=False,
-                data_encipherment=False,
-                key_agreement=False,
-                key_cert_sign=False,
-                crl_sign=False,
-                encipher_only=False,
-                decipher_only=False,
-            ),
-            critical=True,
-        )
-        .add_extension(
-            x509.ExtendedKeyUsage([ExtendedKeyUsageOID.TIME_STAMPING]),
-            critical=True,
-        )
-        .sign(key, hashes.SHA256())
-    )
-
-    cert_der = cert.public_bytes(serialization.Encoding.DER)
-    key_der = key.private_bytes(
-        serialization.Encoding.DER,
-        serialization.PrivateFormat.PKCS8,
-        serialization.NoEncryption(),
-    )
-    _TEST_TSA = CountingDummyTimeStamper(
-        tsa_cert=asn1_x509.Certificate.load(cert_der),
-        tsa_key=asn1_keys.PrivateKeyInfo.load(key_der),
-        certs_to_embed=None,
-        include_nonce=True,
-    )
-    return _TEST_TSA
+    return _get_test_pki().timestamper
 
 
 def _is_local_test_lt(meta: Dict[str, Any]) -> bool:
@@ -1095,7 +1049,7 @@ def _is_local_test_lt(meta: Dict[str, Any]) -> bool:
     )
 
 
-def _build_timestamper(meta: Dict[str, Any]):
+def _build_timestamper(meta: Dict[str, Any], *, test_pki=None):
     profile = str(meta.get("profile") or "bt").lower()
     tsa_url = str(meta.get("tsa_url") or "").strip()
     tsa_user = str(meta.get("tsa_user") or "").strip()
@@ -1118,7 +1072,7 @@ def _build_timestamper(meta: Dict[str, Any]):
             and secrets.compare_digest(tsa_password, _TEST_TSA_PASSWORD)
         ):
             raise PermissionError("Neplatný TEST TSA login nebo heslo.")
-        return _get_test_tsa()
+        return test_pki.timestamper if test_pki is not None else _get_test_tsa()
 
     auth = BasicAuth(tsa_user, tsa_password) if tsa_user else None
     return timestamps.HTTPTimeStamper(tsa_url, auth=auth, timeout=15)
@@ -1784,6 +1738,7 @@ def status():
             "adobe_cms_revinfo": True,
             "partial_batch_export": True,
             "test_lt_tsa": True,
+            "complete_test_lt": True,
             "test_tsa_counter": True,
         },
     )
@@ -2017,17 +1972,22 @@ def sign_batch():
         ):
             return jsonify(ok=False, error="TEST certifikát smí použít pouze explicitní lokální TEST TSA."), 400
 
+        local_test_pki = _get_test_pki() if test_mode and _is_local_test_lt(meta) else None
         try:
-            timestamper = _build_timestamper(meta)
+            timestamper = (_build_timestamper(meta, test_pki=local_test_pki)
+                           if local_test_pki is not None else _build_timestamper(meta))
         except PermissionError as exc:
             return jsonify(ok=False, error=str(exc)), 401
         except Exception as exc:
             return jsonify(ok=False, error=str(exc)), 400
 
-        signer = _make_test_signer() if test_mode else WindowsStoreSigner(cert_thumbprint)
+        signer = (local_test_pki.signer if local_test_pki is not None else
+                  _make_test_signer() if test_mode else WindowsStoreSigner(cert_thumbprint))
         if (profile == "adobe" or (profile == "lt" and not _is_local_test_lt(meta))) and (test_mode or getattr(signer, "ca_certificate_count", 0) < 2):
             return jsonify(ok=False, error="B-LT / CMS Adobe vyžaduje skutečný Windows certifikát a celý řetězec CA."), 400
         cert_info = _cert_payload(signer)
+        if local_test_pki is not None:
+            cert_info.update(ca_certificate_count=2, source="LOCAL TEST PKI - NOT QUALIFIED")
         if not test_mode:
             cert_info["ca_certificate_count"] = signer.ca_certificate_count
             cert_info["thumbprint"] = re.sub(r"\s+", "", cert_thumbprint).upper()
@@ -2126,9 +2086,17 @@ def sign_batch():
                         # preserve the signed B-T PDF instead of discarding
                         # the user's already-paid timestamp. Never relabel it LT.
                         try:
-                            signed = append_validated_dss(
-                                signed, getattr(signer, "issuer_certificates_der", []),
-                            )
+                            if local_test_pki is not None:
+                                upgraded = append_validated_dss(
+                                    signed, local_test_pki.issuer_der,
+                                    validation_context=local_test_pki.validation_context(),
+                                )
+                                local_test_pki.verify_lt_pdf(upgraded)
+                                signed = upgraded
+                            else:
+                                signed = append_validated_dss(
+                                    signed, getattr(signer, "issuer_certificates_der", []),
+                                )
                         except Exception as exc:
                             lt_failure = str(exc)[:450]
                             lt_fallback_warnings.append(
@@ -2214,6 +2182,11 @@ def sign_batch():
                     + "\n".join(lt_fallback_warnings)
                 )
                 zf.writestr("POZOR_PAdES_LT_NEPROVEDENO.txt", warning)
+            if local_test_pki is not None:
+                zf.writestr("TEST_ROOT_CA.pem", local_test_pki.root_pem)
+                manifest["test_trust_anchor"] = "TEST_ROOT_CA.pem"
+                manifest["test_trust_scope"] = "PRIVATE_TEST_ONLY_NOT_PUBLICLY_TRUSTED"
+                manifest["test_lt_validation"] = "valid" if not lt_fallback_warnings else "unverified"
             if laboratory:
                 zf.writestr(
                     "TEST_NEPLATNE_PRO_URAD.txt",

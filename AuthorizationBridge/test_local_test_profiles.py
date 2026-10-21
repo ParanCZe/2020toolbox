@@ -76,15 +76,15 @@ class LocalTestProfiles(unittest.TestCase):
         attrs = token["content"]["signer_infos"][0]["unsigned_attrs"]
         self.assertIn("signature_time_stamp_token", [attr["type"].native for attr in attrs])
 
-    def test_test_lt_never_mislabels_missing_revocation_evidence(self):
+    def test_complete_local_lt_embeds_evidence_without_qualification(self):
         before = bridge._TEST_TSA_ISSUED
         response, manifest, signed, warning = self.sign("lt")
         self.assertEqual(1, bridge._TEST_TSA_ISSUED - before)
-        self.assertEqual("1", response.headers["X-20-20-LT-Fallback"])
-        self.assertTrue(warning)
-        self.assertIn("LT fallback", manifest["profile"])
+        self.assertEqual("0", response.headers["X-20-20-LT-Fallback"])
+        self.assertFalse(warning)
+        self.assertIn("PAdES B-LT", manifest["profile"])
         self.assertNotEqual("PAdES B-LT", manifest["profile"])
-        self.assertTrue(manifest["lt_fallback_warnings"])
+        self.assertFalse(manifest["lt_fallback_warnings"])
         reader = PdfFileReader(io.BytesIO(signed))
         self.assertEqual(1, len(reader.embedded_signatures))
 

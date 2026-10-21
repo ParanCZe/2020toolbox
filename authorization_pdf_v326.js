@@ -1566,6 +1566,9 @@
     if (profile === 'lt' && (!authVersionAtLeast(bridge.version, '2.4.0') || !bridge.features?.pades_lt_dss)) {
       toast('PAdES B-LT vyžaduje AuthorizationBridge 2.4.0+; profil se automaticky nezmění na B-T.', true); return;
     }
+    if (profile === 'lt' && testMode && (!authVersionAtLeast(bridge.version, '2.6.0') || !bridge.features?.complete_test_lt)) {
+      toast('Kompletní lokální TEST B-LT s CA řetězcem a OCSP/CRL vyžaduje Bridge 2.6.0+. Aktualizuj instalátor.', true); return;
+    }
     if (profile === 'lt' && localTestTsa && (!authVersionAtLeast(bridge.version, '2.4.1') || !bridge.features?.test_lt_tsa)) {
       toast('TEST B-LT s lokální TSA potřebuje AuthorizationBridge 2.4.1+. Aktualizuj lokální Bridge.', true); return;
     }
@@ -1573,7 +1576,9 @@
       toast('B-LT i experimentální CMS Adobe zatím povolují jen jeden výkres na ověření.', true); return;
     }
     if (profile === 'lt' && !window.confirm(localTestTsa
-      ? 'TEST B-LT: lokální nekvalifikované razítko bez poplatku. Pokud certifikáty nemají ověřitelné OCSP/CRL, soubor zůstane označen jako B-T (B-LT nedokončeno). Není určen pro úřad. Pokračovat?'
+      ? (testMode
+        ? 'Kompletní TEST B-LT: lokální certifikát, CA řetězec, TEST TSA a podepsané OCSP/CRL. Bez placené TSA, USB a PINu. Výstup není kvalifikovaný ani určený pro úřad. Pokračovat?'
+        : 'TEST B-LT: skutečný Windows certifikát a lokální TEST TSA. Pokud chybí ověřitelné revokační podklady, zůstane B-T s varováním. Pro plný offline test zapni i plně lokální TEST certifikát. Pokračovat?')
       : 'PAdES B-LT: výkres spotřebuje jedno ostré časové razítko. Pokud získání OCSP/CRL selže, ZIP bude výslovně označen jako nedokončený B-LT (podepsaný B-T). Pokračovat?')) return;
     if (profile === 'adobe' && (!authVersionAtLeast(bridge.version, '2.5.1') || !bridge.features?.adobe_cms_revinfo)) {
       toast('CMS Adobe s ověřenými OCSP v podpisu vyžaduje Bridge 2.5.1+; profil se automaticky nemění na B-T.', true); return;
